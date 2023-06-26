@@ -1,0 +1,483 @@
+--------------------------------------------------------------------------------
+SCCM Client Troubleshooting
+
+
+Update failing at end, error 0x8???????:
+Search "%windir$\Logs\CBS\CBS.log" for "failed" to find missing prereq patches.
+run "sfc /scannow"
+
+WUAHandler.log is showing group policy error 0x80004005:
+Check if "C:\Windows\System32\GroupPolicy\Machine\Registry.pol" is more than a
+few days old. Run "net stop ccmexec", delete registry.pol, "gpupdate /force",
+"net start ccmexec".
+
+Symptoms ???:
+"net stop wuauserv", rename "%windir%\SoftwareDistribution", "net start
+wuauserv" and try installing patches again.
+
+Software stuck installing:
+Get-WMIObject -namespace "ROOT\CCM\SoftmgmtAgent" -Query "SELECT * from
+CCM_TSExecutionRequest" | Remove-WMIObject; restart-service ccmexec
+
+Reinstall client:
+ccmsetup /uninstall
+delete CCM contents
+delete ccmsetup contents
+ccmsetup
+
+If no management points found:
+invoke-webrequest -uri http://SERVERNAME/SMS_MP/.sms_aut?MPLIST
+
+Failed to download?
+Check CAS.log for "The number of discovered DPs (Including Branch DP and
+Multicast is 0."
+
+
+--------------------------------------------------------------------------------
+Remotely Reboot a System
+
+
+Restart-Computer -ComputerName $name -force -EA Stop
+
+If stuck rebooting:
+gwmi Win32_Process -ComputerName $name | %{if ($_.ProcessName -eq "logonui.exe")
+{$_.Terminate()}}
+
+
+--------------------------------------------------------------------------------
+Check Reboot Event Logs
+
+
+Get-EventLog -LogName System | ?{$_.EventID -in @(1074,1076,6005,6006,6008,6009)
+-and $_.TimeGenerated -gt [DateTime]::Now.AddDays(-1)} | ft
+TimeGenerated,EventId,Message -AutoSize -Wrap
+
+
+--------------------------------------------------------------------------------
+Search File Contents
+
+
+gci "*" -Recurse | %{Select-String -path $_.fullname -pattern "^hello"}
+
+gci "*" -Recurse | %{$s=$_.fullname;if ($res=Select-String -path $s -pattern
+"^hello"){write-host "$('*'*80)`n$s`n";for ($i=0;$i -lt $res.count;$i++){
+write-host "$i`: $($res[$i])`n`n"}}}
+
+
+--------------------------------------------------------------------------------
+SCCM Logs
+
+
+C:\Windows\CCM\logs
+
+to view installing apps
+appdiscovery.log
+appenforce.log
+0x800702e4 - Insufficient permissions to install. Deployment is most likely
+install for user instead of install for system.
+
+to view installing updates
+UpdatesDeployment.log
+
+local client advertisement syncing.
+CAS.log
+
+View task sequence and package installs
+execmgr.log
+
+
+--------------------------------------------------------------------------------
+SCCM Reports
+
+
+Compliance 5 - Specific Computer
+Status of a specific task sequence deployment for a specific computer
+
+View computers that have/need a windows update
+Compliance 8 - Computers in a specific compliance state for an update
+
+View time/status of an application deployment.
+Application Compliance
+Hardware 01A - Summary of computers in a specific collection
+Add Remove Programs
+
+
+--------------------------------------------------------------------------------
+SCCM MP List
+
+
+http://<SERVER>/sms_mp/.sms_aut?mplist
+http://<SERVER>/sms_mp/.sms_aut?mpcert
+invoke-webrequest -uri "http://..."
+
+
+--------------------------------------------------------------------------------
+PXE Boot
+
+
+Need ports for
+	DHCP: 67, 68
+	TFTP: 69
+	BINL: 4011
+
+If a DHCP helper pointing to the PXE server is not set on the client's switch,
+or if the server and client are separated by a DMZ, then no traffic will reach
+the PXE server.
+
+1. Msg type 1. The client starts PXE and sends a DHCPDISCOVER UDP broadcast.
+The broadcast includes a list of parameter requests for server and network
+information, and includes the client architecture.
+
+Server checks if device is in database here.
+
+2. Msg type 2. The DHCP and PXE servers both respond to the DHCPDISCOVER
+broadcast with a DHCPOFFER packet containing their information.
+
+3. Msg type 3. The client sends a DHCPREQUEST packet selecting which server it
+wants to use.
+
+Server checks for advertisements available to system.
+
+4. Msg type 5. The client sends a DHCPASK packet requesting an NBP file to boot
+with. Usually wdsmgfw.efi.
+
+TFTP is used to download the NBP file to a ramdisk, and is then booted. If the
+download fails randomly when downloading, it's usually network connectivity
+problems.
+
+5. The client uses the NBP to boot into WinPE. The console can be accessed with
+F8. Client logs are stored in X:\Windows\Temp\SMSTS\SMSTS.log.
+
+
+--------------------------------------------------------------------------------
+Uninstall Registry Path
+
+
+HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall
+HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall
+
+
+--------------------------------------------------------------------------------
+Software versions
+
+
+VC++ Redistributable
+Programs & Features won't show minor version. Check "HKLM\SOFTWARE\WOW6432Node\
+Microsoft\VisualStudio\10.0\VC\VCRedist\x64" value "Version"
+
+
+--------------------------------------------------------------------------------
+IP Address Scripts
+
+
+function IPToInt($ip) {$val=0;$ip.split(".")|%{$val=$val*256+$_};return $val}
+function IntToIP($i) {return (24,16,8,0|%{($i -shr $_) -band 255}) -join "."}
+function NameToIP($name) {
+	$res=Resolve-DNSName $name -EA SilentlyContinue
+	foreach ($ret in $res) {
+		$ip=$ret.IPAddress
+		if ($ip -match "(\d{1,3}\.){3}\d{1,3}") {return $ip}
+	}
+	return "unknown"
+}
+
+
+--------------------------------------------------------------------------------
+If scripts have been disabled.
+
+
+powershell -executionpolicy unrestricted -file script.ps1
+
+
+--------------------------------------------------------------------------------
+Launch Powershell From .bat
+
+
+@echo off
+Powershell.exe -ExecutionPolicy Unrestricted -File "%~dp0script.ps1" %*
+echo /b %ERRORLEVEL%
+
+
+--------------------------------------------------------------------------------
+Find an executable
+
+
+Must have ".exe" or PS will try to run the "where-object" command.
+where.exe SOMEEXE.exe
+
+
+--------------------------------------------------------------------------------
+Search files
+
+get-childitem -path "*.txt" -Recurse | Select-String -Pattern "hello"
+
+
+--------------------------------------------------------------------------------
+McAfee
+
+
+Tray icon missing, run
+& "C:\Program Files\McAfee\Agent\x86\UpdaterUI.exe"
+
+.\McAfeeEndpointProductRemoval.exe --accepteula --VSE --HIPS --DLP
+.\McAfeeEndpointProductRemoval.exe --accepteula --ALL
+
+HIPS log: C:\ProgramData\McAfee\Host Intrusion Prevention\HipShield.log
+
+Running explorer.exe causes a McAfee installer to start.
+1. Right click on McAfee icon -> McAfee Agent Status Monitor.
+2. Run Collect and Send Props, Send Events, Check New Policies, and Enforce
+Policies.
+3. Might need to run "C:\Program Files\McAfee\Endpoint Security\Threat
+Prevention\RepairCache\setupTP.exe /famus"
+
+
+--------------------------------------------------------------------------------
+Delete Profiles
+
+
+Control Panel -> System -> Advanced System Settings -> User Profiles
+
+Manually:
+Delete the folder in C:\Users
+Delete the registry entry in "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\
+ProfileList"
+
+
+--------------------------------------------------------------------------------
+Prevent sleeping with fake key presses.
+
+
+$s=New-Object -Com "WScript.Shell"
+while ($true) {Start-Sleep 60;$s.SendKeys(" ")}
+
+
+--------------------------------------------------------------------------------
+Base 64 Encoding.
+
+
+certutil -encode file.bin file.txt
+certutil -decode file.txt file.bin
+
+
+--------------------------------------------------------------------------------
+CredSSP Encryption Oracle
+
+
+Set the following registry and restart. Change back when done.
+HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Policies\CredSSP\
+Parameters
+AllowEncryptionOracle DWORD 2
+
+
+--------------------------------------------------------------------------------
+Move Mouse with Keyboard.
+
+
+Turn on mouse keys:
+Hit Left-Alt + Left-Shift + NUM-Lock. Otherwise, Win+R -> control panel. Tab to
+Ease of Access -> Mouse Settings -> Use Numeric Keypad -> Hit Spacebar.
+
+If in a VM, disable mouse integration.
+
+  Movement              Clicking
+Up+left   : 7     Select left button : /
+Up        : 8     Select both buttons: *
+Up+Rgith  : 9     Select right button: -
+Left      : 4     Click selected button: 5
+Right     : 6     Drag: 0
+Down+Left : 1     Drop: .
+Down      : 2
+Down+Right: 3
+
+
+--------------------------------------------------------------------------------
+Resultant set of policy. Runs in the current user's context. Drops report in
+current directory.
+
+gpresult /h report.html
+
+
+--------------------------------------------------------------------------------
+Repair Windows Updates
+
+
+Stop windows update service
+Rename C:\Windows\SoftwareDistribution
+Go to HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate
+Check WUServer and WUStatusServer
+DoNotConnectToWindowsUpdateInternetLocations DWORD 1
+In AU:
+UseWUServer DWORD 1
+Start windows update service
+
+
+--------------------------------------------------------------------------------
+Recover Local Admin with Install Disc
+
+
+net user tmpadmin * /add
+net localgroup administrators tmpadmin /add
+
+1. Begin to PXE boot the system, but stop when you see the WinPE screen.
+2. Press F8 to bring up the command prompt.
+3. Enter diskpart to bring up the diskpart prompt, then enter "list vol" to see
+   the drives on the system. Note the letter of the volume labeled "Windows".
+   We'll assume it's letter "C". Enter "exit".
+4. We'll modify the registry to get a local command prompt. Enter:
+	reg load "HKLM\TMPSYS" "C:\Windows\System32\config\SYSTEM"
+	reg add "HKLM\TMPSYS\Setup" /v "cmdline" /d "cmd.exe" /t REG_SZ /f
+	reg add "HKLM\TMPSYS\Setup" /v "SetupType" /d "2" /t REG_DWORD /f
+	reg unload "HKLM\TMPSYS"
+5. Enter "C:\Windows\System32\shutdown.exe /r /f" to reboot.
+6. When the system starts up, you should see a command prompt. Avoid clicking
+   anywhere on the screen as the command prompt will disappear. Enter "net user"
+   to see the list of local users and admins. To reset the local admin account
+   password, enter "net user ADMINISTRATOR *" then enter your desired password.
+7. Undo the registry changes we've made with the following commands:
+	reg add "HKLM\SYSTEM\Setup" /v "cmdline" /d "" /t REG_SZ /f
+	reg add "HKLM\SYSTEM\Setup" /v "SetupType" /d "0" /t REG_DWORD /f
+8. Enter "exit" to reboot.
+9. You should see the login screen and be able to login with ".\ADMINISTRATOR".
+
+
+--------------------------------------------------------------------------------
+.Net Security Settings
+
+
+In HKLM and S-1-5-18 (system account):
+Path: Software\Microsoft\Windows\CurrentVersion\WinTrust\Trust Providers\
+Software Publishing
+Name: State
+Type: DWORD
+Value: 0x23c00
+
+
+--------------------------------------------------------------------------------
+Re-Execute sript as 64-bit process
+
+
+if ($pshome -like "*SysWow64*") {
+     & (join-path ($pshome -replace "SysWow64","sysnative") Powershell.exe)`
+     -File ($script:MyInvocation.MyCommand.Path) @($script:args); exit
+}
+
+
+--------------------------------------------------------------------------------
+netsh
+
+
+???????????????????????????????????????????????
+
+
+--------------------------------------------------------------------------------
+AD Without RSAT
+
+
+Open a basic AD query window
+C:\Windows\System32\rundll32.exe dsquery.dll OpenQueryWindow
+
+list basic AD user properties
+net user USERNAME /domain
+
+list basic AD group properties
+net group GROUPNAME /domain
+
+$sysinfo=New-Object -ComObject "ADSystemInfo"
+$dn=$sysinfo.GetType().InvokeMember("ComputerName","GetProperty",$null,$sysinfo,
+$null)
+$compobj=[ADSI]"LDAP://$dn"
+$compobj.name
+
+#$ou=[ADSI]"LDAP://OU=hello,DC=com"
+#$compobj.psbase.moveTo($ou)
+
+([ADSISEARCHER]"samaccountname=$($env:USERNAME)").FindOne().Properties
+([ADSISEARCHER]"objectClass=computer").FindOne().Properties
+
+$search=[ADSISEARCHER]""
+$search.SearchRoot="LDAP://DC=site,DC=com"
+$search.filter="(&(objectClass=computer)(Name=SERVER*))"
+$search.PageSize=1000
+$comps=$search.FindAll()
+
+
+--------------------------------------------------------------------------------
+Powershell Objects
+
+$obj=New-Object PSObject -Property @{
+	name="Name"
+	ip="0.0.0.0"
+}
+
+
+--------------------------------------------------------------------------------
+Group Policy
+
+
+gpresult /h report.html
+gpresult /s COMPUTERNAME /user USERNAME /scope computer /h report.html
+
+
+--------------------------------------------------------------------------------
+Excel in Powershell
+
+
+$scriptpath=(Split-Path $script:MyInvocation.MyCommand.Path)
+$outpath="$scriptpath\file.xlsx"
+$excel=New-Object -ComObject excel.application
+$book=$excel.Workbooks.Add()
+$sheet=$book.Worksheets.Item(1)
+for ($r=0;$r -lt 15;$r++) {
+	for ($c=0;$c -lt 10;$c++) {
+		$sheet.Cells.Item($r+1,$c+1)=$r+$c
+	}
+}
+$book.SaveAs($outpath)
+$excel.Workbooks.Close()
+
+
+--------------------------------------------------------------------------------
+Security Center Plugins
+
+
+10902 - Admins Group List
+19506 - Nessus Info
+20811 - Installed Software
+24270 - System Details (WMI)
+24272 - WMI Net Info
+24274 - USB Devices
+34096 - BIOS info
+35730 - USB History
+55472 - Device Hostname
+63080 - Mounted Devices
+66350 - WiFi Network History
+83265 - LAPS
+72684 - Enumerate Users
+
+
+--------------------------------------------------------------------------------
+Switches
+
+
+When in doubt, use "sh run" to see what commands have been used.
+
+ACLs can filter RIP.
+A GSE tunnel IP needs to be exempted from itself.
+
+Configuration:
+conf t
+copy run start
+do show int status
+
+shut/no shut
+show arp
+show ip route <IP>        to see where packets will go
+show ip int brief
+show int status
+show mac address-table
+switchport access vlan 10
+
+DHCP:
+clear ip dhcp pool <pool> binding *
+show ip dhcp [binding | conflict | pool]
