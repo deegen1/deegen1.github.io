@@ -1,11 +1,15 @@
 """
+
+
 Tetris.py - v1.04
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
 
+
 --------------------------------------------------------------------------------
 TODO
+
 
 AI recalculates paths too often when aispeed is low.
 AI might not be selecting optimal position due to weighted pathing. For example,
@@ -13,7 +17,8 @@ if the piece is forced into a non-optimal hole, the AI guide won't show a new
 locally optimal position in the hole.
 Since we use weights to judge what path to follow next, we don't need to make
 the initial path breadth-first. It may be simpler to parse depth first.
-Frame values change to soon per level. Use Bresenham lines?
+
+
 """
 
 from random import randrange

@@ -151,6 +151,8 @@ p {
 	/* border:1px solid black; */
 	display:block;
 	text-align:justify;
+	margin-top:0.5rem;
+	margin-bottom:0.5rem;
 }
 .listtable {
 	width:85%;
@@ -233,8 +235,8 @@ button:hover, select:hover {
 	fill:#eeeeee;
 }
 .diagram text        {stroke-width:0;/*fill:#8080ff;*/}
-.diagram .bgfill     {fill:#222222;}
-.diagram .bgstroke   {stroke:#222222;}
+.diagram .bgfill     {fill:#000000;}
+.diagram .bgstroke   {stroke:#000000;}
 .diagram .fgfill     {fill:#eeeeee;}
 .diagram .fgstroke   {stroke:#eeeeee;}
 .diagram .highfill   {fill:#6666ff;}

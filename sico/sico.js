@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-sico.js - v1.31
+sico.js - v1.32
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -219,10 +219,8 @@ enforces a minimum setTimeout() time of 4ms.
 TODO
 
 
-Split to memhi, memlo.
-Redo performance tests.
+Figure out why chrome is slower than firefox.
 Merge editor. Add option to pause if not on page.
-
 Mouse+Keyboard
 Audio
 
@@ -264,6 +262,7 @@ function SicoU64Create(hi,lo) {
 	return {hi:hi,lo:lo};
 }
 
+
 function SicoU64ToStr(n) {
 	// Convert a 64-bit number to its base 10 representation.
 	// Powers of 10 split into high 32 bits and low 32 bits.
@@ -299,9 +298,11 @@ function SicoU64ToStr(n) {
 	return str===""?"0":str;
 }
 
+
 function SicoU64ToF64(a) {
 	return a.hi*4294967296+a.lo;
 }
+
 
 function SicoU64Cmp(a,b) {
 	// if a<b, return -1
@@ -312,11 +313,13 @@ function SicoU64Cmp(a,b) {
 	return 0;
 }
 
+
 function SicoU64Set(a,b) {
 	// a=b
 	a.lo=b.lo;
 	a.hi=b.hi;
 }
+
 
 function SicoU64Zero(n) {
 	// n=0
@@ -324,10 +327,12 @@ function SicoU64Zero(n) {
 	n.hi=0;
 }
 
+
 function SicoU64IsZero(n) {
 	// n==0
 	return n.lo===0 && n.hi===0;
 }
+
 
 function SicoU64Neg(r,a) {
 	// r=-a
@@ -340,6 +345,7 @@ function SicoU64Neg(r,a) {
 		}
 	}
 }
+
 
 function SicoU64Sub(r,a,b) {
 	// r=a-b
@@ -360,6 +366,7 @@ function SicoU64Sub(r,a,b) {
 	return hi===0 && lo===0;
 }
 
+
 function SicoU64Add(r,a,b) {
 	// r=a+b
 	r.lo=a.lo+b.lo;
@@ -372,6 +379,7 @@ function SicoU64Add(r,a,b) {
 		r.hi-=0x100000000;
 	}
 }
+
 
 function SicoU64Mul(r,a,b) {
 	// r=a*b
@@ -389,6 +397,7 @@ function SicoU64Mul(r,a,b) {
 	r.hi=hi>>>0;
 }
 
+
 function SicoU64Inc(n) {
 	// n++
 	if ((++n.lo)>=0x100000000) {
@@ -398,6 +407,7 @@ function SicoU64Inc(n) {
 		}
 	}
 }
+
 
 function SicoU64Dec(n) {
 	// n--
@@ -420,13 +430,15 @@ var SICO_ERROR_PARSER=2;
 var SICO_ERROR_MEMORY=3;
 var SICO_MAX_PARSE   =1<<30;
 
+
 function SicoCreate(textout,canvas) {
 	var st={
 		// State variables
 		state:   0,
 		statestr:"",
 		ip:      SicoU64Create(),
-		mem:     null,
+		memh:    null,
+		meml:    null,
 		alloc:   0,
 		lblroot: SicoCreateLabel(),
 		sleep:   null,
@@ -449,12 +461,14 @@ function SicoCreate(textout,canvas) {
 	return st;
 }
 
+
 function SicoClear(st) {
 	// Clear the interpreter state.
 	st.state=SICO_COMPLETE;
 	st.statestr="";
 	SicoU64Zero(st.ip);
-	st.mem=null;
+	st.memh=null;
+	st.meml=null;
 	st.alloc=0;
 	st.lblroot=SicoCreateLabel();
 	st.sleep=null;
@@ -470,6 +484,7 @@ function SicoClear(st) {
 		st.canvas.style.display="none";
 	}
 }
+
 
 function SicoPrint(st,str) {
 	// Print to output and autoscroll to bottom. Try to mimic the effects of a
@@ -517,6 +532,7 @@ function SicoPrint(st,str) {
 		st.outbuf=str[str.length-1];
 	}
 }
+
 
 function SicoParseAssembly(st,str) {
 	// Convert SICO assembly language into a SICO program.
@@ -662,6 +678,7 @@ function SicoParseAssembly(st,str) {
 	}
 }
 
+
 function SicoCreateLabel() {
 	var lbl={
 		addr: SicoU64Create(-1),
@@ -669,6 +686,7 @@ function SicoCreateLabel() {
 	};
 	return lbl;
 }
+
 
 function SicoAddLabel(st,scope,data,idx,len) {
 	// Add a label if it's new.
@@ -689,6 +707,7 @@ function SicoAddLabel(st,scope,data,idx,len) {
 	return lbl;
 }
 
+
 function SicoFindLabel(st,label) {
 	// Returns the given label's address. Returns null if no label was found.
 	var lbl=st.lblroot,len=label.length;
@@ -704,15 +723,16 @@ function SicoFindLabel(st,label) {
 	return SicoU64Create(lbl.addr);
 }
 
+
 function SicoGetMem(st,addr) {
 	// Return the memory value at addr.
 	var i=SicoU64ToF64(addr);
 	if (i<st.alloc) {
-		i+=i;
-		return SicoU64Create(st.mem[i],st.mem[i+1]);
+		return SicoU64Create(st.memh[i],st.meml[i]);
 	}
 	return SicoU64Create();
 }
+
 
 function SicoSetMem(st,addr,val) {
 	// Write val to the memory at addr.
@@ -722,21 +742,25 @@ function SicoSetMem(st,addr,val) {
 		// error out.
 		if (SicoU64IsZero(val)) {return;}
 		// Find the maximum we can allocate.
-		var alloc=1,mem=null;
+		var alloc=1,memh=null,meml=null;
 		while (alloc<=pos) {alloc+=alloc;}
 		// Attempt to allocate.
 		if (addr.hi===0 && alloc>pos) {
 			try {
-				mem=new Uint32Array(alloc*2);
+				memh=new Uint32Array(alloc);
+				meml=new Uint32Array(alloc);
 			} catch(error) {
-				mem=null;
+				memh=null;
+				meml=null;
 			}
 		}
-		if (mem!==null) {
-			if (st.mem!==null) {
-				mem.set(st.mem,0);
+		if (memh!==null && meml!==null) {
+			if (st.memh!==null) {
+				memh.set(st.memh,0);
+				meml.set(st.meml,0);
 			}
-			st.mem=mem;
+			st.memh=memh;
+			st.meml=meml;
 			st.alloc=alloc;
 		} else {
 			st.state=SICO_ERROR_MEMORY;
@@ -744,10 +768,10 @@ function SicoSetMem(st,addr,val) {
 			return;
 		}
 	}
-	pos+=pos;
-	st.mem[pos  ]=val.hi;
-	st.mem[pos+1]=val.lo;
+	st.memh[pos]=val.hi;
+	st.meml[pos]=val.lo;
 }
+
 
 function SicoDrawImage(st,imghi,imglo) {
 	var canvas=st.canvas;
@@ -755,16 +779,16 @@ function SicoDrawImage(st,imghi,imglo) {
 		return;
 	}
 	// Get the image data.
-	var imgpos=imghi*8589934592+imglo*2;
-	var mem=st.mem;
-	var alloc=st.alloc*2;
-	if (imgpos>alloc-6) {
+	var imgpos=imghi*4294967296+imglo;
+	var memh=st.memh,meml=st.meml;
+	var alloc=st.alloc;
+	if (imgpos>alloc-3) {
 		return;
 	}
-	var imgwidth =mem[imgpos  ]*4294967296+mem[imgpos+1];
-	var imgheight=mem[imgpos+2]*4294967296+mem[imgpos+3];
-	var imgdata  =mem[imgpos+4]*8589934592+mem[imgpos+5]*2;
-	var imgpixels=imgwidth*imgheight*2;
+	var imgwidth =memh[imgpos]*4294967296+meml[imgpos++];
+	var imgheight=memh[imgpos]*4294967296+meml[imgpos++];
+	var imgdata  =memh[imgpos]*4294967296+meml[imgpos++];
+	var imgpixels=imgwidth*imgheight;
 	if (imgwidth>65536 || imgheight>65536 || imgdata+imgpixels>alloc) {
 		return;
 	}
@@ -781,10 +805,10 @@ function SicoDrawImage(st,imghi,imglo) {
 	// Copy the ARGB data to the RGBA canvas.
 	var dstdata=st.canvdata.data;
 	var hi,lo;
-	imgpixels+=imgpixels;
+	imgpixels<<=2;
 	for (var i=0;i<imgpixels;i+=4) {
-		hi=mem[imgdata++];
-		lo=mem[imgdata++];
+		hi=memh[imgdata  ];
+		lo=meml[imgdata++];
 		dstdata[i  ]=(hi&0xffff)>>>8;
 		dstdata[i+1]=lo>>>24;
 		dstdata[i+2]=(lo&0xffff)>>>8;
@@ -792,6 +816,7 @@ function SicoDrawImage(st,imghi,imglo) {
 	}
 	st.canvctx.putImageData(st.canvdata,0,0);
 }
+
 
 function SicoRun(st,stoptime) {
 	// Run SICO while performance.now()<stoptime.
@@ -823,8 +848,8 @@ function SicoRun(st,stoptime) {
 	}
 	var dbginst=0;
 	var dbgtime=performance.now();*/
-	var iphi=st.ip.hi,iplo=st.ip.lo,i;
-	var mem=st.mem;
+	var iphi=st.ip.hi,iplo=st.ip.lo;
+	var memh=st.memh,meml=st.meml;
 	var alloc=st.alloc,alloc2=alloc-2;
 	var ahi,alo,chi,clo;
 	var bhi,blo,mbhi,mblo;
@@ -842,14 +867,12 @@ function SicoRun(st,stoptime) {
 		// Load a, b, and c.
 		if (iphi===0 && iplo<alloc2) {
 			// Inbounds read.
-			i=iplo+iplo;
-			iplo+=3;
-			ahi=mem[i  ];
-			alo=mem[i+1];
-			bhi=mem[i+2];
-			blo=mem[i+3];
-			chi=mem[i+4];
-			clo=mem[i+5];
+			ahi=memh[iplo  ];
+			alo=meml[iplo++];
+			bhi=memh[iplo  ];
+			blo=meml[iplo++];
+			chi=memh[iplo  ];
+			clo=meml[iplo++];
 		} else {
 			// Out of bounds read. Use SicoGetMem to read a, b, and c.
 			tmp0.hi=iphi;tmp0.lo=iplo;
@@ -863,9 +886,8 @@ function SicoRun(st,stoptime) {
 		if (bhi===0) {
 			// Inbounds. Read mem[b] directly.
 			if (blo<alloc) {
-				i=blo+blo;
-				mbhi=mem[i  ];
-				mblo=mem[i+1];
+				mbhi=memh[blo];
+				mblo=meml[blo];
 			} else {
 				mbhi=0;
 				mblo=0;
@@ -894,11 +916,10 @@ function SicoRun(st,stoptime) {
 		if (ahi===0 && alo<alloc) {
 			// Execute a normal SICO instruction.
 			// Inbounds. Read and write to mem[a] directly.
-			i=alo+alo;
-			mblo=mem[i+1]-mblo;
-			mbhi=mem[i  ]-mbhi-(mblo<0);
-			mem[i+1]=mblo;
-			mem[i  ]=mbhi;
+			mblo=meml[alo]-mblo;
+			mbhi=memh[alo]-mbhi-(mblo<0);
+			meml[alo]=mblo;
+			memh[alo]=mbhi;
 			if (mbhi<0 || (mbhi===0 && mblo===0)) {
 				iphi=chi;
 				iplo=clo;
@@ -917,7 +938,8 @@ function SicoRun(st,stoptime) {
 			if (st.state!==SICO_RUNNING) {
 				break;
 			}
-			mem=st.mem;
+			memh=st.memh;
+			meml=st.meml;
 			alloc=st.alloc;
 			alloc2=alloc-2;
 			timeiters-=3;
@@ -938,7 +960,7 @@ function SicoRun(st,stoptime) {
 			timeiters-=2;
 		} else if (alo===0xfffffffa) {
 			// Sleep.
-			var sleep=mbhi*1000+mblo*(1000.0/4294967296.0);
+			var sleep=(mbhi+mblo/4294967296)*1000;
 			var sleeptill=performance.now()+sleep;
 			// If sleeping for longer than the time we have or more than 4ms, abort.
 			if (sleep>4 || sleeptill>=stoptime) {
@@ -969,3 +991,4 @@ function SicoRun(st,stoptime) {
 		SicoPrint(st,"rate: "+(this.inst/(this.time*1000))+"\n");
 	}*/
 }
+
