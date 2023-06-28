@@ -4,8 +4,8 @@
 	<meta charset="utf-8">
 	<title>Physics Engine</title>
 	<link rel="stylesheet" href="../style/style.css" type="text/css">
-	<script type="text/javascript" src="../style/style.js"></script>
-	<script type="text/javascript" src="./physics.js"></script>
+	<script src="../style/style.js"></script>
+	<script src="./physics.js"></script>
 </head>
 <body>
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
@@ -14,16 +14,12 @@
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Physics ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <div class="content"><h1>Physics</h1>
-<canvas id="physmain" width=900px height=800px style="display:block;margin:auto;"></canvas>
+<canvas id="physmain" width=900 height=800 style="display:block;margin:auto;"></canvas>
 <script>PhyScene1("physmain");</script>
-<br>
 <h1>Still in Testing</h1>
-<br>
 <p>Collision detection is performed by dividing the world up like a grid. If 2
 atoms are in the same cell, we check if they're colliding.</p>
-<br>
 <p>To form solid objects, we bond multiple atoms together.</p>
-<br>
 <p>Randomizing the order of collisions</p>
 <p>Randomizing the order of bonds prevents unintended shockwaves from
 forming.</p>

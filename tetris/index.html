@@ -29,13 +29,11 @@
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Tetris AI ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <div class="content"><h1>Tetris AI</h1>
 <p>The AI is available in python as <a href="./Tetris.py">Tetris.py</a> and can
-be played in any terminal.</p>
-<p>Pressing <i>I</i> will toggle modes.</p>
-<br>
+be played in any terminal.<br>
+Pressing <i>I</i> will toggle modes.</p>
 <div class="tetris"><b>Loading javascript...</b>
 <script>window.addEventListener("load",function(){tetris_onload(0);})</script>
 </div>
-<br>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Metrics ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
@@ -43,7 +41,6 @@ be played in any terminal.</p>
 <p>The AI uses a set of metrics that are computed from the tetris board. These
 metrics are each given a weight and added together to give a board its fitness
 score. The final set I used is shown below.</p>
-<br>
 <table class="datatable headerrow">
 <tr><td>Metric</td><td>Description</td></tr>
 <tr><td>sum holes</td><td>The count of all holes on the grid. A cell is a hole
@@ -58,20 +55,16 @@ placed piece. Do not take into account line clears.</td></tr>
 <tr><td>sum well</td><td>The sum of squared well heights. A well is an opening 1
 cell wide, which happens to function as a chokepoint.</td></tr>
 </table>
-<br>
 <p>The AI maps out all possible moves it can make (with the option to add
 human-like lag), and records the final board states with their scores. The AI
 then backtracks from these final states to generate a map of the most optimal
 move to make given any position on the board.</p>
-<br>
 <p>If a new piece is spawned, or the board changes, then a new move map is
 generated. At each frame, the AI looks at the current piece position, looks at
 the map it has made, and can immediately see what move to make next.</p>
-<br>
 <p>I used <a href="https://www.colinfahey.com/tetris/tetris.html">Colin
 Fahey's</a> metrics as a starting point and created a bunch of my own. I then
 set about finding the minimum set of metrics that yielded good performance.</p>
-<br>
 <p>Finding the set of optimal weights was difficult, mostly because their
 performance couldn't be predicted or approximated. The AI had to play several
 games with the weights to get their average performance. The performance of
@@ -79,7 +72,6 @@ weights was also very jagged and full of local minima. For that reason, I used
 <a href="https://en.wikipedia.org/wiki/Particle_swarm_optimization">particle
 swarm optimization</a> and added the ability for a particle to randomly reset
 itself if it became stuck.</p>
-<br>
 <p>When I had settled on the final set of metrics and weights, the AI was able
 to clear 19,032,064 lines before I forced it to terminate. During that time, it
 totally cleared the board 23,588 times.</p>

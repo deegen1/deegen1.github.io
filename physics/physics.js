@@ -11,9 +11,7 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
-color code atoms
 fps counter
-make them grabbable
 use an interaction matrix
 
 
@@ -501,6 +499,7 @@ class PhyAtomType {
 		this.dt0=0;
 		this.dt1=0;
 		this.dt2=0;
+		this.gravity=null;
 		this.intarr=[];
 		this.collide=true;
 		this.UpdateConstants();
@@ -682,8 +681,9 @@ class PhyAtom {
 		// pos+=vel*dt1+acc*dt2
 		// vel =vel*dt0+acc*dt1
 		var pe=this.pos.elem,ve=this.vel.elem;
-		var ae=this.acc.elem,ge=this.world.gravity.elem;
 		var dim=pe.length,type=this.type,v,a;
+		var ae=this.acc.elem,ge=type.gravity;
+		ge=(ge===null?this.world.gravity:ge).elem;
 		var dt0=type.dt0,dt1=type.dt1,dt2=type.dt2;
 		for (var i=0;i<dim;i++) {
 			v=ve[i];
@@ -1514,10 +1514,16 @@ function PhyScene1(displayid) {
 	scene.time=0;
 	scene.timeden=0;
 	scene.keydown=(new Array(256)).fill(0);
+	scene.mouseonscreen=false;
+	canvas.onmouseenter=function(evt) {
+		scene.mouseonscreen=true;
+	};
+	canvas.onmouseleave=function(evt) {
+		scene.mouseonscreen=false;
+	};
 	canvas.onmousemove=function(evt) {
 		scene.mouse.set(0,(evt.pageX-canvas.offsetLeft-canvas.clientLeft)/canvas.clientHeight);
 		scene.mouse.set(1,(evt.pageY-canvas.offsetTop -canvas.clientTop )/canvas.clientHeight);
-		scene.mouseatom.pos.copy(scene.mouse);
 	};
 	canvas.onmousedown=function(evt) {
 		scene.keydown[250]=3;
@@ -1572,11 +1578,10 @@ function PhyScene1(displayid) {
 			pos.set(0,0.0-wallrad*0.98);
 			world.CreateAtom(pos,wallrad,walltype);
 		}
-		var mousetype=world.CreateAtomType(1.0,Infinity,1.0);
-		mousetype.collide=false;
-		mousetype.UpdateInteractions();
-		var mouseatom=world.CreateAtom(new PhyVec([0,0]),0,mousetype);
-		scene.mouseatom=mouseatom;
+		var playertype=world.CreateAtomType(0.0,Infinity,1.0);
+		playertype.gravity=new PhyVec([0,0]);
+		pos=new PhyVec([widthf*0.5,heightf*0.5]);
+		scene.playeratom=world.CreateAtom(pos,0.035,playertype);
 		console.log("atoms: ",world.atomlist.count);
 	}
 	function update() {
@@ -1587,23 +1592,49 @@ function PhyScene1(displayid) {
 		var imgdata=scene.backbuf.data;
 		var scale=imgheight;
 		var ctx=scene.ctx;
-		scene.world.Update();
+		var world=scene.world;
+		world.Update();
 		DrawClear(imgdata,imgwidth,imgheight,0,0,0);
-		var link=scene.world.atomlist.head;
+		// Move the player.
+		var player=scene.playeratom;
+		var dir=scene.mouse.sub(player.pos);
+		var move=scene.keydown[250] && dir.sqr()>1e-6;
+		player.vel=dir.scale(move?0.2/world.deltatime:0);
+		if (scene.mouseonscreen) {
+			for (var i=1;i<=4;i++) {
+				var pe=player.pos.add(dir.scale(i/4.0)).elem;
+				DrawCircle(imgdata,imgwidth,imgheight,pe[0]*scale,pe[1]*scale,player.rad*scale,64,64,64);
+			}
+		}
+		var link=world.atomlist.head;
 		while (link!==null) {
 			var atom=link.obj;
+			var data=atom.userdata;
+			if (data===undefined || data===null) {
+				data={velcolor:0};
+				atom.userdata=data;
+			}
+			var vel=atom.vel.mag();
+			data.velcolor*=0.99;
+			if (data.velcolor<vel) {
+				data.velcolor=vel;
+			}
+			var u=data.velcolor*(256*4);
+			u=Math.floor(u<255?u:255);
 			var pos=atom.pos.elem;
 			var rad=atom.rad*scale;
-			DrawCircle(imgdata,imgwidth,imgheight,pos[0]*scale,pos[1]*scale,rad,255,255,255);
+			DrawCircle(imgdata,imgwidth,imgheight,pos[0]*scale,pos[1]*scale,rad,u,0,255-u);
 			//DrawOval(imgdata,imgwidth,imgheight,pos[0]*scale-rad,pos[1]*scale-rad,rad*2,rad*2,255,255,255);
 			link=link.next;
 		}
 		ctx.putImageData(scene.backbuf,0,0);
-		ctx.fillStyle="rgb(255,255,255)";
-		ctx.beginPath();
-		ctx.arc(scene.mouse.get(0)*scale,scene.mouse.get(1)*scale,0.005*scale,0,2*Math.PI);
-		ctx.fill();
-		ctx.closePath();
+		/*if (scene.mouseonscreen) {
+			ctx.fillStyle="rgb(255,255,255)";
+			ctx.beginPath();
+			ctx.arc(scene.mouse.get(0)*scale,scene.mouse.get(1)*scale,0.005*scale,0,2*Math.PI);
+			ctx.fill();
+			ctx.closePath();
+		}*/
 		time=performance.now()-time;
 		scene.time+=time;
 		scene.timeden++;

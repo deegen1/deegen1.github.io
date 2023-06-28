@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-gameoflife.js - v1.01
+gameoflife.js - v1.02
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -635,6 +635,7 @@ function gol_gui(parent,gw,gh,args) {
 		// Set up the control menu.
 		// start, stop, step, reset, clear, zoom -+, mouse
 		// mouse: drag, toggle, cell on, cell off
+		canvas.style.marginBottom=0;
 		var menubar=document.createElement("div");
 		menubar.className="menu";
 		gui.menubar=menubar;
@@ -657,8 +658,8 @@ function gol_gui(parent,gw,gh,args) {
 		obj.innerHTML="&#10006; clear";
 		obj.onclick=function(){gui.running=0;gui.redraw=1;gui.life.clear();};
 		menubar.appendChild(obj);
-		obj=document.createElement("p");
-		obj.innerHTML="mouse: ";
+		obj=document.createElement("span");
+		obj.innerHTML=" mouse: ";
 		menubar.appendChild(obj);
 		var drop=document.createElement("select");
 		var arr=["toggle","cell on","cell off","move","zoom in","zoom out"];
