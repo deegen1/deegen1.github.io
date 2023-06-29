@@ -28,7 +28,6 @@ body {
 	overflow-y:scroll;
 	/* Repeat the background twice horizontally. The right side of the left copy, and
 	the left side of the right copy, will be covered by the content. */
-	background-color:#222222;
 	background-image:url("./background.png");
 	background-size:50% auto;
 	background-color:#000000;
@@ -66,15 +65,16 @@ sub {
 .content, #header, #footer {
 	width:60rem;
 	padding:1.98rem;
-	padding-top:1.45rem;
-	padding-bottom:1.45rem;
+	padding-top:0rem;
+	padding-bottom:0.8rem;
 	/* border:1px solid #6060ff; */
 	/* border-radius:8px; */
 	background-color:#444444;
-	background-color:#000000;
+	/*background-color:#000000;*/
 	margin:auto;
 	margin-bottom:3rem;
 }
+/*
 .content h1 {
 	display:block;
 	margin-top:2.0rem;
@@ -85,7 +85,7 @@ sub {
 	font-weight:bold;
 	line-height:150%;
 }
-/*
+*/
 .content h1 {
 	display:block;
 	width:100%;
@@ -97,15 +97,15 @@ sub {
 	border-bottom-left-radius:0;
 	border-bottom-right-radius:0;
 	margin:-1.98rem;
-	margin-top:-1.45rem;
-	margin-bottom:1.45rem;
-	color:#6060ff;
+	margin-top:2.0rem;
+	margin-bottom:2.0rem;
+	background-color:#6060ff;
 	font-family:sans-serif,sans-serif;
-	font-size:200%;
+	font-size:170%;
 	font-weight:bold;
 	line-height:150%;
 }
-*/
+
 .content h2 {
 	display:block;
 	width:100%;

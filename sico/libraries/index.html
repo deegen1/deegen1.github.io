@@ -4,59 +4,72 @@
 	<meta charset="utf-8">
 	<title>SICO - Libraries</title>
 	<link rel="stylesheet" href="../../style/style.css" type="text/css">
-	<script type="text/javascript" src="../../style/style.js"></script>
+	<script src="../../style/style.js"></script>
 </head>
 <body>
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <div id="header"><a href="../../index.html">Alec Dee's General Site</a></div>
 
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Libraries ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Libraries</h1>
-<p>This page lists the libraries I've worked on to build <a href="../index.html">SICO</a> up from
-one instruction into an easy to use architecture.</p>
-<br>
-<p>Libraries:<br>
-<br>
-<a href="#master" style="margin-left:4rem">Master Library</a><br>
-<a href="#strings" style="margin-left:4rem">Strings</a><br>
-<a href="#uint" style="margin-left:4rem">Unsigned Math</a><br>
-<a href="#int" style="margin-left:4rem">Signed Math</a><br>
-<a href="#random" style="margin-left:4rem">Random Number Generation</a><br>
-<a href="#memory" style="margin-left:4rem">Memory</a><br></p>
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~ SICO Libraries ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<div class="content"><h1>SICO Libraries</h1>
+<p>These are the libraries I've worked on to build
+<a href="../index.html">SICO</a> up from one instruction into an easy to use
+architecture.</p>
+<table class="datatable headerrow">
+<tr><td>File</td><td>Demo</td><td>Description</td></tr>
+<tr><td><a href="./master.sico">master.sico</a></td><td></td><td>All libraries
+in one file.</td></tr>
+<tr><td><a href="./string.sico">string.sico</a></td>
+<td><a href="../index.html?demo=String%20Printing">demo</a></td>
+<td>String operations, printing, formating.</td></tr>
+<tr><td><a href="./uint.sico">uint.sico</a></td>
+<td><a href="../index.html?demo=Unsigned%20Math">demo</a></td>
+<td>Unsigned integer arithmetic and bitwise operations.</td></tr>
+<tr><td><a href="./int.sico">int.sico</a></td>
+<td></td>
+<td>Signed comparisons, mul, and div.</td></tr>
+<tr><td><a href="./random.sico">random.sico</a></td>
+<td><a href="../index.html?demo=Random%20Numbers">demo</a></td>
+<td>Pseudo-random number generator.</td></tr>
+<tr><td><a href="./memory.sico">memory.sico</a></td>
+<td><a href="../index.html?demo=Memory">demo</a></td>
+<td>Memory allocation, copying, etc.</td></tr>
+</table>
 </div>
 
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Master Library ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content" id="master"><h1>Master Library</h1>
-<p><a href="./master.sico">master.sico</a> contains all libraries for ease of use in other
-projects.</p>
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Master Library ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<div class="content"><h1>Master Library</h1>
+<p><a href="./master.sico">master.sico</a> contains all libraries for ease of
+use in other projects.</p>
 </div>
 
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Strings ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content" id="strings"><h1>Strings</h1>
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Strings ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<div class="content"><h1>Strings</h1>
 <p>Download <a href="./string.sico">string.sico</a> or try the live demo
 <a href="../index.html?demo=String%20Printing">here</a>.</p>
-<br>
-<p><a href="./string.sico">string.sico</a> is fundamental to working on other libraries. It defines
-the <i>print</i> function which allows us to print ASCII strings as well as numerical values. This
-is needed to print diagnostic messages and see what other libraries are actually doing. It can be
-called like this:</p>
-<br>
-<div class="codeblock langsico">0 ? string.print 'x ' '= '  string.uint x 10 0</div>
-<br>
+<p><a href="./string.sico">string.sico</a> is fundamental to working on other
+libraries. It defines the <i>print</i> function which allows us to print ASCII
+strings as well as numerical values. This is needed to print diagnostic messages
+and see what other libraries are actually doing. It can be called like this:</p>
+<div class="codeblock langsico">0 ? string.print 'x ' '= '  string.uint x 10 0
+</div>
 <p>The example can be broken up into a few parts:</p>
-<br>
 <table class="listtable">
-<tr><td><i>0 ? string.print</i></td><td>the SICO instruction that jumps to the <i>string.print</i>
-function and gives it our calling address.</td></tr>
-<tr><td><i>'x '  '= '      </i></td><td>the ASCII literal values for "x = ". We could also use
-<i>120 32 61 32</i></td></tr>
-<tr><td><i>string.uint     </i></td><td>a special value that tells <i>string.print</i> that the
-next value is an unsigned integer.</td></tr>
-<tr><td><i>x               </i></td><td>the unsigned integer to output.</td></tr>
-<tr><td><i>10              </i></td><td>the ASCII value for an end-of-line.</td></tr>
+<tr><td><i>0 ? string.print</i></td><td>the SICO instruction that jumps to the
+<i>string.print</i> function and gives it our calling address.</td></tr>
+<tr><td><i>'x '  '= '      </i></td><td>the ASCII literal values for "x = ". We
+could also use <i>120 32 61 32</i></td></tr>
+<tr><td><i>string.uint     </i></td><td>a special value that tells
+<i>string.print</i> that the next value is an unsigned integer.</td></tr>
+<tr><td><i>x               </i></td><td>the unsigned integer to output.
+</td></tr>
+<tr><td><i>10              </i></td><td>the ASCII value for an end-of-line.
+</td></tr>
 <tr><td><i>0               </i></td><td>the end of the string.</td></tr>
 </table>
-<br>
 <p>So if <i>[x]</i> is <i>20</i>, then this will get output to the console:</p>
 <br>
 <div class="consoleblock">x = 20</div>

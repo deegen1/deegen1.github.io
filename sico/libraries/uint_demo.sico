@@ -3682,23 +3682,23 @@ random.hash:
 	.i      .iters  ?+4
 .loop:
 	.i      .z+1    .done
-		   .tmp    .z+1    ?+1
-		   .tmp    .hash   ?+1
+	        .tmp    .z+1    ?+1
+	        .tmp    .hash   ?+1
 	.fxx:   .hash   .tmp    .f0x
 	.f1x:   .tmp    .tmp    ?+1
-		   .tmp    .hash   ?+1
-		   .hash   .tmp    .f10
+	        .tmp    .hash   ?+1
+	        .hash   .tmp    .f10
 	.f11:   .hash   .con3   ?+1
-		   .tmp    .tmp    .loop
+	        .tmp    .tmp    .loop
 	.f10:   .hash   .con2   ?+1
-		   .tmp    .tmp    .loop
+	        .tmp    .tmp    .loop
 	.f0x:   .tmp    .tmp    ?+1
-		   .tmp    .hash   ?+1
-		   .hash   .tmp    .f00
+	        .tmp    .hash   ?+1
+	        .hash   .tmp    .f00
 	.f01:   .hash   .con1   ?+1
-		   .tmp    .tmp    .loop
+	        .tmp    .tmp    .loop
 	.f00:   .hash   .con0   ?+1
-		   .tmp    .tmp    .loop
+	        .tmp    .tmp    .loop
 .done:
 	# Set [ret] and return.
 	.hash   .ret0:0 ?+1
@@ -3823,23 +3823,23 @@ random.get:
 	.i      .iters  ?+4
 .loop:
 	.i      .z+1    .done
-		   .tmp    .z+1    ?+1
-		   .tmp    .hash   ?+1
+	        .tmp    .z+1    ?+1
+	        .tmp    .hash   ?+1
 	.fxx:   .hash   .tmp    .f0x
 	.f1x:   .tmp    .tmp    ?+1
-		   .tmp    .hash   ?+1
-		   .hash   .tmp    .f10
+	        .tmp    .hash   ?+1
+	        .hash   .tmp    .f10
 	.f11:   .hash   .con3   ?+1
-		   .tmp    .tmp    .loop
+	        .tmp    .tmp    .loop
 	.f10:   .hash   .con2   ?+1
-		   .tmp    .tmp    .loop
+	        .tmp    .tmp    .loop
 	.f0x:   .tmp    .tmp    ?+1
-		   .tmp    .hash   ?+1
-		   .hash   .tmp    .f00
+	        .tmp    .hash   ?+1
+	        .hash   .tmp    .f00
 	.f01:   .hash   .con1   ?+1
-		   .tmp    .tmp    .loop
+	        .tmp    .tmp    .loop
 	.f00:   .hash   .con0   ?+1
-		   .tmp    .tmp    .loop
+	        .tmp    .tmp    .loop
 .done:
 	# Set [ret] and return.
 	.ret0:0 .ret1:0 ?+1

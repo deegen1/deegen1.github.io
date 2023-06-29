@@ -1515,7 +1515,8 @@ function PhyScene1(displayid) {
 	scene.timeden=0;
 	scene.keydown=(new Array(256)).fill(0);
 	scene.mouseonscreen=false;
-	canvas.onmouseenter=function(evt) {
+	scene.follow=false;
+	canvas.onmouseover=function(evt) {
 		scene.mouseonscreen=true;
 	};
 	canvas.onmouseleave=function(evt) {
@@ -1527,6 +1528,9 @@ function PhyScene1(displayid) {
 	};
 	canvas.onmousedown=function(evt) {
 		scene.keydown[250]=3;
+	};
+	canvas.onclick=function(evt) {
+		scene.keydown[250]|=1;
 	};
 	canvas.onmouseup=function(evt) {
 		scene.keydown[250]=0;
@@ -1554,7 +1558,7 @@ function PhyScene1(displayid) {
 		world.steps=6;
 		var heightf=1.0,widthf=canvas.clientWidth/canvas.clientHeight;
 		var walltype=world.CreateAtomType(1.0,Infinity,1.0);
-		var normtype=world.CreateAtomType(0.01,1.0,0.99);
+		var normtype=world.CreateAtomType(0.01,1.0,0.98);
 		var rnd=new PhyRand();
 		var pos=new PhyVec(world.dim);
 		for (var p=0;p<1000;p++) {
@@ -1596,16 +1600,13 @@ function PhyScene1(displayid) {
 		world.Update();
 		DrawClear(imgdata,imgwidth,imgheight,0,0,0);
 		// Move the player.
+		if (scene.mouseonscreen) {
+			scene.follow=true;
+		}
 		var player=scene.playeratom;
 		var dir=scene.mouse.sub(player.pos);
-		var move=scene.keydown[250] && dir.sqr()>1e-6;
+		var move=scene.follow && dir.sqr()>1e-6;
 		player.vel=dir.scale(move?0.2/world.deltatime:0);
-		if (scene.mouseonscreen) {
-			for (var i=1;i<=4;i++) {
-				var pe=player.pos.add(dir.scale(i/4.0)).elem;
-				DrawCircle(imgdata,imgwidth,imgheight,pe[0]*scale,pe[1]*scale,player.rad*scale,64,64,64);
-			}
-		}
 		var link=world.atomlist.head;
 		while (link!==null) {
 			var atom=link.obj;

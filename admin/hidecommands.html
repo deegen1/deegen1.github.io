@@ -6,8 +6,7 @@
 	<link rel="stylesheet" href="../style/style.css" type="text/css">
 	<script src="../style/style.js"></script>
 	<style>
-		.code_hidden
-		{
+		.code_hidden {
 			position:absolute;
 			font-size:0;
 		}
@@ -22,16 +21,12 @@
 <div class="content"><h1>Hiding Commands</h1>
 <p>Copy and pasting this command into a console will print a hidden line. It
 works in both bash and powershell.</p>
-<br>
 <div class="codeblock">echo<span class="code_hidden"> "";<br>echo "hidden command";<br>echo</span> "hello"</div>
-<br>
 <p>If it's copy and pasted into a text editor you can see the additional lines
 it contains:</p>
-<br>
 <div class="codeblock">echo "";
 echo "hidden command";
 echo "hello"</div>
-<br>
 <p>This trick works by hiding the additional lines using CSS. Because the hidden
 lines end in line breaks, they will be executed as soon as they are pasted into
 a console - without warning the user. The hidden lines are also inserted between

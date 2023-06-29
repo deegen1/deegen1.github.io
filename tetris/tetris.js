@@ -11,6 +11,9 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
+convert to classes
+
+
 */
 /* jshint bitwise: false */
 /* jshint eqeqeq: true   */
@@ -883,8 +886,14 @@ function tetris_gui(parent) {
 	var canvas=document.createElement("canvas");
 	self.canvas=canvas;
 	self.ctx=canvas.getContext("2d");
+	// Append canvas first, so it gets page CSS styling.
 	parent.style.height="auto";
 	parent.appendChild(canvas);
+	var style=window.getComputedStyle(canvas);
+	parent.style.marginTop=style.marginTop;
+	parent.style.marginBottom=style.marginBottom;
+	canvas.style.marginTop=0;
+	canvas.style.marginBottom=0;
 	self.colormap=[
 		"#000000","#00c0c0","#c0c000","#900090",
 		"#c0d050","#5050c0","#00c000","#c00000",

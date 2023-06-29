@@ -11,17 +11,12 @@
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <div id="header"><a href="../index.html">Alec Dee's General Site</a></div>
 
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Introduction ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Introduction</h1>
-<p>Based on the code posted <a href="http://code.activestate.com/recipes/117119-sieve-of-eratosthenes/">here</a>, we present a prime number generator in python that is faster than the
-examples posted and uses very little memory.</p>
-</div>
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Implementation ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Prime Number Generation in Python</h1>
+<div class="content"><h1>Prime Numbers in Python</h1>
 <p>Here is the full generator. The source can also be downloaded from here:
-<a href="./primegen.py">primegen.py</a></p>
-<br>
+<a href="./primegen.py">primegen.py</a><br>
+It's based on the code posted <a href="http://code.activestate.com/recipes/117119-sieve-of-eratosthenes/">here</a></p>
 <div class="codeblock langpython">def primegen(maxn=float("inf"),count=float("inf")):
 	# Sequentially output primes. Outputs all p&lt;maxn or the first 'count' primes.
 	for n in (2,3,5,7,11,13,17,19,23,29,31,37,41,43,47):
@@ -52,22 +47,21 @@ examples posted and uses very little memory.</p>
 			q+=jump[q%30]
 			while q*f in comp: q+=jump[q%30]
 			comp[q*f]=f
-		n+=jump[n%30]</div>
-<br>
-<p>It can be used like so:</p>
-<br>
-<div class="codeblock langpython">print("First 20 primes : "+str(list(primegen(count=20))))
+		n+=jump[n%30]
+
+
+print("First 20 primes : "+str(list(primegen(count=20))))
 print("Primes under 100: "+str(list(primegen(100))))
 print("Loop iterator test:")
 for p in primegen():
 	if p&gt;50: break
 	print(p)
 </div>
-<br>
 <p>Output:</p>
-<br>
 <div class="consoleblock">First 20 primes : [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71]
+
 Primes under 100: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97]
+
 Loop iterator test:
 2
 3
