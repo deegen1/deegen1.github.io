@@ -11,8 +11,8 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
-When we hit "run", store the current state+view. When we hit "reset", go
-back to the stored state.
+Convert to classes.
+Use math.imul for hashing.
 
 
 */
@@ -215,8 +215,7 @@ function life_create() {
 			var x=xy[0],y=xy[1];
 			x+=a<b?a:b;
 			y+=c<d?c:d;
-			try
-			{
+			try {
 				var len=pat.length;
 				for (var i=0;i<len;i++) {
 					var p=pat[i];
@@ -227,8 +226,9 @@ function life_create() {
 					var py=y+c*p[0]+d*p[1];
 					points.push([px,py]);
 				}
+			} catch(e) {
+				throw "Not an array of points";
 			}
-			catch(e) {throw "Not an array of points";}
 			// Plot the points.
 			var setcell=life.setcell;
 			var len=points.length;
@@ -263,13 +263,13 @@ function life_create() {
 			for (var i=1;i<len;i++) {
 				if (lines[i]==="") {continue;}
 				var coord;
-				try
-				{
+				try {
 					coord=lines[i].split();
 					coord=[parseInt(coord[0]),parseInt(coord[1])];
 					if (isNaN(coord[0]) || isNaN(coord[1])) {throw "";}
+				} catch(e) {
+					throw "Unable to parse life 1.06 pattern";
 				}
-				catch(e) {throw "Unable to parse life 1.06 pattern";}
 				points.push(coord);
 			}
 		} else if (fmt==="rle") {
@@ -282,13 +282,13 @@ function life_create() {
 				else if (line[0]!=="#") {data+=line;}
 			}
 			var w=null,h=null;
-			try
-			{
+			try {
 				var arr=head.split(",");
 				w=parseInt(arr[0].substr(2));
 				h=parseInt(arr[1].substr(2));
+			} catch(e) {
+				w=h=null;
 			}
-			catch(e) {w=h=null;}
 			if (head!=="x="+w+",y="+h+",rule=b3/s23") {
 				throw "Unable to parse RLE header";
 			}

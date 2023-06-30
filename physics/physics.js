@@ -1582,7 +1582,8 @@ function PhyScene1(displayid) {
 			pos.set(0,0.0-wallrad*0.98);
 			world.CreateAtom(pos,wallrad,walltype);
 		}
-		var playertype=world.CreateAtomType(0.0,Infinity,1.0);
+		// Dampen the elasticity so we don't add too much energy.
+		var playertype=world.CreateAtomType(0.0,Infinity,0.1);
 		playertype.gravity=new PhyVec([0,0]);
 		pos=new PhyVec([widthf*0.5,heightf*0.5]);
 		scene.playeratom=world.CreateAtom(pos,0.035,playertype);

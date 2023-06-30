@@ -121,6 +121,7 @@ function HighlightPython(text) {
 	return ret+"</span>";
 }
 
+
 function HighlightSico(str) {
 	// Convert SICO assembly language into a formatted HTML string.
 	// Define styles.
@@ -215,6 +216,7 @@ function HighlightSico(str) {
 	return htmlret;
 }
 
+
 function HighlightStyle(classname,func) {
 	// Replace innerHTML with highlighted text.
 	var elems=document.getElementsByClassName(classname);
@@ -223,6 +225,7 @@ function HighlightStyle(classname,func) {
 		elem.innerHTML=func(elem.innerText);
 	}
 }
+
 
 function StyleFooter() {
 	// De-obfuscate the email address in the footer to allow the email to work with
@@ -234,10 +237,12 @@ function StyleFooter() {
 	}
 }
 
+
 function StyleOnload() {
 	StyleFooter();
 	HighlightStyle("langpython",HighlightPython);
 	HighlightStyle("langsico",HighlightSico);
 }
+
 
 window.addEventListener("load",StyleOnload,true);

@@ -12,6 +12,9 @@ TODO
 
 
 convert to classes
+red pieces with outline
+use player control if they hit arrows or wasd
+remove most of text on side
 
 
 */

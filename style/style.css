@@ -1,17 +1,19 @@
 /*
 Standards:
-	Write the articles as if there are no images. Add images later to help.
-	The HTML should be as simple as possible. CSS and javascript can be as
-	complicated as necessary to improve the look and consistency of the pages.
-	svg version=1.1, width=1000.
 
-	Keep articles under 10,000 bytes.
-	80 chars
-	<br> should be used for line breaks, not spacing
+
+Keep articles simple - under 10,000 bytes.
+Write the articles as if there are no images. Add images later to help.
+80 chars
+<br> should be used for line breaks, not spacing
+
+
 */
 
 
-/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Override Default HTML ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+/*~~~~~~~~~~~~~~~~~~~~~~~~~~~ Override Default HTML ~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+
 * {
 	padding:0;
 	border:0;
@@ -57,8 +59,10 @@ sub {
 }
 
 
-/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Main Content ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-.content canvas {
+/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Main Content ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+
+.content canvas, .content img {
 	margin-top:4rem;
 	margin-bottom:4rem;
 }
@@ -70,7 +74,7 @@ sub {
 	/* border:1px solid #6060ff; */
 	/* border-radius:8px; */
 	background-color:#444444;
-	/*background-color:#000000;*/
+	/* background-color:#000000; */
 	margin:auto;
 	margin-bottom:3rem;
 }
@@ -105,7 +109,6 @@ sub {
 	font-weight:bold;
 	line-height:150%;
 }
-
 .content h2 {
 	display:block;
 	width:100%;
@@ -132,12 +135,12 @@ sub {
 	margin:auto;
 	margin-top:1rem;
 	margin-bottom:1rem;
-	background-color:#181818;
+	background-color:#333333;
 	overflow:auto;
 	color:inherit;
 }
 .content .consoleblock {
-	background:#181818;
+	background:#000000;
 	color:#cccccc;
 	word-wrap:break-word;
 	white-space:pre-wrap;
@@ -150,59 +153,12 @@ sub {
 	font-style:normal;
 	color:#cccccc;
 }
-p {
+.content p {
 	/* border:1px solid black; */
 	display:block;
 	text-align:justify;
 	margin-top:2.5rem;
 	margin-bottom:2.5rem;
-}
-.listtable {
-	width:85%;
-	margin-left:4rem;
-	margin-top:3rem;
-	margin-bottom:3rem;
-}
-.listtable td {
-	padding:0.2rem;
-}
-.listtable td:nth-child(1) {
-	padding-right:0.4rem;
-}
-.datatable {
-	width:85%;
-	margin:auto;
-	margin-top:4rem;
-	margin-bottom:4rem;
-	border:2px solid #1e1e1e;
-	/* border-collapse:separate; */
-	/* border-spacing:0.2rem; */
-}
-.datatable td {
-	padding:0.4rem;
-	padding-left:0.75rem;
-	padding-right:0.75rem;
-	border:2px solid #2b2b2b;
-	background-color:#1e1e1e;
-	vertical-align:top;
-	/* font-family:sans-serif,sans-serif; */
-}
-.nobordercells {
-	border-collapse:collapse;
-}
-.nobordercells td {
-	border:none;
-}
-.headercol td:nth-child(1) {
-	background-color:#333333;
-	font-weight:bold;
-}
-.headerrow tr:nth-child(1) td {
-	/* border-bottom:1px solid #808080; */
-	/* padding-bottom:0.3rem; */
-	background-color:#333333;
-	font-weight:bold;
-	text-align:center;
 }
 button, select {
 	margin:0.165rem;
@@ -219,9 +175,58 @@ button, select {
 button:hover, select:hover {
 	background-color:#7070ff;
 }
+.listtable {
+	width:85%;
+	margin-left:4rem;
+	margin-top:3rem;
+	margin-bottom:3rem;
+}
+.listtable td {
+	padding:0.2rem;
+}
+.listtable td:nth-child(1) {
+	padding-right:0.4rem;
+}
+.datatable {
+	max-width:85%;
+	margin:auto;
+	margin-top:4rem;
+	margin-bottom:4rem;
+	border:2px solid #555555;
+	/* border-collapse:separate; */
+	/* border-spacing:0.2rem; */
+}
+.datatable td {
+	padding:0.4rem;
+	padding-left:0.75rem;
+	padding-right:0.75rem;
+	border:2px solid #555555;
+	background-color:#3b3b3b;
+	vertical-align:top;
+	/* font-family:sans-serif,sans-serif; */
+}
+.nobordercells {
+	border-collapse:collapse;
+}
+.nobordercells td {
+	border:none;
+}
+.headercol td:nth-child(1) {
+	background-color:#666666;
+	font-weight:bold;
+}
+.headerrow tr:nth-child(1) td {
+	/* border-bottom:1px solid #808080; */
+	/* padding-bottom:0.3rem; */
+	background-color:#666666;
+	font-weight:bold;
+	text-align:center;
+}
 
 
-/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ SVGs ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ SVGs ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+
 .diagram {
 	display:block;
 	width:56rem;
@@ -238,8 +243,8 @@ button:hover, select:hover {
 	fill:#eeeeee;
 }
 .diagram text        {stroke-width:0;/*fill:#8080ff;*/}
-.diagram .bgfill     {fill:#000000;}
-.diagram .bgstroke   {stroke:#000000;}
+.diagram .bgfill     {fill:#444444;}
+.diagram .bgstroke   {stroke:#444444;}
 .diagram .fgfill     {fill:#eeeeee;}
 .diagram .fgstroke   {stroke:#eeeeee;}
 .diagram .highfill   {fill:#6666ff;}
@@ -248,7 +253,9 @@ button:hover, select:hover {
 .diagram .dimfill    {fill:#666666;}
 
 
-/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header/Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header/Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+
 #header, #footer {
 	text-align:center;
 	padding-top:0;
@@ -270,4 +277,3 @@ button:hover, select:hover {
 	user-select:none
 }
 /* #footer:first-line {font-style:italic;} */
-
