@@ -4,7 +4,7 @@ Standards:
 
 Keep articles simple - under 10,000 bytes.
 Write the articles as if there are no images. Add images later to help.
-80 chars
+80 chars, find with: (<br>|.{81,})
 <br> should be used for line breaks, not spacing
 
 
@@ -63,6 +63,7 @@ sub {
 
 
 .content canvas, .content img {
+	margin:auto;
 	margin-top:4rem;
 	margin-bottom:4rem;
 }
@@ -232,8 +233,8 @@ button:hover, select:hover {
 	width:56rem;
 	height:auto;
 	margin:auto;
-	margin-top:1rem;
-	margin-bottom:1rem;
+	margin-top:4rem;
+	margin-bottom:4rem;
 	/* border:2px dashed #333333; */
 	/* background:#333333; */
 	font-family:Consolas,monospace,monospace;

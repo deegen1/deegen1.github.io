@@ -228,8 +228,9 @@ screen.</p>
 this instruction is executed, it will take the values at memory addresses
 <i>len</i> and <i>one</i>, subtract them, and store the result back at
 <i>len</i>. That is, it will perform <i>[len]=[len]-[one]</i> which evaluates to
-<i>[len]=[len]-1</i>. Also, if <i>[len]</i> is less than or equal to <i>[one]</i>
-(before subtracting), then we will jump to <i>exit</i> and end the program.</p>
+<i>[len]=[len]-1</i>. Also, if <i>[len]</i> is less than or equal to
+<i>[one]</i> (before subtracting), then we will jump to <i>exit</i> and end the
+program.</p>
 <p>Thus, when the program is running, we expect it to count from <i>len-txt</i>
 down to <i>1</i> and then exit.</p>
 <div class="codeblock langsico">      ?-5  neg   loop</div>

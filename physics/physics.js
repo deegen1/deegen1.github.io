@@ -13,6 +13,12 @@ TODO
 
 fps counter
 use an interaction matrix
+enable clicking and dragging
+fix mouse first entering canvas
+game idea:
+	Need to get all circles in a bucket
+	Player can drag a ball
+	Ball can only interact with some elements
 
 
 */
@@ -1352,7 +1358,7 @@ void World::CreateBox(const Vector& cen,u32 atoms,f64 rad,AtomType* type) {
 //---------------------------------------------------------------------------------
 
 
-function DrawClear(imgdata,imgwidth,imgheight,r,g,b) {
+function DrawFill(imgdata,imgwidth,imgheight,r,g,b) {
 	var i=imgwidth*imgheight*4-1;
 	while (i>0) {
 		imgdata[i--]=255;
@@ -1599,7 +1605,7 @@ function PhyScene1(displayid) {
 		var ctx=scene.ctx;
 		var world=scene.world;
 		world.Update();
-		DrawClear(imgdata,imgwidth,imgheight,0,0,0);
+		DrawFill(imgdata,imgwidth,imgheight,0,0,0);
 		// Move the player.
 		if (scene.mouseonscreen) {
 			scene.follow=true;
