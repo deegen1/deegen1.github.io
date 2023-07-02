@@ -1533,20 +1533,20 @@ function PhyScene1(displayid) {
 	canvas.onclick=function(evt) {
 		scene.keydown[250]|=1;
 	};
-	canvas.touchstart=function(evt) {
+	canvas.ontouchstart=function(evt) {
 		scene.keydown[250]|=1;
-		canvas.touchmove(evt);
+		canvas.ontouchmove(evt);
 	};
-	canvas.touchmove=function(evt) {
+	canvas.ontouchmove=function(evt) {
 		scene.keydown[250]|=2;
 		var touch=(evt.targetTouches.length>0?evt.targetTouches:evt.touches).item(0);
 		scene.mouse.set(0,(touch.pageX-canvas.offsetLeft-canvas.clientLeft)/canvas.clientHeight);
 		scene.mouse.set(1,(touch.pageY-canvas.offsetTop -canvas.clientTop )/canvas.clientHeight);
 	};
-	canvas.touchend=function(evt) {
+	canvas.ontouchend=function(evt) {
 		scene.keydown[250]=0;
 	};
-	canvas.touchcancel=canvas.touchend;
+	canvas.ontouchcancel=canvas.ontouchend;
 	canvas.onmouseup=function(evt) {
 		scene.keydown[250]=0;
 	};
