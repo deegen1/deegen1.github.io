@@ -151,7 +151,6 @@ class PhyVec {
 	}
 
 
-
 	tostring() {
 		return "("+this.elem.join(", ")+")";
 	}
@@ -211,14 +210,12 @@ class PhyVec {
 	}
 
 
-
 	sub(v) {
 		// u-v
 		var ue=this.elem,ve=v.elem,elems=ue.length,re=new Array(elems);
 		for (var i=0;i<elems;i++) {re[i]=ue[i]-ve[i];}
 		return new PhyVec(re,true);
 	}
-
 
 
 	iscale(s) {
@@ -229,14 +226,12 @@ class PhyVec {
 	}
 
 
-
 	scale(s) {
 		// u*s
 		var ue=this.elem,elems=ue.length,re=new Array(elems);
 		for (var i=0;i<elems;i++) {re[i]=ue[i]*s;}
 		return new PhyVec(re,true);
 	}
-
 
 
 	dot(v) {
@@ -1538,6 +1533,20 @@ function PhyScene1(displayid) {
 	canvas.onclick=function(evt) {
 		scene.keydown[250]|=1;
 	};
+	canvas.touchstart=function(evt) {
+		scene.keydown[250]|=1;
+		canvas.touchmove(evt);
+	};
+	canvas.touchmove=function(evt) {
+		scene.keydown[250]|=2;
+		var touch=(evt.targetTouches.length>0?evt.targetTouches:evt.touches).item(0);
+		scene.mouse.set(0,(touch.pageX-canvas.offsetLeft-canvas.clientLeft)/canvas.clientHeight);
+		scene.mouse.set(1,(touch.pageY-canvas.offsetTop -canvas.clientTop )/canvas.clientHeight);
+	};
+	canvas.touchend=function(evt) {
+		scene.keydown[250]=0;
+	};
+	canvas.touchcancel=canvas.touchend;
 	canvas.onmouseup=function(evt) {
 		scene.keydown[250]=0;
 	};

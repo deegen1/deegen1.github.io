@@ -7,32 +7,24 @@
 	<script src="../style/style.js"></script>
 </head>
 <body>
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <div id="header"><a href="../index.html">Alec Dee's General Site</a></div>
 
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Introduction ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Introduction</h1>
-<p>Searching for self balancing trees on the internet will yield plenty of results for red-black
-and AVL trees, but almost no results for
-<a href="https://en.wikipedia.org/wiki/Weight-balanced_tree">weight balanced trees</a>. This is
-unfortunate, as weight balanced tree's provide the same logarithmic performance as red-black and AVL
-trees, with one important benefit: they can also lexicographically index elements in logarithmic
-time.</p>
-<br>
-<p>For instance, finding the i'th element of an AVL tree will take <i>O(n)</i> time. But with a
-weight balanced tree, it will only take <i>O(log(n))</i> time.</p>
-<br>
-<p>In this article, we will provide a feature complete implementation of a weight balanced tree in
-python. We'll also show how it works and how it stacks up against other trees.</p>
-<br>
-</div>
 
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Implementation ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Implementation</h1>
-<p>The full implementation can be downloaded here: <a href="./WBTree.py">WBTree.py</a></p>
-<br>
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~ Weight Balanced Trees ~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<div class="content"><h1>Weight Balanced Trees</h1>
+<p>Searching for self balancing trees on the internet will yield plenty of
+results for red-black and AVL trees, but almost no results for
+<a href="https://en.wikipedia.org/wiki/Weight-balanced_tree">weight balanced
+trees</a>. This is unfortunate, as weight balanced tree's provide the same
+logarithmic performance as red-black and AVL trees, with one important benefit:
+they can also index elements in logarithmic time.</p>
+<p>For instance, finding the i'th element of an AVL tree will take <i>O(n)</i>
+time. But with a weight balanced tree, it will only take <i>O(log(n))</i>
+time.</p>
+<p>The full implementation can be downloaded here:
+<a href="./WBTree.py">WBTree.py</a></p>
 <p>And this is an example of using the tree:</p>
-<br>
 <div class="codeblock langpython">tree=WBTree()
 tree.add((5,"Friday"))
 tree.add((3,"Wednesday"))
@@ -50,9 +42,7 @@ print("Index:")
 for i in range(len(tree)):
 	node=tree[i]
 	print("{0}: {1}".format(*node.value))</div>
-<br>
 <p>Console output:</p>
-<br>
 <div class="consoleblock">Iterate:
 1: Monday
 2: Tuesday
@@ -66,71 +56,77 @@ Index:
 3: Wednesday
 4: Thursday
 5: Friday</div>
-<br>
-<p>The tree also accepts custom sorting functions and can be toggled to accept (or reject) duplicate
-elements</p>
-<br>
+<p>The tree also accepts custom sorting functions and can be toggled to accept
+(or reject) duplicate elements</p>
 </div>
 
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Performance ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Performance ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <div class="content"><h1>Performance</h1>
-<p>Our performance data is generated from speedtest.py in <a href="./testing.zip">testing.zip</a>
-using the python3 runtime. Our own timing is denoted by "Dee", with timings from various other
-authors denoted by their screen names.</p>
-<br>
+<p>We've compared WBTree's performance against various other self balancing
+trees. The data was generated using speedtest.py in
+<a href="./testing.zip">testing.zip</a> using the python3 runtime. Our own
+timing is denoted by "Dee".</p>
 <p>Timing was conducted by</p>
-<br>
 <table class="listtable">
 <tr><td>1.</td><td>Adding 100,000 nodes to a tree</td></tr>
 <tr><td>2.</td><td>Searching for each node</td></tr>
 <tr><td>3.</td><td>Removing all nodes from the tree</td></tr>
 </table>
-<br>
-<p>If an implementation didn't support searching or removing, those timings were omitted.</p>
-<br>
+<p>If an implementation didn't support searching or removing, those timings were
+omitted.</p>
 <table class="datatable headerrow">
-<tr><td>Algorithm</td><td>Rank</td><td>Add (s)</td><td>Remove (s)</td><td>Search (s)</td></tr>
-<tr><td><a href="https://www.geeksforgeeks.org/avl-tree-set-1-insertion">Pathak AVL</a></td><td>11</td><td>2.25</td><td>-</td><td>-</td></tr>
-<tr><td><a href="https://www.hashcollision.org/hkn/python/red_black/red_black.py">Yoo RB</a></td><td>10</td><td>0.82</td><td>-</td><td>-</td></tr>
-<tr><td><a href="https://gist.github.com/girish3/a8e3931154af4da89995">Girish AVL</a></td><td>9</td><td>5.27</td><td>3.55</td><td>-</td></tr>
-<tr><td><a href="http://code.activestate.com/recipes/576817-red-black-tree">Reid RB</a></td><td>8</td><td>1.46</td><td>-</td><td>0.77</td></tr>
-<tr><td><a href="https://raw.githubusercontent.com/stanislavkozlovski/Red-Black-Tree/master/rb_tree.py">Stanisl RB</a></td><td>7</td><td>1.28</td><td>1.78</td><td>1.19</td></tr>
+<tr><td>Algorithm</td><td>Rank</td><td>Add (s)</td><td>Remove (s)</td>
+<td>Search (s)</td></tr>
+<tr><td><a href="https://www.geeksforgeeks.org/avl-tree-set-1-insertion">Pathak AVL</a></td>
+<td>11</td><td>2.25</td><td>-</td><td>-</td></tr>
+<tr><td><a href="https://www.hashcollision.org/hkn/python/red_black/red_black.py">Yoo RB</a></td>
+<td>10</td><td>0.82</td><td>-</td><td>-</td></tr>
+<tr><td><a href="https://gist.github.com/girish3/a8e3931154af4da89995">Girish AVL</a></td>
+<td>9</td><td>5.27</td><td>3.55</td><td>-</td></tr>
+<tr><td><a href="http://code.activestate.com/recipes/576817-red-black-tree">Reid RB</a></td>
+<td>8</td><td>1.46</td><td>-</td><td>0.77</td></tr>
+<tr><td><a href="https://raw.githubusercontent.com/stanislavkozlovski/Red-Black-Tree/master/rb_tree.py">Stanisl RB</a></td>
+<td>7</td><td>1.28</td><td>1.78</td><td>1.19</td></tr>
 <tr><td>Dee WBT</td><td>6</td><td>1.82</td><td>1.63</td><td>0.49</td></tr>
-<tr><td><a href="https://github.com/pgrafov/python-avl-tree/blob/master/pyavltree.py">Pgrafov AVL</a></td><td>5</td><td>1.95</td><td>1.39</td><td>0.46</td></tr>
-<tr><td><a href="https://github.com/mozman/bintrees">Mozman RB</a></td><td>4</td><td>1.21</td><td>1.98</td><td>0.25</td></tr>
-<tr><td><a href="https://github.com/mozman/bintrees">Mozman AVL</a></td><td>3</td><td>1.47</td><td>1.02</td><td>0.26</td></tr>
-<tr><td><a href="https://github.com/MSingh3012/Red-Black-tree-in-python/blob/master/RBTree.py">Msingh RB</a></td><td>2</td><td>1.02</td><td>0.84</td><td>0.61</td></tr>
+<tr><td><a href="https://github.com/pgrafov/python-avl-tree/blob/master/pyavltree.py">Pgrafov AVL</a></td>
+<td>5</td><td>1.95</td><td>1.39</td><td>0.46</td></tr>
+<tr><td><a href="https://github.com/mozman/bintrees">Mozman RB</a></td>
+<td>4</td><td>1.21</td><td>1.98</td><td>0.25</td></tr>
+<tr><td><a href="https://github.com/mozman/bintrees">Mozman AVL</a></td>
+<td>3</td><td>1.47</td><td>1.02</td><td>0.26</td></tr>
+<tr><td><a href="https://github.com/MSingh3012/Red-Black-tree-in-python/blob/master/RBTree.py">Msingh RB</a></td>
+<td>2</td><td>1.02</td><td>0.84</td><td>0.61</td></tr>
 <tr><td>Dee AVL</td><td>1</td><td>1.03</td><td>0.77</td><td>0.47</td></tr>
 </table>
-<br>
-<p>Unfortunately, Dee WBT is the algorithm this article focuses on, and it's obvious it doesn't do
-as well as the other trees. There are a few reasons for this:</p>
-<br>
+<p>Dee WBT is the algorithm this article focuses on, but it's obvious it doesn't
+perform as well as the other trees. There are a few reasons for this:</p>
 <table class="listtable">
-<tr><td>&bull;</td><td>It allows for a custom search function, which slows searching down.</td></tr>
-<tr><td>&bull;</td><td>Rebalancing is slightly slower due updating weights and how it compares
+<tr><td>&bull;</td><td>It allows for a custom search function, which slows
+searching down.</td></tr>
+<tr><td>&bull;</td><td>Rebalancing is slightly slower due updating weights and
+how it compares
 sibling nodes.</td></tr>
 </table>
-<br>
-<p>It's important to remember that the weight balanced tree is still bounded by <i>O(log(n))</i> for
-all of the normal <i>add()</i>, <i>remove()</i>, and <i>search()</i> operations. So even though its
-relative performance isn't good, it will never become pathologically bad.</p>
-<br>
+<p>It's important to remember that the weight balanced tree is still bounded by
+<i>O(log(n))</i> for all of the normal <i>add()</i>, <i>remove()</i>, and
+<i>search()</i> operations. So even though its relative performance isn't good,
+it will never become pathologically bad.</p>
 </div>
 
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Explanation ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Explanation ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <div class="content"><h1>Explanation</h1>
-<p>Imagine keeping track of the residents in a city. As people decide to move to the city, or move
-elsewhere, we'd like to update our ledger of residents and also query basic information about them
-as fast as possible. An array would work, but its <i>O(n)</i> time would make it extremely slow as
-more people decide to move to the city. This is where self balancing tree's come in. Most of the
-common operations we'll perform will take <i>O(log(n))</i> time, so even a city of 1 million people
-will only need about 20 operations to update its ledger.</p>
-<br>
-<p>All of the common self balancing trees have a similar structure: nodes with 2 children per node,
-a root node, and some balancing mechanism.</p>
-<br>
-<br>
+<p>Imagine keeping track of the residents in a city. As people decide to move to
+the city, or move elsewhere, we'd like to update our ledger of residents and
+also query basic information about them as fast as possible. An array would
+work, but its <i>O(n)</i> time would make it extremely slow as more people
+decide to move to the city. This is where self balancing tree's come in. Most of
+the common operations we'll perform will take <i>O(log(n))</i> time, so even a
+city of 1 million people will only need about 20 operations to update its
+ledger.</p>
+<p>All of the common self balancing trees have a similar structure: nodes with 2
+children per node, a root node, and some balancing mechanism.</p>
 <svg version="1.1" viewBox="0 0 1000 244" class="diagram">
 <g transform="translate(201,20)">
 	<line x1="139" y1="79" x2="299" y2="19"/>
@@ -184,24 +180,19 @@ a root node, and some balancing mechanism.</p>
 	</g>
 </g>
 </svg>
-<br>
-<br>
 <p>Where the types of trees differ is in their balancing mechanism:</p>
-<br>
-<br>
 <table class="datatable headercol">
-<tr><td>Red-Black:</td><td>Traveling to any descendant node will cross the same number of black
-nodes.</td></tr>
-<tr><td>AVL:</td><td>The heights of child nodes will be kept within &#177;1 of eachother.</td></tr>
-<tr><td>Weight:</td><td>The weights of child nodes will be kept within a ratio of 2.5.</td></tr>
+<tr><td>Red-Black:</td><td>Traveling to any descendant node will cross the same
+number of black nodes.</td></tr>
+<tr><td>AVL:</td><td>The heights of child nodes will be kept within &#177;1 of
+eachother.</td></tr>
+<tr><td>Weight:</td><td>The weights of child nodes will be kept within a ratio
+of 2.5.</td></tr>
 </table>
-<br>
-<br>
-<p>In our weight balanced tree we define the weight as the number of descendants of a node, plus the
-node itself. Mathematically, we can define the weight recursively as
-<i>left.weight + right.weight + 1</i>. We also define null nodes to have a weight of <i>0</i>.</p>
-<br>
-<br>
+<p>In our weight balanced tree we define the weight as the number of descendants
+of a node, plus the node itself. Mathematically, we can define the weight
+recursively as <i>left.weight + right.weight + 1</i>. We also define null nodes
+to have a weight of <i>0</i>.</p>
 <svg version="1.1" viewBox="0 0 1000 234" class="diagram">
 <g transform="translate(167,27)">
 	<line x1="160" y1="0" x2="80" y2="60"/>
@@ -267,17 +258,14 @@ node itself. Mathematically, we can define the weight recursively as
 	</g>
 </g>
 </svg>
-<br>
-<br>
-<p>We will omit drawing null nodes from now on in order to avoid clutter. If a node is drawn without
-a child, then it can be assumed that the child is null.</p>
-<br>
-<p>The tree will focus on maintaining two properties: the relative weights of 2 children should have
-a ratio of 2.5 or less, and nodes will be in ascending order from left to right. For instance, in
-the tree below, all children to the left of the root node are less than <i>7</i>, and all children
-to the right are greater than <i>7</i>.</p>
-<br>
-<br>
+<p>We will omit drawing null nodes from now on in order to avoid clutter. If a
+node is drawn without a child, then it can be assumed that the child is
+null.</p>
+<p>The tree will focus on maintaining two properties: the relative weights of 2
+children should have a ratio of 2.5 or less, and nodes will be in ascending
+order from left to right. For instance, in the tree below, all children to the
+left of the root node are less than <i>7</i>, and all children to the right are
+greater than <i>7</i>.</p>
 <svg version="1.1" viewBox="0 0 1000 234" class="diagram">
 <g transform="translate(201,10)">
 	<line x1="139" y1="79" x2="299" y2="19"/>
@@ -338,24 +326,19 @@ to the right are greater than <i>7</i>.</p>
 	</g>
 </g>
 </svg>
-<br>
-<br>
-<p>The importance of a self balancing tree is that we may add and remove nodes from the tree while
-maintaining a logarithmic bound on the tree's height and a sorted ordering on the nodes. This allows
-us to dynamically track and query data relatively quickly even on large data sets.</p>
-<br>
-<p>We are now prepared to implement the various operations that will maintain the tree's logarithmic
-height, and also the operations that can make use of the tree once it's populated.</p>
-<br>
+<p>The importance of a self balancing tree is that we may add and remove nodes
+from the tree while maintaining a logarithmic bound on the tree's height and a
+sorted ordering on the nodes. This allows us to dynamically track and query data
+relatively quickly even on large data sets.</p>
+<p>We are now prepared to implement the various operations that will maintain
+the tree's logarithmic height, and also the operations that can make use of the
+tree once it's populated.</p>
 <h2>Rotations</h2>
-<br>
-<p>Rotations are the fundamental operation that trees use to rebalance nodes. They work by swapping a
-node's position with one of it's children and, in the process, raise one of its children and lower
-another. There are two type of rotations that can be performed: left rotations and right rotations.</p>
-<br>
+<p>Rotations are the fundamental operation that trees use to rebalance nodes.
+They work by swapping a node's position with one of it's children and, in the
+process, raise one of its children and lower another. There are two type of
+rotations that can be performed: left rotations and right rotations.</p>
 <p>Let us consider a right rotation on the node <i>A</i> below.</p>
-<br>
-<br>
 <svg version="1.1" viewBox="0 0 1000 171" class="diagram">
 <g transform="translate(272,10)">
 	<line x1="58" y1="78" x2="98" y2="18"/>
@@ -403,25 +386,20 @@ another. There are two type of rotations that can be performed: left rotations a
 	</g>
 </g>
 </svg>
-<br>
-<br>
-<p>Note that node <i>B</i> will take the place of node <i>A</i>, wherever <i>A</i> was in the tree.
-It can be seen that this right rotation has the effect of shifting the majority of nodes from the
-left side of the tree to the right. By doing this, the relative weights of 2 children can be kept
-close, and it is the crux of the tree's logarithmic performance. The rotation above is what we'll
-use to rebalance a right-leaning node. The rotation also preserves the sorted order of the nodes by
-maintaining the following order:</p>
-<br>
+<p>Note that node <i>B</i> will take the place of node <i>A</i>, wherever
+<i>A</i> was in the tree. It can be seen that this right rotation has the effect
+of shifting the majority of nodes from the left side of the tree to the right.
+By doing this, the relative weights of 2 children can be kept close, and it is
+the crux of the tree's logarithmic performance. The rotation above is what we'll
+use to rebalance a right-leaning node. The rotation also preserves the sorted
+order of the nodes by maintaining the following order:</p>
 <table class="listtable">
 <tr><td><i>x</i> is to the left of <i>B</i></td></tr>
 <tr><td><i>B</i> is to the left of <i>y</i></td></tr>
 <tr><td><i>y</i> is to the left of <i>A</i></td></tr>
 <tr><td><i>A</i> is to the left of <i>z</i></td></tr>
 </table>
-<br>
 <p>Likewise, a left rotation on node A looks like so:</p>
-<br>
-<br>
 <svg version="1.1" viewBox="0 0 1000 171" class="diagram">
 <g transform="translate(272,10)">
 	<line x1="18" y1="78" x2="58" y2="18"/>
@@ -469,14 +447,11 @@ maintaining the following order:</p>
 	</g>
 </g>
 </svg>
-<br>
-<br>
-<p>Left rotations can conversely be used to rebalance a node which is leaning to the right.</p>
-<br>
-<p>The python code to perform these rotations is given below. Note that the weights of nodes
-<i>A</i> and <i>B</i> need to be recalculated after each rotation, since their childs' weights
-may have changed.</p>
-<br>
+<p>Left rotations can conversely be used to rebalance a node which is leaning to
+the right.</p>
+<p>The python code to perform these rotations is given below. Note that the
+weights of nodes <i>A</i> and <i>B</i> need to be recalculated after each
+rotation, since their childs' weights may have changed.</p>
 <div class="codeblock langpython">def rotleft(a):
 	b=a.right
 	r=b.left
@@ -509,30 +484,28 @@ def calcweight(self):
 	if r: weight+=r.weight
 	self.weight=weight
 </div>
-<br>
-<p>We will show a concrete of example of how rotations are used to rebalance a tree in the next
-section.</p>
-<br>
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Balancing ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<p>We will show a concrete of example of how rotations are used to rebalance a
+tree in the next section.</p>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Balancing ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <h2>Balancing</h2>
-<br>
-<p>As we add and remove nodes from the tree, the tree will become lopsided; with some branches
-becoming extremely heavy and some extremely light. In order to maintain an <i>O(log(n))</i>
-worst-case performance bound on tree operations, the tree will need to be rebalanced
-periodically.</p>
-<br>
-<p>Ideally, in a perfectly balanced tree, all children will have the same weight. However, since
-we're working with a tree that can be updated dynamically, we will have to allow some slack in
-balancing the tree in order to balance in a timely manner. That is, if we're too strict with
-rebalancing, the act of rebalancing will take longer than any time we might save by using a self
+<p>As we add and remove nodes from the tree, the tree will become lopsided; with
+some branches becoming extremely heavy and some extremely light. In order to
+maintain an <i>O(log(n))</i> worst-case performance bound on tree operations,
+the tree will need to be rebalanced periodically.</p>
+<p>Ideally, in a perfectly balanced tree, all children will have the same
+weight. However, since we're working with a tree that can be updated
+dynamically, we will have to allow some slack in balancing the tree in order to
+balance in a timely manner. That is, if we're too strict with rebalancing, the
+act of rebalancing will take longer than any time we might save by using a self
 balancing tree.</p>
-<br>
-<p>For our tree, we will define a node to be balanced if its left and right child weights are within
-a ratio of 2.5. That is <i>1 / 2.5 &#8804; left.weight / right.weight &#8804; 2.5</i>. However,
-defining the actual inequality in python is fairly tricky, and even slight errors can lead to trees
-that become imbalanced. The actual inequality we will use to detect an imbalance only involves
-integer math:</p>
-<br>
+<p>For our tree, we will define a node to be balanced if its left and right
+child weights are within a ratio of 2.5. That is
+<i>1 / 2.5 &#8804; left.weight / right.weight &#8804; 2.5</i>. However, defining
+the actual inequality in python is fairly tricky, and even slight errors can
+lead to trees that become imbalanced. The actual inequality we will use to
+detect an imbalance only involves integer math:</p>
 <div class="codeblock langpython">if right.weight * 5 + 2 &lt;  left.weight * 2:
 	# Node is leaning to the left.
 
@@ -541,12 +514,11 @@ if  left.weight * 5 + 2 &lt; right.weight * 2:
 
 # Otherwise, the node is balanced.
 </div>
-<br>
-<p>Choosing other values could lead to the balancing invariant being broken over time, or lead to
-trees with worse balancing ratios. <a href="https://yoichihirai.com/bst.pdf">Hirai et al</a> cover
-research into other invariants that can be used.</p>
-<br>
-<svg version="1.1" viewBox="0 0 1000 352" class="diagram">
+<p>Choosing other values could lead to the balancing invariant being broken over
+time, or lead to trees with worse balancing ratios.
+<a href="https://yoichihirai.com/bst.pdf">Hirai et al</a> cover research into
+other invariants that can be used.</p>
+<svg version="1.1" viewBox="0 0 1000 370" class="diagram">
 <g transform="translate(310,10)">
 	<line x1="99" y1="79" x2="179" y2="19"/>
 	<line x1="259" y1="79" x2="179" y2="19"/>
@@ -577,29 +549,27 @@ research into other invariants that can be used.</p>
 	<text x="0" y="0" dy="3.6em">Leaning to the left</text>
 </g>
 </svg>
-<br>
-<br>
-<p>To actually rebalance a node, we will make use of rotations. Note from the previous section that
-left and right rotations shift weights differently. In particular, rotating to the left tilts the
-node's children to the left, and rotating to the right tilts them to the right. In some situations,
-where the middle node (denoted by <i>y</i> above) is too heavy, simply performing one rotation
-won't balance the tree. In those situations, we'll need to perform a double rotation. Thus, for a
-node leaning to the left, we have the following cases:</p>
-<br>
+<p>To actually rebalance a node, we will make use of rotations. Note from the
+previous section that left and right rotations shift weights differently. In
+particular, rotating to the left tilts the node's children to the left, and
+rotating to the right tilts them to the right. In some situations, where the
+middle node (denoted by <i>y</i> above) is too heavy, simply performing one
+rotation won't balance the tree. In those situations, we'll need to perform a
+double rotation. Thus, for a node leaning to the left, we have the following
+cases:</p>
 <div class="codeblock langpython">if right.weight * 5 + 2 &lt; left.weight * 2:
 	if left.left.weight * 5 &lt; left.weight * 2:
 		# Double rotation.
 		# Rotate node.left to the left.
 	# Rotate node to the right.
 </div>
-<br>
-<p>Single and double rotations will handle every type of imbalance we'll encounter, so there's need
-to introduce any more. We'll first show what a single rotation looks like:</p>
-<br>
-<br>
+<p>Single and double rotations will handle every type of imbalance we'll
+encounter, so there's need to introduce any more. We'll first show what a single
+rotation looks like:</p>
 <svg version="1.1" viewBox="0 0 1000 380" class="diagram">
 <g transform="translate(170,30)">
-	<text x="330" y="-10" text-anchor="middle" style="font-size:170%" dy="0.3em">Single Rotation</text>
+	<text x="330" y="-10" text-anchor="middle" style="font-size:170%"
+	dy="0.3em">Single Rotation</text>
 	<line x1="0" y1="280" x2="660" y2="280" style="stroke-width:1"/>
 	<line x1="330" y1="20" x2="330" y2="280" style="stroke-width:1"/>
 	<g transform="translate(320,293)">
@@ -667,16 +637,14 @@ to introduce any more. We'll first show what a single rotation looks like:</p>
 	</g>
 </g>
 </svg>
-<br>
-<br>
-<p>Single rotations can fail to balance the node if the middle node is too heavy. If this is the
-case, then we must left rotate the node's left child before actually rotating the node. The example
-below shows what would happen if we didn't make this correction.</p>
-<br>
-<br>
+<p>Single rotations can fail to balance the node if the middle node is too
+heavy. If this is the case, then we must left rotate the node's left child
+before actually rotating the node. The example below shows what would happen if
+we didn't make this correction.</p>
 <svg version="1.1" viewBox="0 0 1000 380" class="diagram">
 <g transform="translate(105,30)">
-	<text x="395" y="-10" text-anchor="middle" style="font-size:170%" dy="0.3em">Single Rotation - Incorrect</text>
+	<text x="395" y="-10" text-anchor="middle" style="font-size:170%"
+	dy="0.3em">Single Rotation - Incorrect</text>
 	<line x1="0" y1="280" x2="790" y2="280" style="stroke-width:1"/>
 	<line x1="395" y1="20" x2="395" y2="280" style="stroke-width:1"/>
 	<g transform="translate(385,293)">
@@ -745,14 +713,11 @@ below shows what would happen if we didn't make this correction.</p>
 	</g>
 </g>
 </svg>
-<br>
-<br>
 <p>Rotating the left child beforehand results in a correctly balanced tree.</p>
-<br>
-<br>
 <svg version="1.1" viewBox="0 0 1000 320" class="diagram">
 <g transform="translate(20,30)">
-	<text x="480" y="-10" text-anchor="middle" style="font-size:170%" dy="0.3em">Double Rotation - Correct</text>
+	<text x="480" y="-10" text-anchor="middle" style="font-size:170%"
+	dy="0.3em">Double Rotation - Correct</text>
 	<line x1="0" y1="220" x2="960" y2="220" style="stroke-width:1"/>
 	<line x1="303" y1="20" x2="303" y2="220" style="stroke-width:1"/>
 	<line x1="630" y1="20" x2="630" y2="220" style="stroke-width:1"/>
@@ -857,14 +822,11 @@ below shows what would happen if we didn't make this correction.</p>
 	</g>
 </g>
 </svg>
-<br>
-<br>
-<p>The cases where a node is leaning to the right are handled exactly the same, only all "left" and
-"right" references are swapped, including rotations.</p>
-<br>
-<p>The code below is our full rebalancing function. In order to make sure all node weights are
-correct, we need to rebalance from the node we've added (or removed) all the way up to the root.</p>
-<br>
+<p>The cases where a node is leaning to the right are handled exactly the same,
+only all "left" and "right" references are swapped, including rotations.</p>
+<p>The code below is our full rebalancing function. In order to make sure all
+node weights are correct, we need to rebalance from the node we've added (or
+removed) all the way up to the root.</p>
 <div class="codeblock langpython">def rebalance(self,next):
 	# Rebalance from next upward. If 2 children differ in weight by a ratio of 2.5 or
 	# more, we can rotate to rebalance.
@@ -890,31 +852,30 @@ correct, we need to rebalance from the node we've added (or removed) all the way
 		elif next.left is orig: next.left=node
 		else: next.right=node
 </div>
-<br>
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Searching ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Searching ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <h2>Searching</h2>
-<br>
-<p>When defining self balancing trees, we stated that any child to the left of a node will satisfy
-<i>node.value &gt;= child.value</i>, and any child to the right will satisfy
-<i>node.value &lt;= child.value</i>. While this property allows us to search for nodes, it also
-presents a problem since the tree can have multiple nodes with the same key. In such a case, which
-node should we return when searching for a key?</p>
-<br>
-<p>For the purposes of this article, we will have the search function return the last node going by
-sorted order. Thus, the rules it will follow are:</p>
-<br>
+<p>When defining self balancing trees, we stated that any child to the left of a
+node will satisfy <i>node.value &gt;= child.value</i>, and any child to the
+right will satisfy <i>node.value &lt;= child.value</i>. While this property
+allows us to search for nodes, it also presents a problem since the tree can
+have multiple nodes with the same key. In such a case, which node should we
+return when searching for a key?</p>
+<p>For the purposes of this article, we will have the search function return the
+last node going by sorted order. Thus, the rules it will follow are:</p>
 <table class="listtable">
 <tr><td>1:</td><td>Start at the root node.</td></tr>
-<tr><td>2:</td><td>If <i>node.value &lt;= value</i>, then move to the node's right child.</td></tr>
+<tr><td>2:</td><td>If <i>node.value &lt;= value</i>, then move to the node's
+right child.</td></tr>
 <tr><td>3:</td><td>Otherwise, move to the node's left child.</td></tr>
 <tr><td>4:</td><td>Continue until we reach a null node.</td></tr>
-<tr><td>5:</td><td>Return the last node with <i>node.value = value</i>.</td></tr>
+<tr><td>5:</td><td>Return the last node with
+<i>node.value = value</i>.</td></tr>
 </table>
-<br>
-<p>For example, assume we want to search for <i>value = 5</i> in the following tree.</p>
-<br>
-<br>
-<svg version="1.1" viewBox="0 0 1000 288" class="diagram">
+<p>For example, assume we want to search for <i>value = 5</i> in the following
+tree.</p>
+<svg version="1.1" viewBox="0 0 1000 298" class="diagram">
 <g transform="translate(176,10)">
 	<line x1="139" y1="79" x2="299" y2="19" stroke-width="4" class="highstroke"/>
 	<line x1="459" y1="79" x2="299" y2="19"/>
@@ -978,10 +939,7 @@ sorted order. Thus, the rules it will follow are:</p>
 	</g>
 </g>
 </svg>
-<br>
-<br>
 <p>The python code below shows how our basic search function works.</p>
-<br>
 <div class="codeblock langpython">def search(tree,value):
 	node,ret=tree.root,None
 	while node:
@@ -992,10 +950,8 @@ sorted order. Thus, the rules it will follow are:</p>
 			node=node.left
 	return ret
 </div>
-<br>
-<p>In <a href="./WBTree.py">WBTree.py</a>, the search function has been expanded to allow us to
-query different ranges in the tree. They include:</p>
-<br>
+<p>In <a href="./WBTree.py">WBTree.py</a>, the search function has been expanded
+to allow us to query different ranges in the tree. They include:</p>
 <table class="listtable">
 <tr><td>&bull;</td><td>Return the least <i>node = value</i>.</td></tr>
 <tr><td>&bull;</td><td>Return the least <i>node &gt; value</i>.</td></tr>
@@ -1004,18 +960,17 @@ query different ranges in the tree. They include:</p>
 <tr><td>&bull;</td><td>Return the greatest <i>node &lt; value</i>.</td></tr>
 <tr><td>&bull;</td><td>Return the greatest <i>node &lt;= value</i>.</td></tr>
 </table>
-<br>
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Adding ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Adding ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <h2>Adding</h2>
-<br>
-<p>Adding nodes is as simple as finding where the node would be if we searched for it, adding it as
-a child, and then balancing up. Because we defined our search function to go right whenever
-<i>node.value &lt;= value</i>, this will stably (in the sorting sense) add the node to the tree.</p>
-<br>
-<p>For instance, assume we want to add <i>value = 4</i> to the following tree:</p>
-<br>
-<br>
-<svg version="1.1" viewBox="0 0 1000 259" class="diagram">
+<p>Adding nodes is as simple as finding where the node would be if we searched
+for it, adding it as a child, and then balancing up. Because we defined our
+search function to go right whenever <i>node.value &lt;= value</i>, this will
+stably (in the sorting sense) add the node to the tree.</p>
+<p>For instance, assume we want to add <i>value = 4</i> to the following
+tree:</p>
+<svg version="1.1" viewBox="0 0 1000 250" class="diagram">
 <g transform="translate(0,10)">
 	<line x1="59" y1="79" x2="139" y2="19"/>
 	<line x1="219" y1="79" x2="139" y2="19" stroke-width="4" class="highstroke"/>
@@ -1072,17 +1027,16 @@ a child, and then balancing up. Because we defined our search function to go rig
 	</g>
 </g>
 </svg>
-<br>
-<br>
-<p>We would then balance from node <i>3</i> upwards until we reach the root node.</p>
-<br>
-<br>
-<svg version="1.1" viewBox="0 0 1000 259" class="diagram">
+<p>We would then balance from node <i>3</i> upwards until we reach the root
+node.</p>
+<svg version="1.1" viewBox="0 0 1000 230" class="diagram">
 <g transform="translate(5,10) scale(0.93)">
 	<line x1="59" y1="79" x2="139" y2="19"/>
 	<line x1="219" y1="79" x2="139" y2="19"/>
-	<line x1="259" y1="139" x2="219" y2="79"  stroke-width="4" class="highstroke"/>
-	<line x1="299" y1="199" x2="259" y2="139"  stroke-width="4" class="highstroke"/>
+	<line x1="259" y1="139" x2="219" y2="79"  stroke-width="4"
+	class="highstroke"/>
+	<line x1="299" y1="199" x2="259" y2="139"  stroke-width="4"
+	class="highstroke"/>
 	<g class="bgfill highstroke">
 		<circle cx="139" cy="19" r="17"/>
 		<circle cx="59" cy="79" r="17"/>
@@ -1111,7 +1065,8 @@ a child, and then balancing up. Because we defined our search function to go rig
 </g>
 <g transform="translate(585,10) scale(0.93)">
 	<line x1="59" y1="79" x2="179" y2="19"/>
-	<line x1="299" y1="79" x2="179" y2="19" stroke-width="4" class="highstroke"/>
+	<line x1="299" y1="79" x2="179" y2="19" stroke-width="4"
+	class="highstroke"/>
 	<line x1="219" y1="139" x2="299" y2="79"/>
 	<line x1="379" y1="139" x2="299" y2="79"/>
 	<g class="bgfill highstroke">
@@ -1134,12 +1089,9 @@ a child, and then balancing up. Because we defined our search function to go rig
 	</g>
 </g>
 </svg>
-<br>
-<br>
-<p>The code for adding values is given below. Note that this function will always add a new value.
-Implementations that require duplicate additions to replace old values will need to modify the
-<i>add()</i> function.</p>
-<br>
+<p>The code for adding values is given below. Note that this function will
+always add a new value. Implementations that require duplicate additions to
+replace old values will need to modify the <i>add()</i> function.</p>
 <div class="codeblock langpython">def add(tree,value):
 	prev,node=None,self.root
 	while node:
@@ -1156,33 +1108,30 @@ Implementations that require duplicate additions to replace old values will need
 		self.rebalance(prev)
 	return node
 </div>
-<br>
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Traversal ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Traversal ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <h2>Traversal</h2>
-<br>
-<p>Given a particular node in the tree, we may be interested in finding the next or previous node
-going by sorted order. That is, if this tree was a sorted array, what would the next and previous
-elements be? Answering this question will help us not only with navigating a tree, but also with
-removing nodes in the next section.</p>
-<br>
+<p>Given a particular node in the tree, we may be interested in finding the next
+or previous node going by sorted order. That is, if this tree was a sorted
+array, what would the next and previous elements be? Answering this question
+will help us not only with navigating a tree, but also with removing nodes in
+the next section.</p>
 <p>Finding <i>next(node)</i> for some node can be split into 2 cases:</p>
-<br>
 <table class="listtable">
-<tr><td>1.</td><td>If <i>node.right</i> is not null, take <i>node.right</i>'s left children until
-we reach a node with no left child.</td></tr>
-<tr><td>2.</td><td>If <i>node.right</i> is null, follow the node up the tree until we move up a
-left branch.</td></tr>
+<tr><td>1.</td><td>If <i>node.right</i> is not null, take <i>node.right</i>'s
+left children until we reach a node with no left child.</td></tr>
+<tr><td>2.</td><td>If <i>node.right</i> is null, follow the node up the tree
+until we move up a left branch.</td></tr>
 </table>
-<br>
 <p>We can illustrate these movements in the following diagram:</p>
-<br>
-<br>
 <svg version="1.1" viewBox="0 0 1000 350" class="diagram">
 <g transform="translate(150,10)">
 	<line x1="350" y1="0" x2="350" y2="330" style="stroke-width:1"/>
 	<line x1="0" y1="285" x2="700" y2="285" style="stroke-width:1"/>
 	<g transform="translate(25,75)">
-		<text x="139" y="-50" dy="0.3em" text-anchor="middle" style="font-size:150%">Case 1 - Down</text>
+		<text x="139" y="-50" dy="0.3em" text-anchor="middle"
+		style="font-size:150%">Case 1 - Down</text>
 		<line x1="59" y1="79" x2="139" y2="19"/>
 		<line x1="219" y1="79" x2="139" y2="19" stroke-width="4" class="highstroke"/>
 		<line x1="19" y1="139" x2="59" y2="79"/>
@@ -1217,7 +1166,8 @@ left branch.</td></tr>
 		</g>
 	</g>
 	<g transform="translate(375,75)">
-		<text x="139" y="-50" dy="0.3em" text-anchor="middle" style="font-size:150%">Case 2 - Up</text>
+		<text x="139" y="-50" dy="0.3em" text-anchor="middle"
+		style="font-size:150%">Case 2 - Up</text>
 		<line x1="59" y1="79" x2="139" y2="19" stroke-width="4" class="highstroke"/>
 		<line x1="219" y1="79" x2="139" y2="19"/>
 		<line x1="19" y1="139" x2="59" y2="79"/>
@@ -1254,10 +1204,7 @@ left branch.</td></tr>
 	</g>
 </g>
 </svg>
-<br>
-<br>
 <p>This procedure yields the following python function for <i>next()</i>:</p>
-<br>
 <div class="codeblock langpython">def next(node):
 	child=node.right
 	if child:
@@ -1267,10 +1214,8 @@ left branch.</td></tr>
 			child,node=node,node.parent
 	return node
 </div>
-<br>
-<p>The <i>prev()</i> function is exactly the same as <i>next()</i>, except we swap all instances of
-<i>node.left</i> with <i>node.right</i>:</p>
-<br>
+<p>The <i>prev()</i> function is exactly the same as <i>next()</i>, except we
+swap all instances of <i>node.left</i> with <i>node.right</i>:</p>
 <div class="codeblock langpython">def prev(node):
 	child=node.left
 	if child:
@@ -1280,32 +1225,29 @@ left branch.</td></tr>
 			child,node=node,node.parent
 	return node
 </div>
-<br>
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Removing ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Removing ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <h2>Removing</h2>
-<br>
-<p>Removing a node involves replacing all links to the node with that of its successor,
-<i>next(node)</i>, and then rebalancing. It would be simpler to swap the node's value with that of
-its successor, and then remove the successor, but this would invalidate any external pointers a user
-might have to the successor node. Indeed, a user might find it odd that the node that was supposed
-to be removed still exists, and another node has been deallocated without warning.</p>
-<br>
+<p>Removing a node involves replacing all links to the node with that of its
+successor, <i>next(node)</i>, and then rebalancing. It would be simpler to swap
+the node's value with that of its successor, and then remove the successor, but
+this would invalidate any external pointers a user might have to the successor
+node. Indeed, a user might find it odd that the node that was supposed to be
+removed still exists, and another node has been deallocated without warning.</p>
 <p>There are 3 cases to consider when removing a node.</p>
-<br>
 <table class="listtable">
 <tr><td>1.</td><td>The node has no right child.</td></tr>
 <tr><td>2.</td><td>The successor is the right child of the node.</td></tr>
 <tr><td>3.</td><td>The successor is a distant descendant of the node.</td></tr>
 </table>
-<br>
-<p>If the node has a null child, then we simply replace the node with its other child and rebalance
-from the node's parent upwards. For instance, if we want to remove node <i>5</i> in the diagram
-below.</p>
-<br>
-<br>
+<p>If the node has a null child, then we simply replace the node with its other
+child and rebalance from the node's parent upwards. For instance, if we want to
+remove node <i>5</i> in the diagram below.</p>
 <svg version="1.1" viewBox="0 0 1000 380" class="diagram">
 <g transform="translate(200,30)">
-	<text x="300" y="-10" text-anchor="middle" style="font-size:170%" dy="0.3em">Case 1</text>
+	<text x="300" y="-10" text-anchor="middle" style="font-size:170%"
+	dy="0.3em">Case 1</text>
 	<line x1="0" y1="280" x2="600" y2="280" style="stroke-width:1"/>
 	<line x1="300" y1="20" x2="300" y2="280" style="stroke-width:1"/>
 	<g transform="translate(290,293)">
@@ -1370,17 +1312,15 @@ below.</p>
 	</g>
 </g>
 </svg>
-<br>
-<br>
-<p>If a right child exists, then we know that the next node will be a child on the right-hand side
-of the node. We also know that, by definition, the next node will have no left child. Thus, for case
-2, if the next node is the node's right child, then we can replace the node with the next node
-without having to worry about shuffling around either nodes' children.</p>
-<br>
-<br>
+<p>If a right child exists, then we know that the next node will be a child on
+the right-hand side of the node. We also know that, by definition, the next node
+will have no left child. Thus, for case 2, if the next node is the node's right
+child, then we can replace the node with the next node without having to worry
+about shuffling around either nodes' children.</p>
 <svg version="1.1" viewBox="0 0 1000 380" class="diagram">
 <g transform="translate(200,30)">
-	<text x="300" y="-10" text-anchor="middle" style="font-size:170%" dy="0.3em">Case 2</text>
+	<text x="300" y="-10" text-anchor="middle" style="font-size:170%"
+	dy="0.3em">Case 2</text>
 	<line x1="0" y1="280" x2="600" y2="280" style="stroke-width:1"/>
 	<line x1="300" y1="20" x2="300" y2="280" style="stroke-width:1"/>
 	<g transform="translate(290,293)">
@@ -1451,15 +1391,13 @@ without having to worry about shuffling around either nodes' children.</p>
 	</g>
 </g>
 </svg>
-<br>
-<br>
-<p>For case 3, the next node will be a distant child of the node. So, we must first remove the next
-node (as in case 1), and then replace the node with the next node.</p>
-<br>
-<br>
+<p>For case 3, the next node will be a distant child of the node. So, we must
+first remove the next node (as in case 1), and then replace the node with the
+next node.</p>
 <svg version="1.1" viewBox="0 0 1000 380" class="diagram">
 <g transform="translate(50,30)">
-	<text x="450" y="-10" text-anchor="middle" style="font-size:170%" dy="0.3em">Case 3</text>
+	<text x="450" y="-10" text-anchor="middle" style="font-size:170%"
+	dy="0.3em">Case 3</text>
 	<line x1="0" y1="280" x2="900" y2="280" style="stroke-width:1"/>
 	<line x1="300" y1="20" x2="300" y2="280" style="stroke-width:1"/>
 	<line x1="600" y1="20" x2="600" y2="280" style="stroke-width:1"/>
@@ -1565,10 +1503,7 @@ node (as in case 1), and then replace the node with the next node.</p>
 	</g>
 </g>
 </svg>
-<br>
-<br>
 <p>The complete python code for removing a given node is shown below.</p>
-<br>
 <div class="codeblock langpython">def removenode(self,node):
 	# Remove a specific node.
 	p=node.parent
@@ -1596,30 +1531,28 @@ node (as in case 1), and then replace the node with the next node.</p>
 		if r: next.right,r.parent=r,next
 	self.rebalance(bal)
 </div>
-<br>
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Indexing ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Indexing ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <h2>Indexing</h2>
-<br>
-<p>The biggest benefit to balancing by weights (instead of red-black or AVL) is that weights grants
-us the ability to index nodes in <i>O(log(n))</i> time, even as we are modifying the tree.</p>
-<br>
-<p>We'll index nodes in the same way that we would index values if they were sorted from least to
-greatest. So index <i>0</i> would be the smallest value in the tree, and index <i>n-1</i> would be
-the greatest. We also need to remember that children to the left of the node have values equal to
-or less than the node. Putting all that together, we'll follow these simple rules:</p>
-<br>
+<p>The biggest benefit to balancing by weights (instead of red-black or AVL) is
+that weights grants us the ability to index nodes in <i>O(log(n))</i> time, even
+as we are modifying the tree.</p>
+<p>We'll index nodes in the same way that we would index values if they were
+sorted from least to greatest. So index <i>0</i> would be the smallest value in
+the tree, and index <i>n-1</i> would be the greatest. We also need to remember
+that children to the left of the node have values equal to or less than the
+node. Putting all that together, we'll follow these simple rules:</p>
 <table class="listtable">
-<tr><td>1.</td><td>If <i>index &gt; left.weight</i>, go to the right and subtract
-<i>index -= left.weight + 1</i>.</td></tr>
-<tr><td>2.</td><td>If <i>index = left.weight</i>, return the current node.</td></tr>
+<tr><td>1.</td><td>If <i>index &gt; left.weight</i>, go to the right and
+subtract <i>index -= left.weight + 1</i>.</td></tr>
+<tr><td>2.</td><td>If <i>index = left.weight</i>, return the current
+node.</td></tr>
 <tr><td>3.</td><td>Otherwise go to the left.</td></tr>
 </table>
-<br>
-<p>Using the tree below, we can show how to find the 10'th element in the tree. Note that all of
-the numbers we'll be using will refer to weights.</p>
-<br>
-<br>
-<svg version="1.1" viewBox="0 0 1000 288" class="diagram">
+<p>Using the tree below, we can show how to find the 10'th element in the tree.
+Note that all of the numbers we'll be using will refer to weights.</p>
+<svg version="1.1" viewBox="0 0 1000 280" class="diagram">
 <g transform="translate(176,10)">
 	<line x1="139" y1="79" x2="299" y2="19"/>
 	<line x1="459" y1="79" x2="299" y2="19" stroke-width="4" class="highstroke"/>
@@ -1671,7 +1604,8 @@ the numbers we'll be using will refer to weights.</p>
 	</g>
 	<g style="font-size:80%">
 		<text x="326" y="10" class="highfill">10&gt;7</text>
-		<text x="326" y="10" dy="1.2em" class="highfill">index=10-7-1=2, go right</text>
+		<text x="326" y="10" dy="1.2em"
+		class="highfill">index=10-7-1=2, go right</text>
 		<text x="485" y="70" class="highfill">2&lt;3</text>
 		<text x="485" y="70" dy="1.2em" class="highfill">go left</text>
 		<text x="405" y="135" class="highfill">2&gt;1</text>
@@ -1682,10 +1616,7 @@ the numbers we'll be using will refer to weights.</p>
 	</g>
 </g>
 </svg>
-<br>
-<br>
 <p>The code for this ends up being fairly simple.</p>
-<br>
 <div class="codeblock langpython">def __len__(self):
 	# Return the number of nodes in the tree.
 	return self.root.weight if self.root else 0
@@ -1709,11 +1640,9 @@ def __getitem__(self,i):
 			node=left
 	return node
 </div>
-<br>
-<p>To find the index of a specific node, we simply do the opposite. We trace the path from a node
-to the root. Every time our node is a right descendant, we add the weight of the left child plus 1
-to our index.</p>
-<br>
+<p>To find the index of a specific node, we simply do the opposite. We trace the
+path from a node to the root. Every time our node is a right descendant, we add
+the weight of the left child plus 1 to our index.</p>
 <div class="codeblock langpython">def index(node):
 	# Returns the node's index within the tree. Ex: tree[node.index()]=node.
 	i=-1
@@ -1727,84 +1656,82 @@ to our index.</p>
 </div>
 </div>
 
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Time Complexity ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Time Complexity ~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <div class="content"><h1>Time Complexity</h1>
-<p>Proving that the weights of two children will always stay within a ratio 2.5 is fairly difficult.
-We will instead be taking this balance as fact, and simply proving that the height of the tree is
-bound by <i>h &lt;= 2.07 * log2(n)</i>.</p>
-<br>
-<p>Let <i>N</i> be the weight of the node, and let <i>L</i> and <i>R</i> be the weights of its two
-children. For simplicity, we'll assume <i>N = L + R</i>. Our first step is to bound the weight
-of either of the two children by <i>N</i>.</p>
-<br>
+<p>Proving that the weights of two children will always stay within a ratio 2.5
+is fairly difficult. We will instead be taking this balance as fact, and simply
+proving that the height of the tree is bound by
+<i>h &lt;= 2.07 * log2(n)</i>.</p>
+<p>Let <i>N</i> be the weight of the node, and let <i>L</i> and <i>R</i> be the
+weights of its two children. For simplicity, we'll assume <i>N = L + R</i>. Our
+first step is to bound the weight of either of the two children by <i>N</i>.</p>
 <div class="codeblock">    L / R &lt;= 2.5
 L / (N-L) &lt;= 2.5
         L &lt;= 2.5 * (N-L)
   1.4 * L &lt;= N
         L &lt;= N / 1.4
 </div>
-<br>
-<p>Thus, the maximum weight of a child is <i>1 / 1.4</i> the weight of the parent. We now need to
-see at what height the weight of a child becomes <i>1</i>.</p>
-<br>
+<p>Thus, the maximum weight of a child is <i>1 / 1.4</i> the weight of the
+parent. We now need to see at what height the weight of a child becomes
+<i>1</i>.</p>
 <div class="codeblock">n * (1/1.4) ^ h &gt;= 1
     (1/1.4) ^ h &gt;= 1 / n
         1.4 ^ h &lt;= n
   log2(1.4) * h &lt;= log2(n)
               h &lt;= 2.07 * log2(n)
 </div>
-<br>
 <p>Thus the height is logarithmically bound, as desired.</p>
-<br>
 <h2>Operational Time Complexity</h2>
-<br>
-<p>Now, we can show that the worst-case time complexity for our operations is also
+<p>Now, we can show that the worst-case time complexity for our operations is
+also <i>O(log(n))</i>.</p>
+<p>Rebalancing only moves up the tree, which is <i>O(log(n))</i>, and performs 1
+or 2 rotations per node, which are <i>O(1)</i>. Thus rebalancing is
 <i>O(log(n))</i>.</p>
-<br>
-<p>Rebalancing only moves up the tree, which is <i>O(log(n))</i>, and performs 1 or 2 rotations per
-node, which are <i>O(1)</i>. Thus rebalancing is <i>O(log(n))</i>.</p>
-<br>
-<p>Searching only moves down the tree, which is <i>O(log(n))</i>, and performs one comparison per
-node, which is <i>O(1)</i>. Thus searching is <i>O(log(n))</i>.</p>
-<br>
-<p>Next/prev must either travel all the way up the tree or down the tree, which is <i>O(log(n))</i>.
-The average number of operations per next/prev is 2.</p>
-<br>
-<p>Adding a node involves searching for a node's destined position, which is <i>O(log(n))</i>, and
-rebalancing, which is <i>O(log(n))</i>. Thus adding nodes is <i>O(log(n))</i>.</p>
-<br>
-<p>Removing a node involves at most finding the node, which is <i>O(log(n))</i>, finding the next
-node, which is <i>O(log(n))</i>, swapping, which is <i>O(1)</i>, and balancing, which is
-<i>O(log(n))</i>. Thus, removing a node is <i>O(log(n))</i>.</p>
-<br>
-<p>Finding a node given an index a node involves comparing weights and moving down the tree, which
-is <i>O(log(n))</i>. Finding an index given a node only moves up the tree, which is also
-<i>O(log(n))</i>. Thus indexing is <i>O(log(n))</i>.</p>
+<p>Searching only moves down the tree, which is <i>O(log(n))</i>, and performs
+one comparison per node, which is <i>O(1)</i>. Thus searching is
+<i>O(log(n))</i>.</p>
+<p>Next/prev must either travel all the way up the tree or down the tree, which
+is <i>O(log(n))</i>. The average number of operations per next/prev is 2.</p>
+<p>Adding a node involves searching for a node's destined position, which is
+<i>O(log(n))</i>, and rebalancing, which is <i>O(log(n))</i>. Thus adding nodes
+is <i>O(log(n))</i>.</p>
+<p>Removing a node involves at most finding the node, which is <i>O(log(n))</i>,
+finding the next node, which is <i>O(log(n))</i>, swapping, which is
+<i>O(1)</i>, and balancing, which is <i>O(log(n))</i>. Thus, removing a node is
+<i>O(log(n))</i>.</p>
+<p>Finding a node given an index a node involves comparing weights and moving
+down the tree, which is <i>O(log(n))</i>. Finding an index given a node only
+moves up the tree, which is also <i>O(log(n))</i>. Thus indexing is
+<i>O(log(n))</i>.</p>
 </div>
 
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Notes ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Notes ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <div class="content"><h1>Notes</h1>
-<p>Better balancing is possible by avoiding ratios entirely. Instead, we can attempt a double or
-single rotation and see which one results in a better balance. Research is needed to simplify when
-balancing is performed and what its worst case balance is. I've left some notes
-in <a href="./testing.zip">testing.zip</a>.</p>
-<br>
-<p>Unrolling <i>rebalance()</i> speeds up the tree dramatically, but I omitted it from the article
-and reference implementation because it's much more complicated. The unrolled version can also be
-found in <a href="./testing.zip">testing.zip</a>.</p>
-<br>
-<p>For environments with finite integer sizes, performing the balance comparison without overflows
-is possible, but it's slower and obscures the reference implementation too much.</p>
-<br>
-<p>I've also implemented an AVL tree for education and to compare speeds. Its ability to terminate
-early gives it a speed advantage over weight balanced trees.</p>
-<br>
-<p>I'd like to implement set theory operations in the future. Until I actually need them, I don't
-know what I'd like the API to look like, so I'll hold off for now.</p>
+<p>Better balancing is possible by avoiding ratios entirely. Instead, we can
+attempt a double or single rotation and see which one results in a better
+balance. Research is needed to simplify when balancing is performed and what its
+worst case balance is. I've left some notes in
+<a href="./testing.zip">testing.zip</a>.</p>
+<p>Unrolling <i>rebalance()</i> speeds up the tree dramatically, but I omitted
+it from the article and reference implementation because it's much more
+complicated. The unrolled version can also be found in
+<a href="./testing.zip">testing.zip</a>.</p>
+<p>For environments with finite integer sizes, performing the balance comparison
+without overflows is possible, but it's slower and obscures the reference
+implementation too much.</p>
+<p>I've also implemented an AVL tree for education and to compare speeds. Its
+ability to terminate early gives it a speed advantage over weight balanced
+trees.</p>
+<p>I'd like to implement set theory operations in the future. Until I actually
+need them, I don't know what I'd like the API to look like, so I'll hold off for
+now.</p>
 </div>
 
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div id="footer">Created on 27 Apr 2018 - Modified on 25 Oct 2022<br>
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<div id="footer">Created on 27 Apr 2018 - Modified on 2 Jul 2023<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>

@@ -53,16 +53,14 @@ at the cost of taking hundreds of times longer to render a given scene.</p>
 <p>By default, the ray tracer will render a quick, low quality version of the
 scene below. On a low-end CPU, the render will take 20 minutes using
 <a href="https://pypy.org">PyPy</a>, and 2 hours using regular python.</p>
-<img src="./render3d.png" style="display:block;width:66%;"
-alt="Ray Traced 3D Scene.">
+<img src="./render3d.png" style="width:66%;" alt="Ray Traced 3D Scene.">
 <p>The high quality render above is 600x600 pixels, has 1M triangles (500K per
 sphere), and uses 64K rays per pixel. It took 124 hours to render using PyPy and
 a separate, multithreaded version of the ray tracer
 (<a href="./ntrace_extra.zip">here</a>).</p>
 <p>The left sphere exhibits glass refraction, the middle sphere exhibits
 reflection, and the cube exhibits subsurface scattering.</p>
-<img src="./render4d.png" style="display:block;width:66%;"
-alt="Ray Traced 4D Scene">
+<img src="./render4d.png" style="width:66%;" alt="Ray Traced 4D Scene">
 <p>The 4D scene above was rendered using render4d.py in
 <a href="./ntrace_extra.zip">ntrace_extra.zip</a>. It shows a rotated, blue
 hypercube floating above another hypercube acting as a floor. Both hypercubes
@@ -70,16 +68,13 @@ have the same material properties, however, the floor hypercube shows volumetric
 effects while the blue hypercube is sharply defined. This difference could be
 caused by an error in collision detection, or certain rays missing the floor in
 4D.</p>
-<img src="./bunny3d.png" style="display:block;width:66%;"
-alt="Stanford Bunny">
+<img src="./bunny3d.png" style="width:66%;" alt="Stanford Bunny">
 <p>38 instanced copies of the stanford bunny, each with different materials and
 transformations.</p>
-<img src="./render3drand.png" style="display:block;width:66%;"
-alt="Bad PRNG effect">
+<img src="./render3drand.png" style="width:66%;" alt="Bad PRNG effect">
 <p>An impressionist style of rendering that is actually the result of a horribly
 biased random number generator.</p>
-<img src="./epsilon32.png" style="display:block;width:66%;"
-alt="Bad epsilon effect">
+<img src="./epsilon32.png" style="width:66%;" alt="Bad epsilon effect">
 <p>An improperly set epsilon in the ray-triangle intersection algorithm caused
 rays to become stuck inside of the mirror sphere. This resulted in the infinite
 mirror effect seen above.</p>
