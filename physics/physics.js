@@ -509,7 +509,7 @@ class PhyAtomType {
 
 	release() {
 		var id=this.id;
-		var link=world.atomtypelist.head;
+		var link=this.world.atomtypelist.head;
 		while (link!==null) {
 			link.obj.intarr[id]=null;
 			link=link.next;
@@ -1263,7 +1263,7 @@ class PhyWorld {
 
 	AutoBond(atomarr,start,count,tension) {
 		// Balance distance, mass, # of bonds, direction.
-		if (count==0) {
+		if (count===0) {
 			return;
 		}
 		var infoarr=new Array(count);
@@ -1515,17 +1515,28 @@ function PhyScene1(displayid) {
 	scene.time=0;
 	scene.timeden=0;
 	scene.keydown=(new Array(256)).fill(0);
-	scene.mouseonscreen=false;
+	scene.mouseonscreen=true;//false;
 	scene.follow=false;
+	scene.movemouse=function(evt) {
+		var canvas=scene.canvas;
+		var x=(evt.pageX-canvas.offsetLeft-canvas.clientLeft)/canvas.clientHeight;
+		var maxx=canvas.clientWidth/canvas.clientHeight;
+		if (x<0   ) {x=0;   }
+		if (x>maxx) {x=maxx;}
+		var y=(evt.pageY-canvas.offsetTop-canvas.clientTop)/canvas.clientHeight;
+		if (y<0) {y=0;}
+		if (y>1) {y=1;}
+		scene.mouse.set(0,x);
+		scene.mouse.set(1,y);
+	};
 	canvas.onmouseover=function(evt) {
 		scene.mouseonscreen=true;
 	};
 	canvas.onmouseleave=function(evt) {
 		scene.mouseonscreen=false;
 	};
-	canvas.onmousemove=function(evt) {
-		scene.mouse.set(0,(evt.pageX-canvas.offsetLeft-canvas.clientLeft)/canvas.clientHeight);
-		scene.mouse.set(1,(evt.pageY-canvas.offsetTop -canvas.clientTop )/canvas.clientHeight);
+	document.onmousemove=function(evt) {
+		scene.movemouse(evt);
 	};
 	canvas.onmousedown=function(evt) {
 		scene.keydown[250]=3;
@@ -1535,13 +1546,11 @@ function PhyScene1(displayid) {
 	};
 	canvas.ontouchstart=function(evt) {
 		scene.keydown[250]|=1;
-		canvas.ontouchmove(evt);
 	};
-	canvas.ontouchmove=function(evt) {
+	document.ontouchmove=function(evt) {
 		scene.keydown[250]|=2;
 		var touch=(evt.targetTouches.length>0?evt.targetTouches:evt.touches).item(0);
-		scene.mouse.set(0,(touch.pageX-canvas.offsetLeft-canvas.clientLeft)/canvas.clientHeight);
-		scene.mouse.set(1,(touch.pageY-canvas.offsetTop -canvas.clientTop )/canvas.clientHeight);
+		scene.movemouse(touch);
 	};
 	canvas.ontouchend=function(evt) {
 		scene.keydown[250]=0;
