@@ -11,10 +11,17 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
+replace div with canvas
 convert to classes
 red pieces with outline
-use player control if they hit arrows or wasd
+use player control for 5 seconds if they hit arrows or wasd
+add on-screen controls
+	rotate left / right
+	move left / down / right
+	hard drop
 remove most of text on side
+	Lines
+	AI timer
 
 
 */

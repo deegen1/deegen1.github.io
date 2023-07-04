@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v1.00
+physics.js - v1.05
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -13,12 +13,8 @@ TODO
 
 fps counter
 use an interaction matrix
-enable clicking and dragging
-fix mouse first entering canvas
-game idea:
-	Need to get all circles in a bucket
-	Player can drag a ball
-	Ball can only interact with some elements
+rename widthf to viewwidth
+add bonds
 
 
 */
@@ -717,7 +713,6 @@ class PhyAtom {
 			if (intr.collide===false) {// || (intr->callback!==null && intr->callback(a,b)==0)) {
 				return;
 			}
-			var avel=a.vel.elem,bvel=b.vel.elem;
 			var amass=a.mass,bmass=b.mass;
 			var mass=amass+bmass;
 			if ((amass>=Infinity && bmass>=Infinity) || mass<=1e-10 || dim===0) {
@@ -736,6 +731,7 @@ class PhyAtom {
 			}
 			// Check the relative velocity. We can have situations where two atoms increase
 			// eachother's velocity because they've been pushed past eachother.
+			var avel=a.vel.elem,bvel=b.vel.elem;
 			var veldif=0.0;
 			for (i=0;i<dim;i++) {
 				tmpvec[i]*=dif;
@@ -923,7 +919,8 @@ class PhyBroadphase {
 			console.log("hash mismatch");
 			throw "error";
 		}
-		var dist=0.0;
+		var rad=newcell.atom.rad*this.slack;
+		var dist=-rad*rad;
 		for (i=0;i<dim;i++) {
 			var x0=coord[i]*celldim;
 			var x1=x0+celldim;
@@ -936,7 +933,7 @@ class PhyBroadphase {
 				dist+=x*x;
 			}
 		}
-		if (Math.abs(newcell.dist-dist)>1e-5) {
+		if (Math.abs(newcell.dist-dist)>1e-10) {
 			console.log("dist drift");
 			throw "error";
 		}
@@ -979,7 +976,6 @@ class PhyBroadphase {
 		// the end of the grid's linked list and allow us to skip them during collision
 		// testing. Randomize the order of the other atoms.
 		var cellmap=this.cellmap;
-		// var mapalloc=cellmap.length;
 		while (atomcount>cellmap.length) {
 			cellmap=cellmap.concat(new Array(cellmap.length+1));
 		}
@@ -1006,10 +1002,9 @@ class PhyBroadphase {
 		}
 		// Use a heuristic to calculate celldim.
 		var slack=this.slack;
-		celldim*=2.08*slack/atomcount;
-		for (i=0;i<dim;i++) {celldim*=1.61;}
-		this.celldim=celldim;
+		celldim*=2.5*slack/atomcount;
 		var hash0=rnd.getu32();
+		this.celldim=celldim;
 		this.hash0=hash0;
 		var invdim=1.0/celldim;
 		var celldim2=2.0*celldim*celldim;
@@ -1017,48 +1012,40 @@ class PhyBroadphase {
 		var cellarr=this.cellarr;
 		var cellalloc=cellarr.length;
 		var cellstart;
-		var rad,rad2,cell,pos,radcells,d,c,end;
-		var cen,cendif,decstart,decinc,posstart,posinc,hashcen;
-		var hash,distinc,newcell,dist;
+		var rad,cell,pos,radcells,d,c;
+		var cen,cendif,decinit,posinit,incinit;
+		var hash,hashcen,dist,distinc,newcell;
 		var hashu32=PhyRand.hashu32;
 		var floor=Math.floor;
 		for (i=0;i<atomcount;i++) {
+			atom=cellmap[i];
+			rad=atom.rad*slack;
 			// Make sure we have enough cells.
-			cellstart=cellend;
-			if (cellend>=cellalloc) {
+			radcells=floor(rad*2*invdim+2.1);
+			c=radcells;
+			for (d=1;d<dim;d++) {c*=radcells;}
+			while (cellend+c>cellalloc) {
 				cellarr=cellarr.concat(new Array(cellalloc+1));
 				for (j=0;j<=cellalloc;j++) {cellarr[cellalloc+j]=new PhyCell();}
 				cellalloc=cellarr.length;
 			}
 			// Get the starting cell.
-			atom=cellmap[i];
-			rad=atom.rad*slack;
-			rad2=rad*rad;
+			cellstart=cellend;
 			cell=cellarr[cellend++];
 			cell.atom=atom;
-			cell.dist=0;
+			cell.dist=-rad*rad;
 			cell.hash=hash0;
 			pos=atom.pos.elem;
 			// this.TestCell(cell,null,pos,0,0);
-			radcells=floor(rad*2*invdim+3);
 			for (d=0;d<dim;d++) {
-				// Make sure we have enough cells.
-				j=cellend+(cellend-cellstart)*radcells;
-				while (j>=cellalloc) {
-					cellarr=cellarr.concat(new Array(cellalloc+1));
-					for (var k=0;k<=cellalloc;k++) {cellarr[cellalloc+k]=new PhyCell();}
-					cellalloc=cellarr.length;
-				}
-				end=cellend;
 				// Precalculate constants for the cell-atom distance calculation.
 				// floor(x) is needed so negative numbers round to -infinity.
-				cen     =floor(pos[d]*invdim);
-				cendif  =cen*celldim-pos[d];
-				decstart=cendif*cendif;
-				decinc  =(celldim-2*cendif)*celldim;
-				posstart=(celldim+cendif)*(celldim+cendif);
-				posinc  =(3*celldim+2*cendif)*celldim;
-				for (c=cellstart;c<end;c++) {
+				cen    =floor(pos[d]*invdim);
+				cendif =cen*celldim-pos[d];
+				decinit=cendif*cendif;
+				incinit=(celldim+2*cendif)*celldim;
+				posinit=incinit+decinit;
+				for (c=cellend-1;c>=cellstart;c--) {
 					// Using the starting cell's distance to pos, calculate the distance to the cells
 					// above and below. The starting cell is at cen[d] = floor(pos[d]/celldim).
 					cell=cellarr[c];
@@ -1066,29 +1053,29 @@ class PhyBroadphase {
 					cell.hash=hashu32(hashcen);
 					// Check the cells below the center.
 					hash=hashcen;
-					dist=cell.dist+decstart;
-					distinc=decinc;
-					while (dist<rad2) {
+					dist=cell.dist+decinit;
+					distinc=-incinit;
+					while (dist<0) {
 						newcell=cellarr[cellend++];
 						newcell.atom=atom;
 						newcell.dist=dist;
 						newcell.hash=hashu32(--hash);
 						// this.TestCell(newcell,cell,pos,d,hash-hashcen);
-						dist+=distinc;
 						distinc+=celldim2;
+						dist+=distinc;
 					}
 					// Check the cells above the center.
 					hash=hashcen;
-					dist=cell.dist+posstart;
-					distinc=posinc;
-					while (dist<rad2) {
+					dist=cell.dist+posinit;
+					distinc=incinit;
+					while (dist<0) {
 						newcell=cellarr[cellend++];
 						newcell.atom=atom;
 						newcell.dist=dist;
 						newcell.hash=hashu32(++hash);
 						// this.TestCell(newcell,cell,pos,d,hash-hashcen);
-						dist+=distinc;
 						distinc+=celldim2;
+						dist+=distinc;
 					}
 				}
 			}
@@ -1364,85 +1351,6 @@ function DrawFill(imgdata,imgwidth,imgheight,r,g,b) {
 }
 
 
-function DrawOval(imgdata,imgwidth,imgheight,x,y,width,height,r,g,b) {
-	if (width<0) {
-		x+=width;
-		width=-width;
-	}
-	if (height<0) {
-		y+=height;
-		height=-height;
-	}
-	x=x|0;
-	y=y|0;
-	width=width|0;
-	height=height|0;
-	if (x>=imgwidth || x+width<=0 || y>=imgheight || y+height<=0 || width===0 || height===0 || imgwidth<=0 || imgheight<=0) {
-		return;
-	}
-	var movex=4;
-	var movey=imgwidth*movex;
-	var twidth=movey;
-	var theight=imgheight*movey;
-	var xref=x+x+width;
-	var yref=y+y+height-1;
-	width=(width-1)>>>1;
-	height=(height-1)>>>1;
-	x=(x+width)*movex;
-	xref*=movex;
-	y*=movey;
-	yref*=movey;
-	var err=0;
-	var dx=height*height;
-	var xinc=dx+dx;
-	var yinc=width*width;
-	var dy=yinc-(height+height)*yinc;
-	yinc+=yinc;
-	var errx,errxy,erry;
-	var sx,ty,tx,dst,stop;
-	while (1) {
-		errx=err+dx;
-		errx=errx>0?errx:-errx;
-		errxy=err+dx+dy;
-		errxy=errxy>0?errxy:-errxy;
-		erry=err+dy;
-		erry=erry>0?erry:-erry;
-		if (erry<=errx || errxy<=errx) {
-			sx=xref-x;
-			if (x<twidth && sx>0) {
-				ty=y;
-				tx=x<0?0:x;
-				sx=twidth<sx?twidth:sx;
-				do {
-					if (ty>=0 && ty<theight) {
-						dst=(ty+tx);
-						stop=(ty+sx);
-						while (dst<stop) {
-							imgdata[dst++]=r;
-							imgdata[dst++]=g;
-							imgdata[dst++]=b;
-							imgdata[dst++]=255;
-						}
-					}
-					ty=yref-ty;
-				} while (ty!==y);
-			}
-			err+=dy;
-			dy+=yinc;
-			y+=movey;
-			if (y>yref-y) {
-				break;
-			}
-		}
-		if (errx<erry || errxy<=erry) {
-			err+=dx;
-			dx+=xinc;
-			x-=movex;
-		}
-	}
-}
-
-
 function DrawCircle(imgdata,imgwidth,imgheight,x,y,rad,r,g,b) {
 	// Manually draw a circle pixel by pixel.
 	// This is ugly, but it's faster than canvas.arc and drawimage.
@@ -1579,11 +1487,11 @@ function PhyScene1(displayid) {
 	function setup() {
 		var canvas=scene.canvas;
 		var world=scene.world;
-		world.steps=6;
+		world.steps=5;
 		var heightf=1.0,widthf=canvas.clientWidth/canvas.clientHeight;
 		var walltype=world.CreateAtomType(1.0,Infinity,1.0);
 		var normtype=world.CreateAtomType(0.01,1.0,0.98);
-		var rnd=new PhyRand();
+		var rnd=new PhyRand(2);
 		var pos=new PhyVec(world.dim);
 		for (var p=0;p<1000;p++) {
 			pos.set(0,rnd.getf64()*widthf);
@@ -1594,16 +1502,16 @@ function PhyScene1(displayid) {
 		var wallrad=0.07,wallstep=wallrad/5;
 		for (var x=0;x<=widthf;x+=wallstep) {
 			pos.set(0,x);
-			pos.set(1,0.0-wallrad*0.98);
+			pos.set(1,0.0-wallrad*0.99);
 			world.CreateAtom(pos,wallrad,walltype);
-			pos.set(1,1.0+wallrad*0.98);
+			pos.set(1,1.0+wallrad*0.99);
 			world.CreateAtom(pos,wallrad,walltype);
 		}
 		for (var y=0;y<=1.0;y+=wallstep) {
 			pos.set(1,y);
-			pos.set(0,widthf+wallrad*0.98);
+			pos.set(0,widthf+wallrad*0.99);
 			world.CreateAtom(pos,wallrad,walltype);
-			pos.set(0,0.0-wallrad*0.98);
+			pos.set(0,0.0-wallrad*0.99);
 			world.CreateAtom(pos,wallrad,walltype);
 		}
 		// Dampen the elasticity so we don't add too much energy.
@@ -1650,7 +1558,7 @@ function PhyScene1(displayid) {
 			var pos=atom.pos.elem;
 			var rad=atom.rad*scale;
 			DrawCircle(imgdata,imgwidth,imgheight,pos[0]*scale,pos[1]*scale,rad,u,0,255-u);
-			//DrawOval(imgdata,imgwidth,imgheight,pos[0]*scale-rad,pos[1]*scale-rad,rad*2,rad*2,255,255,255);
+			//DrawOval(imgdata,imgwidth,imgheight,pos[0]*scale-rad,pos[1]*scale-rad,rad*2,rad*2,u,0,255-u);
 			link=link.next;
 		}
 		ctx.putImageData(scene.backbuf,0,0);
@@ -1664,8 +1572,8 @@ function PhyScene1(displayid) {
 		time=performance.now()-time;
 		scene.time+=time;
 		scene.timeden++;
-		if (scene.timeden>=120) {
-			console.log("time:",scene.time/scene.timeden);
+		if (scene.timeden>=60) {
+			console.log("time:",scene.time/(scene.timeden*1000));
 			scene.time=0;
 			scene.timeden=0;
 		}

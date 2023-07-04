@@ -76,22 +76,9 @@ sub {
 	/* border:1px solid #6060ff; */
 	/* border-radius:8px; */
 	background-color:#444444;
-	/* background-color:#000000; */
 	margin:auto;
 	margin-bottom:3rem;
 }
-/*
-.content h1 {
-	display:block;
-	margin-top:2.0rem;
-	margin-bottom:2.0rem;
-	color:#6060ff;
-	font-family:sans-serif,sans-serif;
-	font-size:200%;
-	font-weight:bold;
-	line-height:150%;
-}
-*/
 .content h1 {
 	display:block;
 	width:100%;
