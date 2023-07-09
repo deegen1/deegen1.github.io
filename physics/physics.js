@@ -1522,6 +1522,7 @@ function PhyScene1(displayid) {
 		console.log("atoms: ",world.atomlist.count);
 	}
 	function update() {
+		setTimeout(update,1000/60);
 		var time=performance.now();
 		var canvas=scene.canvas;
 		var imgwidth=canvas.clientWidth;
@@ -1569,9 +1570,6 @@ function PhyScene1(displayid) {
 			scene.time=0;
 			scene.timeden=0;
 		}
-		// console.log(time);
-		time=(time<16.666)?(16.666-time):0;
-		setTimeout(update,time);
 	}
 	setup();
 	setTimeout(update,0);

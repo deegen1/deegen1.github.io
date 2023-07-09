@@ -1161,20 +1161,21 @@ class TetrisGUI {
 		//	"#0000ff","#00ff00","#ff0000"
 		//];
 		this.colorMap = [
-			"#000000","#00c0c0","#c0c000","#900090","#c0d050",
-			"#5050c0","#00c000","#c00000","#c4c4c4"
+			"#00c0c0","#c0c000","#900090","#c0d050",
+			"#5050c0","#00c000","#c00000"
 		];
 		this.input = new Input();
 		var state = this;
 		function updategame() {
+			setTimeout(updategame,1000/60);
 			//window.requestAnimationFrame(updategame);
-			var time = performance.now();
+			//var time = performance.now();
 			state.update();
 			state.draw();
-			time = performance.now() - time;
+			//time = performance.now() - time;
 			//console.log("time:",time);
-			time = time > 16.666 ? 16.666-time : 0;
-			setTimeout(updategame,time);
+			//time = time > 16.666 ? 16.666-time : 0;
+			//setTimeout(updategame,time);
 		}
 		this.draw();
 		updategame();
