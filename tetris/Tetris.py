@@ -21,7 +21,9 @@ the initial path breadth-first. It may be simpler to parse depth first.
 
 """
 
+
 from random import randrange
+
 
 class Tetris(object):
 	# Based off of TGM tetris. The game has 3 main states: spawing, dropping, and
@@ -95,6 +97,7 @@ class Tetris(object):
 		(-1, 0, 0, 1,-1,-1, 0, 0)
 	)
 
+
 	def __init__(self,width=10,height=20,flags=EASY):
 		assert(width>=0 and height>=0)
 		# state
@@ -132,6 +135,7 @@ class Tetris(object):
 		self.aicopy=None
 		self.reset()
 
+
 	def reset(self):
 		# Reset to an empty grid with level=0. Set the first piece to not be S or Z.
 		self.state=(self.state&(Tetris.EASY|Tetris.MEDIUM|Tetris.HARD))|Tetris.SPAWNING
@@ -155,6 +159,7 @@ class Tetris(object):
 		self.dropy=0
 		self.droprem=0
 
+
 	def levelconstants(self):
 		# Set the state frames and gravity based on the level and difficulty of the game.
 		# As the level increases, scale the state frames to their minimum values and scale
@@ -169,6 +174,7 @@ class Tetris(object):
 		self.lockframes=(unit*(128*inv+num[1]*level))//den
 		self.clearframes=(unit*(256*inv+num[2]*level))//den
 		self.gravity=(self.gravityden*(240*inv+num[3]*level))//(den*unit)
+
 
 	def gennext(self):
 		# Pick the next tetris piece from a bag of pieces. The bag has a count of how many
@@ -197,6 +203,7 @@ class Tetris(object):
 			next=Tetris.I
 		# Format the piece for the piece array.
 		return next*4
+
 
 	def advance(self,frames=1):
 		# Advance the state of the game by the number of frames given.
@@ -318,13 +325,15 @@ class Tetris(object):
 		self.stateframe=stateframe
 		self.state=state
 
+
 	#---------------------------------------------------------------------------------
 	# Movement
-	#---------------------------------------------------------------------------------
+
 
 	def canmove(self,move):
 		# Test if we can move the piece by moving the piece and discarding any changes.
 		return self.move(move,True)
+
 
 	def move(self,move,testing=False):
 		# Unified move command. Returns 1 if the move was successful, otherwise returns 0.
@@ -387,9 +396,10 @@ class Tetris(object):
 				self.droprem=0
 		return 1
 
+
 	#---------------------------------------------------------------------------------
 	# AI
-	#---------------------------------------------------------------------------------
+	#
 	# An AI player to suggest the next move given a valid board state.
 	#
 	# We use fitness instead of entropy to grade the grid. The next move we want may
@@ -398,6 +408,7 @@ class Tetris(object):
 	#
 	# When using order-1 or higher moves, limit the initial moves as much as possible,
 	# as the number of states will multiply.
+
 
 	class AICell():
 		def __init__(self,pos,width):
@@ -412,11 +423,13 @@ class Tetris(object):
 			self.link=None
 			self.sort=0
 
+
 	class AILink():
 		def __init__(self):
 			self.link=None
 			self.prev=None
 			self.move=Tetris.NOMOVE
+
 
 	# A binary heap to sort potential moves.
 	def aiheappush(self,val):
@@ -430,6 +443,7 @@ class Tetris(object):
 			heap[i]=next
 			i=j
 		heap[i]=val
+
 
 	def aiheappop(self):
 		self.aiheap-=1
@@ -449,6 +463,7 @@ class Tetris(object):
 			i=j
 		heap[i]=bot
 		return ret
+
 
 	def aimakecopy(self):
 		# Allocate the AI and determine if any changes have been made that require
@@ -492,6 +507,7 @@ class Tetris(object):
 		for i in range(7):
 			aicopy.bagcnt[i]=self.bagcnt[i]
 		return remap
+
 
 	def aimapmoves(self,remap=False):
 		# Given a valid tetris state, find all possible moves. Will used a cached copy of
@@ -642,6 +658,7 @@ class Tetris(object):
 				link=link.link
 		return startcell
 
+
 	def aifitness(self):
 		# Determine the fitness of the grid including the current piece. The higher the
 		# fitness, the better the state. Metrics are scaled so they are in units of
@@ -751,13 +768,16 @@ class Tetris(object):
 			-0.1365051577*rowflip*w
 			-0.4461359486*colflip*w
 			-0.0232974547*pieceheight
-			-0.1194020699*sumwell2*w)
+			-0.1194020699*sumwell2*w
+		)
 		return fitness
+
 
 	def suggestmove(self):
 		# Return the optimal move to make.
 		cell=self.aimapmoves()
 		return cell.nextmove
+
 
 	def suggestposition(self):
 		# Return the optimal position to place the piece.
@@ -766,7 +786,9 @@ class Tetris(object):
 			cell=cell.next
 		return (cell.drop,cell.dropx,cell.dropy)
 
+
 class Console(object):
+
 	def __init__(self):
 		# Initialize the console and disable the cursor, linebreak, and echo.
 		import os
@@ -787,6 +809,7 @@ class Console(object):
 			curses.init_pair(i,-1,colorarr[i])
 		self.width,self.height=-1,-1
 
+
 	def close(self):
 		# Restore the original console state.
 		curses=self.curses
@@ -797,6 +820,7 @@ class Console(object):
 		curses.echo()
 		curses.nocbreak()
 		curses.endwin()
+
 
 	def flip(self):
 		# If the dimensions have changed, redraw the buffer. Otherwise, only draw the
@@ -830,6 +854,7 @@ class Console(object):
 			cell[1]=0
 		scr.refresh()
 
+
 	def settext(self,x,y,msg,col=0):
 		# Place text at (x,y).
 		width,height=self.width,self.height
@@ -845,8 +870,10 @@ class Console(object):
 			cell[1]=col
 			i+=1
 
+
 	def getkey(self):
 		return self.scr.getch()
+
 
 if __name__=="__main__":
 	# Example of playing tetris through the console.

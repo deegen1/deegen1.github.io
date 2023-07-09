@@ -4,21 +4,6 @@
 	<meta charset="utf-8">
 	<title>Tetris AI</title>
 	<link rel="stylesheet" href="../style/style.css" type="text/css">
-	<script src="../style/style.js"></script>
-	<style>
-		.tetris {
-			display:block;
-			width:50%;
-			height:10rem;
-			margin-left:auto;
-			margin-right:auto;
-			text-align:center;
-		}
-		.tetris b {
-			border:none;
-			background:none;
-		}
-	</style>
 	<script src="./tetris.js"></script>
 </head>
 <body>
@@ -30,9 +15,9 @@
 <div class="content"><h1>Tetris AI</h1>
 <p>The AI is available in python as <a href="./Tetris.py">Tetris.py</a> and can
 be played in any terminal.</p>
-<div class="tetris"><b>Loading javascript...</b>
-<script>window.addEventListener("load",function(){tetris_onload(0);})</script>
-</div>
+<div id="tetris" style="margin:auto;margin-bottom:4rem;width:50%;height:40rem;
+background:#000000;">Loading javascript...</div>
+<script>new TetrisGUI("tetris");</script>
 </div>
 
 
@@ -79,7 +64,7 @@ totally cleared the board 23,588 times.</p>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div id="footer">Created on 27 May 2018 - Modified on 27 Jun 2023<br>
+<div id="footer">Created on 27 May 2018 - Modified on 9 Jul 2023<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>

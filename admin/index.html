@@ -403,6 +403,15 @@ $comps=$search.FindAll()
 
 
 --------------------------------------------------------------------------------
+Add user to group
+
+
+$user = [adsi](([adsisearcher]"samaccountname=USERNAME").FindOne().path)
+$group = [adsi](([adsisearcher]"samaccountname=GROUPNAME").FindOne().path)
+$group.Add($user.ADSPath)
+
+
+--------------------------------------------------------------------------------
 Powershell Objects
 
 $obj=New-Object PSObject -Property @{

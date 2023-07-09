@@ -1423,7 +1423,7 @@ function PhyScene1(displayid) {
 	scene.time=0;
 	scene.timeden=0;
 	scene.keydown=(new Array(256)).fill(0);
-	scene.mouseonscreen=true;//false;
+	scene.mouseonscreen=true;// false;
 	scene.follow=false;
 	scene.movemouse=function(evt) {
 		var canvas=scene.canvas;
@@ -1558,17 +1558,9 @@ function PhyScene1(displayid) {
 			var pos=atom.pos.elem;
 			var rad=atom.rad*scale;
 			DrawCircle(imgdata,imgwidth,imgheight,pos[0]*scale,pos[1]*scale,rad,u,0,255-u);
-			//DrawOval(imgdata,imgwidth,imgheight,pos[0]*scale-rad,pos[1]*scale-rad,rad*2,rad*2,u,0,255-u);
 			link=link.next;
 		}
 		ctx.putImageData(scene.backbuf,0,0);
-		/*if (scene.mouseonscreen) {
-			ctx.fillStyle="rgb(255,255,255)";
-			ctx.beginPath();
-			ctx.arc(scene.mouse.get(0)*scale,scene.mouse.get(1)*scale,0.005*scale,0,2*Math.PI);
-			ctx.fill();
-			ctx.closePath();
-		}*/
 		time=performance.now()-time;
 		scene.time+=time;
 		scene.timeden++;
