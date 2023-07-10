@@ -1019,14 +1019,16 @@ class Input {
 		var prevTouchStart = document.ontouchstart;
 		document.ontouchstart = function(evt) {
 			state.setKeyDown(Input.MOUSE.LEFT);
+			var touch=(evt.targetTouches.length>0?evt.targetTouches:evt.touches).item(0);
+			state.setMousePos(touch.pageX,touch.pageY);
 			if (prevTouchStart!==null) {prevTouchStart(evt);}
 		};
-		var prevTouchMove = document.ontouchmove;
+		/*var prevTouchMove = document.ontouchmove;
 		document.ontouchmove=function(evt) {
 			var touch=(evt.targetTouches.length>0?evt.targetTouches:evt.touches).item(0);
 			state.setMousePos(touch.pageX,touch.pageY);
 			if (prevTouchMove!==null) {prevTouchMove(evt);}
-		};
+		};*/
 		var prevTouchEnd = document.ontouchend;
 		document.ontouchend = function(evt) {
 			state.setKeyUp(Input.MOUSE.LEFT);
