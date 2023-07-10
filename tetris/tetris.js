@@ -1021,9 +1021,12 @@ class Input {
 			state.setKeyDown(Input.MOUSE.LEFT);
 			if (prevTouchStart!==null) {prevTouchStart(evt);}
 		};
-		/*document.ontouchmove=function(evt) {
-			scene.movemouse(touch);
-		};*/
+		var prevTouchMove = document.ontouchmove;
+		document.ontouchmove=function(evt) {
+			var touch=(evt.targetTouches.length>0?evt.targetTouches:evt.touches).item(0);
+			state.setMousePos(touch.pageX,touch.pageY);
+			if (prevTouchMove!==null) {prevTouchMove(evt);}
+		};
 		var prevTouchEnd = document.ontouchend;
 		document.ontouchend = function(evt) {
 			state.setKeyUp(Input.MOUSE.LEFT);
