@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-tetris.js - v1.05
+tetris.js - v2.00
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -12,8 +12,10 @@ TODO
 
 
 speed up frames where AI computes path
-37,019 bytes
-
+phone controls
+test different scaling
+no spaces, use camelCase
+jshint, w3 validator
 
 
 */
@@ -881,15 +883,9 @@ class Tetris {
 		// Given coefficients, determine the fitness of the grid. Normalize by the absolute
 		// sum of the coefficients and the width of the grid. This will allow the fitnesses
 		// of different grids to be compared. Do not scale by height.
-		var w=width>1?1.0/width:1.0;
-		var fitness = (
-			-0.2585706097*sumholes*w
-			-0.0160887591*sumheight*w
-			-0.1365051577*rowflip*w
-			-0.4461359486*colflip*w
-			-0.0232974547*pieceheight
-			-0.1194020699*sumwell2*w
-		);
+		var w=width>1?1.0/width:1.0,fitness;
+		fitness =-0.2585706097*sumholes*w-0.0160887591*sumheight*w-0.1365051577*rowflip*w;
+		fitness+=-0.4461359486*colflip*w -0.0232974547*pieceheight-0.1194020699*sumwell2*w;
 		return fitness;
 	}
 
@@ -940,6 +936,7 @@ class Input {
 		this.mouseZ = 0;
 		this.repeatDelay = 0.5;
 		this.repeatRate = 0.05;
+		this.navMap = {};
 		this.keyState = {};
 		this.initMouse();
 		this.initKeyboard();
@@ -966,6 +963,16 @@ class Input {
 				state.hit = 0;
 			}
 		}
+	}
+
+
+	disableNav() {
+		this.navMap = {32:true,37:true,38:true,39:true,40:true};
+	}
+
+
+	enableNav() {
+		this.navMap = {};
 	}
 
 
@@ -1007,6 +1014,25 @@ class Input {
 		document.onmouseup = function(evt) {
 			state.setKeyUp(Input.MOUSE.LEFT);
 			if (prevMouseUp!==null) {prevMouseUp(evt);}
+		};
+		// Touch controls.
+		var prevTouchStart = document.ontouchstart;
+		document.ontouchstart = function(evt) {
+			state.setKeyDown(Input.MOUSE.LEFT);
+			if (prevTouchStart!==null) {prevTouchStart(evt);}
+		};
+		/*document.ontouchmove=function(evt) {
+			scene.movemouse(touch);
+		};*/
+		var prevTouchEnd = document.ontouchend;
+		document.ontouchend = function(evt) {
+			state.setKeyUp(Input.MOUSE.LEFT);
+			if (prevTouchEnd!==null) {prevTouchEnd(evt);}
+		};
+		var prevTouchCancel = document.ontouchcancel;
+		document.ontouchcancel = function(evt) {
+			state.setKeyUp(Input.MOUSE.LEFT);
+			if (prevTouchCancel!==null) {prevTouchCancel(evt);}
 		};
 	}
 
@@ -1056,6 +1082,7 @@ class Input {
 		var prevKeyDown = document.onkeydown;
 		document.onkeydown = function(evt) {
 			state.setKeyDown(evt.keyCode);
+			if (state.navMap[evt.keyCode]) {evt.preventDefault();}
 			if (prevKeyDown!==null) {prevKeyDown(evt);}
 		};
 		var prevKeyUp = document.onkeyup;
@@ -1156,15 +1183,12 @@ class TetrisGUI {
 		this.playerMax  = 5.0;
 		this.aiMoveTime = -Infinity;
 		this.aiMoveRate = 0.08;
-		//this.colorMap = [
-		//	"#00ffff","#ffff00","#800080","#ff7f00",
-		//	"#0000ff","#00ff00","#ff0000"
-		//];
 		this.colorMap = [
 			"#00c0c0","#c0c000","#900090","#c0d050",
 			"#5050c0","#00c000","#c00000"
 		];
 		this.input = new Input();
+		this.input.disableNav();
 		var state = this;
 		function updategame() {
 			setTimeout(updategame,1000/60);
@@ -1408,8 +1432,8 @@ class TetrisGUI {
 		if ((game.state&Tetris.STATE_MOVING)!==0) {
 			ctx.fillStyle = this.colorMap[Math.floor(game.drop/4)];
 			var piece=Tetris.PIECE_LAYOUT[game.drop];
-			var cenx = this.areaGame.x + t1*1.5 + blocksize*game.dropx;
-			var ceny = this.areaGame.y + t1*1.5 + blocksize*(game.height - 1 - game.dropy);
+			var cenx = Math.floor(this.areaGame.x + t1*1.5 + blocksize*game.dropx);
+			var ceny = Math.floor(this.areaGame.y + t1*1.5 + blocksize*(game.height - 1 - game.dropy));
 			for (var i=0;i<8;i+=2) {
 				var cellX = cenx + blocksize*piece[i+0];
 				var cellY = ceny - blocksize*piece[i+1];
@@ -1419,8 +1443,8 @@ class TetrisGUI {
 		// Draw the next piece.
 		ctx.fillStyle = this.colorMap[Math.floor(game.next/4)];
 		var piece=Tetris.PIECE_LAYOUT[game.next];
-		var cenx = Math.floor(this.areaNext.x + this.areaNext.w*0.5 + (game.next<8?-1.0:-0.5)*blocksize) + t1;
-		var ceny = this.areaNext.y + this.titleHeight*1.5 + blocksize*1.5 + t1;
+		var cenx = Math.floor(this.areaNext.x + this.areaNext.w*0.5 + (game.next<8?-1.0:-0.5)*blocksize + t1);
+		var ceny = Math.floor(this.areaNext.y + this.titleHeight*1.5 + blocksize*1.5 + t1);
 		for (var i=0;i<8;i+=2) {
 			var cellX = cenx + blocksize*piece[i+0];
 			var cellY = ceny + blocksize*piece[i+1];
@@ -1429,8 +1453,8 @@ class TetrisGUI {
 		// Draw the grid.
 		for (var y = 0; y < game.height; y++) {
 			var row = game.grid[game.height - y - 1];
-			var cellY = this.areaGame.y + blocksize*y + t1*1.5;
-			var cellX = this.areaGame.x + t1*1.5;
+			var cellY = Math.floor(this.areaGame.y + blocksize*y + t1*1.5);
+			var cellX = Math.floor(this.areaGame.x + t1*1.5);
 			for (var x = 0; x < game.width; x++) {
 				var cell = row[x];
 				if (cell) {
