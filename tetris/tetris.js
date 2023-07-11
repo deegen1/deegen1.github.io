@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-tetris.js - v2.00
+tetris.js - v2.01
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -11,8 +11,8 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
-speed up frames where AI computes path
-jshint, w3 validator
+Speed up frames where AI computes path.
+Clean up UI creation.
 
 
 */
@@ -1212,14 +1212,8 @@ class TetrisGUI {
 		var state=this;
 		function updategame() {
 			setTimeout(updategame,1000/60);
-			//window.requestAnimationFrame(updategame);
-			//var time=performance.now();
 			state.update();
 			state.draw();
-			//time=performance.now()-time;
-			//console.log("time:",time);
-			//time=time>16.666?16.666-time:0;
-			//setTimeout(updategame,time);
 		}
 		this.draw();
 		updategame();
@@ -1340,10 +1334,10 @@ class TetrisGUI {
 			}
 			// Recalculate panel sizes based on font.
 			ctx.font=textfont;
-			var rect=ctx.measureText("M");
-			var textHeight=Math.ceil((rect.actualBoundingBoxAscent+rect.actualBoundingBoxDescent)*1.1);
+			var textRect=ctx.measureText("MMMMM: ");
+			var textHeight=Math.ceil((textRect.actualBoundingBoxAscent+textRect.actualBoundingBoxDescent)*1.1);
 			ctx.font=titlefont;
-			rect=ctx.measureText("M");
+			var rect=ctx.measureText("M");
 			var titleHeight=Math.ceil((rect.actualBoundingBoxAscent+rect.actualBoundingBoxDescent)*1.1);
 			var areaNext ={title:"NEXT"    ,x:panelx,y: areaGame.y               ,w:panelw,h:floor((titleHeight+blockSize*2)*1.5+t1*3)};
 			var areaState={title:"STATE"   ,x:panelx,y: areaNext.y+ areaNext.h+t3,w:panelw,h:floor(titleHeight*5+t1*3)};
@@ -1352,7 +1346,7 @@ class TetrisGUI {
 			areaNext.drawY=areaNext.y+titleHeight*1.5+blockSize*1.5+t1;
 			areaGame.drawX=floor(areaGame.x+t1*1.5);
 			areaGame.drawY=floor(areaGame.y+t1*1.5+blockSize*(this.game.height-1));
-			areaState.drawX=[floor(areaState.x+t1*6),floor(areaState.x+t1*6)];
+			areaState.drawX=[floor(areaState.x+textRect.width+t1*6),floor(areaState.x+textRect.width+t1*6)];
 			areaState.drawY=[floor(areaState.y+titleHeight+textHeight*2+t1*7),floor(areaState.y+titleHeight+textHeight*3.5+t1*11)];
 			this.areaGame=areaGame;
 			this.areaState=areaState;
@@ -1448,6 +1442,17 @@ class TetrisGUI {
 		var game=this.game;
 		var ctx=this.ctx;
 		ctx.drawImage(this.imgback,0,0);
+		// Draw the next piece.
+		ctx.fillStyle=colorMap[floor(game.next/4)];
+		var piece=Tetris.PIECE_LAYOUT[game.next];
+		var drawX=floor(this.areaNext.drawX+(game.next<8?-1.0:-0.5)*blockSize);
+		var drawY=floor(this.areaNext.drawY+(game.next<4?-0.5:-1.0)*blockSize);
+		var cellX,cellY;
+		for (var i=0;i<8;i+=2) {
+			cellX=drawX+blockSize*piece[i+0];
+			cellY=drawY-blockSize*piece[i+1];
+			ctx.fillRect(cellX,cellY,blockSize-t1*2,blockSize-t1*2);
+		}
 		// Draw the current piece.
 		if ((game.state&Tetris.STATE_MOVING)!==0) {
 			ctx.fillStyle=colorMap[floor(game.drop/4)];
@@ -1481,27 +1486,16 @@ class TetrisGUI {
 				ctx.drawImage(button.img[button.state],button.x,button.y);
 			}
 		}
-		// Draw the next piece.
-		ctx.fillStyle=colorMap[floor(game.next/4)];
-		var piece=Tetris.PIECE_LAYOUT[game.next];
-		var drawX=floor(this.areaNext.drawX+(game.next<8?-1.0:-0.5)*blockSize);
-		var drawY=floor(this.areaNext.drawY+(game.next<4?-0.5:-1.0)*blockSize);
-		var cellX,cellY;
-		for (var i=0;i<8;i+=2) {
-			cellX=drawX+blockSize*piece[i+0];
-			cellY=drawY-blockSize*piece[i+1];
-			ctx.fillRect(cellX,cellY,blockSize-t1*2,blockSize-t1*2);
-		}
 		// Draw the state text.
 		ctx.fillStyle="#ffffff";
 		ctx.font=this.textFont;
 		var time=floor(((this.playerTime-performance.now()/1000.0)*10+this.playerMax-1)/this.playerMax);
 		if (time>0) {
-			var str="       ";
+			var str="";
 			while (time-->0) {str+="=";}
 			ctx.fillText(str,this.areaState.drawX[0],this.areaState.drawY[0]);
 		}
-		ctx.fillText("       "+game.cleared,this.areaState.drawX[1],this.areaState.drawY[1]);
+		ctx.fillText(game.cleared.toString(),this.areaState.drawX[1],this.areaState.drawY[1]);
 	}
 
 }
