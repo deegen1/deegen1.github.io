@@ -12,7 +12,9 @@ TODO
 
 
 Convert to classes.
+Use camelCase.
 Use math.imul for hashing.
+Use setTimeout at beginning of loop instead of setInterval.
 
 
 */
@@ -23,7 +25,7 @@ Use math.imul for hashing.
 
 //---------------------------------------------------------------------------------
 // Game of Life Engine
-//---------------------------------------------------------------------------------
+
 
 function life_create() {
 	// Conway's Game of Life
@@ -401,9 +403,10 @@ function life_create() {
 	return life;
 }
 
+
 //---------------------------------------------------------------------------------
 // Game of Life GUI
-//---------------------------------------------------------------------------------
+
 
 // ratio, scale, menu, reset, speed, pos, seed, run
 // seed=[[x0,y0,pat0],[x1,y1,pat1],...]
@@ -442,8 +445,7 @@ function gol_gui(parent,gw,gh,args) {
 	parent.appendChild(canvas);
 	var arrequal=function(a,b) {
 		// Helper function to compare arrays.
-		try
-		{
+		try {
 			var i=0,l=a.length;
 			if (l!==b.length) {return false;}
 			while (i<l && a[i]===b[i]) {i++;}
@@ -695,6 +697,7 @@ function gol_gui(parent,gw,gh,args) {
 	setInterval(gui.update,1000.0/30.0);
 	return gui;
 }
+
 
 function gol_onload(index,w,h,args) {
 	var elem=document.getElementsByClassName("gameoflife")[index];
