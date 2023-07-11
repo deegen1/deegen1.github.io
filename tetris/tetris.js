@@ -11,8 +11,6 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
-see if touchmove is needed, drag while touching
-phone controls
 speed up frames where AI computes path
 jshint, w3 validator
 
