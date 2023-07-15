@@ -11,6 +11,8 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
+use Input class
+create PhyScene class instead of factory method
 fps counter
 use an interaction matrix
 rename widthf to viewwidth
@@ -1335,6 +1337,298 @@ void World::CreateBox(const Vector& cen,u32 atoms,f64 rad,AtomType* type) {
 
 
 */
+
+
+//---------------------------------------------------------------------------------
+// Input
+
+
+class Input {
+
+	static KEY={
+		A: 65, B: 66, C: 67, D: 68, E: 69, F: 70, G: 71, H: 72, I: 73, J: 74,
+		K: 75, L: 76, M: 77, N: 78, O: 79, P: 80, Q: 81, R: 82, S: 83, T: 84,
+		U: 85, V: 86, W: 87, X: 88, Y: 89, Z: 90,
+		0: 48, 1: 49, 2: 50, 3: 51, 4: 52, 5: 53, 6: 54, 7: 55, 8: 56, 9: 57,
+		SPACE: 32,
+		LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40
+	};
+
+
+	static MOUSE={
+		LEFT: 256, MID: 257, RIGHT: 258
+	};
+
+
+	constructor(focus) {
+		this.focus=null;
+		if (focus!==undefined && focus!==null) {
+			this.focus=focus;
+			// An element needs to have a tabIndex to be focusable.
+			if (focus.tabIndex<0) {
+				focus.tabIndex=1;
+			}
+		}
+		this.mouseX=0;
+		this.mouseY=0;
+		this.mouseZ=0;
+		this.repeatDelay=0.5;
+		this.repeatRate=0.05;
+		this.navKeys={32:true,37:true,38:true,39:true,40:true};
+		this.stopNav=false;
+		this.stopNavFocus=false;
+		this.keyState={};
+		this.listeners=[];
+		this.initMouse();
+		this.initKeyboard();
+		for (var i=0;i<this.listeners.length;i++) {
+			var list=this.listeners[i];
+			document.addEventListener(list[0],list[1],list[2]);
+		}
+	}
+
+
+	release() {
+		for (var i=0;i<this.listeners.length;i++) {
+			var list=this.listeners[i];
+			document.removeEventListener(list[0],list[1],list[2]);
+		}
+		this.listeners=[];
+		this.reset();
+	}
+
+
+	reset() {
+		this.mouseZ=0;
+		var stateArr=Object.values(this.keyState);
+		var stateLen=stateArr.length;
+		for (var i=0;i<stateLen;i++) {
+			var state=stateArr[i];
+			state.down=0;
+			state.repeat=0;
+			state.hit=0;
+		}
+	}
+
+
+	update() {
+		var focus=this.focus===null?document.hasFocus():Object.is(document.activeElement,this.focus);
+		this.stopNavFocus=focus?this.stopNav:false;
+		var time=performance.now()/1000.0;
+		var delay=this.repeatDelay,rate=this.repeatRate;
+		var stateArr=Object.values(this.keyState);
+		var stateLen=stateArr.length;
+		for (var i=0;i<stateLen;i++) {
+			var state=stateArr[i];
+			var down=focus?state.down:0;
+			state.down=down;
+			if (down>0) {
+				var repeat=Math.floor((time-state.time-delay)/rate);
+				state.repeat=(repeat>0 && (repeat&1)===0)?state.repeat+1:0;
+			} else {
+				state.repeat=0;
+				state.hit=0;
+			}
+		}
+	}
+
+
+	disableNav() {
+		this.stopNav=true;
+	}
+
+
+	enableNav() {
+		this.stopNav=false;
+	}
+
+
+	// ----------------------------------------
+	// Mouse
+
+
+	initMouse() {
+		var state=this;
+		this.MOUSE=Input.MOUSE;
+		var keys=Object.keys(this.MOUSE);
+		for (var i=0;i<keys.length;i++) {
+			var code=this.MOUSE[keys[i]];
+			this.keyState[code]={
+				name: "MOUSE."+keys[i],
+				code: code,
+				down: 0,
+				hit:  0,
+				repeat: 0,
+				time: null
+			};
+		}
+		// Mouse controls.
+		function mousemove(evt) {
+			state.setMousePos(evt.pageX,evt.pageY);
+		}
+		function mousewheel(evt) {
+			state.addMouseZ(evt.deltaY<0?-1:1);
+		}
+		function mousedown(evt) {
+			state.setKeyDown(Input.MOUSE.LEFT);
+		}
+		function mouseup(evt) {
+			state.setKeyUp(Input.MOUSE.LEFT);
+		}
+		// Touch controls.
+		function touchstart(evt) {
+			state.setKeyDown(Input.MOUSE.LEFT);
+			// touchstart doesn't generate a separate mousemove event.
+			var touch=(evt.targetTouches.length>0?evt.targetTouches:evt.touches).item(0);
+			state.setMousePos(touch.pageX,touch.pageY);
+		}
+		function touchmove(evt) {
+			if (state.stopNavFocus) {evt.preventDefault();}
+		}
+		function touchend(evt) {
+			state.setKeyUp(Input.MOUSE.LEFT);
+		}
+		function touchcancel(evt) {
+			state.setKeyUp(Input.MOUSE.LEFT);
+		}
+		this.listeners=this.listeners.concat([
+			["mousemove"  ,mousemove  ,false],
+			["mousewheel" ,mousemove  ,false],
+			["mousedown"  ,mousedown  ,false],
+			["mouseup"    ,mouseup    ,false],
+			["touchstart" ,touchstart ,false],
+			["touchmove"  ,touchmove  ,false],
+			["touchend"   ,touchend   ,false],
+			["touchcancel",touchcancel,false]
+		]);
+	}
+
+
+	setMousePos(x,y) {
+		this.mouseX=x;
+		this.mouseY=y;
+	}
+
+
+	getMousePos() {
+		return [this.mouseX,this.mouseY];
+	}
+
+
+	addMouseZ(dif) {
+		this.mouseZ += dif;
+	}
+
+
+	getMouseZ() {
+		var z=this.mouseZ;
+		this.mouseZ=0;
+		return z;
+	}
+
+
+	// ----------------------------------------
+	// Keyboard
+
+
+	initKeyboard() {
+		var state=this;
+		this.KEY=Input.KEY;
+		var keys=Object.keys(this.KEY);
+		for (var i=0;i<keys.length;i++) {
+			var code=this.KEY[keys[i]];
+			this.keyState[code]={
+				name: "KEY."+keys[i],
+				code: code,
+				down: 0,
+				hit:  0,
+				repeat: 0,
+				time: null
+			};
+		}
+		function keydown(evt) {
+			state.setKeyDown(evt.keyCode);
+			if (state.stopNavFocus && state.navKeys[evt.keyCode]) {evt.preventDefault();}
+		}
+		function keyup(evt) {
+			state.setKeyUp(evt.keyCode);
+		}
+		this.listeners=this.listeners.concat([
+			["keydown",keydown,false],
+			["keyup"  ,keyup  ,false]
+		]);
+	}
+
+
+	setKeyDown(code) {
+		var state=this.keyState[code];
+		if (state!==null && state!==undefined) {
+			if (state.down===0) {
+				state.down=1;
+				state.hit=1;
+				state.repeat=0;
+				state.time=performance.now()/1000.0;
+			}
+		}
+	}
+
+
+	setKeyUp(code) {
+		var state=this.keyState[code];
+		if (state!==null && state!==undefined) {
+			state.down=0;
+			state.hit=0;
+			state.repeat=0;
+			state.time=null;
+		}
+	}
+
+
+	getKeyDown(code) {
+		// code can be an array of key codes.
+		if (code===null || code===undefined) {return;}
+		if (code.length===undefined) {code=[code];}
+		var keyState=this.keyState;
+		for (var i=0;i<code.length;i++) {
+			var state=keyState[code[i]];
+			if (state!==null && state!==undefined && state.down>0) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+
+	getKeyHit(code) {
+		// code can be an array of key codes.
+		if (code===null || code===undefined) {return;}
+		if (code.length===undefined) {code=[code];}
+		var keyState=this.keyState;
+		for (var i=0;i<code.length;i++) {
+			var state=keyState[code[i]];
+			if (state!==null && state!==undefined && state.hit>0) {
+				state.hit=0;
+				return true;
+			}
+		}
+	}
+
+
+	getKeyRepeat(code) {
+		// code can be an array of key codes.
+		if (code===null || code===undefined) {return;}
+		if (code.length===undefined) {code=[code];}
+		var keyState=this.keyState;
+		for (var i=0;i<code.length;i++) {
+			var state=keyState[code[i]];
+			if (state!==null && state!==undefined && state.repeat===1) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+}
 
 
 //---------------------------------------------------------------------------------

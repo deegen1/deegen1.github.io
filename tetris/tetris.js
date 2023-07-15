@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-tetris.js - v2.01
+tetris.js - v2.02
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -12,6 +12,7 @@ TODO
 
 
 Speed up frames where AI computes path.
+Limit AI moves during mapping, instead of after suggestmove().
 Clean up UI creation.
 
 
@@ -928,7 +929,14 @@ class Input {
 
 
 	constructor(focus) {
-		this.focus=focus===undefined?null:focus;
+		this.focus=null;
+		if (focus!==undefined && focus!==null) {
+			this.focus=focus;
+			// An element needs to have a tabIndex to be focusable.
+			if (focus.tabIndex<0) {
+				focus.tabIndex=1;
+			}
+		}
 		this.mouseX=0;
 		this.mouseY=0;
 		this.mouseZ=0;
@@ -938,8 +946,23 @@ class Input {
 		this.stopNav=false;
 		this.stopNavFocus=false;
 		this.keyState={};
+		this.listeners=[];
 		this.initMouse();
 		this.initKeyboard();
+		for (var i=0;i<this.listeners.length;i++) {
+			var list=this.listeners[i];
+			document.addEventListener(list[0],list[1],list[2]);
+		}
+	}
+
+
+	release() {
+		for (var i=0;i<this.listeners.length;i++) {
+			var list=this.listeners[i];
+			document.removeEventListener(list[0],list[1],list[2]);
+		}
+		this.listeners=[];
+		this.reset();
 	}
 
 
@@ -1007,50 +1030,45 @@ class Input {
 				time: null
 			};
 		}
-		var prevMouseMove=document.onmousemove;
-		document.onmousemove=function(evt) {
+		// Mouse controls.
+		function mousemove(evt) {
 			state.setMousePos(evt.pageX,evt.pageY);
-			if (prevMouseMove!==null) {prevMouseMove(evt);}
-		};
-		var prevMouseWheel=document.onwheel;
-		document.onwheel=function(evt) {
+		}
+		function mousewheel(evt) {
 			state.addMouseZ(evt.deltaY<0?-1:1);
-			if (prevMouseWheel!==null) {prevMouseWheel(evt);}
-		};
-		var prevMouseDown=document.onmousedown;
-		document.onmousedown=function(evt) {
+		}
+		function mousedown(evt) {
 			state.setKeyDown(Input.MOUSE.LEFT);
-			if (prevMouseDown!==null) {prevMouseDown(evt);}
-		};
-		var prevMouseUp=document.onmouseup;
-		document.onmouseup=function(evt) {
+		}
+		function mouseup(evt) {
 			state.setKeyUp(Input.MOUSE.LEFT);
-			if (prevMouseUp!==null) {prevMouseUp(evt);}
-		};
+		}
 		// Touch controls.
-		var prevTouchStart=document.ontouchstart;
-		document.ontouchstart=function(evt) {
+		function touchstart(evt) {
 			state.setKeyDown(Input.MOUSE.LEFT);
 			// touchstart doesn't generate a separate mousemove event.
 			var touch=(evt.targetTouches.length>0?evt.targetTouches:evt.touches).item(0);
 			state.setMousePos(touch.pageX,touch.pageY);
-			if (prevTouchStart!==null) {prevTouchStart(evt);}
-		};
-		var prevTouchMove=document.ontouchmove;
-		document.ontouchmove=function(evt) {
+		}
+		function touchmove(evt) {
 			if (state.stopNavFocus) {evt.preventDefault();}
-			if (prevTouchMove!==null) {prevTouchMove(evt);}
-		};
-		var prevTouchEnd=document.ontouchend;
-		document.ontouchend=function(evt) {
+		}
+		function touchend(evt) {
 			state.setKeyUp(Input.MOUSE.LEFT);
-			if (prevTouchEnd!==null) {prevTouchEnd(evt);}
-		};
-		var prevTouchCancel=document.ontouchcancel;
-		document.ontouchcancel=function(evt) {
+		}
+		function touchcancel(evt) {
 			state.setKeyUp(Input.MOUSE.LEFT);
-			if (prevTouchCancel!==null) {prevTouchCancel(evt);}
-		};
+		}
+		this.listeners=this.listeners.concat([
+			["mousemove"  ,mousemove  ,false],
+			["mousewheel" ,mousemove  ,false],
+			["mousedown"  ,mousedown  ,false],
+			["mouseup"    ,mouseup    ,false],
+			["touchstart" ,touchstart ,false],
+			["touchmove"  ,touchmove  ,false],
+			["touchend"   ,touchend   ,false],
+			["touchcancel",touchcancel,false]
+		]);
 	}
 
 
@@ -1096,17 +1114,17 @@ class Input {
 				time: null
 			};
 		}
-		var prevKeyDown=document.onkeydown;
-		document.onkeydown=function(evt) {
+		function keydown(evt) {
 			state.setKeyDown(evt.keyCode);
 			if (state.stopNavFocus && state.navKeys[evt.keyCode]) {evt.preventDefault();}
-			if (prevKeyDown!==null) {prevKeyDown(evt);}
-		};
-		var prevKeyUp=document.onkeyup;
-		document.onkeyup=function(evt) {
+		}
+		function keyup(evt) {
 			state.setKeyUp(evt.keyCode);
-			if (prevKeyUp!==null) {prevKeyUp(evt);}
-		};
+		}
+		this.listeners=this.listeners.concat([
+			["keydown",keydown,false],
+			["keyup"  ,keyup  ,false]
+		]);
 	}
 
 
@@ -1193,7 +1211,6 @@ class TetrisGUI {
 		this.parentelem=elem.parentNode;
 		var canvas=document.createElement("canvas");
 		elem.replaceWith(canvas);
-		canvas.tabIndex=1;
 		// Setup the UI.
 		this.canvas=canvas;
 		this.ctx=this.canvas.getContext("2d");
