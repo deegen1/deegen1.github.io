@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-tetris.js - v2.02
+tetris.js - v2.03
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -1061,7 +1061,7 @@ class Input {
 		}
 		this.listeners=this.listeners.concat([
 			["mousemove"  ,mousemove  ,false],
-			["mousewheel" ,mousemove  ,false],
+			["mousewheel" ,mousewheel ,false],
 			["mousedown"  ,mousedown  ,false],
 			["mouseup"    ,mouseup    ,false],
 			["touchstart" ,touchstart ,false],

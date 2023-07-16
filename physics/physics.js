@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v1.05
+physics.js - v1.06
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -11,11 +11,9 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
-use Input class
-create PhyScene class instead of factory method
+Look at per-frame performance. See if there are jumps>1/60.
 fps counter
 use an interaction matrix
-rename widthf to viewwidth
 add bonds
 
 
@@ -59,6 +57,17 @@ class PhyRand {
 	}
 
 
+	getState() {
+		return [this.acc,this.inc];
+	}
+
+
+	setState(state) {
+		this.acc=state[0]>>>0;
+		this.inc=state[1]>>>0;
+	}
+
+
 	static hashu32(val) {
 		val+=0x66daacfd;
 		val=Math.imul(val^(val>>>16),0xf8b7629f);
@@ -93,7 +102,7 @@ class PhyRand {
 	}
 
 
-	static xmbarr=[
+	static xmbArr=[
 		0.0000000000,2.1105791e+05,-5.4199832e+00,0.0000056568,6.9695708e+03,-4.2654963e+00,
 		0.0000920071,7.7912181e+02,-3.6959312e+00,0.0007516877,1.6937928e+02,-3.2375953e+00,
 		0.0032102442,6.1190088e+01,-2.8902816e+00,0.0088150936,2.8470915e+01,-2.6018590e+00,
@@ -111,11 +120,11 @@ class PhyRand {
 		0.9948144543,1.0046744e+02,-9.7404506e+01,0.9980488575,2.5934959e+02,-2.5597666e+02,
 		0.9994697975,1.0783868e+03,-1.0745796e+03,0.9999882905,1.3881171e+05,-1.3880629e+05
 	];
-	getnorm() {
+	getNorm() {
 		// Returns a normally distributed random variable. This function uses a linear
 		// piecewise approximation of sqrt(2)*erfinv((x+1)*0.5) to quickly compute values.
 		// Find the greatest y[i]<=x, then return x*m[i]+b[i].
-		var x=this.getf64(),xmb=PhyRand.xmbarr,i=48;
+		var x=this.getf64(),xmb=PhyRand.xmbArr,i=48;
 		i+=x<xmb[i]?-24:24;
 		i+=x<xmb[i]?-12:12;
 		i+=x<xmb[i]?-6:6;
@@ -169,7 +178,7 @@ class PhyVec {
 	}
 
 
-	//---------------------------------------------------------------------------------
+	// ----------------------------------------
 	// Algebra
 
 
@@ -240,7 +249,7 @@ class PhyVec {
 	}
 
 
-	//---------------------------------------------------------------------------------
+	// ----------------------------------------
 	// Geometry
 
 
@@ -274,7 +283,7 @@ class PhyVec {
 		do {
 			mag=0;
 			for (i=0;i<elems;i++) {
-				x=rnd.getnorm();
+				x=rnd.getNorm();
 				ue[i]=x;
 				mag+=x*x;
 			}
@@ -1493,7 +1502,7 @@ class Input {
 		}
 		this.listeners=this.listeners.concat([
 			["mousemove"  ,mousemove  ,false],
-			["mousewheel" ,mousemove  ,false],
+			["mousewheel" ,mousewheel ,false],
 			["mousedown"  ,mousedown  ,false],
 			["mouseup"    ,mouseup    ,false],
 			["touchstart" ,touchstart ,false],
@@ -1705,143 +1714,111 @@ function DrawCircle(imgdata,imgwidth,imgheight,x,y,rad,r,g,b) {
 }
 
 
-function PhyScene1(displayid) {
-	var canvas=document.getElementById(displayid);
-	var scene={};
-	canvas.tabIndex=1; // needed for key presses
-	scene.canvas=canvas;
-	scene.ctx=canvas.getContext("2d");
-	scene.backbuf=scene.ctx.createImageData(canvas.clientWidth,canvas.clientHeight);
-	scene.world=new PhyWorld(2);
-	scene.mouse=new PhyVec(2);
-	scene.time=0;
-	scene.timeden=0;
-	scene.keydown=(new Array(256)).fill(0);
-	scene.mouseonscreen=true;// false;
-	scene.follow=false;
-	scene.movemouse=function(evt) {
-		var canvas=scene.canvas;
-		var x=(evt.pageX-canvas.offsetLeft-canvas.clientLeft)/canvas.clientHeight;
-		var maxx=canvas.clientWidth/canvas.clientHeight;
-		if (x<0   ) {x=0;   }
-		if (x>maxx) {x=maxx;}
-		var y=(evt.pageY-canvas.offsetTop-canvas.clientTop)/canvas.clientHeight;
-		if (y<0) {y=0;}
-		if (y>1) {y=1;}
-		scene.mouse.set(0,x);
-		scene.mouse.set(1,y);
-	};
-	canvas.onmouseover=function(evt) {
-		scene.mouseonscreen=true;
-	};
-	canvas.onmouseleave=function(evt) {
-		scene.mouseonscreen=false;
-	};
-	document.onmousemove=function(evt) {
-		scene.movemouse(evt);
-	};
-	canvas.onmousedown=function(evt) {
-		scene.keydown[250]=3;
-	};
-	canvas.onclick=function(evt) {
-		scene.keydown[250]|=1;
-	};
-	canvas.ontouchstart=function(evt) {
-		scene.keydown[250]|=1;
-	};
-	document.ontouchmove=function(evt) {
-		scene.keydown[250]|=2;
-		var touch=(evt.targetTouches.length>0?evt.targetTouches:evt.touches).item(0);
-		scene.movemouse(touch);
-	};
-	canvas.ontouchend=function(evt) {
-		scene.keydown[250]=0;
-	};
-	canvas.ontouchcancel=canvas.ontouchend;
-	canvas.onmouseup=function(evt) {
-		scene.keydown[250]=0;
-	};
-	canvas.onkeypress=function(evt) {
-		var code=evt.keyCode;
-		if (code>=0 && code<250) {
-			scene.keydown[code]=3;
+class PhyScene1 {
+
+	constructor(divid) {
+		// Swap the <div> with <canvas>
+		var elem=document.getElementById(divid);
+		var canvas=document.createElement("canvas");
+		elem.replaceWith(canvas);
+		var drawWidth=Math.floor(canvas.parentNode.clientWidth*0.8);
+		var drawHeight=drawWidth;
+		canvas.width=drawWidth;
+		canvas.height=drawHeight;
+		this.input=new Input(canvas);
+		this.input.disableNav();
+		// Setup the UI.
+		this.canvas=canvas;
+		this.ctx=this.canvas.getContext("2d");
+		this.backBuf=this.ctx.createImageData(canvas.clientWidth,canvas.clientHeight);
+		this.world=new PhyWorld(2);
+		this.mouse=new PhyVec(2);
+		this.time=0;
+		this.timeDen=0;
+		this.setup();
+		var state=this;
+		function update() {
+			setTimeout(update,1000/60);
+			state.update();
 		}
-	};
-	canvas.onkeyup=function(evt) {
-		var code=evt.keyCode;
-		if (code>=0 && code<250) {
-			scene.keydown[code]=0;
-		}
-	};
-	scene.keyhit=function(code) {
-		var down=scene.keydown[code]&1;
-		scene.keydown[code]^=down;
-		return down;
-	};
-	function setup() {
-		var canvas=scene.canvas;
-		var world=scene.world;
+		update();
+	}
+
+
+	setup() {
+		var canvas=this.canvas;
+		var world=this.world;
 		world.steps=5;
-		var heightf=1.0,widthf=canvas.clientWidth/canvas.clientHeight;
-		var walltype=world.CreateAtomType(1.0,Infinity,1.0);
-		var normtype=world.CreateAtomType(0.01,1.0,0.98);
+		var viewHeight=1.0,viewWidth=canvas.clientWidth/canvas.clientHeight;
+		var wallType=world.CreateAtomType(1.0,Infinity,1.0);
+		var normType=world.CreateAtomType(0.01,1.0,0.98);
 		var rnd=new PhyRand(2);
 		var pos=new PhyVec(world.dim);
 		for (var p=0;p<1000;p++) {
-			pos.set(0,rnd.getf64()*widthf);
-			pos.set(1,rnd.getf64()*heightf);
-			world.CreateAtom(pos,0.007,normtype);
+			pos.set(0,rnd.getf64()*viewWidth);
+			pos.set(1,rnd.getf64()*viewHeight);
+			world.CreateAtom(pos,0.007,normType);
 		}
 		// Walls
-		var wallrad=0.07,wallstep=wallrad/5;
-		for (var x=0;x<=widthf;x+=wallstep) {
+		var wallRad=0.07,wallStep=wallRad/5;
+		for (var x=0;x<=viewWidth;x+=wallStep) {
 			pos.set(0,x);
-			pos.set(1,0.0-wallrad*0.99);
-			world.CreateAtom(pos,wallrad,walltype);
-			pos.set(1,1.0+wallrad*0.99);
-			world.CreateAtom(pos,wallrad,walltype);
+			pos.set(1,0.0-wallRad*0.99);
+			world.CreateAtom(pos,wallRad,wallType);
+			pos.set(1,1.0+wallRad*0.99);
+			world.CreateAtom(pos,wallRad,wallType);
 		}
-		for (var y=0;y<=1.0;y+=wallstep) {
+		for (var y=0;y<=1.0;y+=wallStep) {
 			pos.set(1,y);
-			pos.set(0,widthf+wallrad*0.99);
-			world.CreateAtom(pos,wallrad,walltype);
-			pos.set(0,0.0-wallrad*0.99);
-			world.CreateAtom(pos,wallrad,walltype);
+			pos.set(0,viewWidth+wallRad*0.99);
+			world.CreateAtom(pos,wallRad,wallType);
+			pos.set(0,0.0-wallRad*0.99);
+			world.CreateAtom(pos,wallRad,wallType);
 		}
 		// Dampen the elasticity so we don't add too much energy.
 		var playertype=world.CreateAtomType(0.0,Infinity,0.1);
 		playertype.gravity=new PhyVec([0,0]);
-		pos=new PhyVec([widthf*0.5,heightf*0.5]);
-		scene.playeratom=world.CreateAtom(pos,0.035,playertype);
+		pos=new PhyVec([viewWidth*0.5,viewHeight*0.5]);
+		this.playerAtom=world.CreateAtom(pos,0.035,playertype);
 		console.log("atoms: ",world.atomlist.count);
 	}
-	function update() {
-		setTimeout(update,1000/60);
+
+
+	update() {
 		var time=performance.now();
-		var canvas=scene.canvas;
-		var imgwidth=canvas.clientWidth;
-		var imgheight=canvas.clientHeight;
-		var imgdata=scene.backbuf.data;
-		var scale=imgheight;
-		var ctx=scene.ctx;
-		var world=scene.world;
+		var input=this.input;
+		input.update();
+		var canvas=this.canvas;
+		var imgWidth=canvas.clientWidth;
+		var imgHeight=canvas.clientHeight;
+		var imgdata=this.backBuf.data;
+		var scale=imgHeight;
+		var ctx=this.ctx;
+		var world=this.world;
 		world.Update();
-		DrawFill(imgdata,imgwidth,imgheight,0,0,0);
+		DrawFill(imgdata,imgWidth,imgHeight,0,0,0);
+		// Convert mouse to world space.
+		var x=(input.mouseX-canvas.offsetLeft-canvas.clientLeft)/canvas.clientHeight;
+		var maxx=canvas.clientWidth/canvas.clientHeight;
+		if (x<0   ) {x=0;   }
+		if (x>maxx) {x=maxx;}
+		var y=(input.mouseY-canvas.offsetTop-canvas.clientTop)/canvas.clientHeight;
+		if (y<0) {y=0;}
+		if (y>1) {y=1;}
+		this.mouse.set(0,x);
+		this.mouse.set(1,y);
 		// Move the player.
-		if (scene.mouseonscreen) {
-			scene.follow=true;
-		}
-		var player=scene.playeratom;
-		var dir=scene.mouse.sub(player.pos);
-		var move=scene.follow && dir.sqr()>1e-6;
+		var player=this.playerAtom;
+		var dir=this.mouse.sub(player.pos);
+		var move=dir.sqr()>1e-6;
 		player.vel=dir.scale(move?0.2/world.deltatime:0);
 		var link=world.atomlist.head;
 		while (link!==null) {
 			var atom=link.obj;
-			var data=atom.userdata;
+			var data=atom.userData;
 			if (data===undefined || data===null) {
 				data={velcolor:0};
-				atom.userdata=data;
+				atom.userData=data;
 			}
 			var vel=atom.vel.mag();
 			data.velcolor*=0.99;
@@ -1852,21 +1829,19 @@ function PhyScene1(displayid) {
 			u=Math.floor(u<255?u:255);
 			var pos=atom.pos.elem;
 			var rad=atom.rad*scale;
-			DrawCircle(imgdata,imgwidth,imgheight,pos[0]*scale,pos[1]*scale,rad,u,0,255-u);
+			DrawCircle(imgdata,imgWidth,imgHeight,pos[0]*scale,pos[1]*scale,rad,u,0,255-u);
 			link=link.next;
 		}
-		ctx.putImageData(scene.backbuf,0,0);
+		ctx.putImageData(this.backBuf,0,0);
 		time=performance.now()-time;
-		scene.time+=time;
-		scene.timeden++;
-		if (scene.timeden>=60) {
-			console.log("time:",scene.time/(scene.timeden*1000));
-			scene.time=0;
-			scene.timeden=0;
+		this.time+=time;
+		this.timeDen++;
+		if (this.timeDen>=60) {
+			console.log("time:",this.time/(this.timeDen*1000));
+			this.time=0;
+			this.timeDen=0;
 		}
 	}
-	setup();
-	setTimeout(update,0);
-}
 
+}
 
