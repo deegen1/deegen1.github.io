@@ -219,6 +219,8 @@ enforces a minimum setTimeout() time of 4ms.
 TODO
 
 
+Use classes instead of factory methods.
+In article: explain as a series of subtractions, then add jumping.
 Figure out why chrome is slower than firefox.
 Merge editor. Add option to pause if not on page.
 Mouse+Keyboard

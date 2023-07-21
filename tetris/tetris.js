@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-tetris.js - v2.03
+tetris.js - v2.05
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -12,7 +12,6 @@ TODO
 
 
 Speed up frames where AI computes path.
-Limit AI moves during mapping, instead of after suggestmove().
 Clean up UI creation.
 
 
@@ -362,7 +361,7 @@ class Tetris {
 	}
 
 
-	//---------------------------------------------------------------------------------
+	// ----------------------------------------
 	// Movement
 
 
@@ -450,7 +449,7 @@ class Tetris {
 	}
 
 
-	//---------------------------------------------------------------------------------
+	// ----------------------------------------
 	// AI
 	//
 	// An AI player to suggest the next move given a valid board state.
@@ -908,7 +907,7 @@ class Tetris {
 
 
 //---------------------------------------------------------------------------------
-// Input
+// Input - v1.02
 
 
 class Input {
@@ -937,18 +936,18 @@ class Input {
 				focus.tabIndex=1;
 			}
 		}
-		this.mouseX=0;
-		this.mouseY=0;
-		this.mouseZ=0;
-		this.repeatDelay=0.5;
-		this.repeatRate=0.05;
-		this.navKeys={32:true,37:true,38:true,39:true,40:true};
-		this.stopNav=false;
-		this.stopNavFocus=false;
-		this.keyState={};
+		this.mousex=0;
+		this.mousey=0;
+		this.mousez=0;
+		this.repeatdelay=0.5;
+		this.repeatrate=0.05;
+		this.navkeys={32:true,37:true,38:true,39:true,40:true};
+		this.stopnav=false;
+		this.stopnavfocus=false;
+		this.keystate={};
 		this.listeners=[];
-		this.initMouse();
-		this.initKeyboard();
+		this.initmouse();
+		this.initkeyboard();
 		for (var i=0;i<this.listeners.length;i++) {
 			var list=this.listeners[i];
 			document.addEventListener(list[0],list[1],list[2]);
@@ -967,11 +966,11 @@ class Input {
 
 
 	reset() {
-		this.mouseZ=0;
-		var stateArr=Object.values(this.keyState);
-		var stateLen=stateArr.length;
-		for (var i=0;i<stateLen;i++) {
-			var state=stateArr[i];
+		this.mousez=0;
+		var statearr=Object.values(this.keystate);
+		var statelen=statearr.length;
+		for (var i=0;i<statelen;i++) {
+			var state=statearr[i];
 			state.down=0;
 			state.repeat=0;
 			state.hit=0;
@@ -981,13 +980,13 @@ class Input {
 
 	update() {
 		var focus=this.focus===null?document.hasFocus():Object.is(document.activeElement,this.focus);
-		this.stopNavFocus=focus?this.stopNav:false;
+		this.stopnavfocus=focus?this.stopnav:false;
 		var time=performance.now()/1000.0;
-		var delay=this.repeatDelay,rate=this.repeatRate;
-		var stateArr=Object.values(this.keyState);
-		var stateLen=stateArr.length;
-		for (var i=0;i<stateLen;i++) {
-			var state=stateArr[i];
+		var delay=this.repeatdelay,rate=this.repeatrate;
+		var statearr=Object.values(this.keystate);
+		var statelen=statearr.length;
+		for (var i=0;i<statelen;i++) {
+			var state=statearr[i];
 			var down=focus?state.down:0;
 			state.down=down;
 			if (down>0) {
@@ -1001,13 +1000,13 @@ class Input {
 	}
 
 
-	disableNav() {
-		this.stopNav=true;
+	disablenav() {
+		this.stopnav=true;
 	}
 
 
-	enableNav() {
-		this.stopNav=false;
+	enablenav() {
+		this.stopnav=false;
 	}
 
 
@@ -1015,13 +1014,13 @@ class Input {
 	// Mouse
 
 
-	initMouse() {
+	initmouse() {
 		var state=this;
 		this.MOUSE=Input.MOUSE;
 		var keys=Object.keys(this.MOUSE);
 		for (var i=0;i<keys.length;i++) {
 			var code=this.MOUSE[keys[i]];
-			this.keyState[code]={
+			this.keystate[code]={
 				name: "MOUSE."+keys[i],
 				code: code,
 				down: 0,
@@ -1032,32 +1031,32 @@ class Input {
 		}
 		// Mouse controls.
 		function mousemove(evt) {
-			state.setMousePos(evt.pageX,evt.pageY);
+			state.setmousepos(evt.pageX,evt.pageY);
 		}
 		function mousewheel(evt) {
-			state.addMouseZ(evt.deltaY<0?-1:1);
+			state.addmousez(evt.deltaY<0?-1:1);
 		}
 		function mousedown(evt) {
-			state.setKeyDown(Input.MOUSE.LEFT);
+			state.setkeydown(state.MOUSE.LEFT);
 		}
 		function mouseup(evt) {
-			state.setKeyUp(Input.MOUSE.LEFT);
+			state.setkeyup(state.MOUSE.LEFT);
 		}
 		// Touch controls.
 		function touchstart(evt) {
-			state.setKeyDown(Input.MOUSE.LEFT);
+			state.setkeydown(state.MOUSE.LEFT);
 			// touchstart doesn't generate a separate mousemove event.
 			var touch=(evt.targetTouches.length>0?evt.targetTouches:evt.touches).item(0);
-			state.setMousePos(touch.pageX,touch.pageY);
+			state.setmousepos(touch.pageX,touch.pageY);
 		}
 		function touchmove(evt) {
-			if (state.stopNavFocus) {evt.preventDefault();}
+			if (state.stopnavfocus) {evt.preventDefault();}
 		}
 		function touchend(evt) {
-			state.setKeyUp(Input.MOUSE.LEFT);
+			state.setkeyup(state.MOUSE.LEFT);
 		}
 		function touchcancel(evt) {
-			state.setKeyUp(Input.MOUSE.LEFT);
+			state.setkeyup(state.MOUSE.LEFT);
 		}
 		this.listeners=this.listeners.concat([
 			["mousemove"  ,mousemove  ,false],
@@ -1072,25 +1071,25 @@ class Input {
 	}
 
 
-	setMousePos(x,y) {
-		this.mouseX=x;
-		this.mouseY=y;
+	setmousepos(x,y) {
+		this.mousex=x;
+		this.mousey=y;
 	}
 
 
-	getMousePos() {
-		return [this.mouseX,this.mouseY];
+	getmousepos() {
+		return [this.mousex,this.mousey];
 	}
 
 
-	addMouseZ(dif) {
-		this.mouseZ += dif;
+	addmousez(dif) {
+		this.mousez += dif;
 	}
 
 
-	getMouseZ() {
-		var z=this.mouseZ;
-		this.mouseZ=0;
+	getmousez() {
+		var z=this.mousez;
+		this.mousez=0;
 		return z;
 	}
 
@@ -1099,13 +1098,13 @@ class Input {
 	// Keyboard
 
 
-	initKeyboard() {
+	initkeyboard() {
 		var state=this;
 		this.KEY=Input.KEY;
 		var keys=Object.keys(this.KEY);
 		for (var i=0;i<keys.length;i++) {
 			var code=this.KEY[keys[i]];
-			this.keyState[code]={
+			this.keystate[code]={
 				name: "KEY."+keys[i],
 				code: code,
 				down: 0,
@@ -1115,11 +1114,11 @@ class Input {
 			};
 		}
 		function keydown(evt) {
-			state.setKeyDown(evt.keyCode);
-			if (state.stopNavFocus && state.navKeys[evt.keyCode]) {evt.preventDefault();}
+			state.setkeydown(evt.keyCode);
+			if (state.stopnavfocus && state.navkeys[evt.keyCode]) {evt.preventDefault();}
 		}
 		function keyup(evt) {
-			state.setKeyUp(evt.keyCode);
+			state.setkeyup(evt.keyCode);
 		}
 		this.listeners=this.listeners.concat([
 			["keydown",keydown,false],
@@ -1128,8 +1127,8 @@ class Input {
 	}
 
 
-	setKeyDown(code) {
-		var state=this.keyState[code];
+	setkeydown(code) {
+		var state=this.keystate[code];
 		if (state!==null && state!==undefined) {
 			if (state.down===0) {
 				state.down=1;
@@ -1141,8 +1140,8 @@ class Input {
 	}
 
 
-	setKeyUp(code) {
-		var state=this.keyState[code];
+	setkeyup(code) {
+		var state=this.keystate[code];
 		if (state!==null && state!==undefined) {
 			state.down=0;
 			state.hit=0;
@@ -1152,13 +1151,13 @@ class Input {
 	}
 
 
-	getKeyDown(code) {
+	getkeydown(code) {
 		// code can be an array of key codes.
 		if (code===null || code===undefined) {return;}
 		if (code.length===undefined) {code=[code];}
-		var keyState=this.keyState;
+		var keystate=this.keystate;
 		for (var i=0;i<code.length;i++) {
-			var state=keyState[code[i]];
+			var state=keystate[code[i]];
 			if (state!==null && state!==undefined && state.down>0) {
 				return true;
 			}
@@ -1167,13 +1166,13 @@ class Input {
 	}
 
 
-	getKeyHit(code) {
+	getkeyhit(code) {
 		// code can be an array of key codes.
 		if (code===null || code===undefined) {return;}
 		if (code.length===undefined) {code=[code];}
-		var keyState=this.keyState;
+		var keystate=this.keystate;
 		for (var i=0;i<code.length;i++) {
-			var state=keyState[code[i]];
+			var state=keystate[code[i]];
 			if (state!==null && state!==undefined && state.hit>0) {
 				state.hit=0;
 				return true;
@@ -1182,13 +1181,13 @@ class Input {
 	}
 
 
-	getKeyRepeat(code) {
+	getkeyrepeat(code) {
 		// code can be an array of key codes.
 		if (code===null || code===undefined) {return;}
 		if (code.length===undefined) {code=[code];}
-		var keyState=this.keyState;
+		var keystate=this.keystate;
 		for (var i=0;i<code.length;i++) {
-			var state=keyState[code[i]];
+			var state=keystate[code[i]];
 			if (state!==null && state!==undefined && state.repeat===1) {
 				return true;
 			}
@@ -1215,17 +1214,17 @@ class TetrisGUI {
 		this.canvas=canvas;
 		this.ctx=this.canvas.getContext("2d");
 		this.game=new Tetris(10,20,Tetris.STATE_EASY);
-		this.gameResetTime=Infinity;
-		this.playerTime=-Infinity;
-		this.playerMax =5.0;
-		this.aiMoveTime=-Infinity;
-		this.aiMoveRate=0.08;
-		this.colorMap=[
+		this.gameresettime=Infinity;
+		this.playertime=-Infinity;
+		this.playermax =5.0;
+		this.aimovetime=-Infinity;
+		this.aimoverate=0.08;
+		this.colormap=[
 			"#00c0c0","#c0c000","#900090","#c0d050",
 			"#5050c0","#00c000","#c00000"
 		];
 		this.input=new Input(canvas);
-		this.input.disableNav();
+		this.input.disablenav();
 		var state=this;
 		function updategame() {
 			setTimeout(updategame,1000/60);
@@ -1242,8 +1241,8 @@ class TetrisGUI {
 		var input=this.input;
 		input.update();
 		var canvas=this.canvas;
-		var mx=input.mouseX-canvas.offsetLeft-canvas.clientLeft;
-		var my=input.mouseY-canvas.offsetTop-canvas.clientTop;
+		var mx=input.mousex-canvas.offsetLeft-canvas.clientLeft;
+		var my=input.mousey-canvas.offsetTop-canvas.clientTop;
 		for (var i=0;i<this.buttons.length;i++) {
 			var button=this.buttons[i];
 			var x=mx-button.x;
@@ -1254,23 +1253,23 @@ class TetrisGUI {
 				button.state=0;
 			}
 			var move=Tetris.MOVE_NONE;
-			if (button.state && (input.getKeyHit(Input.MOUSE.LEFT) || input.getKeyRepeat(Input.MOUSE.LEFT))) {
+			if (button.state && (input.getkeyhit(input.MOUSE.LEFT) || input.getkeyrepeat(input.MOUSE.LEFT))) {
 				move=button.move;
 			}
-			if ((button.state>0 && input.getKeyDown(Input.MOUSE.LEFT)) || input.getKeyDown(button.keys)) {
+			if ((button.state>0 && input.getkeydown(input.MOUSE.LEFT)) || input.getkeydown(button.keys)) {
 				button.state=2;
 			}
-			if (input.getKeyHit(button.keys) || input.getKeyRepeat(button.keys)) {
+			if (input.getkeyhit(button.keys) || input.getkeyrepeat(button.keys)) {
 				move=button.move;
 			}
 			if (move!==Tetris.MOVE_NONE) {
-				this.playerTime=time+this.playerMax;
-				this.aiMoveTime=-Infinity;
+				this.playertime=time+this.playermax;
+				this.aimovetime=-Infinity;
 				this.game.move(move);
 			}
 		}
-		if (this.playerTime<time && this.aiMoveTime<time) {
-			this.aiMoveTime=time+this.aiMoveRate;
+		if (this.playertime<time && this.aimovetime<time) {
+			this.aimovetime=time+this.aimoverate;
 			var move=this.game.suggestmove();
 			if (move===Tetris.MOVE_HARDDROP || move===Tetris.MOVE_SOFTDROP) {
 				move=Tetris.MOVE_DOWN;
@@ -1279,11 +1278,11 @@ class TetrisGUI {
 		}
 		this.game.advance();
 		if (this.game.state&Tetris.STATE_GAMEOVER) {
-			if (this.gameResetTime<time) {
+			if (this.gameresettime<time) {
 				this.game.reset();
 			}
 		} else {
-			this.gameResetTime=time+5.0;
+			this.gameresettime=time+5.0;
 		}
 	}
 
@@ -1330,13 +1329,13 @@ class TetrisGUI {
 		drawwidth=drawwidth>300?drawwidth:300;
 		var t1=floor((drawwidth+399)/400);
 		var t2=floor((drawwidth+ 59)/ 60);
-		var blockSize=floor(drawwidth*0.60/this.game.width);
+		var blocksize=floor(drawwidth*0.60/this.game.width);
 		if (canvas.width!==drawwidth || this.imgback===undefined) {
 			// Calculate game and panel sizes. We want the game area to be 60% of the
 			// drawable area.
 			var t3=t1*2+t2;
-			var areaGame={title:"",x:t3,y:t3,w:blockSize*this.game.width+t1-(t1&1),h:blockSize*this.game.height+t1-(t1&1)};
-			var panelx=areaGame.x+areaGame.w+t3;
+			var areagame={title:"",x:t3,y:t3,w:blocksize*this.game.width+t1-(t1&1),h:blocksize*this.game.height+t1-(t1&1)};
+			var panelx=areagame.x+areagame.w+t3;
 			var panelw=drawwidth-panelx-t3;
 			// Calculate font sizes
 			var ctx=canvas.getContext("2d");
@@ -1352,41 +1351,41 @@ class TetrisGUI {
 			// Recalculate panel sizes based on font.
 			ctx.font=textfont;
 			var textRect=ctx.measureText("MMMMM: ");
-			var textHeight=Math.ceil((textRect.actualBoundingBoxAscent+textRect.actualBoundingBoxDescent)*1.1);
+			var textheight=Math.ceil((textRect.actualBoundingBoxAscent+textRect.actualBoundingBoxDescent)*1.1);
 			ctx.font=titlefont;
 			var rect=ctx.measureText("M");
-			var titleHeight=Math.ceil((rect.actualBoundingBoxAscent+rect.actualBoundingBoxDescent)*1.1);
-			var areaNext ={title:"NEXT"    ,x:panelx,y: areaGame.y               ,w:panelw,h:floor((titleHeight+blockSize*2)*1.5+t1*3)};
-			var areaState={title:"STATE"   ,x:panelx,y: areaNext.y+ areaNext.h+t3,w:panelw,h:floor(titleHeight*5+t1*3)};
-			var areaCont ={title:"CONTROLS",x:panelx,y:areaState.y+areaState.h+t3,w:panelw,h:null};
-			areaNext.drawX=areaNext.x+areaNext.w*0.5+t1;
-			areaNext.drawY=areaNext.y+titleHeight*1.5+blockSize*1.5+t1;
-			areaGame.drawX=floor(areaGame.x+t1*1.5);
-			areaGame.drawY=floor(areaGame.y+t1*1.5+blockSize*(this.game.height-1));
-			areaState.drawX=[floor(areaState.x+textRect.width+t1*6),floor(areaState.x+textRect.width+t1*6)];
-			areaState.drawY=[floor(areaState.y+titleHeight+textHeight*2+t1*7),floor(areaState.y+titleHeight+textHeight*3.5+t1*11)];
-			this.areaGame=areaGame;
-			this.areaState=areaState;
-			this.areaNext=areaNext;
+			var titleheight=Math.ceil((rect.actualBoundingBoxAscent+rect.actualBoundingBoxDescent)*1.1);
+			var areanext ={title:"NEXT"    ,x:panelx,y: areagame.y               ,w:panelw,h:floor((titleheight+blocksize*2)*1.5+t1*3)};
+			var areastate={title:"STATE"   ,x:panelx,y: areanext.y+ areanext.h+t3,w:panelw,h:floor(titleheight*5+t1*3)};
+			var areacont ={title:"CONTROLS",x:panelx,y:areastate.y+areastate.h+t3,w:panelw,h:null};
+			areanext.drawx=areanext.x+areanext.w*0.5+t1;
+			areanext.drawy=areanext.y+titleheight*1.5+blocksize*1.5+t1;
+			areagame.drawx=floor(areagame.x+t1*1.5);
+			areagame.drawy=floor(areagame.y+t1*1.5+blocksize*(this.game.height-1));
+			areastate.drawx=[floor(areastate.x+textRect.width+t1*6),floor(areastate.x+textRect.width+t1*6)];
+			areastate.drawy=[floor(areastate.y+titleheight+textheight*2+t1*7),floor(areastate.y+titleheight+textheight*3.5+t1*11)];
+			this.areagame=areagame;
+			this.areastate=areastate;
+			this.areanext=areanext;
 			this.textFont=textfont;
 			// Calculate button positions.
-			var buttonSize=floor((panelw-t1*3)*0.40);
-			var space=floor((panelw-buttonSize*2)/3);
+			var buttonsize=floor((panelw-t1*3)*0.40);
+			var space=floor((panelw-buttonsize*2)/3);
 			var lx=panelx+space;
-			var rx=lx+buttonSize+space;
-			var mx=panelx+floor((panelw-buttonSize)/2);
-			var by=areaCont.y+titleHeight+t1*10+space+textHeight;
+			var rx=lx+buttonsize+space;
+			var mx=panelx+floor((panelw-buttonsize)/2);
+			var by=areacont.y+titleheight+t1*10+space+textheight;
 			var buttons=[
-				{name:"rotl" ,img:[null,null,null],x:lx,y:by,w:buttonSize,h:buttonSize,move:Tetris.MOVE_ROTL,keys:[]},
-				{name:"rotr" ,img:[null,null,null],x:rx,y:by,w:buttonSize,h:buttonSize,move:Tetris.MOVE_ROTR,keys:[Input.KEY.W,Input.KEY.UP]},
-				{name:"left" ,img:[null,null,null],x:lx,y:by+(space+buttonSize)*1,w:buttonSize,h:buttonSize,move:Tetris.MOVE_LEFT,keys:[Input.KEY.A,Input.KEY.LEFT]},
-				{name:"right",img:[null,null,null],x:rx,y:by+(space+buttonSize)*1,w:buttonSize,h:buttonSize,move:Tetris.MOVE_RIGHT,keys:[Input.KEY.D,Input.KEY.RIGHT]},
-				{name:"down" ,img:[null,null,null],x:mx,y:by+(space+buttonSize)*2,w:buttonSize,h:buttonSize,move:Tetris.MOVE_DOWN,keys:[Input.KEY.S,Input.KEY.DOWN]}
+				{name:"rotl" ,img:[null,null,null],x:lx,y:by,w:buttonsize,h:buttonsize,move:Tetris.MOVE_ROTL,keys:[]},
+				{name:"rotr" ,img:[null,null,null],x:rx,y:by,w:buttonsize,h:buttonsize,move:Tetris.MOVE_ROTR,keys:[Input.KEY.W,Input.KEY.UP]},
+				{name:"left" ,img:[null,null,null],x:lx,y:by+(space+buttonsize)*1,w:buttonsize,h:buttonsize,move:Tetris.MOVE_LEFT,keys:[Input.KEY.A,Input.KEY.LEFT]},
+				{name:"right",img:[null,null,null],x:rx,y:by+(space+buttonsize)*1,w:buttonsize,h:buttonsize,move:Tetris.MOVE_RIGHT,keys:[Input.KEY.D,Input.KEY.RIGHT]},
+				{name:"down" ,img:[null,null,null],x:mx,y:by+(space+buttonsize)*2,w:buttonsize,h:buttonsize,move:Tetris.MOVE_DOWN,keys:[Input.KEY.S,Input.KEY.DOWN]}
 			];
 			this.buttons=buttons;
-			areaCont.h=buttons[4].y+buttons[4].h+space-areaCont.y;
+			areacont.h=buttons[4].y+buttons[4].h+space-areacont.y;
 			// Resize the canvas.
-			var drawheight=Math.max(areaGame.y+areaGame.h,areaCont.y+areaCont.h)+t3;
+			var drawheight=Math.max(areagame.y+areagame.h,areacont.y+areacont.h)+t3;
 			canvas.width=drawwidth;
 			canvas.height=drawheight;
 			// Draw the main background, game area, and panels.
@@ -1397,7 +1396,7 @@ class TetrisGUI {
 			ctx.fillRect(0,0,drawwidth,drawheight);
 			ctx.fillStyle="#6060ff";
 			ctx.fillRect(t1,t1,drawwidth-t1*2,drawheight-t1*2);
-			var areas=[areaGame,areaNext,areaState,areaCont];
+			var areas=[areagame,areanext,areastate,areacont];
 			for (var i=0;i<areas.length;i++) {
 				var area=areas[i];
 				ctx.fillStyle="#4040aa";
@@ -1407,20 +1406,20 @@ class TetrisGUI {
 				ctx.font=titlefont;
 				rect=ctx.measureText(area.title);
 				var x=area.x+(area.w-rect.width)/2;
-				var y=area.y+titleHeight+t1*3;
+				var y=area.y+titleheight+t1*3;
 				ctx.fillStyle="#ffffff";
 				ctx.fillText(area.title,x,y);
 			}
 			ctx.font=textfont;
-			ctx.fillText("   AI:",areaState.x+t1*6,areaState.y+titleHeight+textHeight*2.0+t1*7 );
-			ctx.fillText("lines:",areaState.x+t1*6,areaState.y+titleHeight+textHeight*3.5+t1*11);
+			ctx.fillText("   AI:",areastate.x+t1*6,areastate.y+titleheight+textheight*2.0+t1*7 );
+			ctx.fillText("lines:",areastate.x+t1*6,areastate.y+titleheight+textheight*3.5+t1*11);
 			rect=ctx.measureText("Use at any time");
-			ctx.fillText("Use at any time",areaCont.x+floor((panelw-rect.width)/2),areaCont.y+titleHeight+textHeight+t1*9);
+			ctx.fillText("Use at any time",areacont.x+floor((panelw-rect.width)/2),areacont.y+titleheight+textheight+t1*9);
 			// Draw the buttons.
 			for (var b=0;b<buttons.length;b++) {
 				var button=buttons[b];
-				var rad=buttonSize*0.25;
-				var half=buttonSize*0.5;
+				var rad=buttonsize*0.25;
+				var half=buttonsize*0.5;
 				for (var c=0;c<3;c++) {
 					var img=new OffscreenCanvas(button.w,button.h);
 					button.img[c]=img;
@@ -1455,45 +1454,45 @@ class TetrisGUI {
 				imgback.getContext("2d").drawImage(button.img[0],button.x,button.y);
 			}
 		}
-		var colorMap=this.colorMap;
+		var colormap=this.colormap;
 		var game=this.game;
 		var ctx=this.ctx;
 		ctx.drawImage(this.imgback,0,0);
 		// Draw the next piece.
-		ctx.fillStyle=colorMap[floor(game.next/4)];
+		ctx.fillStyle=colormap[floor(game.next/4)];
 		var piece=Tetris.PIECE_LAYOUT[game.next];
-		var drawX=floor(this.areaNext.drawX+(game.next<8?-1.0:-0.5)*blockSize);
-		var drawY=floor(this.areaNext.drawY+(game.next<4?-0.5:-1.0)*blockSize);
-		var cellX,cellY;
+		var drawx=floor(this.areanext.drawx+(game.next<8?-1.0:-0.5)*blocksize);
+		var drawy=floor(this.areanext.drawy+(game.next<4?-0.5:-1.0)*blocksize);
+		var cellx,celly;
 		for (var i=0;i<8;i+=2) {
-			cellX=drawX+blockSize*piece[i+0];
-			cellY=drawY-blockSize*piece[i+1];
-			ctx.fillRect(cellX,cellY,blockSize-t1*2,blockSize-t1*2);
+			cellx=drawx+blocksize*piece[i+0];
+			celly=drawy-blocksize*piece[i+1];
+			ctx.fillRect(cellx,celly,blocksize-t1*2,blocksize-t1*2);
 		}
 		// Draw the current piece.
 		if ((game.state&Tetris.STATE_MOVING)!==0) {
-			ctx.fillStyle=colorMap[floor(game.drop/4)];
+			ctx.fillStyle=colormap[floor(game.drop/4)];
 			piece=Tetris.PIECE_LAYOUT[game.drop];
-			drawX=this.areaGame.drawX+blockSize*game.dropx;
-			drawY=this.areaGame.drawY-blockSize*game.dropy;
+			drawx=this.areagame.drawx+blocksize*game.dropx;
+			drawy=this.areagame.drawy-blocksize*game.dropy;
 			for (var i=0;i<8;i+=2) {
-				cellX=drawX+blockSize*piece[i+0];
-				cellY=drawY-blockSize*piece[i+1];
-				ctx.fillRect(cellX,cellY,blockSize-t1*2,blockSize-t1*2);
+				cellx=drawx+blocksize*piece[i+0];
+				celly=drawy-blocksize*piece[i+1];
+				ctx.fillRect(cellx,celly,blocksize-t1*2,blocksize-t1*2);
 			}
 		}
 		// Draw the grid.
 		for (var y=0;y<game.height;y++) {
 			var row=game.grid[y];
-			cellY=this.areaGame.drawY-blockSize*y;
-			cellX=this.areaGame.drawX;
+			celly=this.areagame.drawy-blocksize*y;
+			cellx=this.areagame.drawx;
 			for (var x=0;x<game.width;x++) {
 				var cell=row[x];
 				if (cell>0) {
-					ctx.fillStyle=colorMap[cell-1];
-					ctx.fillRect(cellX,cellY,blockSize-t1*2,blockSize-t1*2);
+					ctx.fillStyle=colormap[cell-1];
+					ctx.fillRect(cellx,celly,blocksize-t1*2,blocksize-t1*2);
 				}
-				cellX+=blockSize;
+				cellx+=blocksize;
 			}
 		}
 		// Draw the controls.
@@ -1506,13 +1505,13 @@ class TetrisGUI {
 		// Draw the state text.
 		ctx.fillStyle="#ffffff";
 		ctx.font=this.textFont;
-		var time=floor(((this.playerTime-performance.now()/1000.0)*10+this.playerMax-1)/this.playerMax);
+		var time=floor(((this.playertime-performance.now()/1000.0)*10+this.playermax-1)/this.playermax);
 		if (time>0) {
 			var str="";
 			while (time-->0) {str+="=";}
-			ctx.fillText(str,this.areaState.drawX[0],this.areaState.drawY[0]);
+			ctx.fillText(str,this.areastate.drawx[0],this.areastate.drawy[0]);
 		}
-		ctx.fillText(game.cleared.toString(),this.areaState.drawX[1],this.areaState.drawY[1]);
+		ctx.fillText(game.cleared.toString(),this.areastate.drawx[1],this.areastate.drawy[1]);
 	}
 
 }
