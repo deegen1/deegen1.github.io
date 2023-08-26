@@ -5,36 +5,6 @@
 	<title>Game of Life Simulator</title>
 	<link rel="stylesheet" href="../style/style.css" type="text/css">
 	<script src="../style/style.js"></script>
-	<style>
-		.gameoflife {
-			text-align:center;
-		}
-		.gameoflife canvas {
-			background-color:#000000;
-			border:0.165rem solid;
-			border-color:#404080;
-		}
-		.gameoflife .menu {
-			margin-bottom:4rem;
-			margin-left:auto;
-			margin-right:auto;
-			background-color:#000000;
-			border:0.165rem solid;
-			border-top:0;
-			border-color:#404080;
-			color:#ffffff;
-			text-align:left;
-		}
-		.gameoflife p {
-			display:inline;
-			margin-left:0.2475rem;
-		}
-		.gameoflife b {
-			display:inline;
-			border:none;
-			background:none;
-		}
-	</style>
 	<script src="./gameoflife.js"></script>
 </head>
 <body>
@@ -44,12 +14,13 @@
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Game of Life ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <div class="content"><h1>Game of Life</h1>
-<div class="gameoflife"><b>Loading javascript...</b>
-<script>window.addEventListener("load",function () {
-var points="x = 5, y = 18, rule = B3/S23\n\
-3bob$4bo$o3bo$b4o4$o4b$b2o2b$2bo2b$2bo2b$bo3b3$3bob$4bo$o3bo$b4o!";
-gol_onload(0,600,100,{seed:[[0,40,points]],reset:1230,speed:0.9});});
-</script></div>
+<div id="life1" class="consoleblock" style="width:60%;height:7rem;">
+Loading javascript...</div>
+<script>
+var points=`x = 5, y = 18, rule = B3/S23\n
+3bob$4bo$o3bo$b4o4$o4b$b2o2b$2bo2b$2bo2b$bo3b3$3bob$4bo$o3bo$b4o!`;
+new GOLGUI("life1",600,100,{seed:[[-300,-10,points]],reset:1230,speed:0.6,run:1});
+</script>
 <p><a href="https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life">Conway's game
 of life</a> begins with a grid of living and dead cells. We determine the next
 generation of cells by using the following rules:</p>
@@ -63,10 +34,12 @@ reproduction.</td></tr>
 <tr><td>&bull;</td><td>All other cells stay the same.</td></tr>
 </table>
 <p>The interactive simulation below shows life in action.</p>
-<div class="gameoflife"><b>Loading javascript...</b>
-<script>window.addEventListener("load",function () {
+<div id="life2" class="consoleblock" style="width:90%;height:30rem;">
+Loading javascript...</div>
+<script>
 var points=[[0,2],[1,0],[1,2],[3,1],[4,2],[5,2],[6,2]];
-gol_onload(1,100,60,{seed:[[44,40,points]],run:0});});</script></div>
+new GOLGUI("life2",100,60,{seed:[[-3,-1,points]],menu:1});
+</script>
 <p>The javascript simulation above (<a href="./gameoflife.js">gameoflife.js</a>)
 is based on our python engine: <a href="./GameOfLife.py">GameOfLife.py</a></p>
 <p>The engine allows for grids of infinite size by tracking active cells and
@@ -79,14 +52,14 @@ status, and some other management information. Advancing to a cell's next state
 is then a simple matter of a table lookup.</p>
 <p>Because we may have a grid of infinite size, it is far too slow to naively
 scan all cells in the active region of the grid for possible state changes.
-Instead, when a cell's state is changed, it is added to a list of cells that
-have been modified. We then loop through this list to determine if the cell's
-state should be changed.</p>
+Instead, we add cells to a list if it or its neighbors have changed. We then
+loop through this list to determine if the cell should change to alive or
+dead.</p>
 </div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div id="footer">Created on 16 Jan 2018 - Modified on 27 Jun 2023<br>
+<div id="footer">Created on 16 Jan 2018 - Modified on 26 Aug 2023<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>

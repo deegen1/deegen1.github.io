@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-tetris.js - v2.05
+tetris.js - v2.06
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -907,7 +907,7 @@ class Tetris {
 
 
 //---------------------------------------------------------------------------------
-// Input - v1.02
+// Input - v1.03
 
 
 class Input {
@@ -936,6 +936,7 @@ class Input {
 				focus.tabIndex=1;
 			}
 		}
+		this.active=null;
 		this.mousex=0;
 		this.mousey=0;
 		this.mousez=0;
@@ -948,6 +949,7 @@ class Input {
 		this.listeners=[];
 		this.initmouse();
 		this.initkeyboard();
+		this.reset();
 		for (var i=0;i<this.listeners.length;i++) {
 			var list=this.listeners[i];
 			document.addEventListener(list[0],list[1],list[2]);
@@ -972,31 +974,45 @@ class Input {
 		for (var i=0;i<statelen;i++) {
 			var state=statearr[i];
 			state.down=0;
-			state.repeat=0;
 			state.hit=0;
+			state.repeat=0;
+			state.time=null;
+			state.active=null;
+			state.isactive=0;
 		}
+		this.active=null;
 	}
 
 
 	update() {
+		// Process keys that are active.
 		var focus=this.focus===null?document.hasFocus():Object.is(document.activeElement,this.focus);
 		this.stopnavfocus=focus?this.stopnav:false;
 		var time=performance.now()/1000.0;
-		var delay=this.repeatdelay,rate=this.repeatrate;
-		var statearr=Object.values(this.keystate);
-		var statelen=statearr.length;
-		for (var i=0;i<statelen;i++) {
-			var state=statearr[i];
-			var down=focus?state.down:0;
+		var delay=time-this.repeatdelay;
+		var rate=1.0/this.repeatrate;
+		var state=this.active;
+		var active=null;
+		var down,next;
+		while (state!==null) {
+			next=state.active;
+			down=focus?state.down:0;
 			state.down=down;
 			if (down>0) {
-				var repeat=Math.floor((time-state.time-delay)/rate);
+				var repeat=Math.floor((delay-state.time)*rate);
 				state.repeat=(repeat>0 && (repeat&1)===0)?state.repeat+1:0;
 			} else {
 				state.repeat=0;
 				state.hit=0;
 			}
+			state.isactive=down?1:0;
+			if (state.isactive) {
+				state.active=active;
+				active=state;
+			}
+			state=next;
 		}
+		this.active=active;
 	}
 
 
@@ -1007,6 +1023,19 @@ class Input {
 
 	enablenav() {
 		this.stopnav=false;
+	}
+
+
+	makeactive(code) {
+		var state=this.keystate[code];
+		if (state===null || state===undefined) {
+			state=null;
+		} else if (!state.isactive) {
+			state.isactive=1;
+			state.active=this.active;
+			this.active=state;
+		}
+		return state;
 	}
 
 
@@ -1022,11 +1051,7 @@ class Input {
 			var code=this.MOUSE[keys[i]];
 			this.keystate[code]={
 				name: "MOUSE."+keys[i],
-				code: code,
-				down: 0,
-				hit:  0,
-				repeat: 0,
-				time: null
+				code: code
 			};
 		}
 		// Mouse controls.
@@ -1106,11 +1131,7 @@ class Input {
 			var code=this.KEY[keys[i]];
 			this.keystate[code]={
 				name: "KEY."+keys[i],
-				code: code,
-				down: 0,
-				hit:  0,
-				repeat: 0,
-				time: null
+				code: code
 			};
 		}
 		function keydown(evt) {
@@ -1128,8 +1149,8 @@ class Input {
 
 
 	setkeydown(code) {
-		var state=this.keystate[code];
-		if (state!==null && state!==undefined) {
+		var state=this.makeactive(code);
+		if (state!==null) {
 			if (state.down===0) {
 				state.down=1;
 				state.hit=1;
@@ -1141,8 +1162,8 @@ class Input {
 
 
 	setkeyup(code) {
-		var state=this.keystate[code];
-		if (state!==null && state!==undefined) {
+		var state=this.makeactive(code);
+		if (state!==null) {
 			state.down=0;
 			state.hit=0;
 			state.repeat=0;
