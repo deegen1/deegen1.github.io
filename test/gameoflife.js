@@ -758,7 +758,7 @@ class Input {
 		}
 		// Touch controls.
 		function touchstart(evt) {
-			state.addlog("touch start");
+			state.addlog("touch start 1: "+state.mousepos[0]+", "+state.mousepos[1]);
 			if (state.stopnav!==0 && state.focus!==null) {
 				var mpos=state.mousepos;
 				if (mpos[0]>=0 && mpos[0]<1 && mpos[1]>=0 && mpos[1]<1) {
@@ -771,6 +771,7 @@ class Input {
 			var touch=(evt.targetTouches.length>0?evt.targetTouches:evt.touches).item(0);
 			state.setmousepos(touch.pageX,touch.pageY);
 			state.clickpos=state.mousepos.slice();
+			state.addlog("touch start 2: "+state.mousepos[0]+", "+state.mousepos[1]);
 		}
 		function touchmove(evt) {
 			state.addlog("touch move:"+state.stopnav+", "+state.stopnavfocus);
