@@ -597,7 +597,7 @@ class Input {
 	};
 
 
-	constructor(focus,mouseoffset,mousescale) {
+	constructor(focus) {
 		this.focus=null;
 		if (focus!==undefined && focus!==null) {
 			this.focus=focus;
@@ -609,8 +609,6 @@ class Input {
 		this.active=null;
 		this.mousepos=[0,0];
 		this.mousez=0;
-		this.mouseoffset=mouseoffset?1:0;
-		this.mousescale=mousescale?1:0;
 		this.clickpos=[0,0];
 		this.repeatdelay=0.5;
 		this.repeatrate=0.05;
@@ -620,7 +618,8 @@ class Input {
 		this.keystate={};
 		this.listeners=[];
 		this.logobj=document.getElementById("log");
-		this.addlog("V 2");
+		this.addlog("V 3");
+		console.log(this.focus);
 		this.initmouse();
 		this.initkeyboard();
 		this.reset();
@@ -760,6 +759,13 @@ class Input {
 		// Touch controls.
 		function touchstart(evt) {
 			state.addlog("touch start");
+			if (state.stopnav!==0 && state.focus!==null) {
+				var mpos=state.mousepos;
+				if (mpos[0]>=0 && mpos[0]<1 && mpos[1]>=0 && mpos[1]<1) {
+					evt.preventDefault();
+					//state.focus.focus();
+				}
+			}
 			state.setkeydown(state.MOUSE.LEFT);
 			// touchstart doesn't generate a separate mousemove event.
 			var touch=(evt.targetTouches.length>0?evt.targetTouches:evt.touches).item(0);
@@ -794,14 +800,8 @@ class Input {
 	setmousepos(x,y) {
 		var focus=this.focus;
 		if (focus!==null) {
-			if (this.mouseoffset!==0) {
-				x-=focus.offsetLeft+focus.clientLeft;
-				y-=focus.offsetTop +focus.clientTop ;
-			}
-			if (this.mousescale!==0) {
-				x/=focus.clientWidth;
-				y/=focus.clientHeight;
-			}
+			x=(x-focus.offsetLeft-focus.clientLeft)/focus.clientWidth;
+			y=(y-focus.offsetTop +focus.clientTop )/focus.clientHeight;
 		}
 		this.mousepos[0]=x;
 		this.mousepos[1]=y;
@@ -1089,8 +1089,9 @@ class GOLGUI {
 				this.timesim+=gen;
 			}
 		}
-		var draww=this.canvas.width;
-		var drawh=this.canvas.height;
+		var canvas=this.canvas;
+		var draww=canvas.width;
+		var drawh=canvas.height;
 		var magsize=this.scale<0?-this.scale+1:1;
 		var blockscale=this.scale<0?1:(this.scale+1);
 		var linesize=Math.ceil(blockscale*(this.menu?0.1:0.0));
@@ -1105,6 +1106,7 @@ class GOLGUI {
 		var dx,dy;
 		var i;
 		var mpos=input.getmousepos();
+		mpos=[mpos[0]*canvas.clientWidth,mpos[1]*canvas.clientHeight];
 		// Handle grid dragging.
 		if (this.grabbing===2 && leftdown) {
 			dx=mpos[0]-this.grabpos[0];
