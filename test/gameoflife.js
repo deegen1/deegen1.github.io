@@ -620,6 +620,7 @@ class Input {
 		this.keystate={};
 		this.listeners=[];
 		this.logobj=document.getElementById("log");
+		this.addlog("V 2");
 		this.initmouse();
 		this.initkeyboard();
 		this.reset();
@@ -960,6 +961,7 @@ class GOLGUI {
 		this.scale=scale<1?-(Math.round(1/scale)-1):(Math.round(scale)-1);
 		this.initscale=this.scale;
 		this.input=new Input(canvas,true,false);
+		this.input.disablenav();
 		this.grabbing=0;
 		this.grabpos=[0,0];
 		this.grabcen=[0,0];
