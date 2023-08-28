@@ -615,10 +615,11 @@ class Input {
 		this.navkeys={32:1,37:1,38:1,39:1,40:1};
 		this.stopnav=0;
 		this.stopnavfocus=0;
+		this.touchfocus=0;
 		this.keystate={};
 		this.listeners=[];
 		this.logobj=document.getElementById("log");
-		this.addlog("V 4");
+		this.addlog("V 5");
 		console.log(this.focus);
 		this.initmouse();
 		this.initkeyboard();
@@ -650,6 +651,7 @@ class Input {
 
 
 	reset() {
+		this.touchfocus=0;
 		this.mousez=0;
 		var statearr=Object.values(this.keystate);
 		var statelen=statearr.length;
@@ -669,7 +671,7 @@ class Input {
 	update() {
 		// Process keys that are active.
 		var focus=this.focus===null?document.hasFocus():Object.is(document.activeElement,this.focus);
-		this.stopnavfocus=focus!==null?this.stopnav:0;
+		this.stopnavfocus=focus!==null || this.touchfocus!==0?this.stopnav:0;
 		var time=performance.now()/1000.0;
 		var delay=time-this.repeatdelay;
 		var rate=1.0/this.repeatrate;
@@ -758,50 +760,39 @@ class Input {
 		}
 		// Touch controls.
 		function touchmove(evt) {
-			state.addlog("touch move:"+state.stopnav+", "+state.stopnavfocus);
-			/*var mpos=state.mousepos;
-			if (state.stopnavfocus!==0 || (mpos[0]>=0 && mpos[0]<1 && mpos[1]>=0 && mpos[1]<1)) {
-				state.addlog("touch move prevent default");
-				evt.preventDefault();
-				//state.focus.focus();
-			}*/
+			state.addlog("touch move");
 			state.setkeydown(state.MOUSE.LEFT);
-			// touchstart doesn't generate a separate mousemove event.
 			var touch=(evt.targetTouches.length>0?evt.targetTouches:evt.touches).item(0);
 			state.setmousepos(touch.pageX,touch.pageY);
-			if (state.stopnav!==0 && state.focus!==null) {
-				var mpos=state.mousepos;
-				if (mpos[0]>=0 && mpos[0]<1 && mpos[1]>=0 && mpos[1]<1) {
-					state.addlog("touch prevent default");
-					evt.preventDefault();
-					//state.focus.focus();
-				}
+			if (state.touchfocus!==0) {
+				state.addlog("touch move prevent default");
+				evt.preventDefault();
 			}
 		}
 		function touchstart(evt) {
 			state.addlog("touch start");
-			/*state.setkeydown(state.MOUSE.LEFT);
 			// touchstart doesn't generate a separate mousemove event.
-			var touch=(evt.targetTouches.length>0?evt.targetTouches:evt.touches).item(0);
-			state.setmousepos(touch.pageX,touch.pageY);
-			state.clickpos=state.mousepos.slice();
+			touchmove(evt);
 			if (state.stopnav!==0 && state.focus!==null) {
 				var mpos=state.mousepos;
 				if (mpos[0]>=0 && mpos[0]<1 && mpos[1]>=0 && mpos[1]<1) {
-					state.addlog("touch prevent default");
-					evt.preventDefault();
-					//state.focus.focus();
+					state.touchfocus=1;
 				}
-			}*/
-			touchmove(evt);
+			}
+			if (state.touchfocus!==0) {
+				state.addlog("touch start prevent default");
+				evt.preventDefault();
+			}
 			state.clickpos=state.mousepos.slice();
 		}
 		function touchend(evt) {
 			state.addlog("touch end");
+			state.touchfocus=0;
 			state.setkeyup(state.MOUSE.LEFT);
 		}
 		function touchcancel(evt) {
 			state.addlog("touch cancel");
+			state.touchfocus=0;
 			state.setkeyup(state.MOUSE.LEFT);
 		}
 		this.listeners=this.listeners.concat([
