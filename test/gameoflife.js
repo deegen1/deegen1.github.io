@@ -618,7 +618,7 @@ class Input {
 		this.keystate={};
 		this.listeners=[];
 		this.logobj=document.getElementById("log");
-		this.addlog("V 3");
+		this.addlog("V 4");
 		console.log(this.focus);
 		this.initmouse();
 		this.initkeyboard();
@@ -757,25 +757,44 @@ class Input {
 			}
 		}
 		// Touch controls.
-		function touchstart(evt) {
-			state.addlog("touch start 1: "+state.mousepos[0]+", "+state.mousepos[1]);
-			if (state.stopnav!==0 && state.focus!==null) {
-				var mpos=state.mousepos;
-				if (mpos[0]>=0 && mpos[0]<1 && mpos[1]>=0 && mpos[1]<1) {
-					evt.preventDefault();
-					//state.focus.focus();
-				}
-			}
+		function touchmove(evt) {
+			state.addlog("touch move:"+state.stopnav+", "+state.stopnavfocus);
+			/*var mpos=state.mousepos;
+			if (state.stopnavfocus!==0 || (mpos[0]>=0 && mpos[0]<1 && mpos[1]>=0 && mpos[1]<1)) {
+				state.addlog("touch move prevent default");
+				evt.preventDefault();
+				//state.focus.focus();
+			}*/
 			state.setkeydown(state.MOUSE.LEFT);
 			// touchstart doesn't generate a separate mousemove event.
 			var touch=(evt.targetTouches.length>0?evt.targetTouches:evt.touches).item(0);
 			state.setmousepos(touch.pageX,touch.pageY);
-			state.clickpos=state.mousepos.slice();
-			state.addlog("touch start 2: "+state.mousepos[0]+", "+state.mousepos[1]);
+			if (state.stopnav!==0 && state.focus!==null) {
+				var mpos=state.mousepos;
+				if (mpos[0]>=0 && mpos[0]<1 && mpos[1]>=0 && mpos[1]<1) {
+					state.addlog("touch prevent default");
+					evt.preventDefault();
+					//state.focus.focus();
+				}
+			}
 		}
-		function touchmove(evt) {
-			state.addlog("touch move:"+state.stopnav+", "+state.stopnavfocus);
-			if (state.stopnavfocus!==0) {evt.preventDefault();}
+		function touchstart(evt) {
+			state.addlog("touch start");
+			/*state.setkeydown(state.MOUSE.LEFT);
+			// touchstart doesn't generate a separate mousemove event.
+			var touch=(evt.targetTouches.length>0?evt.targetTouches:evt.touches).item(0);
+			state.setmousepos(touch.pageX,touch.pageY);
+			state.clickpos=state.mousepos.slice();
+			if (state.stopnav!==0 && state.focus!==null) {
+				var mpos=state.mousepos;
+				if (mpos[0]>=0 && mpos[0]<1 && mpos[1]>=0 && mpos[1]<1) {
+					state.addlog("touch prevent default");
+					evt.preventDefault();
+					//state.focus.focus();
+				}
+			}*/
+			touchmove(evt);
+			state.clickpos=state.mousepos.slice();
 		}
 		function touchend(evt) {
 			state.addlog("touch end");
