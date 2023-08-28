@@ -12,7 +12,7 @@ TODO
 
 
 Fix click-and-drag on phones.
-disablenav([input.MOUSE.SCROLL])
+https://developer.mozilla.org/en-US/docs/Web/CSS/touch-action
 
 
 */
@@ -599,9 +599,13 @@ class Input {
 
 	constructor(focus) {
 		this.focus=null;
+		this.focustab=null;
+		this.focustouch=null;
 		if (focus!==undefined && focus!==null) {
 			this.focus=focus;
 			// An element needs to have a tabIndex to be focusable.
+			this.focustab=focus.tabIndex;
+			this.focustouch=focus.style.touchAction;
 			if (focus.tabIndex<0) {
 				focus.tabIndex=1;
 			}
@@ -619,8 +623,7 @@ class Input {
 		this.keystate={};
 		this.listeners=[];
 		this.logobj=document.getElementById("log");
-		this.addlog("V 5");
-		console.log(this.focus);
+		this.addlog("V 6");
 		this.initmouse();
 		this.initkeyboard();
 		this.reset();
@@ -632,15 +635,22 @@ class Input {
 
 
 	addlog(str) {
-		var text=this.logobj.innerText;
-		if (text.length>128) {
-			text=text.substring(0,128);
+		var log=this.logobj;
+		if (log!==null && log!==undefined) {
+			var text=this.logobj.innerText;
+			if (text.length>128) {
+				text=text.substring(0,128);
+			}
+			this.logobj.innerText=(str+"\n")+text;
 		}
-		this.logobj.innerText=(str+"\n")+text;
 	}
 
 
 	release() {
+		if (this.focus!==null) {
+			this.focus.tabIndex=this.focustab;
+		}
+		this.enablenav();
 		for (var i=0;i<this.listeners.length;i++) {
 			var list=this.listeners[i];
 			document.removeEventListener(list[0],list[1],list[2]);
@@ -702,11 +712,17 @@ class Input {
 
 	disablenav() {
 		this.stopnav=1;
+		if (this.focus!==null) {
+			this.focus.style.touchAction="none";
+		}
 	}
 
 
 	enablenav() {
 		this.stopnav=0;
+		if (this.focus!==null) {
+			this.focus.style.touchAction=this.focustouch;
+		}
 	}
 
 
@@ -773,6 +789,7 @@ class Input {
 			state.addlog("touch start");
 			// touchstart doesn't generate a separate mousemove event.
 			touchmove(evt);
+			state.clickpos=state.mousepos.slice();
 			if (state.stopnav!==0 && state.focus!==null) {
 				var mpos=state.mousepos;
 				if (mpos[0]>=0 && mpos[0]<1 && mpos[1]>=0 && mpos[1]<1) {
@@ -783,7 +800,6 @@ class Input {
 				state.addlog("touch start prevent default");
 				evt.preventDefault();
 			}
-			state.clickpos=state.mousepos.slice();
 		}
 		function touchend(evt) {
 			state.addlog("touch end");
@@ -958,10 +974,10 @@ class GOLGUI {
 		var canvas=document.createElement("canvas");
 		elem.replaceWith(canvas);
 		canvas.style.border="1px solid #303080";
-		this.running=("run" in args)?args["run"]:0;
+		this.running=("run" in args && args["run"])?1:0;
 		this.initseed=("seed" in args)?args["seed"]:[];
 		this.life=new Life();
-		this.menu=("menu" in args)?args["menu"]:0;
+		this.menu=("menu" in args && args["menu"])?1:0;
 		// Time settings.
 		this.timespeed=("speed" in args)?args["speed"]:1.0;
 		this.timereset=("reset" in args)?args["reset"]:Infinity;
@@ -972,7 +988,7 @@ class GOLGUI {
 		this.scale=scale<1?-(Math.round(1/scale)-1):(Math.round(scale)-1);
 		this.initscale=this.scale;
 		this.input=new Input(canvas,true,false);
-		this.input.disablenav();
+		if (this.menu!==0) {this.input.disablenav();}
 		this.grabbing=0;
 		this.grabpos=[0,0];
 		this.grabcen=[0,0];

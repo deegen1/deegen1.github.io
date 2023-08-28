@@ -14,12 +14,12 @@
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Game of Life ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <div class="content"><h1>Game of Life</h1>
-<div id="life1" class="consoleblock" style="width:60%;height:7rem;">
+<div id="life1" class="consoleblock" style="width:60%;height:7rem">
 Loading javascript...</div>
 <script>
 var points=`x = 5, y = 18, rule = B3/S23\n
 3bob$4bo$o3bo$b4o4$o4b$b2o2b$2bo2b$2bo2b$bo3b3$3bob$4bo$o3bo$b4o!`;
-#new GOLGUI("life1",600,100,{seed:[[-300,-10,points]],reset:1230,speed:0.6,run:1});
+new GOLGUI("life1",600,100,{seed:[[-300,-10,points]],reset:1230,speed:0.6,run:1});
 </script>
 <p><a href="https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life">Conway's game
 of life</a> begins with a grid of living and dead cells. We determine the next
