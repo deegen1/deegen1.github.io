@@ -11,6 +11,7 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
+allow pinch zoom
 See if preventDefault is necessary.
 Test on mobile chrome and firefox.
 Move input to physics and tetris.
@@ -698,7 +699,7 @@ class Input {
 	disablenav() {
 		this.stopnav=1;
 		if (this.focus!==null) {
-			this.focus.style.touchAction="none";
+			this.focus.style.touchAction="pinch-zoom";
 		}
 	}
 
