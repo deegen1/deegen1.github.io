@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-gameoflife.js - v2.00
+gameoflife.js - v2.01
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -573,7 +573,7 @@ class Life {
 
 
 //---------------------------------------------------------------------------------
-// Input - v1.05
+// Input - v1.06
 
 
 class Input {
@@ -593,11 +593,15 @@ class Input {
 	};
 
 
-	constructor(focus,mouseoffset,mousescale) {
+	constructor(focus) {
 		this.focus=null;
+		this.focustab=null;
+		this.focustouch=null;
 		if (focus!==undefined && focus!==null) {
 			this.focus=focus;
 			// An element needs to have a tabIndex to be focusable.
+			this.focustab=focus.tabIndex;
+			this.focustouch=focus.style.touchAction;
 			if (focus.tabIndex<0) {
 				focus.tabIndex=1;
 			}
@@ -605,14 +609,13 @@ class Input {
 		this.active=null;
 		this.mousepos=[0,0];
 		this.mousez=0;
-		this.mouseoffset=mouseoffset?1:0;
-		this.mousescale=mousescale?1:0;
 		this.clickpos=[0,0];
 		this.repeatdelay=0.5;
 		this.repeatrate=0.05;
 		this.navkeys={32:1,37:1,38:1,39:1,40:1};
 		this.stopnav=0;
 		this.stopnavfocus=0;
+		this.touchfocus=0;
 		this.keystate={};
 		this.listeners=[];
 		this.initmouse();
@@ -626,6 +629,10 @@ class Input {
 
 
 	release() {
+		if (this.focus!==null) {
+			this.focus.tabIndex=this.focustab;
+		}
+		this.enablenav();
 		for (var i=0;i<this.listeners.length;i++) {
 			var list=this.listeners[i];
 			document.removeEventListener(list[0],list[1],list[2]);
@@ -636,6 +643,7 @@ class Input {
 
 
 	reset() {
+		this.touchfocus=0;
 		this.mousez=0;
 		var statearr=Object.values(this.keystate);
 		var statelen=statearr.length;
@@ -655,7 +663,7 @@ class Input {
 	update() {
 		// Process keys that are active.
 		var focus=this.focus===null?document.hasFocus():Object.is(document.activeElement,this.focus);
-		this.stopnavfocus=focus!==null?this.stopnav:0;
+		this.stopnavfocus=focus!==null || this.touchfocus!==0?this.stopnav:0;
 		var time=performance.now()/1000.0;
 		var delay=time-this.repeatdelay;
 		var rate=1.0/this.repeatrate;
@@ -686,11 +694,17 @@ class Input {
 
 	disablenav() {
 		this.stopnav=1;
+		if (this.focus!==null) {
+			this.focus.style.touchAction="none";
+		}
 	}
 
 
 	enablenav() {
 		this.stopnav=0;
+		if (this.focus!==null) {
+			this.focus.style.touchAction=this.focustouch;
+		}
 	}
 
 
@@ -741,20 +755,34 @@ class Input {
 			}
 		}
 		// Touch controls.
-		function touchstart(evt) {
+		function touchmove(evt) {
 			state.setkeydown(state.MOUSE.LEFT);
-			// touchstart doesn't generate a separate mousemove event.
 			var touch=(evt.targetTouches.length>0?evt.targetTouches:evt.touches).item(0);
 			state.setmousepos(touch.pageX,touch.pageY);
-			state.clickpos=state.mousepos.slice();
+			if (state.touchfocus!==0) {
+				evt.preventDefault();
+			}
 		}
-		function touchmove(evt) {
-			if (state.stopnavfocus!==0) {evt.preventDefault();}
+		function touchstart(evt) {
+			// touchstart doesn't generate a separate mousemove event.
+			touchmove(evt);
+			state.clickpos=state.mousepos.slice();
+			if (state.stopnav!==0 && state.focus!==null) {
+				var mpos=state.mousepos;
+				if (mpos[0]>=0 && mpos[0]<1 && mpos[1]>=0 && mpos[1]<1) {
+					state.touchfocus=1;
+				}
+			}
+			if (state.touchfocus!==0) {
+				evt.preventDefault();
+			}
 		}
 		function touchend(evt) {
+			state.touchfocus=0;
 			state.setkeyup(state.MOUSE.LEFT);
 		}
 		function touchcancel(evt) {
+			state.touchfocus=0;
 			state.setkeyup(state.MOUSE.LEFT);
 		}
 		this.listeners=this.listeners.concat([
@@ -773,14 +801,8 @@ class Input {
 	setmousepos(x,y) {
 		var focus=this.focus;
 		if (focus!==null) {
-			if (this.mouseoffset!==0) {
-				x-=focus.offsetLeft+focus.clientLeft;
-				y-=focus.offsetTop +focus.clientTop ;
-			}
-			if (this.mousescale!==0) {
-				x/=focus.clientWidth;
-				y/=focus.clientHeight;
-			}
+			x=(x-focus.offsetLeft-focus.clientLeft)/focus.clientWidth;
+			y=(y-focus.offsetTop +focus.clientTop )/focus.clientHeight;
 		}
 		this.mousepos[0]=x;
 		this.mousepos[1]=y;
@@ -926,10 +948,10 @@ class GOLGUI {
 		var canvas=document.createElement("canvas");
 		elem.replaceWith(canvas);
 		canvas.style.border="1px solid #303080";
-		this.running=("run" in args)?args["run"]:0;
+		this.running=("run" in args && args["run"])?1:0;
 		this.initseed=("seed" in args)?args["seed"]:[];
 		this.life=new Life();
-		this.menu=("menu" in args)?args["menu"]:0;
+		this.menu=("menu" in args && args["menu"])?1:0;
 		// Time settings.
 		this.timespeed=("speed" in args)?args["speed"]:1.0;
 		this.timereset=("reset" in args)?args["reset"]:Infinity;
@@ -940,6 +962,7 @@ class GOLGUI {
 		this.scale=scale<1?-(Math.round(1/scale)-1):(Math.round(scale)-1);
 		this.initscale=this.scale;
 		this.input=new Input(canvas,true,false);
+		if (this.menu!==0) {this.input.disablenav();}
 		this.grabbing=0;
 		this.grabpos=[0,0];
 		this.grabcen=[0,0];
@@ -1067,8 +1090,9 @@ class GOLGUI {
 				this.timesim+=gen;
 			}
 		}
-		var draww=this.canvas.width;
-		var drawh=this.canvas.height;
+		var canvas=this.canvas;
+		var draww=canvas.width;
+		var drawh=canvas.height;
 		var magsize=this.scale<0?-this.scale+1:1;
 		var blockscale=this.scale<0?1:(this.scale+1);
 		var linesize=Math.ceil(blockscale*(this.menu?0.1:0.0));
@@ -1083,6 +1107,7 @@ class GOLGUI {
 		var dx,dy;
 		var i;
 		var mpos=input.getmousepos();
+		mpos=[mpos[0]*canvas.clientWidth,mpos[1]*canvas.clientHeight];
 		// Handle grid dragging.
 		if (this.grabbing===2 && leftdown) {
 			dx=mpos[0]-this.grabpos[0];
