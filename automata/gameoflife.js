@@ -754,14 +754,11 @@ class Input {
 		}
 		// Touch controls.
 		function touchmove(evt) {
-			var touch=evt.touches; //evt.targetTouches.length>0?evt.targetTouches:evt.touches;
-			if (touch.length>0) {
+			var touch=evt.touches;
+			if (touch.length===1) {
 				touch=touch.item(0);
 				state.setkeydown(state.MOUSE.LEFT);
 				state.setmousepos(touch.pageX,touch.pageY);
-			} else {
-				// This is probably a gesture.
-				state.setkeyup(state.MOUSE.LEFT);
 			}
 		}
 		function touchstart(evt) {
