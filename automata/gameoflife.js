@@ -607,7 +607,7 @@ class Input {
 			}
 		}
 		this.active=null;
-		this.mousepos=[0,0];
+		this.mousepos=[-Infinity,-Infinity];
 		this.mousez=0;
 		this.clickpos=[0,0];
 		this.repeatdelay=0.5;
@@ -623,6 +623,19 @@ class Input {
 		for (var i=0;i<this.listeners.length;i++) {
 			var list=this.listeners[i];
 			document.addEventListener(list[0],list[1],list[2]);
+		}
+		this.log("V 1");
+	}
+
+
+	log(str) {
+		var elem=document.getElementById("log");
+		if (elem!==null && elem!==undefined) {
+			var text=elem.innerText;
+			if (text.length>128) {
+				text=text.substring(0,128);
+			}
+			elem.innerText=str+"\n"+text;
 		}
 	}
 
@@ -754,6 +767,7 @@ class Input {
 		}
 		// Touch controls.
 		function touchmove(evt) {
+			state.log(evt.targetTouches.length+" "+evt.touches.length);
 			var touch=evt.touches;
 			if (touch.length===1) {
 				touch=touch.item(0);
