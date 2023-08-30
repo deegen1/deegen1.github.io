@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-gameoflife.js - v2.01
+gameoflife.js - v2.02
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -573,7 +573,7 @@ class Life {
 
 
 //---------------------------------------------------------------------------------
-// Input - v1.06
+// Input - v1.07
 
 
 class Input {
@@ -615,7 +615,6 @@ class Input {
 		this.navkeys={32:1,37:1,38:1,39:1,40:1};
 		this.stopnav=0;
 		this.stopnavfocus=0;
-		this.touchfocus=0;
 		this.keystate={};
 		this.listeners=[];
 		this.initmouse();
@@ -643,7 +642,6 @@ class Input {
 
 
 	reset() {
-		this.touchfocus=0;
 		this.mousez=0;
 		var statearr=Object.values(this.keystate);
 		var statelen=statearr.length;
@@ -663,7 +661,7 @@ class Input {
 	update() {
 		// Process keys that are active.
 		var focus=this.focus===null?document.hasFocus():Object.is(document.activeElement,this.focus);
-		this.stopnavfocus=focus!==null || this.touchfocus!==0?this.stopnav:0;
+		this.stopnavfocus=focus!==null?this.stopnav:0;
 		var time=performance.now()/1000.0;
 		var delay=time-this.repeatdelay;
 		var rate=1.0/this.repeatrate;
@@ -695,7 +693,7 @@ class Input {
 	disablenav() {
 		this.stopnav=1;
 		if (this.focus!==null) {
-			this.focus.style.touchAction="none";
+			this.focus.style.touchAction="pinch-zoom";
 		}
 	}
 
@@ -756,33 +754,25 @@ class Input {
 		}
 		// Touch controls.
 		function touchmove(evt) {
-			state.setkeydown(state.MOUSE.LEFT);
-			var touch=(evt.targetTouches.length>0?evt.targetTouches:evt.touches).item(0);
-			state.setmousepos(touch.pageX,touch.pageY);
-			if (state.touchfocus!==0) {
-				evt.preventDefault();
+			var touch=evt.touches;
+			if (touch.length===1) {
+				touch=touch.item(0);
+				state.setkeydown(state.MOUSE.LEFT);
+				state.setmousepos(touch.pageX,touch.pageY);
+			} else {
+				// This is probably a gesture.
+				state.setkeyup(state.MOUSE.LEFT);
 			}
 		}
 		function touchstart(evt) {
 			// touchstart doesn't generate a separate mousemove event.
 			touchmove(evt);
 			state.clickpos=state.mousepos.slice();
-			if (state.stopnav!==0 && state.focus!==null) {
-				var mpos=state.mousepos;
-				if (mpos[0]>=0 && mpos[0]<1 && mpos[1]>=0 && mpos[1]<1) {
-					state.touchfocus=1;
-				}
-			}
-			if (state.touchfocus!==0) {
-				evt.preventDefault();
-			}
 		}
 		function touchend(evt) {
-			state.touchfocus=0;
 			state.setkeyup(state.MOUSE.LEFT);
 		}
 		function touchcancel(evt) {
-			state.touchfocus=0;
 			state.setkeyup(state.MOUSE.LEFT);
 		}
 		this.listeners=this.listeners.concat([
