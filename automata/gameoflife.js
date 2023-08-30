@@ -767,7 +767,7 @@ class Input {
 		}
 		// Touch controls.
 		function touchmove(evt) {
-			state.log(evt.targetTouches.length+" "+evt.touches.length);
+			state.log("move: "+evt.targetTouches.length+" "+evt.touches.length);
 			var touch=evt.touches;
 			if (touch.length===1) {
 				touch=touch.item(0);
@@ -777,13 +777,16 @@ class Input {
 		}
 		function touchstart(evt) {
 			// touchstart doesn't generate a separate mousemove event.
+			state.log("start");
 			touchmove(evt);
 			state.clickpos=state.mousepos.slice();
 		}
 		function touchend(evt) {
+			state.log("end");
 			state.setkeyup(state.MOUSE.LEFT);
 		}
 		function touchcancel(evt) {
+			state.log("cancel");
 			state.setkeyup(state.MOUSE.LEFT);
 		}
 		this.listeners=this.listeners.concat([
@@ -1092,7 +1095,7 @@ class GOLGUI {
 			}
 		}
 		var input=this.input;
-		input.update();
+		//input.update();
 		var canvas=this.canvas;
 		var draww=canvas.width;
 		var drawh=canvas.height;
@@ -1160,7 +1163,7 @@ class GOLGUI {
 			if (onbutton===0 && mpos[0]>=0 && mpos[0]<draww && mpos[1]>=0 && mpos[1]<drawh) {
 				drawmouse=this.grabbing<2?1:0;
 				// Grab if the mouse is held for 1.0s or it moves too far.
-				if (this.grabbing===0 && leftclick) {
+				if (this.grabbing===0 && leftclick!==0) {
 					this.grabbing=1;
 					this.grabpos=mpos.slice();
 					this.grabcen=this.gridcen.slice();
