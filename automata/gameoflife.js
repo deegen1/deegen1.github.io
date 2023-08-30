@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-gameoflife.js - v2.02
+gameoflife.js - v2.03
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -573,7 +573,7 @@ class Life {
 
 
 //---------------------------------------------------------------------------------
-// Input - v1.07
+// Input - v1.08
 
 
 class Input {
@@ -624,19 +624,6 @@ class Input {
 		for (var i=0;i<this.listeners.length;i++) {
 			var list=this.listeners[i];
 			document.addEventListener(list[0],list[1],list[2]);
-		}
-		this.log("V 2");
-	}
-
-
-	log(str) {
-		var elem=document.getElementById("log");
-		if (elem!==null && elem!==undefined) {
-			var text=elem.innerText;
-			if (text.length>128) {
-				text=text.substring(0,128);
-			}
-			elem.innerText=str+"\n"+text;
 		}
 	}
 
@@ -769,19 +756,18 @@ class Input {
 		}
 		// Touch controls.
 		function touchmove(evt) {
-			state.log("move: "+evt.targetTouches.length+" "+evt.touches.length);
 			var touch=evt.touches;
 			if (touch.length===1) {
 				touch=touch.item(0);
 				state.setkeydown(state.MOUSE.LEFT);
 				state.setmousepos(touch.pageX,touch.pageY);
 			} else {
+				// This is probably a gesture.
 				state.setkeyup(state.MOUSE.LEFT);
 			}
 		}
 		function touchstart(evt) {
-			// touchstart doesn't generate a separate mousemove event.
-			state.log("start");
+			// We need to manually determine if the user has touched our focused object.
 			state.touchfocus=1;
 			var focus=state.focus;
 			if (focus!==null) {
@@ -792,16 +778,15 @@ class Input {
 					state.touchfocus=0;
 				}
 			}
+			// touchstart doesn't generate a separate mousemove event.
 			touchmove(evt);
 			state.clickpos=state.mousepos.slice();
 		}
 		function touchend(evt) {
-			state.log("end");
 			state.touchfocus=0;
 			state.setkeyup(state.MOUSE.LEFT);
 		}
 		function touchcancel(evt) {
-			state.log("cancel");
 			state.touchfocus=0;
 			state.setkeyup(state.MOUSE.LEFT);
 		}

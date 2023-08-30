@@ -19,7 +19,7 @@ Loading javascript...</div>
 <script>
 var points=`x = 5, y = 18, rule = B3/S23\n
 3bob$4bo$o3bo$b4o4$o4b$b2o2b$2bo2b$2bo2b$bo3b3$3bob$4bo$o3bo$b4o!`;
-//new GOLGUI("life1",600,100,{seed:[[-300,-10,points]],reset:1230,speed:0.6,run:1});
+new GOLGUI("life1",600,100,{seed:[[-300,-10,points]],reset:1230,speed:0.6,run:1});
 </script>
 <p><a href="https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life">Conway's game
 of life</a> begins with a grid of living and dead cells. We determine the next
@@ -36,7 +36,6 @@ reproduction.</td></tr>
 <p>The interactive simulation below shows life in action.</p>
 <div id="life2" class="consoleblock" style="width:90%;height:30rem;">
 Loading javascript...</div>
-<p id="log" style="background:#333333"></p>
 <script>
 var points=[[0,2],[1,0],[1,2],[3,1],[4,2],[5,2],[6,2]];
 new GOLGUI("life2",100,60,{seed:[[-3,-1,points]],menu:1});

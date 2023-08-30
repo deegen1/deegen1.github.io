@@ -35,7 +35,7 @@ function PhyAssert(condition,data) {
 
 
 //---------------------------------------------------------------------------------
-// Input - v1.07
+// Input - v1.08
 
 
 class Input {
@@ -71,6 +71,7 @@ class Input {
 		this.active=null;
 		this.mousepos=[-Infinity,-Infinity];
 		this.mousez=0;
+		this.touchfocus=0;
 		this.clickpos=[0,0];
 		this.repeatdelay=0.5;
 		this.repeatrate=0.05;
@@ -123,7 +124,8 @@ class Input {
 	update() {
 		// Process keys that are active.
 		var focus=this.focus===null?document.hasFocus():Object.is(document.activeElement,this.focus);
-		this.stopnavfocus=focus!==null?this.stopnav:0;
+		if (this.touchfocus!==0) {focus=true;}
+		this.stopnavfocus=focus?this.stopnav:0;
 		var time=performance.now()/1000.0;
 		var delay=time-this.repeatdelay;
 		var rate=1.0/this.repeatrate;
@@ -227,14 +229,27 @@ class Input {
 			}
 		}
 		function touchstart(evt) {
+			// We need to manually determine if the user has touched our focused object.
+			state.touchfocus=1;
+			var focus=state.focus;
+			if (focus!==null) {
+				var touch=evt.touches.item(0);
+				var x=touch.pageX-focus.offsetLeft-focus.clientLeft;
+				var y=touch.pageY-focus.offsetTop -focus.clientTop;
+				if (x<0 || x>=focus.clientWidth || y<0 || y>=focus.clientHeight) {
+					state.touchfocus=0;
+				}
+			}
 			// touchstart doesn't generate a separate mousemove event.
 			touchmove(evt);
 			state.clickpos=state.mousepos.slice();
 		}
 		function touchend(evt) {
+			state.touchfocus=0;
 			state.setkeyup(state.MOUSE.LEFT);
 		}
 		function touchcancel(evt) {
+			state.touchfocus=0;
 			state.setkeyup(state.MOUSE.LEFT);
 		}
 		this.listeners=this.listeners.concat([
@@ -254,7 +269,7 @@ class Input {
 		var focus=this.focus;
 		if (focus!==null) {
 			x=(x-focus.offsetLeft-focus.clientLeft)/focus.clientWidth;
-			y=(y-focus.offsetTop +focus.clientTop )/focus.clientHeight;
+			y=(y-focus.offsetTop -focus.clientTop )/focus.clientHeight;
 		}
 		this.mousepos[0]=x;
 		this.mousepos[1]=y;

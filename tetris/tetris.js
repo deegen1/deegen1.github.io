@@ -907,7 +907,7 @@ class Tetris {
 
 
 //---------------------------------------------------------------------------------
-// Input - v1.03
+// Input - v1.08
 
 
 class Input {
@@ -929,22 +929,27 @@ class Input {
 
 	constructor(focus) {
 		this.focus=null;
+		this.focustab=null;
+		this.focustouch=null;
 		if (focus!==undefined && focus!==null) {
 			this.focus=focus;
 			// An element needs to have a tabIndex to be focusable.
+			this.focustab=focus.tabIndex;
+			this.focustouch=focus.style.touchAction;
 			if (focus.tabIndex<0) {
 				focus.tabIndex=1;
 			}
 		}
 		this.active=null;
-		this.mousex=0;
-		this.mousey=0;
+		this.mousepos=[-Infinity,-Infinity];
 		this.mousez=0;
+		this.touchfocus=0;
+		this.clickpos=[0,0];
 		this.repeatdelay=0.5;
 		this.repeatrate=0.05;
-		this.navkeys={32:true,37:true,38:true,39:true,40:true};
-		this.stopnav=false;
-		this.stopnavfocus=false;
+		this.navkeys={32:1,37:1,38:1,39:1,40:1};
+		this.stopnav=0;
+		this.stopnavfocus=0;
 		this.keystate={};
 		this.listeners=[];
 		this.initmouse();
@@ -958,6 +963,10 @@ class Input {
 
 
 	release() {
+		if (this.focus!==null) {
+			this.focus.tabIndex=this.focustab;
+		}
+		this.enablenav();
 		for (var i=0;i<this.listeners.length;i++) {
 			var list=this.listeners[i];
 			document.removeEventListener(list[0],list[1],list[2]);
@@ -987,7 +996,8 @@ class Input {
 	update() {
 		// Process keys that are active.
 		var focus=this.focus===null?document.hasFocus():Object.is(document.activeElement,this.focus);
-		this.stopnavfocus=focus?this.stopnav:false;
+		if (this.touchfocus!==0) {focus=true;}
+		this.stopnavfocus=focus?this.stopnav:0;
 		var time=performance.now()/1000.0;
 		var delay=time-this.repeatdelay;
 		var rate=1.0/this.repeatrate;
@@ -1006,7 +1016,7 @@ class Input {
 				state.hit=0;
 			}
 			state.isactive=down?1:0;
-			if (state.isactive) {
+			if (state.isactive!==0) {
 				state.active=active;
 				active=state;
 			}
@@ -1017,12 +1027,18 @@ class Input {
 
 
 	disablenav() {
-		this.stopnav=true;
+		this.stopnav=1;
+		if (this.focus!==null) {
+			this.focus.style.touchAction="pinch-zoom";
+		}
 	}
 
 
 	enablenav() {
-		this.stopnav=false;
+		this.stopnav=0;
+		if (this.focus!==null) {
+			this.focus.style.touchAction=this.focustouch;
+		}
 	}
 
 
@@ -1030,7 +1046,7 @@ class Input {
 		var state=this.keystate[code];
 		if (state===null || state===undefined) {
 			state=null;
-		} else if (!state.isactive) {
+		} else if (state.isactive===0) {
 			state.isactive=1;
 			state.active=this.active;
 			this.active=state;
@@ -1062,25 +1078,50 @@ class Input {
 			state.addmousez(evt.deltaY<0?-1:1);
 		}
 		function mousedown(evt) {
-			state.setkeydown(state.MOUSE.LEFT);
+			if (evt.button===0) {
+				state.setkeydown(state.MOUSE.LEFT);
+				state.clickpos=state.mousepos.slice();
+			}
 		}
 		function mouseup(evt) {
-			state.setkeyup(state.MOUSE.LEFT);
+			if (evt.button===0) {
+				state.setkeyup(state.MOUSE.LEFT);
+			}
 		}
 		// Touch controls.
-		function touchstart(evt) {
-			state.setkeydown(state.MOUSE.LEFT);
-			// touchstart doesn't generate a separate mousemove event.
-			var touch=(evt.targetTouches.length>0?evt.targetTouches:evt.touches).item(0);
-			state.setmousepos(touch.pageX,touch.pageY);
-		}
 		function touchmove(evt) {
-			if (state.stopnavfocus) {evt.preventDefault();}
+			var touch=evt.touches;
+			if (touch.length===1) {
+				touch=touch.item(0);
+				state.setkeydown(state.MOUSE.LEFT);
+				state.setmousepos(touch.pageX,touch.pageY);
+			} else {
+				// This is probably a gesture.
+				state.setkeyup(state.MOUSE.LEFT);
+			}
+		}
+		function touchstart(evt) {
+			// We need to manually determine if the user has touched our focused object.
+			state.touchfocus=1;
+			var focus=state.focus;
+			if (focus!==null) {
+				var touch=evt.touches.item(0);
+				var x=touch.pageX-focus.offsetLeft-focus.clientLeft;
+				var y=touch.pageY-focus.offsetTop -focus.clientTop;
+				if (x<0 || x>=focus.clientWidth || y<0 || y>=focus.clientHeight) {
+					state.touchfocus=0;
+				}
+			}
+			// touchstart doesn't generate a separate mousemove event.
+			touchmove(evt);
+			state.clickpos=state.mousepos.slice();
 		}
 		function touchend(evt) {
+			state.touchfocus=0;
 			state.setkeyup(state.MOUSE.LEFT);
 		}
 		function touchcancel(evt) {
+			state.touchfocus=0;
 			state.setkeyup(state.MOUSE.LEFT);
 		}
 		this.listeners=this.listeners.concat([
@@ -1097,18 +1138,28 @@ class Input {
 
 
 	setmousepos(x,y) {
-		this.mousex=x;
-		this.mousey=y;
+		var focus=this.focus;
+		if (focus!==null) {
+			x=(x-focus.offsetLeft-focus.clientLeft)/focus.clientWidth;
+			y=(y-focus.offsetTop -focus.clientTop )/focus.clientHeight;
+		}
+		this.mousepos[0]=x;
+		this.mousepos[1]=y;
 	}
 
 
 	getmousepos() {
-		return [this.mousex,this.mousey];
+		return this.mousepos.slice();
+	}
+
+
+	getclickpos() {
+		return this.clickpos.slice();
 	}
 
 
 	addmousez(dif) {
-		this.mousez += dif;
+		this.mousez+=dif;
 	}
 
 
@@ -1136,7 +1187,7 @@ class Input {
 		}
 		function keydown(evt) {
 			state.setkeydown(evt.keyCode);
-			if (state.stopnavfocus && state.navkeys[evt.keyCode]) {evt.preventDefault();}
+			if (state.stopnavfocus!==0 && state.navkeys[evt.keyCode]) {evt.preventDefault();}
 		}
 		function keyup(evt) {
 			state.setkeyup(evt.keyCode);
@@ -1174,46 +1225,47 @@ class Input {
 
 	getkeydown(code) {
 		// code can be an array of key codes.
-		if (code===null || code===undefined) {return;}
+		if (code===null || code===undefined) {return 0;}
 		if (code.length===undefined) {code=[code];}
 		var keystate=this.keystate;
 		for (var i=0;i<code.length;i++) {
 			var state=keystate[code[i]];
 			if (state!==null && state!==undefined && state.down>0) {
-				return true;
+				return 1;
 			}
 		}
-		return false;
+		return 0;
 	}
 
 
 	getkeyhit(code) {
 		// code can be an array of key codes.
-		if (code===null || code===undefined) {return;}
+		if (code===null || code===undefined) {return 0;}
 		if (code.length===undefined) {code=[code];}
 		var keystate=this.keystate;
 		for (var i=0;i<code.length;i++) {
 			var state=keystate[code[i]];
 			if (state!==null && state!==undefined && state.hit>0) {
 				state.hit=0;
-				return true;
+				return 1;
 			}
 		}
+		return 0;
 	}
 
 
 	getkeyrepeat(code) {
 		// code can be an array of key codes.
-		if (code===null || code===undefined) {return;}
+		if (code===null || code===undefined) {return 0;}
 		if (code.length===undefined) {code=[code];}
 		var keystate=this.keystate;
 		for (var i=0;i<code.length;i++) {
 			var state=keystate[code[i]];
 			if (state!==null && state!==undefined && state.repeat===1) {
-				return true;
+				return 1;
 			}
 		}
-		return false;
+		return 0;
 	}
 
 }
@@ -1262,8 +1314,9 @@ class TetrisGUI {
 		var input=this.input;
 		input.update();
 		var canvas=this.canvas;
-		var mx=input.mousex-canvas.offsetLeft-canvas.clientLeft;
-		var my=input.mousey-canvas.offsetTop-canvas.clientTop;
+		var mpos=input.getmousepos();
+		var mx=mpos[0]*canvas.clientWidth;
+		var my=mpos[1]*canvas.clientHeight;
 		for (var i=0;i<this.buttons.length;i++) {
 			var button=this.buttons[i];
 			var x=mx-button.x;
