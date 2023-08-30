@@ -754,7 +754,7 @@ class Input {
 		}
 		// Touch controls.
 		function touchmove(evt) {
-			var touch=evt.touches;
+			var touch=evt.targetTouches.length>0?evt.targetTouches:evt.touches;
 			if (touch.length===1) {
 				touch=touch.item(0);
 				state.setkeydown(state.MOUSE.LEFT);
