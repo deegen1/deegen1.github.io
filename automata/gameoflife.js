@@ -609,6 +609,7 @@ class Input {
 		this.active=null;
 		this.mousepos=[-Infinity,-Infinity];
 		this.mousez=0;
+		this.touchfocus=0;
 		this.clickpos=[0,0];
 		this.repeatdelay=0.5;
 		this.repeatrate=0.05;
@@ -624,7 +625,7 @@ class Input {
 			var list=this.listeners[i];
 			document.addEventListener(list[0],list[1],list[2]);
 		}
-		this.log("V 1");
+		this.log("V 2");
 	}
 
 
@@ -674,7 +675,8 @@ class Input {
 	update() {
 		// Process keys that are active.
 		var focus=this.focus===null?document.hasFocus():Object.is(document.activeElement,this.focus);
-		this.stopnavfocus=focus!==null?this.stopnav:0;
+		if (this.touchfocus!==0) {focus=true;}
+		this.stopnavfocus=focus?this.stopnav:0;
 		var time=performance.now()/1000.0;
 		var delay=time-this.repeatdelay;
 		var rate=1.0/this.repeatrate;
@@ -773,20 +775,34 @@ class Input {
 				touch=touch.item(0);
 				state.setkeydown(state.MOUSE.LEFT);
 				state.setmousepos(touch.pageX,touch.pageY);
+			} else {
+				state.setkeyup(state.MOUSE.LEFT);
 			}
 		}
 		function touchstart(evt) {
 			// touchstart doesn't generate a separate mousemove event.
 			state.log("start");
+			state.touchfocus=1;
+			var focus=state.focus;
+			if (focus!==null) {
+				var touch=evt.touches.item(0);
+				var x=touch.pageX-focus.offsetLeft-focus.clientLeft;
+				var y=touch.pageY-focus.offsetTop -focus.clientTop;
+				if (x<0 || x>=focus.clientWidth || y<0 || y>=focus.clientHeight) {
+					state.touchfocus=0;
+				}
+			}
 			touchmove(evt);
 			state.clickpos=state.mousepos.slice();
 		}
 		function touchend(evt) {
 			state.log("end");
+			state.touchfocus=0;
 			state.setkeyup(state.MOUSE.LEFT);
 		}
 		function touchcancel(evt) {
 			state.log("cancel");
+			state.touchfocus=0;
 			state.setkeyup(state.MOUSE.LEFT);
 		}
 		this.listeners=this.listeners.concat([
@@ -806,7 +822,7 @@ class Input {
 		var focus=this.focus;
 		if (focus!==null) {
 			x=(x-focus.offsetLeft-focus.clientLeft)/focus.clientWidth;
-			y=(y-focus.offsetTop +focus.clientTop )/focus.clientHeight;
+			y=(y-focus.offsetTop -focus.clientTop )/focus.clientHeight;
 		}
 		this.mousepos[0]=x;
 		this.mousepos[1]=y;
@@ -1095,7 +1111,7 @@ class GOLGUI {
 			}
 		}
 		var input=this.input;
-		//input.update();
+		input.update();
 		var canvas=this.canvas;
 		var draww=canvas.width;
 		var drawh=canvas.height;
