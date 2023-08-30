@@ -760,9 +760,16 @@ class Input {
 		}
 		// Touch controls.
 		function touchmove(evt) {
-			state.setkeydown(state.MOUSE.LEFT);
-			var touch=(evt.targetTouches.length>0?evt.targetTouches:evt.touches).item(0);
-			state.setmousepos(touch.pageX,touch.pageY);
+			//var touch=(evt.targetTouches.length>0?evt.targetTouches:evt.touches).item(0);
+			//state.setmousepos(touch.pageX,touch.pageY);
+			var touch=evt.touches;
+			if (touch.length===1) {
+				touch=touch.item(0);
+				state.setkeydown(state.MOUSE.LEFT);
+				state.setmousepos(touch.pageX,touch.pageY);
+			} else {
+				state.setkeyup(state.MOUSE.LEFT);
+			}
 		}
 		function touchstart(evt) {
 			// touchstart doesn't generate a separate mousemove event.
