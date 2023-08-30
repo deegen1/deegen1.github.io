@@ -1080,6 +1080,8 @@ class GOLGUI {
 				this.timesim+=gen;
 			}
 		}
+		var input=this.input;
+		input.update();
 		var canvas=this.canvas;
 		var draww=canvas.width;
 		var drawh=canvas.height;
@@ -1091,7 +1093,6 @@ class GOLGUI {
 		var scale=magsize/cellsize;
 		var buttonarr=this.buttonarr;
 		var button;
-		var input=this.input;
 		var leftclick=input.getkeyhit(input.MOUSE.LEFT);
 		var leftdown=input.getkeydown(input.MOUSE.LEFT);
 		var dx,dy;

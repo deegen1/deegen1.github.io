@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v1.08
+physics.js - v1.09
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -35,7 +35,7 @@ function PhyAssert(condition,data) {
 
 
 //---------------------------------------------------------------------------------
-// Input - v1.03
+// Input - v1.07
 
 
 class Input {
@@ -57,22 +57,26 @@ class Input {
 
 	constructor(focus) {
 		this.focus=null;
+		this.focustab=null;
+		this.focustouch=null;
 		if (focus!==undefined && focus!==null) {
 			this.focus=focus;
 			// An element needs to have a tabIndex to be focusable.
+			this.focustab=focus.tabIndex;
+			this.focustouch=focus.style.touchAction;
 			if (focus.tabIndex<0) {
 				focus.tabIndex=1;
 			}
 		}
 		this.active=null;
-		this.mousex=0;
-		this.mousey=0;
+		this.mousepos=[0,0];
 		this.mousez=0;
+		this.clickpos=[0,0];
 		this.repeatdelay=0.5;
 		this.repeatrate=0.05;
-		this.navkeys={32:true,37:true,38:true,39:true,40:true};
-		this.stopnav=false;
-		this.stopnavfocus=false;
+		this.navkeys={32:1,37:1,38:1,39:1,40:1};
+		this.stopnav=0;
+		this.stopnavfocus=0;
 		this.keystate={};
 		this.listeners=[];
 		this.initmouse();
@@ -86,6 +90,10 @@ class Input {
 
 
 	release() {
+		if (this.focus!==null) {
+			this.focus.tabIndex=this.focustab;
+		}
+		this.enablenav();
 		for (var i=0;i<this.listeners.length;i++) {
 			var list=this.listeners[i];
 			document.removeEventListener(list[0],list[1],list[2]);
@@ -115,7 +123,7 @@ class Input {
 	update() {
 		// Process keys that are active.
 		var focus=this.focus===null?document.hasFocus():Object.is(document.activeElement,this.focus);
-		this.stopnavfocus=focus?this.stopnav:false;
+		this.stopnavfocus=focus!==null?this.stopnav:0;
 		var time=performance.now()/1000.0;
 		var delay=time-this.repeatdelay;
 		var rate=1.0/this.repeatrate;
@@ -134,7 +142,7 @@ class Input {
 				state.hit=0;
 			}
 			state.isactive=down?1:0;
-			if (state.isactive) {
+			if (state.isactive!==0) {
 				state.active=active;
 				active=state;
 			}
@@ -145,12 +153,18 @@ class Input {
 
 
 	disablenav() {
-		this.stopnav=true;
+		this.stopnav=1;
+		if (this.focus!==null) {
+			this.focus.style.touchAction="pinch-zoom";
+		}
 	}
 
 
 	enablenav() {
-		this.stopnav=false;
+		this.stopnav=0;
+		if (this.focus!==null) {
+			this.focus.style.touchAction=this.focustouch;
+		}
 	}
 
 
@@ -158,7 +172,7 @@ class Input {
 		var state=this.keystate[code];
 		if (state===null || state===undefined) {
 			state=null;
-		} else if (!state.isactive) {
+		} else if (state.isactive===0) {
 			state.isactive=1;
 			state.active=this.active;
 			this.active=state;
@@ -190,20 +204,32 @@ class Input {
 			state.addmousez(evt.deltaY<0?-1:1);
 		}
 		function mousedown(evt) {
-			state.setkeydown(state.MOUSE.LEFT);
+			if (evt.button===0) {
+				state.setkeydown(state.MOUSE.LEFT);
+				state.clickpos=state.mousepos.slice();
+			}
 		}
 		function mouseup(evt) {
-			state.setkeyup(state.MOUSE.LEFT);
+			if (evt.button===0) {
+				state.setkeyup(state.MOUSE.LEFT);
+			}
 		}
 		// Touch controls.
-		function touchstart(evt) {
-			state.setkeydown(state.MOUSE.LEFT);
-			// touchstart doesn't generate a separate mousemove event.
-			var touch=(evt.targetTouches.length>0?evt.targetTouches:evt.touches).item(0);
-			state.setmousepos(touch.pageX,touch.pageY);
-		}
 		function touchmove(evt) {
-			if (state.stopnavfocus) {evt.preventDefault();}
+			var touch=evt.touches;
+			if (touch.length===1) {
+				touch=touch.item(0);
+				state.setkeydown(state.MOUSE.LEFT);
+				state.setmousepos(touch.pageX,touch.pageY);
+			} else {
+				// This is probably a gesture.
+				state.setkeyup(state.MOUSE.LEFT);
+			}
+		}
+		function touchstart(evt) {
+			// touchstart doesn't generate a separate mousemove event.
+			touchmove(evt);
+			state.clickpos=state.mousepos.slice();
 		}
 		function touchend(evt) {
 			state.setkeyup(state.MOUSE.LEFT);
@@ -225,18 +251,28 @@ class Input {
 
 
 	setmousepos(x,y) {
-		this.mousex=x;
-		this.mousey=y;
+		var focus=this.focus;
+		if (focus!==null) {
+			x=(x-focus.offsetLeft-focus.clientLeft)/focus.clientWidth;
+			y=(y-focus.offsetTop +focus.clientTop )/focus.clientHeight;
+		}
+		this.mousepos[0]=x;
+		this.mousepos[1]=y;
 	}
 
 
 	getmousepos() {
-		return [this.mousex,this.mousey];
+		return this.mousepos.slice();
+	}
+
+
+	getclickpos() {
+		return this.clickpos.slice();
 	}
 
 
 	addmousez(dif) {
-		this.mousez += dif;
+		this.mousez+=dif;
 	}
 
 
@@ -264,7 +300,7 @@ class Input {
 		}
 		function keydown(evt) {
 			state.setkeydown(evt.keyCode);
-			if (state.stopnavfocus && state.navkeys[evt.keyCode]) {evt.preventDefault();}
+			if (state.stopnavfocus!==0 && state.navkeys[evt.keyCode]) {evt.preventDefault();}
 		}
 		function keyup(evt) {
 			state.setkeyup(evt.keyCode);
@@ -302,46 +338,47 @@ class Input {
 
 	getkeydown(code) {
 		// code can be an array of key codes.
-		if (code===null || code===undefined) {return;}
+		if (code===null || code===undefined) {return 0;}
 		if (code.length===undefined) {code=[code];}
 		var keystate=this.keystate;
 		for (var i=0;i<code.length;i++) {
 			var state=keystate[code[i]];
 			if (state!==null && state!==undefined && state.down>0) {
-				return true;
+				return 1;
 			}
 		}
-		return false;
+		return 0;
 	}
 
 
 	getkeyhit(code) {
 		// code can be an array of key codes.
-		if (code===null || code===undefined) {return;}
+		if (code===null || code===undefined) {return 0;}
 		if (code.length===undefined) {code=[code];}
 		var keystate=this.keystate;
 		for (var i=0;i<code.length;i++) {
 			var state=keystate[code[i]];
 			if (state!==null && state!==undefined && state.hit>0) {
 				state.hit=0;
-				return true;
+				return 1;
 			}
 		}
+		return 0;
 	}
 
 
 	getkeyrepeat(code) {
 		// code can be an array of key codes.
-		if (code===null || code===undefined) {return;}
+		if (code===null || code===undefined) {return 0;}
 		if (code.length===undefined) {code=[code];}
 		var keystate=this.keystate;
 		for (var i=0;i<code.length;i++) {
 			var state=keystate[code[i]];
 			if (state!==null && state!==undefined && state.repeat===1) {
-				return true;
+				return 1;
 			}
 		}
-		return false;
+		return 0;
 	}
 
 }
@@ -1826,15 +1863,12 @@ class PhyScene1 {
 		world.update();
 		drawfill(imgdata,imgwidth,imgheight,0,0,0);
 		// Convert mouse to world space.
-		var x=(input.mousex-canvas.offsetLeft-canvas.clientLeft)/canvas.clientWidth;
+		var mpos=input.getmousepos();
 		var maxx=canvas.clientWidth/canvas.clientHeight;
-		if (x<0   ) {x=0;   }
-		if (x>maxx) {x=maxx;}
-		var y=(input.mousey-canvas.offsetTop-canvas.clientTop)/canvas.clientHeight;
-		if (y<0) {y=0;}
-		if (y>1) {y=1;}
-		this.mouse.set(0,x);
-		this.mouse.set(1,y);
+		if (mpos[0]>=0 && mpos[0]<1 && mpos[1]>=0 && mpos[1]<1) {
+			this.mouse.set(0,mpos[0]*maxx);
+			this.mouse.set(1,mpos[1]);
+		}
 		// Move the player.
 		var player=this.playeratom;
 		var dir=this.mouse.sub(player.pos);
