@@ -1842,6 +1842,7 @@ class PhyScene1 {
 		playertype.gravity=new PhyVec([0,0]);
 		pos=new PhyVec([viewwidth*0.5,viewheight*0.5]);
 		this.playeratom=world.createatom(pos,0.035,playertype);
+		this.mouse.copy(pos);
 		console.log("atoms: ",world.atomlist.count);
 		this.frametime=performance.now();
 	}
