@@ -1812,8 +1812,6 @@ class PhyScene1 {
 		this.mouse=new PhyVec(2);
 		this.time=0;
 		this.timeden=0;
-		// Prompt.
-		this.promptframe=0;
 		this.promptshow=1;
 		this.setup();
 		var state=this;
@@ -1891,14 +1889,14 @@ class PhyScene1 {
 		}
 		var player=this.playeratom;
 		if (this.promptshow!==0) {
-			var pframe=(this.promptframe+1)%30;
+			/*var pframe=(this.promptframe+1)%30;
 			this.promptframe=pframe;
 			var px=player.pos.get(0)*scale;
 			var py=player.pos.get(1)*scale;
 			var rad0=player.rad*scale*5.5*(1.0-pframe/29);
 			var rad1=rad0+player.rad*scale*1.0;
 			drawcircle(imgdata,imgwidth,imgheight,px,py,rad1,64,64,64);
-			drawcircle(imgdata,imgwidth,imgheight,px,py,rad0,0,0,0);
+			drawcircle(imgdata,imgwidth,imgheight,px,py,rad0,0,0,0);*/
 		}
 		// Move the player.
 		var dir=this.mouse.sub(player.pos);
