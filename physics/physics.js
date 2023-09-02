@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v1.09
+physics.js - v1.10
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -11,6 +11,7 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
+Use fillText with a hand emoji to show users to click on screen.
 Look at per-frame performance. See if there are jumps>1/60.
 fps counter
 use an interaction matrix
@@ -979,7 +980,7 @@ class PhyAtomType {
 	}
 
 
-	updateInteractions() {
+	updateinteractions() {
 		var intarr=this.intarr;
 		for (var i=intarr.length-1;i>=0;i--) {
 			intarr[i].updateconstants();
@@ -1014,10 +1015,10 @@ class PhyAtom {
 		this.acc=new PhyVec(pos.length());
 		this.rad=rad;
 		this.bondlist=new PhyList();
-		this.typeLink=new PhyLink();
-		this.typeLink.obj=this;
+		this.typelink=new PhyLink();
+		this.typelink.obj=this;
 		this.type=type;
-		type.atomlist.add(this.typeLink);
+		type.atomlist.add(this.typelink);
 		this.userdata=null;
 		this.updateconstants();
 	}
@@ -1025,7 +1026,7 @@ class PhyAtom {
 
 	release() {
 		this.worldlink.remove();
-		this.typeLink.remove();
+		this.typelink.remove();
 		var link;
 		while ((link=this.bondlist.head)!==null) {
 			link.release();
@@ -1071,18 +1072,18 @@ class PhyAtom {
 	}
 
 
-	static collideAtom(a,b) {
+	static collideatom(a,b) {
 		// Collides two atoms. Vector operations are unrolled to use constant memory.
 		if (Object.is(a,b)) {
 			return;
 		}
-		var aPos=a.pos.elem,bPos=b.pos.elem;
-		var dim=aPos.length;
+		var apos=a.pos.elem,bpos=b.pos.elem;
+		var dim=apos.length;
 		// Determine if atoms are overlapping.
-		var dist=0.0,dif,i,tmpVec=a.world.tmpVec.elem;
+		var dist=0.0,dif,i,tmpvec=a.world.tmpvec.elem;
 		for (i=0;i<dim;i++) {
-			dif=bPos[i]-aPos[i];
-			tmpVec[i]=dif;
+			dif=bpos[i]-apos[i];
+			tmpvec[i]=dif;
 			dist+=dif*dif;
 		}
 		var rad=a.rad+b.rad;
@@ -1092,13 +1093,13 @@ class PhyAtom {
 			if (intr.collide===false) {// || (intr->callBack!==null && intr->callBack(a,b)==0)) {
 				return;
 			}
-			var aMass=a.mass,bMass=b.mass;
-			var mass=aMass+bMass;
-			if ((aMass>=Infinity && bMass>=Infinity) || mass<=1e-10 || dim===0) {
+			var amass=a.mass,bmass=b.mass;
+			var mass=amass+bmass;
+			if ((amass>=Infinity && bmass>=Infinity) || mass<=1e-10 || dim===0) {
 				return;
 			}
-			aMass=aMass>=Infinity?1.0:(aMass/mass);
-			bMass=bMass>=Infinity?1.0:(bMass/mass);
+			amass=amass>=Infinity?1.0:(amass/mass);
+			bmass=bmass>=Infinity?1.0:(bmass/mass);
 			// If the atoms are too close together, randomize the direction.
 			if (dist>1e-10) {
 				dist=Math.sqrt(dist);
@@ -1106,28 +1107,28 @@ class PhyAtom {
 			} else {
 				dist=0;
 				dif=1.0;
-				a.world.tmpVec.randomize();
+				a.world.tmpvec.randomize();
 			}
 			// Check the relative velocity. We can have situations where two atoms increase
 			// eachother's velocity because they've been pushed past eachother.
-			var aVel=a.vel.elem,bVel=b.vel.elem;
+			var avel=a.vel.elem,bvel=b.vel.elem;
 			var veldif=0.0;
 			for (i=0;i<dim;i++) {
-				tmpVec[i]*=dif;
-				veldif-=(bVel[i]-aVel[i])*tmpVec[i];
+				tmpvec[i]*=dif;
+				veldif-=(bvel[i]-avel[i])*tmpvec[i];
 			}
 			veldif*=intr.elasticity;
 			if (veldif<0.0) {veldif=0.0;}
-			var aVelmul=veldif*bMass,bVelmul=veldif*aMass;
+			var avelmul=veldif*bmass,bvelmul=veldif*amass;
 			// Push the atoms apart.
 			var posdif=(rad-dist)*intr.push;
-			var aPosmul=posdif*bMass,bPosmul=posdif*aMass;
+			var aposmul=posdif*bmass,bposmul=posdif*amass;
 			for (i=0;i<dim;i++) {
-				dif=tmpVec[i];
-				aPos[i]-=dif*aPosmul;
-				aVel[i]-=dif*aVelmul;
-				bPos[i]+=dif*bPosmul;
-				bVel[i]+=dif*bVelmul;
+				dif=tmpvec[i];
+				apos[i]-=dif*aposmul;
+				avel[i]-=dif*avelmul;
+				bpos[i]+=dif*bposmul;
+				bvel[i]+=dif*bvelmul;
 			}
 		}
 	}
@@ -1151,13 +1152,13 @@ class PhyBond {
 		this.b=b;
 		this.dist=dist;
 		this.tension=tension;
-		this.dtTension=0.0;
-		this.aLink=new PhyLink();
-		this.bLink=new PhyLink();
-		this.a.bondlist.add(this.aLink);
-		this.b.bondlist.add(this.bLink);
-		this.aLink.obj=this;
-		this.bLink.obj=this;
+		this.dttension=0.0;
+		this.alink=new PhyLink();
+		this.blink=new PhyLink();
+		this.a.bondlist.add(this.alink);
+		this.b.bondlist.add(this.blink);
+		this.alink.obj=this;
+		this.blink.obj=this;
 		this.userdata=null;
 		this.updateconstants();
 	}
@@ -1165,20 +1166,20 @@ class PhyBond {
 
 	release () {
 		this.worldlink.remove();
-		this.aLink.remove();
-		this.bLink.remove();
+		this.alink.remove();
+		this.blink.remove();
 	}
 
 
 	updateconstants() {
 		var dt=this.world.deltatime/this.world.steps;
-		this.dtTension=dt*this.tension;
-		if (this.dtTension>1.0) {this.dtTension=1.0;}
-		// dtTension = tension ^ 1/dt
+		this.dttension=dt*this.tension;
+		if (this.dttension>1.0) {this.dttension=1.0;}
+		// dttension = tension ^ 1/dt
 		/*if (dt<1e-10) {
-			dtTension=0.0;
+			dttension=0.0;
 		} else {
-			dtTension=pow(tension,1.0/dt);
+			dttension=pow(tension,1.0/dt);
 		}*/
 	}
 
@@ -1187,21 +1188,21 @@ class PhyBond {
 		// Pull two atoms toward eachother based on the distance and bond strength.
 		// Vector operations are unrolled to use constant memory.
 		var a=this.a,b=this.b;
-		var aMass=a.mass,bMass=b.mass;
-		var mass=aMass+bMass;
-		if ((aMass>=Infinity && bMass>=Infinity) || mass<=1e-10) {
+		var amass=a.mass,bmass=b.mass;
+		var mass=amass+bmass;
+		if ((amass>=Infinity && bmass>=Infinity) || mass<=1e-10) {
 			return;
 		}
-		aMass=aMass>=Infinity?1.0:(aMass/mass);
-		bMass=bMass>=Infinity?1.0:(bMass/mass);
+		amass=amass>=Infinity?1.0:(amass/mass);
+		bmass=bmass>=Infinity?1.0:(bmass/mass);
 		// Get the distance and direction between the atoms.
-		var aPos=a.pos.elem,bPos=b.pos.elem;
-		var dim=aPos.length,i,dif;
-		var tmpVec=a.world.tmpVec.elem;
+		var apos=a.pos.elem,bpos=b.pos.elem;
+		var dim=apos.length,i,dif;
+		var tmpvec=a.world.tmpvec.elem;
 		var dist=0.0;
 		for (i=0;i<dim;i++) {
-			dif=bPos[i]-aPos[i];
-			tmpVec[i]=dif;
+			dif=bpos[i]-apos[i];
+			tmpvec[i]=dif;
 			dist+=dif*dif;
 		}
 		// If the atoms are too close together, randomize the direction.
@@ -1211,18 +1212,18 @@ class PhyBond {
 		} else {
 			dist=0;
 			dif=1.0;
-			a.world.tmpVec.randomize();
+			a.world.tmpvec.randomize();
 		}
 		// Apply equal and opposite forces.
-		var force=(this.dist-dist)*this.dtTension*dif;
-		var aMul=force*bMass,bMul=force*aMass;
-		var aVel=a.vel.elem,bVel=b.vel.elem;
+		var force=(this.dist-dist)*this.dttension*dif;
+		var amul=force*bmass,bmul=force*amass;
+		var avel=a.vel.elem,bvel=b.vel.elem;
 		for (i=0;i<dim;i++) {
-			dif=tmpVec[i];
-			aPos[i]-=dif*aMul;
-			aVel[i]-=dif*aMul;
-			bPos[i]+=dif*bMul;
-			bVel[i]+=dif*bMul;
+			dif=tmpvec[i];
+			apos[i]-=dif*amul;
+			avel[i]-=dif*amul;
+			bpos[i]+=dif*bmul;
+			bvel[i]+=dif*bmul;
 		}
 	}
 
@@ -1250,59 +1251,59 @@ class PhyBroadphase {
 	constructor(world) {
 		this.world=world;
 		this.slack=1.05;
-		this.cellArr=[];
-		this.cellDim=0.05;
-		this.cellMap=[];
-		this.mapUsed=0;
+		this.cellarr=[];
+		this.celldim=0.05;
+		this.cellmap=[];
+		this.mapused=0;
 		this.hash0=0;
 	}
 
 
 	release() {
-		this.cellArr=[];
-		this.cellMap=[];
+		this.cellarr=[];
+		this.cellmap=[];
 	}
 
 
 	getCell(point) {
-		if (this.mapUsed===0) {return null;}
-		var dim=this.world.dim,cellDim=this.cellDim;
+		if (this.mapused===0) {return null;}
+		var dim=this.world.dim,celldim=this.celldim;
 		var hash=this.hash0,x;
 		for (var d=0;d<dim;d++) {
-			x=Math.floor(point[d]/cellDim);
+			x=Math.floor(point[d]/celldim);
 			hash=Random.hashu32(hash+x);
 		}
-		return this.cellMap[hash&(this.mapUsed-1)];
+		return this.cellmap[hash&(this.mapused-1)];
 	}
 
 
-	testCell(newCell,oldcell,point,d,off) {
+	testcell(newcell,oldcell,point,d,off) {
 		// Tests if the fast distance computation matches the actual distance.
 		var world=this.world;
 		var dim=world.dim,i;
-		var coord=newCell.coord;
+		var coord=newcell.coord;
 		if (coord===undefined) {
 			coord=new Array(dim);
-			newCell.coord=coord;
+			newcell.coord=coord;
 		}
 		var hash=this.hash0;
-		var cellDim=this.cellDim;
+		var celldim=this.celldim;
 		if (oldcell!==null) {
 			for (i=0;i<dim;i++) {coord[i]=oldcell.coord[i];}
 			coord[d]+=off;
 			for (i=0;i<=d;i++) {hash=Random.hashu32(hash+coord[i]);}
 		} else {
-			for (i=0;i<dim;i++) {coord[i]=Math.floor(point[i]/cellDim);}
+			for (i=0;i<dim;i++) {coord[i]=Math.floor(point[i]/celldim);}
 		}
-		if (newCell.hash!==hash) {
+		if (newcell.hash!==hash) {
 			console.log("hash mismatch");
 			throw "error";
 		}
-		var rad=newCell.atom.rad*this.slack;
+		var rad=newcell.atom.rad*this.slack;
 		var dist=-rad*rad;
 		for (i=0;i<dim;i++) {
-			var x0=coord[i]*cellDim;
-			var x1=x0+cellDim;
+			var x0=coord[i]*celldim;
+			var x1=x0+celldim;
 			var x=point[i];
 			if (x<x0) {
 				x-=x0;
@@ -1312,7 +1313,7 @@ class PhyBroadphase {
 				dist+=x*x;
 			}
 		}
-		if (Math.abs(newCell.dist-dist)>1e-10) {
+		if (Math.abs(newcell.dist-dist)>1e-10) {
 			console.log("dist drift");
 			throw "error";
 		}
@@ -1346,88 +1347,88 @@ class PhyBroadphase {
 		var i,j;
 		var world=this.world;
 		var dim=world.dim;
-		var atomCount=world.atomlist.count;
-		this.mapUsed=0;
-		if (atomCount===0) {
+		var atomcount=world.atomlist.count;
+		this.mapused=0;
+		if (atomcount===0) {
 			return;
 		}
 		// Put atoms with infinite mass at the front of the array. This will sort them at
 		// the end of the grid's linked list and allow us to skip them during collision
 		// testing. Randomize the order of the other atoms.
-		var cellMap=this.cellMap;
-		while (atomCount>cellMap.length) {
-			cellMap=cellMap.concat(new Array(cellMap.length+1));
+		var cellmap=this.cellmap;
+		while (atomcount>cellmap.length) {
+			cellmap=cellmap.concat(new Array(cellmap.length+1));
 		}
 		var rnd=world.rnd;
-		var atomLink=world.atomlist.head;
+		var atomlink=world.atomlist.head;
 		var inactive=0;
-		var cellDim=0.0;
+		var celldim=0.0;
 		var atom;
-		for (i=0;i<atomCount;i++) {
-			atom=atomLink.obj;
-			atomLink=atomLink.next;
-			cellDim+=atom.rad;
+		for (i=0;i<atomcount;i++) {
+			atom=atomlink.obj;
+			atomlink=atomlink.next;
+			celldim+=atom.rad;
 			if (atom.mass<Infinity) {
 				j=inactive+(rnd.getu32()%(i-inactive+1));
-				cellMap[i]=cellMap[j];
-				cellMap[j]=atom;
+				cellmap[i]=cellmap[j];
+				cellmap[j]=atom;
 			} else {
-				cellMap[i]=cellMap[inactive];
+				cellmap[i]=cellmap[inactive];
 				j=rnd.getu32()%(inactive+1);
-				cellMap[inactive]=cellMap[j];
-				cellMap[j]=atom;
+				cellmap[inactive]=cellmap[j];
+				cellmap[j]=atom;
 				inactive++;
 			}
 		}
-		// Use a heuristic to calculate cellDim.
+		// Use a heuristic to calculate celldim.
 		var slack=this.slack;
-		cellDim*=2.5*slack/atomCount;
+		celldim*=2.5*slack/atomcount;
 		var hash0=rnd.getu32();
-		this.cellDim=cellDim;
+		this.celldim=celldim;
 		this.hash0=hash0;
-		var invdim=1.0/cellDim;
-		var cellDim2=2.0*cellDim*cellDim;
-		var cellEnd=0;
-		var cellArr=this.cellArr;
-		var cellAlloc=cellArr.length;
-		var cellStart;
+		var invdim=1.0/celldim;
+		var celldim2=2.0*celldim*celldim;
+		var cellend=0;
+		var cellarr=this.cellarr;
+		var cellalloc=cellarr.length;
+		var cellstart;
 		var rad,cell,pos,radcells,d,c;
 		var cen,cendif,decinit,posinit,incinit;
-		var hash,hashcen,dist,distinc,newCell;
+		var hash,hashcen,dist,distinc,newcell;
 		var hashu32=Random.hashu32;
 		var floor=Math.floor;
-		for (i=0;i<atomCount;i++) {
-			atom=cellMap[i];
+		for (i=0;i<atomcount;i++) {
+			atom=cellmap[i];
 			rad=atom.rad*slack;
 			// Make sure we have enough cells.
 			radcells=floor(rad*2*invdim+2.1);
 			c=radcells;
 			for (d=1;d<dim;d++) {c*=radcells;}
-			while (cellEnd+c>cellAlloc) {
-				cellArr=cellArr.concat(new Array(cellAlloc+1));
-				for (j=0;j<=cellAlloc;j++) {cellArr[cellAlloc+j]=new PhyCell();}
-				cellAlloc=cellArr.length;
+			while (cellend+c>cellalloc) {
+				cellarr=cellarr.concat(new Array(cellalloc+1));
+				for (j=0;j<=cellalloc;j++) {cellarr[cellalloc+j]=new PhyCell();}
+				cellalloc=cellarr.length;
 			}
 			// Get the starting cell.
-			cellStart=cellEnd;
-			cell=cellArr[cellEnd++];
+			cellstart=cellend;
+			cell=cellarr[cellend++];
 			cell.atom=atom;
 			cell.dist=-rad*rad;
 			cell.hash=hash0;
 			pos=atom.pos.elem;
-			// this.testCell(cell,null,pos,0,0);
+			// this.testcell(cell,null,pos,0,0);
 			for (d=0;d<dim;d++) {
 				// Precalculate constants for the cell-atom distance calculation.
 				// floor(x) is needed so negative numbers round to -infinity.
 				cen    =floor(pos[d]*invdim);
-				cendif =cen*cellDim-pos[d];
+				cendif =cen*celldim-pos[d];
 				decinit=cendif*cendif;
-				incinit=(cellDim+2*cendif)*cellDim;
+				incinit=(celldim+2*cendif)*celldim;
 				posinit=incinit+decinit;
-				for (c=cellEnd-1;c>=cellStart;c--) {
+				for (c=cellend-1;c>=cellstart;c--) {
 					// Using the starting cell's distance to pos, calculate the distance to the cells
-					// above and below. The starting cell is at cen[d] = floor(pos[d]/cellDim).
-					cell=cellArr[c];
+					// above and below. The starting cell is at cen[d] = floor(pos[d]/celldim).
+					cell=cellarr[c];
 					hashcen=cell.hash+cen;
 					cell.hash=hashu32(hashcen);
 					// Check the cells below the center.
@@ -1435,12 +1436,12 @@ class PhyBroadphase {
 					dist=cell.dist+decinit;
 					distinc=-incinit;
 					while (dist<0) {
-						newCell=cellArr[cellEnd++];
-						newCell.atom=atom;
-						newCell.dist=dist;
-						newCell.hash=hashu32(--hash);
-						// this.testCell(newCell,cell,pos,d,hash-hashcen);
-						distinc+=cellDim2;
+						newcell=cellarr[cellend++];
+						newcell.atom=atom;
+						newcell.dist=dist;
+						newcell.hash=hashu32(--hash);
+						// this.testcell(newcell,cell,pos,d,hash-hashcen);
+						distinc+=celldim2;
 						dist+=distinc;
 					}
 					// Check the cells above the center.
@@ -1448,49 +1449,49 @@ class PhyBroadphase {
 					dist=cell.dist+posinit;
 					distinc=incinit;
 					while (dist<0) {
-						newCell=cellArr[cellEnd++];
-						newCell.atom=atom;
-						newCell.dist=dist;
-						newCell.hash=hashu32(++hash);
-						// this.testCell(newCell,cell,pos,d,hash-hashcen);
-						distinc+=cellDim2;
+						newcell=cellarr[cellend++];
+						newcell.atom=atom;
+						newcell.dist=dist;
+						newcell.hash=hashu32(++hash);
+						// this.testcell(newcell,cell,pos,d,hash-hashcen);
+						distinc+=celldim2;
 						dist+=distinc;
 					}
 				}
 			}
 		}
 		// Hash cell coordinates and add to the map.
-		var cellmask=cellEnd;
-		var mapUsed=cellmask+1;
-		while (cellmask&mapUsed) {
-			cellmask|=mapUsed;
-			mapUsed=cellmask+1;
+		var cellmask=cellend;
+		var mapused=cellmask+1;
+		while (cellmask&mapused) {
+			cellmask|=mapused;
+			mapused=cellmask+1;
 		}
-		if (mapUsed>cellMap.length) {
-			cellMap=new Array(mapUsed);
+		if (mapused>cellmap.length) {
+			cellmap=new Array(mapused);
 		}
-		for (i=0;i<mapUsed;i++) {
-			cellMap[i]=null;
+		for (i=0;i<mapused;i++) {
+			cellmap[i]=null;
 		}
-		for (i=0;i<cellEnd;i++) {
-			cell=cellArr[i];
+		for (i=0;i<cellend;i++) {
+			cell=cellarr[i];
 			hash=cell.hash&cellmask;
-			cell.next=cellMap[hash];
-			cellMap[hash]=cell;
+			cell.next=cellmap[hash];
+			cellmap[hash]=cell;
 		}
-		this.cellArr=cellArr;
-		this.cellMap=cellMap;
-		this.mapUsed=mapUsed;
+		this.cellarr=cellarr;
+		this.cellmap=cellmap;
+		this.mapused=mapused;
 	}
 
 
 	collide() {
 		// Look at each grid cell. Check for collisions among atoms within that cell.
-		var mapUsed=this.mapUsed;
-		var cellMap=this.cellMap;
-		var a,b,next,atom,collide=PhyAtom.collideAtom;
-		for (var i=0;i<mapUsed;i++) {
-			a=cellMap[i];
+		var mapused=this.mapused;
+		var cellmap=this.cellmap;
+		var a,b,next,atom,collide=PhyAtom.collideatom;
+		for (var i=0;i<mapused;i++) {
+			a=cellmap[i];
 			while (a!==null) {
 				atom=a.atom;
 				// Once we encounter a atom with infinite mass, we know that the rest of the
@@ -1529,7 +1530,7 @@ class PhyWorld {
 		this.atomlist=new PhyList();
 		this.bondlist=new PhyList();
 		this.tmpmem=[];
-		this.tmpVec=new PhyVec(dim);
+		this.tmpvec=new PhyVec(dim);
 		this.broad=new PhyBroadphase(this);
 	}
 
@@ -1795,9 +1796,9 @@ class PhyScene1 {
 	constructor(divid) {
 		// Swap the <div> with <canvas>
 		var elem=document.getElementById(divid);
+		var drawwidth=elem.clientWidth;
 		var canvas=document.createElement("canvas");
 		elem.replaceWith(canvas);
-		var drawwidth=Math.floor(canvas.parentNode.clientWidth*0.8);
 		var drawheight=drawwidth;
 		canvas.width=drawwidth;
 		canvas.height=drawheight;
@@ -1811,6 +1812,9 @@ class PhyScene1 {
 		this.mouse=new PhyVec(2);
 		this.time=0;
 		this.timeden=0;
+		// Prompt.
+		this.promptframe=0;
+		this.promptshow=1;
 		this.setup();
 		var state=this;
 		function update() {
@@ -1854,7 +1858,7 @@ class PhyScene1 {
 		// Dampen the elasticity so we don't add too much energy.
 		var playertype=world.createatomtype(0.0,Infinity,0.1);
 		playertype.gravity=new PhyVec([0,0]);
-		pos=new PhyVec([viewwidth*0.5,viewheight*0.5]);
+		pos=new PhyVec([viewwidth*0.5,viewheight*0.33]);
 		this.playeratom=world.createatom(pos,0.035,playertype);
 		this.mouse.copy(pos);
 		console.log("atoms: ",world.atomlist.count);
@@ -1869,8 +1873,8 @@ class PhyScene1 {
 		var input=this.input;
 		input.update();
 		var canvas=this.canvas;
-		var imgwidth=canvas.clientWidth;
-		var imgheight=canvas.clientHeight;
+		var imgwidth=canvas.width;
+		var imgheight=canvas.height;
 		var imgdata=this.backbuf.data;
 		var scale=imgheight;
 		var ctx=this.ctx;
@@ -1883,9 +1887,20 @@ class PhyScene1 {
 		if (mpos[0]>=0 && mpos[0]<1 && mpos[1]>=0 && mpos[1]<1) {
 			this.mouse.set(0,mpos[0]*maxx);
 			this.mouse.set(1,mpos[1]);
+			this.promptshow=0;
+		}
+		var player=this.playeratom;
+		if (this.promptshow!==0) {
+			var pframe=(this.promptframe+1)%30;
+			this.promptframe=pframe;
+			var px=player.pos.get(0)*scale;
+			var py=player.pos.get(1)*scale;
+			var rad0=player.rad*scale*5.5*(1.0-pframe/29);
+			var rad1=rad0+player.rad*scale*1.0;
+			drawcircle(imgdata,imgwidth,imgheight,px,py,rad1,64,64,64);
+			drawcircle(imgdata,imgwidth,imgheight,px,py,rad0,0,0,0);
 		}
 		// Move the player.
-		var player=this.playeratom;
 		var dir=this.mouse.sub(player.pos);
 		var move=dir.sqr()>1e-6;
 		player.vel=dir.scale(move?0.2/world.deltatime:0);
