@@ -16,6 +16,7 @@ Look at per-frame performance. See if there are jumps>1/60.
 fps counter
 use an interaction matrix
 add bonds
+mathworld.wolfram.com/NURBSCurve.html
 
 frame time = 0.0072 + steps*0.002424
 
@@ -506,6 +507,7 @@ class Random {
 
 
 //---------------------------------------------------------------------------------
+// Vectors - v1.01
 
 
 class PhyVec {
@@ -549,14 +551,14 @@ class PhyVec {
 	}
 
 
-	// ----------------------------------------
-	// Algebra
-
-
 	copy(v) {
 		if (v!==undefined) {this.elem=v.elem.slice();}
 		return this;
 	}
+
+
+	// ----------------------------------------
+	// Algebra
 
 
 	neg() {
@@ -1635,17 +1637,18 @@ class PhyWorld {
 		if (count===0) {
 			return;
 		}
+		var i,j;
 		var infoarr=new Array(count);
-		for (var i=0;i<count;i++) {
+		for (i=0;i<count;i++) {
 			var info={
 				atom: atomarr[start+i]
 			};
 			infoarr[i]=info;
 		}
-		for (var i=0;i<count;i++) {
+		for (i=0;i<count;i++) {
 			var mainatom=infoarr[i].atom;
 			var rad=mainatom.rad*5.1;
-			for (var j=0;j<count;j++) {
+			for (j=0;j<count;j++) {
 				var atom=infoarr[j].atom;
 				if (Object.is(atom,mainatom)) {continue;}
 				var dist=atom.pos.dist(mainatom.pos);
@@ -1804,12 +1807,13 @@ class PhyScene1 {
 		var drawheight=drawwidth;
 		canvas.width=drawwidth;
 		canvas.height=drawheight;
+		console.log("size: "+drawwidth+", "+drawheight);
 		this.input=new Input(canvas);
 		this.input.disablenav();
 		// Setup the UI.
 		this.canvas=canvas;
 		this.ctx=this.canvas.getContext("2d");
-		this.backbuf=this.ctx.createImageData(canvas.clientWidth,canvas.clientHeight);
+		this.backbuf=this.ctx.createImageData(canvas.width,canvas.height);
 		this.world=new PhyWorld(2);
 		this.mouse=new PhyVec(2);
 		this.time=0;
@@ -1830,7 +1834,7 @@ class PhyScene1 {
 		var canvas=this.canvas;
 		var world=this.world;
 		world.steps=2;
-		var viewheight=1.0,viewwidth=canvas.clientWidth/canvas.clientHeight;
+		var viewheight=1.0,viewwidth=canvas.width/canvas.height;
 		var walltype=world.createatomtype(1.0,Infinity,1.0);
 		var normType=world.createatomtype(0.01,1.0,0.98);
 		var rnd=new Random(2);
@@ -1844,16 +1848,16 @@ class PhyScene1 {
 		var wallrad=0.07,wallstep=wallrad/5;
 		for (var x=0;x<=viewwidth;x+=wallstep) {
 			pos.set(0,x);
-			pos.set(1,0.0-wallrad*0.99);
+			pos.set(1,-wallrad);
 			world.createatom(pos,wallrad,walltype);
-			pos.set(1,1.0+wallrad*0.99);
+			pos.set(1,1.0+wallrad);
 			world.createatom(pos,wallrad,walltype);
 		}
 		for (var y=0;y<=1.0;y+=wallstep) {
 			pos.set(1,y);
-			pos.set(0,viewwidth+wallrad*0.99);
+			pos.set(0,viewwidth+wallrad);
 			world.createatom(pos,wallrad,walltype);
-			pos.set(0,0.0-wallrad*0.99);
+			pos.set(0,-wallrad);
 			world.createatom(pos,wallrad,walltype);
 		}
 		// Dampen the elasticity so we don't add too much energy.
@@ -1884,24 +1888,14 @@ class PhyScene1 {
 		drawfill(imgdata,imgwidth,imgheight,0,0,0);
 		// Convert mouse to world space.
 		var mpos=input.getmousepos();
-		var maxx=canvas.clientWidth/canvas.clientHeight;
+		var maxx=imgwidth/imgheight;
 		if (mpos[0]>=0 && mpos[0]<1 && mpos[1]>=0 && mpos[1]<1) {
 			this.mouse.set(0,mpos[0]*maxx);
 			this.mouse.set(1,mpos[1]);
 			this.promptshow=0;
 		}
-		var player=this.playeratom;
-		if (this.promptshow!==0) {
-			/*var pframe=(this.promptframe+1)%30;
-			this.promptframe=pframe;
-			var px=player.pos.get(0)*scale;
-			var py=player.pos.get(1)*scale;
-			var rad0=player.rad*scale*5.5*(1.0-pframe/29);
-			var rad1=rad0+player.rad*scale*1.0;
-			drawcircle(imgdata,imgwidth,imgheight,px,py,rad1,64,64,64);
-			drawcircle(imgdata,imgwidth,imgheight,px,py,rad0,0,0,0);*/
-		}
 		// Move the player.
+		var player=this.playeratom;
 		var dir=this.mouse.sub(player.pos);
 		var move=dir.sqr()>1e-6;
 		player.vel=dir.scale(move?0.2/world.deltatime:0);
