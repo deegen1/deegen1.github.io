@@ -17,6 +17,8 @@ fps counter
 use an interaction matrix
 add bonds
 
+frame time = 0.0072 + steps*0.002424
+
 
 */
 /* jshint esversion: 6   */
@@ -1813,6 +1815,7 @@ class PhyScene1 {
 		this.time=0;
 		this.timeden=0;
 		this.promptshow=1;
+		this.promptframe=0;
 		this.setup();
 		var state=this;
 		function update() {
@@ -1826,7 +1829,7 @@ class PhyScene1 {
 	setup() {
 		var canvas=this.canvas;
 		var world=this.world;
-		world.steps=5;
+		world.steps=2;
 		var viewheight=1.0,viewwidth=canvas.clientWidth/canvas.clientHeight;
 		var walltype=world.createatomtype(1.0,Infinity,1.0);
 		var normType=world.createatomtype(0.01,1.0,0.98);
@@ -1922,9 +1925,18 @@ class PhyScene1 {
 			drawcircle(imgdata,imgwidth,imgheight,pos[0]*scale,pos[1]*scale,rad,u,0,255-u);
 			link=link.next;
 		}
+		if (this.promptshow!==0) {
+			var pframe=(this.promptframe+1)%120;
+			this.promptframe=pframe;
+			var px=player.pos.get(0)*scale;
+			var py=player.pos.get(1)*scale;
+			var rad=player.rad*scale;
+			var u=Math.floor((Math.sin((pframe/119.0)*Math.PI*2)+1.0)*0.5*255.0);
+			drawcircle(imgdata,imgwidth,imgheight,px,py,rad,u,u,255);
+		}
 		ctx.putImageData(this.backbuf,0,0);
 		time=performance.now()-time;
-		this.time+=frametime;
+		this.time+=time;//frametime;
 		this.timeden++;
 		if (this.timeden>=60) {
 			console.log("time:",this.time/(this.timeden*1000));
