@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-gameoflife.js - v2.03
+gameoflife.js - v2.05
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -944,6 +944,19 @@ class Input {
 // ratio, scale, menu, reset, speed, pos, seed, run
 // seed=[[x0,y0,pat0],[x1,y1,pat1],...]
 
+
+// Convert an RGBA array to a int regardless of endianness.
+var _rgba_arr8=new Uint8ClampedArray([0,1,2,3]);
+var _rgba_arr32=new Uint32Array(_rgba_arr8.buffer);
+function rgbatoint(r,g,b,a) {
+	_rgba_arr8[0]=r;
+	_rgba_arr8[1]=g;
+	_rgba_arr8[2]=b;
+	_rgba_arr8[3]=a;
+	return _rgba_arr32[0];
+}
+
+
 class GOLGUI {
 
 	constructor(divid,gridwidth,gridheight,args) {
@@ -978,6 +991,7 @@ class GOLGUI {
 		this.canvas=canvas;
 		this.canvasctx=canvas.getContext("2d");
 		this.canvasdata=null;
+		this.canvas32=null;
 		this.buttonarr=[];
 		this.resize();
 		this.reset();
@@ -1012,6 +1026,7 @@ class GOLGUI {
 			canvas.width=drawwidth;
 			canvas.height=drawheight;
 			this.canvasdata=this.canvasctx.createImageData(canvas.width,canvas.height);
+			this.canvas32=new Uint32Array(this.canvasdata.data.buffer);
 			// Generate buttons.
 			this.buttonarr=[];
 			var draww=canvas.width;
@@ -1189,9 +1204,9 @@ class GOLGUI {
 			}
 		}
 		// Draw grid lines.
-		var draww4=draww*4;
-		var canvdata=this.canvasdata.data;
+		var canvdata=this.canvas32;
 		var r=32,g=32,b=64,a=255;
+		var rgba=rgbatoint(r,g,b,a);
 		var pix,stop;
 		var state;
 		var magnorm=256.0/(magsize*magsize);
@@ -1199,28 +1214,21 @@ class GOLGUI {
 		var x0,y0,x1,y1,x2,y2;
 		var minx,maxx,miny,maxy;
 		if (linesize>0) {
-			stop=draww4*drawh;
+			stop=draww*drawh;
 			for (x0=drawminx+fillsize;x0<draww;x0+=cellsize) {
-				minx=x0>0?x0*4:0;
-				maxx=((x0+linesize)<draww?(x0+linesize):draww)*4;
-				for (;minx<maxx;minx+=4) {
-					pix=minx;
-					for (;pix<stop;pix+=draww4) {
-						canvdata[pix  ]=r;
-						canvdata[pix+1]=g;
-						canvdata[pix+2]=b;
-						canvdata[pix+3]=a;
+				minx=x0>0?x0:0;
+				maxx=(x0+linesize)<draww?(x0+linesize):draww;
+				for (;minx<maxx;minx++) {
+					for (pix=minx;pix<stop;pix+=draww) {
+						canvdata[pix]=rgba;
 					}
 				}
 			}
 			for (y0=drawminy+fillsize;y0<drawh;y0+=cellsize) {
-				pix=y0>0?y0*draww4:0;
-				stop=((y0+linesize)<drawh?(y0+linesize):drawh)*draww4;
-				for (;pix<stop;pix+=4) {
-					canvdata[pix  ]=r;
-					canvdata[pix+1]=g;
-					canvdata[pix+2]=b;
-					canvdata[pix+3]=a;
+				pix=y0>0?y0*draww:0;
+				stop=((y0+linesize)<drawh?(y0+linesize):drawh)*draww;
+				for (;pix<stop;pix++) {
+					canvdata[pix]=rgba;
 				}
 			}
 		}
@@ -1245,21 +1253,16 @@ class GOLGUI {
 						}
 					}
 				}
-				r=Math.max(0,Math.min(Math.floor(r*magnorm),255));
-				g=Math.max(0,Math.min(Math.floor(g*magnorm),255));
-				b=Math.max(0,Math.min(Math.floor(b*magnorm),255));
+				rgba=rgbatoint(r*magnorm,g*magnorm,b*magnorm,a);
 				// Fill in the cell on the canvas.
-				miny=y0>0?y0*draww4:0;
-				maxy=((y0+fillsize)<drawh?(y0+fillsize):drawh)*draww4;
-				minx=x0>0?x0*4:0;
-				maxx=(x0+fillsize)<draww?(x0+fillsize)*4:draww4;
-				for (;miny<maxy;miny+=draww4) {
+				miny=y0>0?y0*draww:0;
+				maxy=((y0+fillsize)<drawh?(y0+fillsize):drawh)*draww;
+				minx=x0>0?x0:0;
+				maxx=(x0+fillsize)<draww?(x0+fillsize):draww;
+				for (;miny<maxy;miny+=draww) {
 					stop=miny+maxx;
-					for (pix=miny+minx;pix<stop;pix+=4) {
-						canvdata[pix  ]=r;
-						canvdata[pix+1]=g;
-						canvdata[pix+2]=b;
-						canvdata[pix+3]=a;
+					for (pix=miny+minx;pix<stop;pix++) {
+						canvdata[pix]=rgba;
 					}
 				}
 				x1+=magsize;
@@ -1288,21 +1291,20 @@ class GOLGUI {
 			// Highlight the nearest cell.
 			x0=drawminx+gridmx*cellsize;
 			y0=drawminy+gridmy*cellsize;
-			miny=y0>0?y0*draww4:0;
-			maxy=((y0+fillsize)<drawh?(y0+fillsize):drawh)*draww4;
-			minx=x0>0?x0*4:0;
-			maxx=(x0+fillsize)<draww?(x0+fillsize)*4:draww4;
+			miny=y0>0?y0*draww:0;
+			maxy=((y0+fillsize)<drawh?(y0+fillsize):drawh)*draww;
+			minx=x0>0?x0:0;
+			maxx=(x0+fillsize)<draww?(x0+fillsize):draww;
 			if (minx<maxx && miny<maxy) {
 				pix=miny+minx;
 				r=Math.floor(canvdata[pix  ]*0.5+64);
 				g=Math.floor(canvdata[pix+1]*0.5+64);
 				b=Math.floor(canvdata[pix+2]*0.5+64);
-				for (;miny<maxy;miny+=draww4) {
+				rgba=rgbatoint(r,g,b,a);
+				for (;miny<maxy;miny+=draww) {
 					stop=miny+maxx;
-					for (pix=miny+minx;pix<stop;pix+=4) {
-						canvdata[pix  ]=r;
-						canvdata[pix+1]=g;
-						canvdata[pix+2]=b;
+					for (pix=miny+minx;pix<stop;pix++) {
+						canvdata[pix]=rgba;
 					}
 				}
 			}

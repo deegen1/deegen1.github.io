@@ -220,6 +220,7 @@ TODO
 
 
 Use classes instead of factory methods.
+Try 32 bits instead.
 In article: explain as a series of subtractions, then add jumping.
 Figure out why chrome is slower than firefox.
 Merge editor. Add option to pause if not on page.

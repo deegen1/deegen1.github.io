@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v1.10
+physics.js - v1.11
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -11,9 +11,7 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
-Use fillText with a hand emoji to show users to click on screen.
-Look at per-frame performance. See if there are jumps>1/60.
-fps counter
+fps counter, measure frame-to-frame time
 use an interaction matrix
 add bonds
 mathworld.wolfram.com/NURBSCurve.html
@@ -552,7 +550,10 @@ class PhyVec {
 
 
 	copy(v) {
-		if (v!==undefined) {this.elem=v.elem.slice();}
+		if (v!==undefined) {
+			var ue=this.elem,ve=v.elem,elems=ue.length;
+			for (var i=0;i<elems;i++) {ue[i]=ve[i];}
+		}
 		return this;
 	}
 
@@ -1061,6 +1062,9 @@ class PhyAtom {
 		// acc+=gravity
 		// pos+=vel*dt1+acc*dt2
 		// vel =vel*dt0+acc*dt1
+		//var world=this.world;
+		//var bndmin=world.bndmin.elem;
+		//var bndmax=world.bndmax.elem;
 		var pe=this.pos.elem,ve=this.vel.elem;
 		var dim=pe.length,type=this.type,v,a;
 		var ae=this.acc.elem,ge=type.gravity;
@@ -1072,6 +1076,22 @@ class PhyAtom {
 			pe[i]+=v*dt1+a*dt2;
 			ve[i] =v*dt0+a*dt1;
 			ae[i] =0;
+			/*pos=pe[i];
+			vel=ve[i];
+			acc=ae[i]+ge[i];
+			pos+=vel*dt1+acc*dt2;
+			vel =vel*dt0+acc*dt1;
+			if (pos<bndmin[i]+rad) {
+				pos=bndmin[i]+rad;
+				vel=vel<0?-vel:vel;
+			}
+			if (pos>bndmax[i]-rad) {
+				pos=bndmax[i]-rad;
+				vel=vel>0?-vel:vel;
+			}
+			pe[i]=pos;
+			ve[i]=vel;
+			ae[i]=0;*/
 		}
 	}
 
@@ -1269,7 +1289,7 @@ class PhyBroadphase {
 	}
 
 
-	getCell(point) {
+	getcell(point) {
 		if (this.mapused===0) {return null;}
 		var dim=this.world.dim,celldim=this.celldim;
 		var hash=this.hash0,x;
@@ -1397,7 +1417,7 @@ class PhyBroadphase {
 		var cellalloc=cellarr.length;
 		var cellstart;
 		var rad,cell,pos,radcells,d,c;
-		var cen,cendif,decinit,posinit,incinit;
+		var cen,cendif,neginit,posinit,incinit;
 		var hash,hashcen,dist,distinc,newcell;
 		var hashu32=Random.hashu32;
 		var floor=Math.floor;
@@ -1426,9 +1446,9 @@ class PhyBroadphase {
 				// floor(x) is needed so negative numbers round to -infinity.
 				cen    =floor(pos[d]*invdim);
 				cendif =cen*celldim-pos[d];
-				decinit=cendif*cendif;
+				neginit=cendif*cendif;
 				incinit=(celldim+2*cendif)*celldim;
-				posinit=incinit+decinit;
+				posinit=incinit+neginit;
 				for (c=cellend-1;c>=cellstart;c--) {
 					// Using the starting cell's distance to pos, calculate the distance to the cells
 					// above and below. The starting cell is at cen[d] = floor(pos[d]/celldim).
@@ -1437,7 +1457,7 @@ class PhyBroadphase {
 					cell.hash=hashu32(hashcen);
 					// Check the cells below the center.
 					hash=hashcen;
-					dist=cell.dist+decinit;
+					dist=cell.dist+neginit;
 					distinc=-incinit;
 					while (dist<0) {
 						newcell=cellarr[cellend++];
@@ -1725,13 +1745,29 @@ void World::CreateBox(const Vector& cen,u32 atoms,f64 rad,AtomType* type) {
 //---------------------------------------------------------------------------------
 
 
+// Convert an RGBA array to a int regardless of endianness.
+var _rgba_arr8=new Uint8ClampedArray([0,1,2,3]);
+var _rgba_arr32=new Uint32Array(_rgba_arr8.buffer);
+function rgbatoint(r,g,b,a) {
+	_rgba_arr8[0]=r;
+	_rgba_arr8[1]=g;
+	_rgba_arr8[2]=b;
+	_rgba_arr8[3]=a;
+	return _rgba_arr32[0];
+}
+
+
 function drawfill(imgdata,imgwidth,imgheight,r,g,b) {
-	var i=imgwidth*imgheight*4-1;
+	var rgba=rgbatoint(r,g,b,255);
+	var i=imgwidth*imgheight;
+	while (i>3) {
+		imgdata[--i]=rgba;
+		imgdata[--i]=rgba;
+		imgdata[--i]=rgba;
+		imgdata[--i]=rgba;
+	}
 	while (i>0) {
-		imgdata[i--]=255;
-		imgdata[i--]=b;
-		imgdata[i--]=g;
-		imgdata[i--]=r;
+		imgdata[--i]=rgba;
 	}
 }
 
@@ -1765,13 +1801,11 @@ function drawcircle(imgdata,imgwidth,imgheight,x,y,rad,r,g,b) {
 					minx=lx+x0;
 				}
 			}
-			bnd[ly]=minx*4;
+			bnd[ly]=minx;
 		}
 		drawcircle.bndarr[rad]=bnd;
 	}
 	// Plot the pixels.
-	x*=4;
-	imgwidth*=4;
 	var miny=y-rad,minx;
 	var maxy=y+rad,maxx;
 	miny=miny>0?miny:0;
@@ -1779,6 +1813,7 @@ function drawcircle(imgdata,imgwidth,imgheight,x,y,rad,r,g,b) {
 	var bndy=miny-y+rad;
 	miny*=imgwidth;
 	maxy*=imgwidth;
+	var rgba=rgbatoint(r,g,b,255);
 	while (miny<maxy) {
 		maxx=bnd[bndy++];
 		minx=x-maxx;
@@ -1786,10 +1821,7 @@ function drawcircle(imgdata,imgwidth,imgheight,x,y,rad,r,g,b) {
 		minx=(minx>0?minx:0)+miny;
 		maxx=(maxx<imgwidth?maxx:imgwidth)+miny;
 		while (minx<maxx) {
-			imgdata[minx++]=r;
-			imgdata[minx++]=g;
-			imgdata[minx++]=b;
-			imgdata[minx++]=255;
+			imgdata[minx++]=rgba;
 		}
 		miny+=imgwidth;
 	}
@@ -1814,6 +1846,7 @@ class PhyScene1 {
 		this.canvas=canvas;
 		this.ctx=this.canvas.getContext("2d");
 		this.backbuf=this.ctx.createImageData(canvas.width,canvas.height);
+		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
 		this.world=new PhyWorld(2);
 		this.mouse=new PhyVec(2);
 		this.time=0;
@@ -1860,7 +1893,6 @@ class PhyScene1 {
 			pos.set(0,-wallrad);
 			world.createatom(pos,wallrad,walltype);
 		}
-		// Dampen the elasticity so we don't add too much energy.
 		var playertype=world.createatomtype(0.0,Infinity,0.1);
 		playertype.gravity=new PhyVec([0,0]);
 		pos=new PhyVec([viewwidth*0.5,viewheight*0.33]);
@@ -1880,7 +1912,7 @@ class PhyScene1 {
 		var canvas=this.canvas;
 		var imgwidth=canvas.width;
 		var imgheight=canvas.height;
-		var imgdata=this.backbuf.data;
+		var imgdata=this.backbuf32;
 		var scale=imgheight;
 		var ctx=this.ctx;
 		var world=this.world;
