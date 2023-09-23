@@ -1,0 +1,128 @@
+num<<1
+insts: 3
+.tmp    .tmp    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+
+
+num<<2
+insts: 5
+.tmp    .tmp    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.num    .tmp    ?+1
+.num    .tmp    ?+1
+
+
+num<<3
+insts: 6
+.tmp    .tmp    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.num    .tmp    ?+1
+
+
+num<<4
+insts: 8
+.tmp    .tmp    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.tmp    .num    ?+1
+.tmp    .num    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.num    .tmp    ?+1
+
+
+num<<5
+insts: 10
+.tmp    .tmp    ?+1
+.tmp    .num    ?+1
+.tmp    .num    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.num    .tmp    ?+1
+.num    .tmp    ?+1
+.num    .tmp    ?+1
+
+
+num<<6
+insts: 11
+.tmp    .tmp    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.tmp    .num    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.tmp    .num    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.num    .tmp    ?+1
+.num    .tmp    ?+1
+
+num<<7
+insts: 12
+.tmp    .tmp    ?+1
+.tmp    .num    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.num    .tmp    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.num    .tmp    ?+1
+
+
+num<<8
+insts: 14
+.tmp    .tmp    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.tmp    .num    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.num    .tmp    ?+1
+.tmp    .num    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.num    .tmp    ?+1
+.num    .tmp    ?+1
+
+num<<16
+insts: 26
+.tmp    .tmp    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.num    .tmp    ?+1
+.tmp    .num    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.num    .tmp    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.tmp    .num    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.tmp    .num    ?+1
+.tmp    .num    ?+1
+.num    .tmp    ?+1
+.num    .tmp    ?+1
+.num    .tmp    ?+1
+
