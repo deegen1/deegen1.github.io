@@ -79,7 +79,7 @@ function SicoInitEditor() {
 	// Setup the reset button.
 	if (resetbutton!==null) {
 		resetbutton.onclick=function() {
-			sico.Clear();
+			sico.clear();
 			running=0;
 			setTimeout(update,0);
 		};
@@ -108,7 +108,7 @@ function SicoInitEditor() {
 					var file=prompt.files[0];
 					var reader=new FileReader();
 					reader.onload=function(event) {
-						sico.Clear();
+						sico.clear();
 						running=0;
 						input.value=event.target.result;
 						updatetext();
@@ -163,7 +163,7 @@ function SicoInitEditor() {
 		var xhr=new XMLHttpRequest();
 		xhr.onreadystatechange=function(){
 			if (xhr.readyState===4) {
-				sico.Clear();
+				sico.clear();
 				running=0;
 				setTimeout(update,0);
 				if (xhr.status===200) {
@@ -183,7 +183,7 @@ function SicoInitEditor() {
 	if (select!==null) {
 		select.onchange=function() {
 			if (select.value==="") {
-				sico.Clear();
+				sico.clear();
 				input.value="";
 				updatetext();
 			} else {
@@ -208,7 +208,7 @@ function SicoInitEditor() {
 				}
 			}
 		} else if (type==="source") {
-			sico.Clear();
+			sico.clear();
 			input.value=arg;
 		}
 	}
