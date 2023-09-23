@@ -1062,9 +1062,9 @@ class PhyAtom {
 		// acc+=gravity
 		// pos+=vel*dt1+acc*dt2
 		// vel =vel*dt0+acc*dt1
-		//var world=this.world;
-		//var bndmin=world.bndmin.elem;
-		//var bndmax=world.bndmax.elem;
+		// var world=this.world;
+		// var bndmin=world.bndmin.elem;
+		// var bndmax=world.bndmax.elem;
 		var pe=this.pos.elem,ve=this.vel.elem;
 		var dim=pe.length,type=this.type,v,a;
 		var ae=this.acc.elem,ge=type.gravity;
@@ -1962,7 +1962,7 @@ class PhyScene1 {
 		}
 		ctx.putImageData(this.backbuf,0,0);
 		time=performance.now()-time;
-		this.time+=time;//frametime;
+		this.time+=time;// frametime;
 		this.timeden++;
 		if (this.timeden>=60) {
 			console.log("time:",this.time/(this.timeden*1000));

@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-editor.js - v1.05
+editor.js - v1.06
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -12,6 +12,7 @@ TODO
 
 
 */
+/* jshint esversion: 11  */
 /* jshint bitwise: false */
 /* jshint eqeqeq: true   */
 /* jshint curly: true    */
@@ -29,18 +30,18 @@ function SicoInitEditor() {
 	var advanced=document.getElementById("sico_advanced");
 	var menu=document.getElementById("sico_menu");
 	var keygrab=document.getElementById("sico_keyboard");
-	var sico=SicoCreate(output,graphics);
+	var sico=new SICO(output,graphics);
 	var running=0;
 	function update() {
 		// Our main event loop. Run the main SICO loop for 15ms and queue the next
 		// update for 12ms in the future. This will give the browser time to handle events
 		// and spend most of our time executing SICO instructions.
 		var runtext;
-		if (sico.state!==SICO_RUNNING) {
+		if (sico.state!==sico.RUNNING) {
 			running=0;
 			runtext="&#9654;&nbsp;&nbsp;&nbsp;Run";
-			if (sico.state!==SICO_COMPLETE) {
-				sico.Print(sico.statestr);
+			if (sico.state!==sico.COMPLETE) {
+				sico.print(sico.statestr);
 			}
 		} else if (running===1) {
 			// There's no good unicode character for a pause button, so use 2 vertical bars
@@ -55,16 +56,16 @@ function SicoInitEditor() {
 		if (running===1) {
 			// Put the next update on the event queue before running our main loop.
 			setTimeout(update,12);
-			sico.Run(performance.now()+15);
+			sico.run(Infinity,performance.now()+15);
 		}
 	}
 	// Setup the run button.
 	if (runbutton!==null) {
 		runbutton.onclick=function() {
-			if (sico.state===SICO_RUNNING) {
+			if (sico.state===sico.RUNNING) {
 				running=1-running;
 			} else {
-				sico.ParseAssembly(input.value);
+				sico.parseassembly(input.value);
 				running=1;
 			}
 			if (running===1) {
@@ -111,11 +112,11 @@ function SicoInitEditor() {
 						running=0;
 						input.value=event.target.result;
 						updatetext();
-						sico.Print("Loaded "+file.name+"\n");
+						sico.print("Loaded "+file.name+"\n");
 					};
 					reader.readAsText(file);
 				} else {
-					sico.Print("No file selected\n");
+					sico.print("No file selected\n");
 				}
 			};
 			prompt.click();
@@ -169,9 +170,9 @@ function SicoInitEditor() {
 					var name=path.split("/");
 					input.value=xhr.response;
 					updatetext();
-					sico.Print("Loaded "+name[name.length-1]+"\n");
+					sico.print("Loaded "+name[name.length-1]+"\n");
 				} else {
-					sico.Print("Unable to open "+path+"\n");
+					sico.print("Unable to open "+path+"\n");
 				}
 			}
 		};
