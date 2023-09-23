@@ -1,9 +1,0 @@
-
-If we jump to any of the x addresses, we can recover
-	x x x x
-	x x x x
-	x x x x
-	x x x x
-	...
-	x:0 x ?+1
-	# Will always end up here. Changes no other variables.
