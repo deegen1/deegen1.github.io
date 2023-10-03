@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-sico.js - v2.01
+sico.js - v2.05
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -17,10 +17,10 @@ forest with no tools and trying to build a house. Since we only have one
 instruction, most modern conveniences are gone. Things like multiplying numbers
 or memory allocation need to be built from scratch using SICO's instruction.
 
-The instruction is fairly simple: Given A, B, and C, compute mem[A]-mem[B] and
-store the result in mem[A]. Then, if mem[A] was less than or equal to mem[B],
-jump to C. Otherwise, jump by 3. We use the instruction pointer (IP) to keep
-track of our place in memory. The pseudocode below shows a SICO instruction:
+The instruction is simple: Given A, B, and C, compute mem[A]-=mem[B]. Then, if
+mem[A] was less than or equal to mem[B], jump to C. Otherwise, jump by 3. We
+use the instruction pointer to keep track of our place in memory. The pseudocode
+below shows a SICO instruction:
 
 
      A = mem[IP+0]
@@ -32,156 +32,72 @@ track of our place in memory. The pseudocode below shows a SICO instruction:
 
 
 The instruction pointer and memory values are all 64 bit unsigned integers.
-Overflow and underflow are handled by wrapping values around to be between
-0 and 2^64-1 inclusive.
-
 Interaction with the host environment is done by reading and writing from
-special memory addresses. For example, writing anything to -1 will end
-execution of the SICO program.
+special memory addresses. For example: writing anything to -1 will end the
+program.
 
 
 --------------------------------------------------------------------------------
 SICO Assembly Language
 
 
-We can write a SICO program by setting the raw memory values directly, but it
-will be easier to both read and write a program by using an assembly language.
-Because there's only one instruction, we can skip defining what's used for data,
-execution, or structure like in other languages. We only need to define memory
-values, and the flow of the program will decide what gets executed.
+Because there's only one instruction, we only need to define memory values. The
+flow of the program will decide what gets executed.
 
 
-This example shows a "Hello, World!" program in assembly.
+A "Hello, World!" program in assembly:
 
 
-     loop: len  one  exit
-           0-2  txt  ?+1
-           ?-2  neg  loop
+     loop:  len  one  exit
+            0-2  txt  ?+1
+            ?-2  neg  loop
 
-     exit: 0-1  0    0
+     exit:  0-1  0    0
 
-     txt:  'H 'e 'l 'l 'o ', '
-           'W 'o 'r 'l 'd '! 10
-     len:  len-txt+1
-     neg:  0-1
-     one:  1
-
-
-The rules of the assembly language are given below.
+     txt:   'H 'e 'l 'l 'o ', '
+            'W 'o 'r 'l 'd '! 10
+     len:   len-txt+1
+     neg:   0-1
+     one:   1
 
 
-                  |
-     Single Line  |  Denoted by #
-     Comment      |
-                  |  Ex:
-                  |       # Hello,
-                  |       # World!
-                  |
-     -------------+--------------------------------------------------------
-                  |
-     Multi Line   |  Denoted by #| and terminated with |#
-     Comment      |
-                  |  Ex:
-                  |       #|
-                  |            line 1
-                  |            line 2
-                  |       |#
-                  |
-     -------------+--------------------------------------------------------
-                  |
-     Label        |  Denoted by a name followed by a colon. Declarations
-     Declaration  |  mark the current memory address for later recall.
-                  |
-                  |  Labels are case sensitive and support UTF-8. They can
-                  |  consist of letters, underscores, periods, numbers, and
-                  |  any characters with a high bit. However, the first
-                  |  character can't be a number.
-                  |
-                  |  Ex:
-                  |       loop:
-                  |       Another_Label:
-                  |       label3:
-                  |
-     -------------+--------------------------------------------------------
-                  |
-     Label        |  Denoted by a label name. Inserts the memory address
-     Recall       |  declared by "label:".
-                  |
-                  |  Ex:
-                  |       label:  # declaration
-                  |       label   # recall
-                  |
-     -------------+--------------------------------------------------------
-                  |
-     Sublabel     |  Denoted by a period in front of a label. Shorthand for
-                  |  placing a label under another label's scope.
-                  |
-                  |  Ex:
-                  |        A:
-                  |       .B:  # Shorthand for A.B:
-                  |
-     -------------+--------------------------------------------------------
-                  |
-     Current      |  Denoted by a question mark. Inserts the current memory
-     Address      |  address.
-                  |
-                  |  Ex:
-                  |       ?
-                  |       ?+1  # Next address
-                  |
-     -------------+--------------------------------------------------------
-                  |
-     Number       |  Inserts the number's value. A number must be in
-                  |  decimal or hexadecimal form.
-                  |
-                  |  Ex:
-                  |       123
-                  |       0xff
-                  |
-     -------------+--------------------------------------------------------
-                  |
-     ASCII        |  Denoted by an apostrophe. Inserts an ASCII value.
-     Literal      |
-                  |  Ex:
-                  |       'H 'e 'l 'l 'o  # Evaluates to 72 101 108 108 111
-                  |
-     -------------+--------------------------------------------------------
-                  |
-     Operator     |  Denoted by a plus or minus. Adds or subtracts the
-                  |  number or label from the previous value. Parentheses
-                  |  are not supported. To express a negative number such
-                  |  as -5, use the form "0-5".
-                  |
-                  |  Ex:
-                  |       len-txt+1
-                  |       ?+1
-                  |
-     -------------+--------------------------------------------------------
-                  |
-     Input /      |  Addresses above 2^63-1 are considered special and
-     Output       |  reading or writing to them will interact with the
-                  |  host. For an instruction A, B, C:
-                  |
-                  |  A = -1: End execution.
-                  |  A = -2: Write mem[B] to stdout.
-                  |  B = -3: mem[B] = stdin.
-                  |  B = -4: mem[B] = environment timing frequency.
-                  |  B = -5: mem[B] = system time.
-                  |  A = -6: Sleep for mem[B]/freq seconds.
-                  |
-                  |  Ex:
-                  |       0-2  txt  ?+1  # A = -2. Print a letter.
-                  |
+The syntax of the assembly language
+
+
+     Line Comment       |  # comment
+     Block Comment      |  #| comment |#
+     Label Declaration  |  label:
+     Label Recall       |  label
+     Sublabel           |  label: .sub: is treated as 'label.sub:'
+     Current Address    |  ?
+     Number             |  123 or 0xabc
+     ASCII Literal      |  'A 'B 'C evaluates to 65 66 67
+     Operator           |  + or -. Ex: 1+2-3
+     Input / Output     |  Read or write to addresses above 2^63
+
+
+IO addresses (mod 2^64)
+
+
+     -1  |  Writing ends execution
+     -2  |  Write to stdout
+     -3  |  Read from stdin
+     -4  |  Read timing frequency
+     -5  |  Read system time
+     -6  |  Writing sleeps for mem[B]/freq seconds
+
+
+To print the letter 'A' to stdout:
+
+
+     0-2  chr  ?+1
+     chr: 'A
 
 
 --------------------------------------------------------------------------------
 TODO
 
 
-17839
-shorten assembly description; 1 line per item. Look at brainfuck description.
-In article: explain as a series of subtractions, then add jumping.
-Merge editor. Add option to pause if not on page.
 Mouse+Keyboard
 Audio
 
@@ -203,7 +119,6 @@ class SICO {
 	static RUNNING     =1;
 	static ERROR_PARSER=2;
 	static ERROR_MEMORY=3;
-	static MAX_PARSE   =1<<24;
 
 
 	constructor(textout,canvas) {
@@ -215,6 +130,7 @@ class SICO {
 		this.mem     =[];
 		this.alloc   =0n;
 		this.mod     =2n**64n;
+		this.io      =2n**63n;
 		this.lblroot =null;
 		this.sleep   =-Infinity;
 		// Input/Output
@@ -256,7 +172,7 @@ class SICO {
 		if (textout!==null) {
 			var val=textout.value;
 			if (val===undefined) {val=textout.innerText;}
-			var pos=this.textpos;
+			var pos=Math.max(this.textpos,0);
 			for (var i=0;i<str.length;i++) {
 				var c=str[i];
 				if (c==="\r") {
@@ -329,101 +245,6 @@ class SICO {
 	// Assembly
 
 
-	parseassembly(asmstr) {
-		// Convert SICO assembly language into a SICO program.
-		this.clear();
-		var asmpos,asmlen=asmstr.length,end;
-		var err="";
-		if (asmlen>=this.MAX_PARSE) {err="Input string too long";}
-		// Sticky regexes (/y) match at the current index.
-		function regmatch(regex) {
-			regex.lastIndex=asmpos;
-			end=regex.test(asmstr)?regex.lastIndex:0;
-			return end;
-		}
-		// Process the string in 2 passes. The first pass is needed to find label values.
-		for (var pass=0;pass<2 && !err;pass++) {
-			var scope=this.lblroot,lbl,isset;
-			var val=0n,acc=0n,addr=0n,op=0,token=0;
-			asmpos=0;
-			while (asmpos<asmlen) {
-				if (regmatch(/\s+/yu)) {
-					// whitespace
-					token=0;
-				} else if (regmatch(/#\|.*?(\|#|$)/ys)) {
-					// block comment
-					token=0;
-				} else if (regmatch(/#.*?(\n|$)/ys)) {
-					// comment
-					token=0;
-				} else if (regmatch(/[\+\-]/y)) {
-					// operator
-					if (!(addr--)) {err="Leading operator";}
-					if (op<0) {err="Operating on declaration";}
-					else if (op) {err="Double operator";}
-					op=asmpos;
-					token=0;
-				} else if (regmatch(/0[xX][0-9a-fA-F]+|\d+/y)) {
-					// hex or base 10 number
-					val=this.toint(asmstr.substring(asmpos,end));
-					token++;
-				} else if (regmatch(/'./ysu)) {
-					// ASCII literal
-					val=this.toint(asmstr.charCodeAt(asmpos+1));
-					token++;
-				} else if (regmatch(/\?/y)) {
-					// current address
-					val=addr;
-					token++;
-				} else if (regmatch(/[\._\d\p{L}\x80-\xff]+/ysu)) {
-					// label
-					lbl=this.addlabel(scope,asmstr,asmpos,end-asmpos);
-					val=lbl.addr;
-					isset=val>=0n;
-					if (asmstr[end]===":") {
-						token+=token>0;
-						lbl.addr=addr;
-						if (asmstr[asmpos]!=='.') {scope=lbl;}
-						if (!pass && isset) {err="Duplicate label declaration";}
-						if (op>0) {err="Operating on declaration";}
-						op=-(end++);
-					} else {
-						token++;
-						if (pass && !isset) {err="Unable to find label";}
-					}
-				} else {
-					err="Unexpected token";
-				}
-				if (token) {
-					if (token>=2) {err="Unseparated tokens";}
-					if (op<=0) {this.setmem(addr-1n,acc);acc=val;}
-					else if (asmstr[op]==="+") {acc+=val;}
-					else {acc-=val;}
-					addr++;
-					op=0;
-				}
-				if (err) {break;}
-				asmpos=end;
-			}
-			if (!err && op>0) {err="Trailing operator";asmpos=end=op;}
-			if (pass) {this.setmem(addr-1n,acc);}
-		}
-		this.state=this.RUNNING;
-		if (err) {
-			// Highlight any error we've encountered.
-			this.state=this.ERROR_PARSER;
-			var len=Math.min(Math.max(end-asmpos,1),60);
-			var lines=asmstr.split("\n");
-			for (var line=0;asmpos>lines[line].length;line++) {asmpos-=lines[line].length+1;}
-			var start=Math.max(asmpos+len-60,0);
-			asmpos-=start;
-			var sub=lines[line].substring(start,start+60);
-			var under=sub.substring(0,asmpos).trimStart().replace(/\S/g," ")+"^".repeat(len);
-			this.statestr="Parser: "+err+"\nLine  : "+(line+1)+"\n\n\t"+sub.trim()+"\n\t"+under+"\n\n";
-		}
-	}
-
-
 	createlabel() {
 		return {
 			addr:-1n,
@@ -432,18 +253,18 @@ class SICO {
 	}
 
 
-	addlabel(scope,data,idx,len) {
+	addlabel(scope,data,start,end) {
 		// Add a label if it's new.
 		// If the label starts with a '.', make it a child of the last non '.' label.
-		var lbl=data[idx]==='.'?scope:this.lblroot;
-		var parent,c;
-		for (var i=0;i<len;i++) {
-			c=data.charCodeAt(idx+i);
-			parent=lbl;
-			lbl=parent.child[c];
+		var lbl=data[start]==='.'?scope:this.lblroot;
+		var prv,c;
+		for (var i=start;i<end;i++) {
+			c=data.charCodeAt(i);
+			prv=lbl;
+			lbl=lbl.child[c];
 			if (lbl===undefined) {
 				lbl=this.createlabel();
-				parent.child[c]=lbl;
+				prv.child[c]=lbl;
 			}
 		}
 		return lbl;
@@ -463,12 +284,147 @@ class SICO {
 	}
 
 
+	parseassembly(asmstr) {
+		// Convert SICO assembly language into a SICO program.
+		// This can be sped up by using ASCII codes instead of strings.
+		this.clear();
+		var i=0,j=0,l=asmstr.length,c;
+		var err="";
+		function tonum(c) {
+			var x=c.charCodeAt(0);
+			if (x>=65) {return x>=97?x-87:x-55;}
+			return (x>=48 && x<=57)?x-48:99;
+		}
+		function isspc(c) {return c===" " || c==="\r" || c==="\n" || c==="\t";}
+		function islbl(c) {return tonum(c)<36 || c==="_" || c==="." || c>="\x7f";}
+		function s(i) {return i<l?asmstr[i]:"\x00";}
+		// Process the string in 2 passes. The first pass is needed to find label values.
+		for (var pass=0;pass<2 && !err;pass++) {
+			var scope=this.lblroot,lbl=null;
+			var val=0n,acc=0n,addr=0n,op=0,token=0;
+			var base,n,set;
+			for (i=0;i<l && !err;) {
+				j=i;
+				c=s(i);
+				if (isspc(c)) {
+					// whitespace
+					while (isspc(s(i))) {i++;}
+					token=0;
+				} else if (c==="#" && s(i+1)==="|") {
+					// block comment
+					while (i<l && (s(i+2)!=="|" || s(i+3)!=="#")) {i++;}
+					i+=4;
+					if (i>l) {err="Unterminated block quote";}
+					token=0;
+				} else if (c==="#") {
+					// comment
+					while (i<l && s(i)!=="\n") {i++;}
+					token=0;
+				} else if (c==="+" || c==="-") {
+					// operator
+					if (!(addr--)) {err="Leading operator";}
+					if (op<0)    {err="Operating on declaration";}
+					else if (op) {err="Double operator";}
+					op=i++;
+					token=0;
+				} else if (c>="0" && c<="9") {
+					// hex number
+					base=10n;
+					val=0n;
+					n=s(i+1);
+					if (c==="0" && (n==="x" || n==="X")) {base=16n;i+=2;}
+					while ((n=BigInt(tonum(s(i))))<base) {
+						val=this.uint(val*base+n);
+						i++;
+					}
+					token++;
+				} else if (c==="'") {
+					// ASCII literal
+					val=this.uint(s(i+1).charCodeAt(0));
+					i+=2;
+					token++;
+				} else if (c==="?") {
+					// current address
+					i++;
+					val=addr;
+					token++;
+				} else if (islbl(c)) {
+					// label
+					while (i<l && islbl(s(i))) {i++;}
+					lbl=this.addlabel(scope,asmstr,j,i);
+					val=lbl.addr;
+					set=val>=0n;
+					if (s(i)===":") {
+						token+=token>0;
+						lbl.addr=addr;
+						if (s(j)!==".") {scope=lbl;}
+						if (!pass && set) {err="Duplicate label declaration";}
+						if (op>0) {err="Operating on declaration";}
+						op=-(i++);
+					} else {
+						token++;
+						if (pass && !set) {err="Unable to find label";}
+					}
+				} else {
+					err="Unexpected token";
+					i++;
+				}
+				if (token) {
+					// Add a token to the previous value, or write to memory.
+					if (token>=2) {err="Unseparated tokens";}
+					if (op<=0) {
+						this.setmem(addr-1n,acc);
+						acc=val;
+					} else if (s(op)==="+") {
+						acc+=val;
+					} else {
+						acc-=val;
+					}
+					addr++;
+					op=0;
+				}
+			}
+			if (!err && op>0) {
+				err="Trailing operator";
+				j=op;
+				i=op+1;
+			}
+			if (pass) {this.setmem(addr-1n,acc);}
+		}
+		this.state=this.RUNNING;
+		if (err) {
+			// Highlight any error we've encountered.
+			this.state=this.ERROR_PARSER;
+			var line=1,lo=0,hi=i,k;
+			for (k=0;k<j;k++) {
+				if (s(k)==="\n") {
+					lo=k+1;
+					line++;
+				}
+			}
+			if (lo<j-30) {lo=j-30;}
+			while (lo<j && isspc(s(lo))) {lo++;}
+			for (k=lo;k<j+30 && k<l;k++) {
+				if (s(k)==="\n") {break;}
+				if (!isspc(s(k))) {hi=k+1;}
+			}
+			var win="",und="";
+			for (k=lo;k<hi;k++) {
+				c=s(k);
+				win+=c>" "?c:" ";
+				if (k<i) {und+=k>=j?"^":" ";}
+			}
+			this.statestr=`Parser: ${err}\nLine  : ${line}\n\n\t${win}\n\t${und}\n\n`;
+		}
+	}
+
+
 	// ----------------------------------------
 	// Main
 
 
-	toint(x) {
-		// Convert x to [0,mod)
+	uint(x) {
+		// Convert x to an integer in [0,mod).
 		var mod=this.mod;
 		try {x%=mod;}
 		catch {x=BigInt(x)%mod;}
@@ -478,10 +434,10 @@ class SICO {
 
 	getmem(addr) {
 		// Return the memory value at addr.
-		addr=this.toint(addr);
+		addr=this.uint(addr);
 		if (addr<this.alloc) {
 			return this.mem[addr];
-		} else if (addr>=0x8000000000000000n) {
+		} else if (addr>=this.io) {
 			// This is a special IO address.
 			addr-=this.mod;
 			if (addr===-3n) {
@@ -492,7 +448,7 @@ class SICO {
 			} else if (addr===-5n) {
 				// Read time. time = (seconds since 1 Jan 1970) * 2^32.
 				var date=performance.timeOrigin+performance.now();
-				return this.toint(date*4294967.296);
+				return this.uint(date*4294967.296);
 			}
 		}
 		return 0n;
@@ -501,10 +457,9 @@ class SICO {
 
 	setmem(addr,val) {
 		// Write val to the memory at addr.
-		// Return 1 if we should abort the main loop.
-		addr=this.toint(addr);
-		val=this.toint(val);
-		if (addr>=0x8000000000000000n) {
+		addr=this.uint(addr);
+		val=this.uint(val);
+		if (addr>=this.io) {
 			// This is a special IO address.
 			addr-=this.mod;
 			val=val?this.mod-val:val;
@@ -526,11 +481,10 @@ class SICO {
 		}
 		var mem=this.mem;
 		if (addr>=this.alloc) {
-			// If we're writing to an address outside of our memory, attempt to resize it or
-			// error out.
+			// If we're writing to an address outside of our memory, attempt to resize it.
 			if (!val) {return;}
-			var alloc=1n;
-			while (alloc<=addr) {alloc+=alloc;}
+			var alloc=this.io;
+			while ((alloc>>1n)>addr) {alloc>>=1n;}
 			// Attempt to allocate.
 			try {
 				mem=new BigUint64Array(Number(alloc));
@@ -567,7 +521,7 @@ class SICO {
 			if (ma<=mb) {ip=c;}
 			this.setmem(a,ma-mb);
 		}
-		this.ip=this.toint(ip);
+		this.ip=this.uint(ip);
 	}
 
 }

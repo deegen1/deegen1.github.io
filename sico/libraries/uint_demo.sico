@@ -3449,7 +3449,7 @@ The formulas below provide a way to calculate the constants (con0, con1, ...)
 so that the function provides a full mapping, depending on the modulus of our
 underlying integers modulo 4.
 
-If mod % 4 = 0, for instance, we would pick a random value (A), and choose
+If mod % 4 = 1, for instance, we would pick a random value (A), and choose
 one of the six forms listed below to give us con0, con1, con2, and con3.
 
 The best performers were selected by comparing avalanche and differential
