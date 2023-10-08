@@ -2118,6 +2118,7 @@ class PhyScene1 {
 		pos=new PhyVec([viewwidth*0.5,viewheight*0.33]);
 		this.mouse.copy(pos);
 		this.frametime=performance.now();
+		this.ctx.font="20px monospace";
 	}
 
 
@@ -2174,7 +2175,6 @@ class PhyScene1 {
 			link=link.next;
 		}
 		ctx.putImageData(this.backbuf,0,0);
-		ctx.font="20px monospace";
 		ctx.fillStyle="#ffffff";
 		ctx.fillText("fps: "+this.fps.toFixed(2),5,20);
 		var frametime=performance.now()-this.frametime;
