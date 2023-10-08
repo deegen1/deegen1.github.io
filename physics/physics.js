@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v1.11
+physics.js - v1.12
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -11,9 +11,7 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
-fps counter, measure frame-to-frame time
 use an interaction matrix
-add bonds
 mathworld.wolfram.com/NURBSCurve.html
 
 frame time = 0.0072 + steps*0.002424
@@ -877,7 +875,7 @@ class PhyAtomType {
 		this.density=density;
 		this.push=1.0;
 		this.elasticity=elasticity;
-		// this.callBack=null;
+		// this.callback=null;
 		this.dt0=0;
 		this.dt1=0;
 		this.dt2=0;
@@ -1652,16 +1650,15 @@ class PhyWorld {
 	}
 
 
-	autobond(atomarr,start,count,tension) {
+	autobond(atomarr,tension) {
 		// Balance distance, mass, # of bonds, direction.
-		if (count===0) {
-			return;
-		}
+		var count=atomarr.length;
+		if (count===0) {return;}
 		var i,j;
 		var infoarr=new Array(count);
 		for (i=0;i<count;i++) {
 			var info={
-				atom: atomarr[start+i]
+				atom:atomarr[i]
 			};
 			infoarr[i]=info;
 		}
@@ -1677,6 +1674,26 @@ class PhyWorld {
 				}
 			}
 		}
+	}
+
+
+	createbox(cen,side,rad,type) {
+		var pos=new PhyVec(cen);
+		var atomcombos=1;
+		var i,x,dim=this.dim;
+		for (i=0;i<dim;i++) {atomcombos*=side;}
+		var atomarr=new Array(atomcombos);
+		for (var atomcombo=0;atomcombo<atomcombos;atomcombo++) {
+			// Find the coordinates of the atom.
+			var atomtmp=atomcombo;
+			for (i=0;i<dim;i++) {
+				x=atomtmp%side;
+				atomtmp=Math.floor(atomtmp/side);
+				pos.set(i,cen.get(i)+(x*2-side+1)*rad);
+			}
+			atomarr[atomcombo]=this.createatom(pos,rad,type);
+		}
+		this.autobond(atomarr,Infinity);
 	}
 
 
@@ -1706,7 +1723,7 @@ class PhyWorld {
 				link=link.next;
 			}
 			for (i=0;i<bondcount;i++) {
-				bondarr[i].update();
+				bondarr[i].obj.update();
 			}
 			// Collide atoms.
 			this.broad.build();
@@ -1715,31 +1732,6 @@ class PhyWorld {
 	}
 
 }
-
-/*
-
-
-void World::CreateBox(const Vector& cen,u32 atoms,f64 rad,AtomType* type) {
-	Vector pos;
-	u32 atomcombos=1;
-	for (u32 i=0;i<dim;i++) {atomcombos*=atoms;}
-	Atom** atomarr=(Atom**)malloc(atomcombos*sizeof(Atom*));
-	for (u32 atomcombo=0;atomcombo<atomcombos;atomcombo++) {
-		// Find the coordinates of the atom.
-		u32 atomtmp=atomcombo;
-		for (u32 i=0;i<dim;i++) {
-			s32 x=(s32)(atomtmp%atoms);
-			atomtmp/=atoms;
-			pos[i]=cen[i]+(x*2-((s32)atoms)+1)*rad;
-		}
-		atomarr[atomcombo]=createatom(pos,rad,type);
-	}
-	autobond(atomarr,atomcombos,INF);
-	free(atomarr);
-}
-
-
-*/
 
 
 //---------------------------------------------------------------------------------
@@ -1828,7 +1820,89 @@ function drawcircle(imgdata,imgwidth,imgheight,x,y,rad,r,g,b) {
 }
 
 
-class PhyScene1 {
+function drawline(imgdata,imgwidth,imgheight,x0,y0,x1,y1,r,g,b) {
+	// Draw a line from [x0,y0]->(x1,y1).
+	x0|=0;
+	y0|=0;
+	x1|=0;
+	y1|=0;
+	var width=imgwidth-1;
+	var height=imgheight-1;
+	// If we're obviously outside the image, abort.
+	if ((x0<0 && x1<0) || (x0>width && x1>width) || (y0<0 && y1<0) || (y0>height && y1>height) || (x0===x1 && y0===y1) || width<0 || height<0) {
+		return;
+	}
+	var mulx=1;
+	var muly=imgwidth;
+	var dst=y0*muly+x0;
+	// Flip the image along its axii so that x0<=x1 and y0<=y1.
+	if (x1<x0) {
+		x0=width-x0;
+		x1=width-x1;
+		mulx=-mulx;
+	}
+	if (y1<y0) {
+		y0=height-y0;
+		y1=height-y1;
+		muly=-muly;
+	}
+	// Flip the image along its diagonal so that dify<difx.
+	var difx=x1-x0;
+	var dify=y1-y0;
+	if (difx<dify) {
+		var t=x0;
+		x0=y0;
+		y0=t;
+		t=x1;
+		x1=y1;
+		y1=t;
+		t=difx;
+		difx=dify;
+		dify=t;
+		t=mulx;
+		mulx=muly;
+		muly=t;
+		t=width;
+		width=height;
+		height=t;
+	}
+	// Calculate the clipped coordinates and length.
+	var off=difx;
+	var len=difx;
+	dify+=dify;
+	difx+=difx;
+	if (x1>width || y1>height) {
+		len=(height-y0)*difx+off+dify-1;
+		var dif=width+1-x0;
+		len=len<dif*dify?Math.floor(len/dify):dif;
+	}
+	if (x0<0 || y0<0) {
+		var move=y0*difx+off-dify+1;
+		move=move<x0*dify?Math.floor(move/dify):x0;
+		off-=move*dify;
+		var movey=Math.floor(off/difx);
+		off=difx-(off%difx);
+		if (x0<move || x0-move>width || y0+movey<0 || y0+movey>height) {
+			return;
+		}
+		dst+=movey*muly-move*mulx;
+		len+=move;
+	}
+	off--;
+	var rgba=rgbatoint(r,g,b,255);
+	while (len-->0) {
+		if (off<0) {
+			dst+=muly;
+			off+=difx;
+		}
+		off-=dify;
+		imgdata[dst]=rgba;
+		dst+=mulx;
+	}
+}
+
+
+class PhyScene2 {
 
 	constructor(divid) {
 		// Swap the <div> with <canvas>
@@ -1839,7 +1913,6 @@ class PhyScene1 {
 		var drawheight=drawwidth;
 		canvas.width=drawwidth;
 		canvas.height=drawheight;
-		console.log("size: "+drawwidth+", "+drawheight);
 		this.input=new Input(canvas);
 		this.input.disablenav();
 		// Setup the UI.
@@ -1849,8 +1922,10 @@ class PhyScene1 {
 		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
 		this.world=new PhyWorld(2);
 		this.mouse=new PhyVec(2);
-		this.time=0;
-		this.timeden=0;
+		this.frameden=0;
+		this.frames=0;
+		this.frametime=performance.now();
+		this.fps=0;
 		this.promptshow=1;
 		this.promptframe=0;
 		this.setup();
@@ -1898,15 +1973,11 @@ class PhyScene1 {
 		pos=new PhyVec([viewwidth*0.5,viewheight*0.33]);
 		this.playeratom=world.createatom(pos,0.035,playertype);
 		this.mouse.copy(pos);
-		console.log("atoms: ",world.atomlist.count);
 		this.frametime=performance.now();
 	}
 
 
 	update() {
-		var frametime=performance.now()-this.frametime;
-		this.frametime=performance.now();
-		var time=performance.now();
 		var input=this.input;
 		input.update();
 		var canvas=this.canvas;
@@ -1961,15 +2032,160 @@ class PhyScene1 {
 			drawcircle(imgdata,imgwidth,imgheight,px,py,rad,u,u,255);
 		}
 		ctx.putImageData(this.backbuf,0,0);
-		time=performance.now()-time;
-		this.time+=time;// frametime;
-		this.timeden++;
-		if (this.timeden>=60) {
-			console.log("time:",this.time/(this.timeden*1000));
-			this.time=0;
-			this.timeden=0;
+		ctx.font="20px sans-serif";
+		ctx.fillStyle="#ffffff";
+		ctx.fillText("fps: "+this.fps.toFixed(2),5,20);
+		var frametime=performance.now()-this.frametime;
+		this.frametime=performance.now();
+		this.frameden+=frametime;
+		this.frames++;
+		if (this.frames>=60) {
+			this.fps=(this.frames*1000)/this.frameden;
+			this.frames=0;
+			this.frameden=0;
 		}
 	}
 
 }
 
+class PhyScene1 {
+
+	constructor(divid) {
+		// Swap the <div> with <canvas>
+		var elem=document.getElementById(divid);
+		var drawwidth=elem.clientWidth;
+		var canvas=document.createElement("canvas");
+		elem.replaceWith(canvas);
+		var drawheight=drawwidth;
+		canvas.width=drawwidth;
+		canvas.height=drawheight;
+		this.input=new Input(canvas);
+		this.input.disablenav();
+		// Setup the UI.
+		this.canvas=canvas;
+		this.ctx=this.canvas.getContext("2d");
+		this.backbuf=this.ctx.createImageData(canvas.width,canvas.height);
+		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
+		this.world=new PhyWorld(2);
+		this.mouse=new PhyVec(2);
+		this.frameden=0;
+		this.frames=0;
+		this.frametime=performance.now();
+		this.fps=0;
+		this.setup();
+		var state=this;
+		function update() {
+			setTimeout(update,1000/60);
+			state.update();
+		}
+		update();
+	}
+
+
+	setup() {
+		var canvas=this.canvas;
+		var world=this.world;
+		world.steps=2;
+		var viewheight=1.0,viewwidth=canvas.width/canvas.height;
+		var walltype=world.createatomtype(1.0,Infinity,1.0);
+		var normType=world.createatomtype(0.01,1.0,0.98);
+		var rnd=new Random(2);
+		var pos=new PhyVec(world.dim);
+		for (var p=0;p<1000;p++) {
+			pos.set(0,rnd.getf64()*viewwidth);
+			pos.set(1,rnd.getf64()*viewheight);
+			world.createatom(pos,0.007,normType);
+		}
+		// Walls
+		var wallrad=0.07,wallstep=wallrad/5;
+		for (var x=0;x<=viewwidth;x+=wallstep) {
+			pos.set(0,x);
+			pos.set(1,-wallrad);
+			world.createatom(pos,wallrad,walltype);
+			pos.set(1,1.0+wallrad);
+			world.createatom(pos,wallrad,walltype);
+		}
+		for (var y=0;y<=1.0;y+=wallstep) {
+			pos.set(1,y);
+			pos.set(0,viewwidth+wallrad);
+			world.createatom(pos,wallrad,walltype);
+			pos.set(0,-wallrad);
+			world.createatom(pos,wallrad,walltype);
+		}
+		var playertype=world.createatomtype(0.01,2.0,0.98);
+		//playertype.gravity=new PhyVec([0,0]);
+		this.playertype=playertype;
+		pos=new PhyVec([viewwidth*0.5,viewheight*0.33]);
+		this.mouse.copy(pos);
+		this.frametime=performance.now();
+	}
+
+
+	update() {
+		var input=this.input;
+		input.update();
+		var canvas=this.canvas;
+		var imgwidth=canvas.width;
+		var imgheight=canvas.height;
+		var imgdata=this.backbuf32;
+		var scale=imgheight;
+		var ctx=this.ctx;
+		var world=this.world;
+		world.update();
+		drawfill(imgdata,imgwidth,imgheight,0,0,0);
+		// Convert mouse to world space.
+		var mpos=input.getmousepos();
+		var maxx=imgwidth/imgheight;
+		if (mpos[0]>=0 && mpos[0]<1 && mpos[1]>=0 && mpos[1]<1) {
+			this.mouse.set(0,mpos[0]*maxx);
+			this.mouse.set(1,mpos[1]);
+		}
+		if (input.getkeyhit(input.MOUSE.LEFT)) {
+			world.createbox(this.mouse,5,0.01,this.playertype);
+		}
+		// Move the player.
+		var link=world.atomlist.head;
+		while (link!==null) {
+			var atom=link.obj;
+			var data=atom.userdata;
+			if (data===undefined || data===null) {
+				data={velcolor:0};
+				atom.userdata=data;
+			}
+			var vel=atom.vel.mag();
+			data.velcolor*=0.99;
+			if (data.velcolor<vel) {
+				data.velcolor=vel;
+			}
+			var u=data.velcolor*(256*4);
+			u=Math.floor(u<255?u:255);
+			var pos=atom.pos.elem;
+			var rad=atom.rad*scale;
+			drawcircle(imgdata,imgwidth,imgheight,pos[0]*scale,pos[1]*scale,rad,u,0,255-u);
+			link=link.next;
+		}
+		// Draw bonds.
+		link=world.bondlist.head;
+		while (link!==null) {
+			var bond=link.obj;
+			var apos=bond.a.pos.elem;
+			var bpos=bond.b.pos.elem;
+			drawline(imgdata,imgwidth,imgheight,apos[0]*scale,apos[1]*scale,bpos[0]*scale,bpos[1]*scale,255,255,255);
+			link=link.next;
+		}
+		ctx.putImageData(this.backbuf,0,0);
+		ctx.font="20px monospace";
+		ctx.fillStyle="#ffffff";
+		ctx.fillText("fps: "+this.fps.toFixed(2),5,20);
+		var frametime=performance.now()-this.frametime;
+		this.frametime=performance.now();
+		this.frameden+=frametime;
+		this.frames++;
+		if (this.frames>=60) {
+			this.fps=(this.frames*1000)/this.frameden;
+			this.frames=0;
+			this.frameden=0;
+		}
+	}
+
+}
