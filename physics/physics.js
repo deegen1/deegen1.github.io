@@ -2141,7 +2141,7 @@ class PhyScene1 {
 			this.mouse.set(1,mpos[1]);
 		}
 		if (input.getkeyhit(input.MOUSE.LEFT)) {
-			world.createbox(this.mouse,5,0.01,this.playertype);
+			world.createbox(this.mouse,5,0.015,this.playertype);
 		}
 		// Move the player.
 		var link=world.atomlist.head;
