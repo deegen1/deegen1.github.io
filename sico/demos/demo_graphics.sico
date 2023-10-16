@@ -1,3 +1,676 @@
+#|
+
+cat graphics_demo.sico graphics.sico master.sico > test.sico
+
+|#
+
+0 0 graphicstest.main
+
+graphicstest.main:
+	.timestart 0-5 ?+1
+
+	# Set [nfps]=-[freq]/[fps]. [-4] = timing frequency.
+	0 ? uint.div .tmp 0 0-4 .fps
+	.nfps .tmp  ?+1
+
+	0 ? Image.Create .img .width .height
+	0 ? string.print 65 32 string.uint .img 10 0
+	0 ? Image.SetBuffer .img
+	0 ? Image.DrawRect .rectx .recty .rectw .recth
+	.y .y ?+1
+.yloop:
+	# Record the time for FPS tracking.
+	.time .time ?+1
+	.time 0-5   ?+1
+	0 ? uint.cmp .y .height ?+3 .ydone .ydone
+	# 0 ? string.print string.uint .y 10 0
+	.x .x ?+1
+.xloop:
+	0 ? uint.cmp .x .width ?+3 .xdone .xdone
+	0 ? uint.xor .argb .x .y
+	0 ? uint.and .argb .argb .mask255
+	0 ? uint.mul 0 .argb .argb .mul
+	0 ? uint.add .argb .argb .alpha
+	0 ? Image.SetPixel .img .x .y .argb
+	.x .z-1 .xloop
+.xdone:
+	0 ? Image.DrawWindow .img
+	# Pause to match our FPS rate.
+	.tmp  .tmp  ?+1
+	.tmp  0-5   ?+1
+	.time .tmp  ?+1
+	.tmp  .tmp  ?+1
+	.tmp  .nfps ?+1
+	.tmp  .time ?+4
+	# Pause for some non-zero time.
+	0-6   .tmp  ?+4
+	# We've exceeded our frame time. Pause for 0 seconds.
+	0-6   .z    ?+1
+	.y .z-1 .yloop
+.ydone:
+.loop:
+	# 0 ? string.print string.uint .counter 10 0
+
+	0 ? Image.Free .img
+
+	# ------------------------ Timing ------------------------
+	0 ? uint.add .timestart .timestart 0-5
+	0 ? uint.div .timestart .tmp .timestart 0-4
+	0 ? uint.mul 0 .tmp .tmp .timedec
+	0 ? uint.div .tmp 0 .tmp 0-4
+	0 ? string.print 't 'i 'm 'e ': '  string.uint .timestart '. string.uintinl .tmp 10 6 '0 10 0
+
+	0 ? mem.alloc.verifyfree
+	0-1 0 ?-2
+
+	# Variables
+	0-1 .z:0 1
+	.mask255:0xff
+	.alpha:0xffff000000000000
+	.mul:0x0000010001000100
+	.img:0
+	.width:800
+	.height:600
+	.tmp:0
+	.x:50
+	.y:70
+	.argb:0
+	.time:0
+	.fps:60
+	.nfps:0
+	.rectx:50
+	.recty:25
+	.rectw:100
+	.recth:200
+	.counter:0
+	.timestart:0
+	.timedec:1000000
+
+
+test.measure:
+	# 0 ? test.measure counter return 0 ? func arg0 arg1 ...
+	# counter = the address for counting instructions.
+	# return  = address the function will return to when finished.
+	# Emulates the execution of a function and measures how many instructions it uses.
+	# Uses 24+20*n instructions for n emulated instructions.
+	.tmp    .a0     ?+1
+	.nret   .tmp    ?+1
+	.tmp    0       ?+1
+	.dif    .tmp    ?+1
+	.dif    .z+4    ?+1
+	# Setup counter.
+	0       .z+2    ?+1
+	.p0     .p0     ?+1
+	.p0     0       ?+1
+	.tmp    .tmp    ?+1
+	.tmp    .p0:0   ?+1
+	.cnt0   .cnt0   ?+1
+	.cnt0   .tmp    ?+1
+	.cnt1   .cnt1   ?+1
+	.cnt1   .tmp    ?+1
+	.cnt    .cnt    ?+1
+	# Get the negative return address. If [nret]+[dif0]+[dif1]+...=0, then return.
+	0       .z+1    ?+1
+	.p1     .p1     ?+1
+	.p1     0       ?+1
+	.nret   .p1:0   ?+1
+	# Reset stack address.
+	0       0       .loop
+.jmp:
+	# We jumped, set [dif]=[a0]-[c].
+	.tmp    .tmp    ?+1
+	.tmp    .a0     ?+1
+	.dif    .tmp    ?+1
+.loop:
+	# Update a, b, and c addresses.
+	.a0     .dif    ?+1
+	.b0     .dif    ?+1
+	.c0     .dif    ?+1
+	.nret   .dif    ?+1
+	.dif    .dif    ?+1
+	# Return if ip=[ret].
+	.nret   .z      .ret
+	# Increment the instruction counter.
+	.cnt    .z-1    ?+1
+	# Load [a]. a0 will hold the return address when we're done.
+	.tmp    .tmp    .noret
+.ret:
+	.cnt    .cnt0:0 .noret-1
+	.tmp    .tmp    ?+1
+	.tmp    .cnt    ?+1
+	.cnt1:0 .tmp    ?+1
+	.tmp
+.noret:
+	.tmp    .a0:0   ?+1
+	.a      .a      ?+1
+	.a      .tmp    ?+1
+	# Load [b].
+	.tmp    .tmp    ?+1
+	.tmp    .b0:1   ?+1
+	.b      .b      ?+1
+	.b      .tmp    ?+1
+	# Set [dif]=-[c].
+	.dif    .c0:2   ?+1
+	# Execute instruction.
+	.a:0    .b:0    .jmp
+	# We failed to jump, set [dif]=-3.
+	.dif    .dif    ?+1
+	.dif    .z+3    .loop
+	# Variables
+	.tmp:0
+	.nret:0
+	.dif:0
+	.cnt:0
+	0-2 0-1 .z:0 1 2 3 4
+
+
+#|==============================================================================
+
+
+Graphics - v1.00
+
+Copyright 2022 Alec Dee - MIT license - SPDX: MIT
+deegen1.github.io - akdee144@gmail.com
+
+
+--------------------------------------------------------------------------------
+Notes
+
+
+Requires int and mem libraries.
+
+This library is optimized towards drawing images with no transforms. Lines,
+circles, etc should be pre-rendered to images rather than drawn in real time.
+
+
+--------------------------------------------------------------------------------
+TODO
+
+
+fonts
+	Automate in python.
+	Uniform height, allow custom width.
+	Convert a font to 256x256 images. Shrink when rendering.
+	Only use black/white pixels. Compress with RLE.
+blitting
+lines
+rectangles
+ovals
+polygons
+rotation+scaling
+
+alpha=pixel_alpha*global_alpha
+den=(2^16-1)*(2^16-1)
+col=(pixel_color*alpha+bg_color*(den-alpha))/den
+col=((pixel_color-bg_color)*alpha+bg_color*den)/den
+
+ARGB
+	if pixel<2^48, then we don't need to draw it
+	if alpha=1 and global_alpha=1, just copy
+alpha=(src_alpha*div+dst_alpha*(div-src_alpha))/div
+alpha=src_alpha+(dst_alpha*(div-src_alpha))/div
+	extract src_alpha
+	inv_alpha=div-src_alpha
+	as we extract bits of dst_alpha, add in_alpha to tmp
+	if tmp>=div, add 1 to final_val
+	final_val+=src_alpha
+
+Use signed integers.
+
+Split scaling and rotation. Scale first using an intermediate image. Will need
+to offset and flip image if scale x/y is negative.
+When checking rotation, need to check all 9 pixels.
+
++-------+-------+-------+
+|       |       |       |
+|       |.      |       |
+|      .' '.    |       |
++----.'-+---'.--+-------+
+|   '.  |    .' |       |
+|     '.|  .'   |       |
+|       '.'     |       |
++-------+-------+-------+
+|       |       |       |
+|       |       |       |
+|       |       |       |
++-------+-------+-------+
+
+Poly fill and trace. Tracing uses thickness.
+Given array of line segments
+
+	x0,y0,x1,y1,
+	x2,y2,x3,y3,
+	...
+
+If pixel is on the left of (x0,y0,x1,y1) then it's inside. If it's on the right
+it's outside.
+
+A square can be defined with 4 lines
+
+
+     (x0,y0)/(x7,y7)       (x1,y1)/(x2,y2)
+             +------------------+
+             |                  |
+             |                  |
+             |                  |
+             |                  |
+             |                  |
+             |                  |
+             |                  |
+             |                  |
+             +------------------+
+     (x5,y5)/(x6,y6)       (x3,y3)/(x4,y4)
+
+
+With lines from
+
+
+     x0,y0 -> x1,y1
+     x2,y2 -> x3,y3
+     x4,y4 -> x5,y5
+     x6,y6 -> x7,y7
+
+
+Normal
+
+
+     dx = x1 - x0
+     dy = y1 - y0
+     mag = sqrt( dx*dx + dy*dy )
+     normx =  dy/mag
+     normy = -dx/mag
+
+
+For a point (x,y), if ((x,y)-(x0,y0))*norm>0, then it's outside.
+
+                           (x1,y1)
+                         .'
+          +-------+----.'-+-------+
+          |       |  .'   |       |
+          |       |.'     |       |
+          |      .'       |       |
+          +----.'-+-------+-------+
+          |  .'   |       |       |
+          |.'     |       |       |
+         .'       |       |       |
+ (x0,y0)  +-------+-------+-------+
+
+
+Assume that the line extends infinitely in either direction.
+
+For a given pixel with upper-left corner at (px,py).
+
+Find all the pixel along row y
+
+
+minx = min(x0,x1)
+maxx = x0+x1-minx
+
+if y0<y1:
+	if y0<=y and y<=y1:
+		x = ((y1-y0)/(x1-x0))*(y-y0)+x0
+else if y1>y0:
+
+
+|#
+
+#|------------------------------------------------------------------------------
+Image Structure
+
+     0: width
+     1: height
+     2: pointer to pixel data
+
+A pixel contains 64 bits of ARGB data, with 16 bits for each component.
+
+     48-64: Alpha
+     32-47: Red
+     16-31: Green
+      0-15: Blue
+
+ARGB is used instead of RGBA in order to simplify blending calculations and
+quicky determine if a pixel is completely transparent (ex: if pixel < 2^48).
+
+|#
+
+
+Image.Struct:
+	# Used for calculating attribute offsets in Image functions.
+	.Width:  ?-Image.Struct
+	.Height: ?-Image.Struct
+	.Data:   ?-Image.Struct
+	.YOff:   ?-Image.Struct
+	.Size:   ?-Image.Struct
+
+
+Image.Con:
+	.Buffer: 0
+	.Blend:  Image.Blend.Copy-Image.Blend
+	.Alpha:  0xffff
+	.Red:    0xffff
+	.Green:  0xffff
+	.Blue:   0xffff
+	# ( Positition * Scale ) * Rotation + Offset
+	.ScaleX: 0xffff
+	.ScaleY: 0xffff
+	.OffX:   0
+	.OffY:   0
+	.Rotate: 0
+
+
+Image.Blend:
+	.Copy:  ?-Image.Blend
+	.Alpha: ?-Image.Blend
+	.Add:   ?-Image.Blend
+	.Sub:   ?-Image.Blend
+	.Max:   ?-Image.Blend
+	.Min:   ?-Image.Blend
+
+
+Image.Create:
+	# Call  : 0 ? Image.Create ret width height
+	# Effect: Sets [ret] to an image with (width,height) pixels.
+	mem.getargs.0 ? mem.getargs .ret 0 .width 2 .height 2 .arg5 0 0
+	# Allocate the pixel data.
+	0 ? uint.mul 0 .pixels .width .height
+	# Allocate the image data.
+	0 ? mem.alloc  .img  Image.Struct.Size
+	0 ? mem.alloc  .data .pixels
+	0 ? mem.alloc  .yoff .height
+	0 ? mem.setidx .img Image.Struct.Width  .width
+	0 ? mem.setidx .img Image.Struct.Height .height
+	0 ? mem.setidx .img Image.Struct.Data   .data
+	0 ? mem.setidx .img Image.Struct.YOff   .yoff
+	# Precalculate the Y offset data.
+	.height .z      .ydone
+	.tmp    .tmp    ?+1
+	.tmp    .data   .yloop+6
+.yloop:
+	.height .z+1    .ydone
+	.tmp    .width  ?+1
+	.yoff:0 .tmp    ?+1
+	.yoff   .z-1    .yloop
+.ydone:
+	0 ? mem.set .ret:0 .img
+	0 0 .arg5:0
+	# Variables
+	0-1 .z:0 1
+	.img:0
+	.width:0
+	.height:0
+	.data:0
+	.pixels:0
+	.tmp:0
+
+
+Image.Free:
+	# Call  : 0 ? Image.Free img
+	# Effect: Frees [img].
+	mem.getargs.0 ? mem.getargs .img 2 .arg3 0 0
+	0 ? mem.getidx .data .img Image.Struct.Data
+	0 ? mem.getidx .yoff .img Image.Struct.YOff
+	0 ? mem.free .yoff
+	0 ? mem.free .data
+	0 ? mem.free .img
+	0 0 .arg3:0
+	# Variables
+	.img:0
+	.data:0
+	.yoff:0
+
+
+Image.GetWidth:
+	# Call  : 0 ? Image.GetWidth img ret
+	# Effect: Sets [ret] to the image's width.
+	mem.getargs.0 ? mem.getargs .img 1 .ret 1 .arg4 0 0
+	0 ? mem.getidx .ret:0 .img:0 Image.Struct.Width
+	0 0 .arg4:0
+
+
+Image.GetHeight:
+	# Call  : 0 ? Image.GetHeight img ret
+	# Effect: Sets [ret] to the image's height.
+	mem.getargs.0 ? mem.getargs .img 1 .ret 1 .arg4 0 0
+	0 ? mem.getidx .ret:0 .img:0 Image.Struct.Height
+	0 0 .arg4:0
+
+
+Image.DrawWindow:
+	# Call  : 0 ? Image.SetWindow img
+	# Effect: Creates a window and sets [img] as the buffer.
+	mem.getargs.0 ? mem.getargs .img 1 .arg3 0 0
+	0-7 .img:0 .arg3:0
+
+
+Image.GetPixel:
+	# Call  : 0 ? Image.GetPixel img x y ret
+	# Effect: Sets [ret] to the pixel value at (x,y). If (x,y) is outside of the image
+	# boundaries, return 0.
+	# Time  : 62
+	# Setup stack pointer.
+	.tmp    .tmp    ?+1
+	.tmp    .arg2   ?+1
+	.tmp    .z-2    ?+1
+	0       .tmp    ?+1
+	.arg2   0       ?+1
+	.arg3   0       ?+1
+	.arg4   0       ?+1
+	.arg5   0       ?+1
+	.arg6   0       ?+1
+	.ncol   .ncol   ?+1
+	# Get [img].
+	.tmp    .tmp    ?+1
+	.tmp    .arg2:2 ?+1
+	.p0     .p0     ?+1
+	.p0     .tmp    ?+1
+	# Get ret.
+	.tmp    .tmp    ?+1
+	.tmp    .arg5:5 ?+1
+	.ret0   .ret0   ?+1
+	.ret0   .tmp    ?+1
+	.ret1   .ret1   ?+1
+	.ret1   .tmp    ?+1
+	# Setup image pointers.
+	.tmp    .tmp    ?+1
+	.tmp    .imgw   ?+1
+	.img0   .img0   ?+1
+	.img0   .tmp    ?+1
+	.img0   .wdif   ?+1
+	.img0   .p0:0   ?+1
+	.imgw   .img0   ?+1
+	.imgh   .img0   ?+1
+	.imgy   .img0   ?+1
+	# Get [x].
+	.tmp    .tmp    ?+1
+	.tmp    .arg3:3 ?+1
+	.p1     .p1     ?+1
+	.p1     .tmp    ?+1
+	.nx     .nx     ?+1
+	.nx     .p1:0   ?+1
+	# If [x]<[width], we're inside the image.
+	.tmp    .tmp    ?+1
+	.tmp    .nx     ?+1
+	.tmp    .imgw:Image.Struct.Width-Image.Struct ?+4
+	.tmp    .tmp    .ret
+	.tmp    .z      .ret
+	# Get [y].
+	.tmp    .tmp    ?+1
+	.tmp    .arg4:4 ?+1
+	.p2     .p2     ?+1
+	.p2     .tmp    ?+1
+	.ny     .ny     ?+1
+	.ny     .p2:0   ?+1
+	# If [y]<[height], we're inside the image.
+	.tmp    .tmp    ?+1
+	.tmp    .ny     ?+1
+	.tmp    .imgh:Image.Struct.Height-Image.Struct ?+4
+	.tmp    .tmp    .ret
+	.tmp    .z      .ret
+	# Get the image pixel.
+	.ny     .imgy:Image.Struct.YOff-Image.Struct ?+1
+	.yoff   .yoff   ?+1
+	.yoff   .ny     ?+1
+	.nx     .yoff:0 ?+1
+	.pix    .pix    ?+1
+	.pix    .nx     ?+1
+	.ncol   .pix:0  ?+1
+.ret:
+	# Set [ret].
+	.tmp    .tmp    ?+1
+	.tmp    .ret0:0 ?+1
+	.ncol   .tmp    ?+1
+	.ret1:0 .ncol   ?+1
+	0       0       .arg6:6
+	# Variables
+	0-2 0-1 .z:0 1
+	.tmp:0
+	.nx:0
+	.ny:0
+	.ncol:0
+	.img0:0
+	.wdif:Image.Struct.Width-Image.Struct
+
+
+Image.SetPixel:
+	# Call  : 0 ? Image.SetPixel img x y argb
+	# Effect: Sets the pixel at (x,y) to [argb].
+	# Time  : 62
+	# Setup stack pointer.
+	.tmp    .tmp    ?+1
+	.tmp    .arg2   ?+1
+	.tmp    .z-2    ?+1
+	0       .tmp    ?+1
+	.arg2   0       ?+1
+	.arg3   0       ?+1
+	.arg4   0       ?+1
+	.arg5   0       ?+1
+	.arg6   0       ?+1
+	# Get [img].
+	.tmp    .tmp    ?+1
+	.tmp    .arg2:2 ?+1
+	.p0     .p0     ?+1
+	.p0     .tmp    ?+1
+	# Setup image pointers.
+	.tmp    .tmp    ?+1
+	.tmp    .imgw   ?+1
+	.img0   .img0   ?+1
+	.img0   .tmp    ?+1
+	.img0   .wdif   ?+1
+	.img0   .p0:0   ?+1
+	.imgw   .img0   ?+1
+	.imgh   .img0   ?+1
+	.imgy   .img0   ?+1
+	# Get [x].
+	.tmp    .tmp    ?+1
+	.tmp    .arg3:3 ?+1
+	.p1     .p1     ?+1
+	.p1     .tmp    ?+1
+	.nx     .nx     ?+1
+	.nx     .p1:0   ?+1
+	# If [x]<[width], we're inside the image.
+	.tmp    .tmp    ?+1
+	.tmp    .nx     ?+1
+	.tmp    .imgw:Image.Struct.Width-Image.Struct ?+4
+	.tmp    .tmp    .ret
+	.tmp    .z      .ret
+	# Get [y].
+	.tmp    .tmp    ?+1
+	.tmp    .arg4:4 ?+1
+	.p2     .p2     ?+1
+	.p2     .tmp    ?+1
+	.ny     .ny     ?+1
+	.ny     .p2:0   ?+1
+	# If [y]<[height], we're inside the image.
+	.tmp    .tmp    ?+1
+	.tmp    .ny     ?+1
+	.tmp    .imgh:Image.Struct.Height-Image.Struct ?+4
+	.tmp    .tmp    .ret
+	.tmp    .z      .ret
+	# Get the new color.
+	.tmp    .tmp    ?+1
+	.tmp    .arg5:5 ?+1
+	.p3     .p3     ?+1
+	.p3     .tmp    ?+1
+	.ncol   .ncol   ?+1
+	.ncol   .p3:0   ?+1
+	# Set the image pixel.
+	.ny     .imgy:Image.Struct.YOff-Image.Struct ?+1
+	.yoff   .yoff   ?+1
+	.yoff   .ny     ?+1
+	.nx     .yoff:0 ?+1
+	.pix0   .pix0   ?+1
+	.pix0   .nx     ?+1
+	.pix1   .pix1   ?+1
+	.pix1   .nx     ?+1
+	.tmp    .tmp    ?+1
+	.tmp    .pix0:0 ?+1
+	.ncol   .tmp    ?+1
+	.pix1:0 .ncol   ?+1
+.ret:
+	0       0       .arg6:6
+	# Variables
+	0-2 0-1 .z:0 1
+	.tmp:0
+	.nx:0
+	.ny:0
+	.ncol:0
+	.img0:0
+	.wdif:Image.Struct.Width-Image.Struct
+
+
+Image.SplitARGB:
+	# Call  : 0 ? Image.SplitARGB a r g b argb
+	# Effect:
+	#      [a] = ([argb]>>48)&0xffff
+	#      [r] = ([argb]>>32)&0xffff
+	#      [g] = ([argb]>>16)&0xffff
+	#      [b] = ([argb]    )&0xffff
+
+
+Image.CombineARGB:
+	# Call  : 0 ? Image.CombineARGB ret a r g b
+	# Effect:
+	#      [ret] = (([a]&0xffff)<<48) | (([r]&0xffff)<<32) |
+	#              (([g]&0xffff)<<16) |  ([b]&0xffff)
+
+
+Image.BlendPixel:
+	# Call  : 0 ? Image.BlendPixel dst src
+
+
+Image.SetBuffer:
+	# Call  : 0 ? Image.SetBuffer img
+	# Effect: Sets the buffer that we draw to.
+	mem.getargs.0 ? mem.getargs .img 1 .arg3 0 0
+	0 ? uint.set Image.Con.Buffer .img:0
+	0 0 .arg3:0
+
+
+Image.DrawRect:
+	mem.getargs.0 ? mem.getargs .x 2 .y 2 .w 2 .h 2 .arg6 0 0
+	0 ? string.print string.int .x 32 string.int .y 32 string.int .w 32 string.int .h 10 0
+	# if w=0: abort
+	# if w<0:
+	# 	if x<=0: abort
+	# 	x+=w
+	# 	w=-w
+	# if x<0:
+	# 	w+=x
+	# 	x=0
+	# 	if w<=0: abort
+	# if x>=img.width: abort
+	# if w>img.width-x: w=img.width-x
+	0 0 .arg6:0
+	# Variables
+	.x:0 .nx:0
+	.y:0 .ny:0
+	.w:0 .nw:0
+	.h:0 .nh:0
+	.iw:0
+	.ih:0
+	.color:0-0xffffffff00000000
+
+
 #|==============================================================================
 
 
@@ -13,8 +686,8 @@ Notes
 
 master.sico contains all basic libraries for ease of use in other projects.
 
-This library should be included after any other sico files. Display an error
-message and exit if it's not.
+This library should be included after any other sico files. If it's not, it will
+display an error message and exit.
 
 
           File      |  Line
@@ -22,8 +695,8 @@ message and exit if it's not.
          uint.sico  |    43
           int.sico  |  1966
        random.sico  |  3334
-       string.sico  |  3941
-       memory.sico  |  4493
+       string.sico  |  3942
+       memory.sico  |  4494
 
 
 |#
@@ -453,7 +1126,7 @@ uint.write:
 	.mem:0
 	.hex:
 		'0 '0 '1 '1 '2 '2 '3 '3 '4 '4 '5 '5 '6 '6 '7 '7
-	     '8 '8 '9 '9 'a 'a 'b 'b 'c 'c 'd 'd 'e 'e 'f 'f
+		'8 '8 '9 '9 'a 'a 'b 'b 'c 'c 'd 'd 'e 'e 'f 'f
 	.nhex:0-.hex
 	.wretb0:0-.ret
 	.wretb1:0-.base1loop-6
@@ -2304,7 +2977,7 @@ int.write:
 	.minus:45
 	.hex:
 		'0 '0 '1 '1 '2 '2 '3 '3 '4 '4 '5 '5 '6 '6 '7 '7
-	     '8 '8 '9 '9 'a 'a 'b 'b 'c 'c 'd 'd 'e 'e 'f 'f
+		'8 '8 '9 '9 'a 'a 'b 'b 'c 'c 'd 'd 'e 'e 'f 'f
 	.nhex:0-.hex
 	.wret0:0-.isneg
 	.wret1:.isneg-.nextloop
@@ -3465,6 +4138,7 @@ TODO
 
 Figure out better constants for mod%4 = 1 or 3.
 See if there are better seeding algorithms.
+If calling random.mod(0), return random.get().
 
 
 |#

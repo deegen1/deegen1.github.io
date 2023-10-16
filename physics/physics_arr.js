@@ -505,7 +505,7 @@ class Random {
 //---------------------------------------------------------------------------------
 // Vectors - v1.01
 
-
+/*
 class PhyVec {
 	static rnd=new Random();
 
@@ -517,7 +517,7 @@ class PhyVec {
 		} else if (elem.length!==undefined) {
 			this.elem=nocopy?elem:elem.slice();
 		} else if (typeof(elem)==="number") {
-			this.elem=Array(elem).fill(0.0);
+			this.elem=(new Float64Array(elem)).fill(0);
 		} else {
 			console.log("unrecognized vector: ",elem);
 			throw "unrecognized vector";
@@ -1001,25 +1001,24 @@ class PhyAtomType {
 
 }
 
-
+*/
 //---------------------------------------------------------------------------------
 // Atoms
 
 
 class PhyAtom {
 
-	constructor(pos,rad,type) {
-		this.worldlink=new PhyLink();
-		this.worldlink.obj=this;
-		this.world=type.world;
-		this.world.atomlist.add(this.worldlink);
-		this.pos=new PhyVec(pos);
-		this.vel=new PhyVec(pos.length());
-		this.acc=new PhyVec(pos.length());
+	constructor(pos,rad,mass,world) {
+		this.world=world;
+		var idx=world.atoms;
+		this.idx=idx;
+		this.pos=new Float64Array(world.posarr,idx*dim*8);
+		this.vel=new Float64Array(world.velarr,idx*dim*8);
+		this.acc=new Float64Array(world.accarr,idx*dim*8);
 		this.rad=rad;
-		this.bondlist=new PhyList();
-		this.typelink=new PhyLink();
-		this.typelink.obj=this;
+		//this.bondlist=new PhyList();
+		//this.typelink=new PhyLink();
+		//this.typelink.obj=this;
 		this.type=type;
 		type.atomlist.add(this.typelink);
 		this.userdata=null;
@@ -1039,7 +1038,7 @@ class PhyAtom {
 
 	updateconstants() {
 		// Calculate the mass of the atom, where mass=volume*density.
-		var dim=this.pos.length();
+		/*var dim=this.pos.length();
 		var mass=this.type.density;
 		if (dim>0) {
 			var vol0=mass,rad=this.rad;
@@ -1051,7 +1050,7 @@ class PhyAtom {
 				mass=vol1;
 			}
 		}
-		this.mass=mass;
+		this.mass=mass;*/
 	}
 
 
@@ -1074,22 +1073,6 @@ class PhyAtom {
 			pe[i]+=v*dt1+a*dt2;
 			ve[i] =v*dt0+a*dt1;
 			ae[i] =0;
-			/*pos=pe[i];
-			vel=ve[i];
-			acc=ae[i]+ge[i];
-			pos+=vel*dt1+acc*dt2;
-			vel =vel*dt0+acc*dt1;
-			if (pos<bndmin[i]+rad) {
-				pos=bndmin[i]+rad;
-				vel=vel<0?-vel:vel;
-			}
-			if (pos>bndmax[i]-rad) {
-				pos=bndmax[i]-rad;
-				vel=vel>0?-vel:vel;
-			}
-			pe[i]=pos;
-			ve[i]=vel;
-			ae[i]=0;*/
 		}
 	}
 
@@ -1160,7 +1143,7 @@ class PhyAtom {
 
 //---------------------------------------------------------------------------------
 // Bonds
-
+/*
 
 class PhyBond {
 
@@ -1198,11 +1181,6 @@ class PhyBond {
 		this.dttension=dt*this.tension;
 		if (this.dttension>1.0) {this.dttension=1.0;}
 		// dttension = tension ^ 1/dt
-		/*if (dt<1e-10) {
-			dttension=0.0;
-		} else {
-			dttension=pow(tension,1.0/dt);
-		}*/
 	}
 
 
@@ -1251,7 +1229,7 @@ class PhyBond {
 
 }
 
-
+*/
 //---------------------------------------------------------------------------------
 // Hashmap
 
@@ -1369,7 +1347,7 @@ class PhyBroadphase {
 		var i,j;
 		var world=this.world;
 		var dim=world.dim;
-		var atomcount=world.atomlist.count;
+		var atomcount=world.atoms;
 		this.mapused=0;
 		if (atomcount===0) {
 			return;
@@ -1381,31 +1359,16 @@ class PhyBroadphase {
 		while (atomcount>cellmap.length) {
 			cellmap=cellmap.concat(new Array(cellmap.length+1));
 		}
-		var rnd=world.rnd;
-		var atomlink=world.atomlist.head;
-		var inactive=0;
+		var radarr=world.radarr;
+		var posarr=world.posarr;
 		var celldim=0.0;
-		var atom;
 		for (i=0;i<atomcount;i++) {
-			atom=atomlink.obj;
-			atomlink=atomlink.next;
-			celldim+=atom.rad;
-			if (atom.mass<Infinity) {
-				j=inactive+(rnd.getu32()%(i-inactive+1));
-				cellmap[i]=cellmap[j];
-				cellmap[j]=atom;
-			} else {
-				cellmap[i]=cellmap[inactive];
-				j=rnd.getu32()%(inactive+1);
-				cellmap[inactive]=cellmap[j];
-				cellmap[j]=atom;
-				inactive++;
-			}
+			celldim+=radarr[i];
 		}
 		// Use a heuristic to calculate celldim.
 		var slack=this.slack;
 		celldim*=2.5*slack/atomcount;
-		var hash0=rnd.getu32();
+		var hash0=world.rnd.getu32();
 		this.celldim=celldim;
 		this.hash0=hash0;
 		var invdim=1.0/celldim;
@@ -1414,14 +1377,14 @@ class PhyBroadphase {
 		var cellarr=this.cellarr;
 		var cellalloc=cellarr.length;
 		var cellstart;
-		var rad,cell,pos,radcells,d,c;
+		var vidx;
+		var rad,cell,radcells,d,c;
 		var cen,cendif,neginit,posinit,incinit;
 		var hash,hashcen,dist,distinc,newcell;
 		var hashu32=Random.hashu32;
 		var floor=Math.floor;
 		for (i=0;i<atomcount;i++) {
-			atom=cellmap[i];
-			rad=atom.rad*slack;
+			rad=radarr[i]*slack;
 			// Make sure we have enough cells.
 			radcells=floor(rad*2*invdim+2.1);
 			c=radcells;
@@ -1434,16 +1397,15 @@ class PhyBroadphase {
 			// Get the starting cell.
 			cellstart=cellend;
 			cell=cellarr[cellend++];
-			cell.atom=atom;
+			cell.atom=i;
 			cell.dist=-rad*rad;
 			cell.hash=hash0;
-			pos=atom.pos.elem;
 			// this.testcell(cell,null,pos,0,0);
 			for (d=0;d<dim;d++) {
 				// Precalculate constants for the cell-atom distance calculation.
 				// floor(x) is needed so negative numbers round to -infinity.
-				cen    =floor(pos[d]*invdim);
-				cendif =cen*celldim-pos[d];
+				cen    =floor(posarr[vidx+d]*invdim);
+				cendif =cen*celldim-posarr[vidx+d];
 				neginit=cendif*cendif;
 				incinit=(celldim+2*cendif)*celldim;
 				posinit=incinit+neginit;
@@ -1459,7 +1421,7 @@ class PhyBroadphase {
 					distinc=-incinit;
 					while (dist<0) {
 						newcell=cellarr[cellend++];
-						newcell.atom=atom;
+						newcell.atom=i;
 						newcell.dist=dist;
 						newcell.hash=hashu32(--hash);
 						// this.testcell(newcell,cell,pos,d,hash-hashcen);
@@ -1472,7 +1434,7 @@ class PhyBroadphase {
 					distinc=incinit;
 					while (dist<0) {
 						newcell=cellarr[cellend++];
-						newcell.atom=atom;
+						newcell.atom=i;
 						newcell.dist=dist;
 						newcell.hash=hashu32(++hash);
 						// this.testcell(newcell,cell,pos,d,hash-hashcen);
@@ -1546,22 +1508,30 @@ class PhyWorld {
 		this.steps=8;
 		this.deltatime=1.0/60.0;
 		this.rnd=new Random();
-		this.gravity=new PhyVec(dim);
-		this.gravity.set(dim-1,0.24);
-		this.atomtypelist=new PhyList();
-		this.atomlist=new PhyList();
-		this.bondlist=new PhyList();
-		this.tmpmem=[];
-		this.tmpvec=new PhyVec(dim);
+		//this.gravity=new PhyVec(dim);
+		//this.gravity.set(dim-1,0.24);
+		//this.atomtypelist=new PhyList();
+		//this.atomlist=new PhyList();
+		//this.bondlist=new PhyList();
+		//this.tmpmem=[];
+		//this.tmpvec=new PhyVec(dim);
 		this.broad=new PhyBroadphase(this);
+		this.atoms=0;
+		this.radarr=new Float64Array(0);
+		this.posarr=new Float64Array(0);
+		this.velarr=new Float64Array(0);
+		this.accarr=new Float64Array(0);
+		this.gravarr=new Float64Array(0);
+		this.massarr=new Float64Array(0);
+		this.gravity=new Float64Array([0.0,0.24]);
 	}
 
 
 	release() {
-		this.atomlist.release();
-		this.atomtypelist.release();
-		this.bondlist.release();
-		this.broad.release();
+		//this.atomlist.release();
+		//this.atomtypelist.release();
+		//this.bondlist.release();
+		//this.broad.release();
 	}
 
 
@@ -1603,8 +1573,52 @@ class PhyWorld {
 	}
 
 
+	resizeatoms() {
+		var dim=this.dim;
+		if (this.atoms*dim>=this.posarr.length) {
+			var newlen=1;
+			while (newlen<=this.atoms) {newlen+=newlen;}
+			var newpos =new Float64Array(newlen*dim);
+			var newvel =new Float64Array(newlen*dim);
+			var newacc =new Float64Array(newlen*dim);
+			var newgrav=new Float64Array(newlen*dim);
+			var newmass=new Float64Array(newlen);
+			var newrad =new Float64Array(newlen);
+			newrad.set( this.radarr ,0);
+			newpos.set( this.posarr ,0);
+			newvel.set( this.velarr ,0);
+			newacc.set( this.accarr ,0);
+			newgrav.set(this.gravarr,0);
+			newmass.set(this.massarr,0);
+			this.radarr =newrad;
+			this.posarr =newpos;
+			this.velarr =newvel;
+			this.accarr =newacc;
+			this.gravarr=newgrav;
+			this.massarr=newmass;
+		}
+	}
+
+
 	createatom(pos,rad,type) {
-		return new PhyAtom(pos,rad,type);
+		//return new PhyAtom(pos,rad,type);
+		var mass=type;
+		var dim=this.dim;
+		var aidx=this.atoms;
+		var vidx=aidx*dim;
+		if (vidx>=this.posarr.length) {
+			this.resizeatoms();
+		}
+		var grav=Math.abs(type)<Infinity?1:0;
+		for (var i=0;i<dim;i++) {
+			this.posarr[vidx+i]=pos[i];
+			this.velarr[vidx+i]=0;
+			this.accarr[vidx+i]=0;
+			this.gravarr[vidx+i]=grav*this.gravity[i];
+		}
+		this.radarr[aidx]=rad;
+		this.massarr[aidx]=mass;
+		this.atoms++;
 	}
 
 
@@ -1698,22 +1712,51 @@ class PhyWorld {
 
 
 	update() {
-		var next,link,steps=this.steps;
-		var bondcount,bondarr;
+		var damp=0.001;
+		var dt=this.deltatime/this.steps;
+		var idamp=1.0-damp,dt0,dt1,dt2;
+		if (damp<=1e-10) {
+			// Special case damping=0: just integrate.
+			dt0=1.0;
+			dt1=dt;
+			dt2=dt*dt*0.5;
+		} else if (idamp<=1e-10) {
+			// Special case damping=1: all velocity=0.
+			// If dt=0 then time isn't passing, so maintain velocity.
+			dt0=(dt>=-1e-20 && dt<=1e-20)?1.0:0.0;
+			dt1=0.0;
+			dt2=0.0;
+		} else {
+			// Normal case.
+			var lnd=Math.log(idamp);
+			dt0=Math.exp(dt*lnd);
+			dt1=(dt0-1.0)/lnd;
+			dt2=(dt1-dt )/lnd;
+		}
+		var steps=this.steps;
 		var rnd=this.rnd;
 		var i,j;
 		for (var step=0;step<steps;step++) {
-			if (this.updateflag) {
-				this.updateconstants();
-			}
+			//if (this.updateflag) {
+			//	this.updateconstants();
+			//}
 			// Integrate atoms.
-			next=this.atomlist.head;
-			while ((link=next)!==null) {
-				next=next.next;
-				link.obj.update();
+			var dim=this.dim;
+			var a,v;
+			var posarr=this.posarr;
+			var velarr=this.velarr;
+			var accarr=this.accarr;
+			var gravarr=this.gravarr;
+			var dimlen=this.atoms*dim;
+			for (i=0;i<dimlen;i++) {
+				v=velarr[i];
+				a=accarr[i]+gravarr[i];
+				posarr[i]+=v*dt1+a*dt2;
+				velarr[i] =v*dt0+a*dt1;
+				accarr[i] =0;
 			}
 			// Integrate bonds. Randomizing the order minimizes oscillations.
-			bondcount=this.bondlist.count;
+			/*bondcount=this.bondlist.count;
 			bondarr=this.gettmpmem(bondcount);
 			link=this.bondlist.head;
 			for (i=0;i<bondcount;i++) {
@@ -1724,7 +1767,7 @@ class PhyWorld {
 			}
 			for (i=0;i<bondcount;i++) {
 				bondarr[i].obj.update();
-			}
+			}*/
 			// Collide atoms.
 			this.broad.build();
 			this.broad.collide();
@@ -1901,7 +1944,7 @@ function drawline(imgdata,imgwidth,imgheight,x0,y0,x1,y1,r,g,b) {
 	}
 }
 
-
+/*
 class PhyScene2 {
 
 	constructor(divid) {
@@ -2047,7 +2090,7 @@ class PhyScene2 {
 	}
 
 }
-
+*/
 class PhyScene1 {
 
 	constructor(divid) {
@@ -2067,7 +2110,7 @@ class PhyScene1 {
 		this.backbuf=this.ctx.createImageData(canvas.width,canvas.height);
 		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
 		this.world=new PhyWorld(2);
-		this.mouse=new PhyVec(2);
+		//this.mouse=new PhyVec(2);
 		this.frameden=0;
 		this.frames=0;
 		this.frametime=performance.now();
@@ -2083,40 +2126,72 @@ class PhyScene1 {
 
 
 	setup() {
+		//7246376.811594 atom/sec
+		//39062500 atom/sec
+		//33333333 atom/sec
+		/*var dim=2;
+		var len=10000000*dim;
+		var posarr=new Float64Array(len);
+		var velarr=new Float64Array(len);
+		var accarr=new Float64Array(len);
+		var gravarr=new Float64Array(dim);
+		function rnd() {return Math.random()*2-1;}
+		for (var i=0;i<len;i++) {
+			posarr[i]=rnd();
+			velarr[i]=rnd();
+			accarr[i]=rnd();
+		}
+		for (var i=0;i<dim;i++) {
+			gravarr[i]=rnd();
+		}
+		var dt0=rnd();
+		var dt1=rnd();
+		var dt2=rnd();
+		var a,v;
+		for (var trial=0;trial<10;trial++) {
+			var time=performance.now();
+			for (var i=0;i<len;i++) {
+				v=velarr[i];
+				a=accarr[i]+gravarr[i%dim];
+				posarr[i]+=v*dt1+a*dt2;
+				velarr[i] =v*dt0+a*dt1;
+				accarr[i]=0;
+			}
+			console.log("time: "+(performance.now()-time));
+		}*/
 		var canvas=this.canvas;
 		var world=this.world;
 		world.steps=2;
 		var viewheight=1.0,viewwidth=canvas.width/canvas.height;
-		var walltype=world.createatomtype(1.0,Infinity,1.0);
-		var normType=world.createatomtype(0.01,1.0,0.98);
+		//var walltype=world.createatomtype(1.0,Infinity,1.0);
+		//var normType=world.createatomtype(0.01,1.0,0.98);
 		var rnd=new Random(2);
-		var pos=new PhyVec(world.dim);
+		//var pos=new PhyVec(world.dim);
+		var pos;
 		for (var p=0;p<1000;p++) {
-			pos.set(0,rnd.getf64()*viewwidth);
-			pos.set(1,rnd.getf64()*viewheight);
-			world.createatom(pos,0.007,normType);
+			pos=[rnd.getf64()*viewwidth,rnd.getf64()*viewheight];
+			world.createatom(pos,0.007,1.0);
 		}
 		// Walls
 		var wallrad=0.07,wallstep=wallrad/5;
 		for (var x=0;x<=viewwidth;x+=wallstep) {
-			pos.set(0,x);
-			pos.set(1,-wallrad);
-			world.createatom(pos,wallrad,walltype);
-			pos.set(1,1.0+wallrad);
-			world.createatom(pos,wallrad,walltype);
+			pos=[x,-wallrad];
+			world.createatom(pos,wallrad,Infinity);
+			pos=[x,1.0+wallrad];
+			world.createatom(pos,wallrad,Infinity);
 		}
 		for (var y=0;y<=1.0;y+=wallstep) {
-			pos.set(1,y);
-			pos.set(0,viewwidth+wallrad);
-			world.createatom(pos,wallrad,walltype);
-			pos.set(0,-wallrad);
-			world.createatom(pos,wallrad,walltype);
+			pos=[viewwidth+wallrad,y];
+			world.createatom(pos,wallrad,Infinity);
+			pos=[-wallrad,y];
+			world.createatom(pos,wallrad,Infinity);
 		}
-		var playertype=world.createatomtype(0.01,2.0,0.98);
+		//var playertype=world.createatomtype(0.01,2.0,0.98);
 		// playertype.gravity=new PhyVec([0,0]);
-		this.playertype=playertype;
-		pos=new PhyVec([viewwidth*0.5,viewheight*0.33]);
-		this.mouse.copy(pos);
+		//this.playertype=playertype;
+		//pos=new PhyVec([viewwidth*0.5,viewheight*0.33]);
+		//this.mouse.copy(pos);
+		console.log(world.atoms);
 		this.frametime=performance.now();
 		this.ctx.font="20px monospace";
 	}
@@ -2135,7 +2210,7 @@ class PhyScene1 {
 		world.update();
 		drawfill(imgdata,imgwidth,imgheight,0,0,0);
 		// Convert mouse to world space.
-		var mpos=input.getmousepos();
+		/*var mpos=input.getmousepos();
 		var maxx=imgwidth/imgheight;
 		if (mpos[0]>=0 && mpos[0]<1 && mpos[1]>=0 && mpos[1]<1) {
 			this.mouse.set(0,mpos[0]*maxx);
@@ -2173,6 +2248,18 @@ class PhyScene1 {
 			var bpos=bond.b.pos.elem;
 			drawline(imgdata,imgwidth,imgheight,apos[0]*scale,apos[1]*scale,bpos[0]*scale,bpos[1]*scale,255,255,255);
 			link=link.next;
+		}*/
+		// Move the player.
+		var atoms=world.atoms;
+		var posarr=world.posarr;
+		var radarr=world.radarr;
+		var vidx=0;
+		for (var i=0;i<atoms;i++) {
+			var u=0;//data.velcolor*(256*4);
+			u=Math.floor(u<255?u:255);
+			var rad=radarr[i]*scale;
+			drawcircle(imgdata,imgwidth,imgheight,posarr[vidx+0]*scale,posarr[vidx+1]*scale,rad,u,0,255-u);
+			vidx+=2;
 		}
 		ctx.putImageData(this.backbuf,0,0);
 		ctx.fillStyle="#ffffff";

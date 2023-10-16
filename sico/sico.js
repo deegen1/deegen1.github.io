@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-sico.js - v2.05
+sico.js - v2.06
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -458,11 +458,10 @@ class SICO {
 	setmem(addr,val) {
 		// Write val to the memory at addr.
 		addr=this.uint(addr);
-		val=this.uint(val);
 		if (addr>=this.io) {
 			// This is a special IO address.
 			addr-=this.mod;
-			val=val?this.mod-val:val;
+			val=this.uint(-val);
 			if (addr===-1n) {
 				// Exit.
 				this.state=this.COMPLETE;
@@ -479,6 +478,7 @@ class SICO {
 			}
 			return;
 		}
+		val=this.uint(val);
 		var mem=this.mem;
 		if (addr>=this.alloc) {
 			// If we're writing to an address outside of our memory, attempt to resize it.

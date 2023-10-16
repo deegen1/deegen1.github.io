@@ -21,17 +21,18 @@
 		<button id="sico_advanced">&#9776;&nbsp;&nbsp;&nbsp;Advanced</button>
 		<label>Demos:
 			<select id="sico_demo">
-				<option value="./libraries/hello_demo.sico">Hello World</option>
-				<option value="./libraries/string_demo.sico">String Printing</option>
-				<option value="./libraries/uint_demo.sico">Unsigned Math</option>
-				<option value="./libraries/random_demo.sico">Random Numbers</option>
-				<option value="./libraries/memory_demo.sico">Memory</option>
+				<option value="./demos/demo_hello.sico">Hello World</option>
+				<option value="./demos/demo_string.sico">String Printing</option>
+				<option value="./demos/demo_uint.sico">Unsigned Math</option>
+				<option value="./demos/demo_random.sico">Random Numbers</option>
+				<option value="./demos/demo_memory.sico">Memory</option>
+				<option value="./demos/demo_graphics.sico">Graphics</option>
 				<option value="">Blank</option>
 			</select>
 		</label>
 	</div>
 	<div id="sico_menu" class="codeblock" style="box-sizing:border-box;width:100%;display:none;font-family:sans-serif;white-space:normal;">
-		<p>Advanced Settings</p><br>
+		<p>Advanced Settings</p>
 		<input type="checkbox" id="sico_keyboard" checked>
 		<label for="sico_keyboard"> Grab Keyboard:<br>
 			<br>
@@ -226,7 +227,7 @@ crit:                    #
 <div class="content"><h1>Notes</h1>
 <p>SICO belongs to the family of one instruction architectures, like the
 <a href="https://www.ece.ucsb.edu/~parhami/pubs_folder/parh88-ijeee-ultimate-risc.pdf">subleq</a>
-architecture it's based off of. There are several reasons for splitting off:</p>
+architecture it's based off of.</p>
 <p>Whereas subleq uses 2's complement signed arithmetic, SICO uses unsigned
 arithmetic. There are several reasons for this:</p>
 <p>SICO offers 3 ways to guarantee a jump</p>
@@ -246,18 +247,34 @@ modifying <i>A</i> for this test.</p>
 <p>SICO also uses a different order for operands. For operands <i>A</i>,
 <i>B</i>, and <i>C</i>, SICO takes <i>[A]=[A]-[B]</i> where subleq takes
 <i>[B]=[B]-[A]</i>. The order of operands in subleq is perfectly valid, of
-course, but goes against the standard ordering used in programming. For example,
-we usually write <i>a=b+c</i> instead of <i>b+c=a</i>. In an early version of
-SICO, I used the subleq order of operands and found myself constantly having to
-reorder the operands in my head. Thus I decided swap the roles of <i>A</i> and
-<i>B</i>.</p>
-<p><a href="./sicofiles.zip">sicofiles.zip</a> contains my unfinished work
-and library files.</p>
+course, but goes against the left-to-right ordering used in programming. For
+example, we usually write <i>a=b+c</i> instead of <i>b+c=a</i>. In an early
+version of SICO, I used the subleq order of operands and found myself constantly
+having to reorder the operands in my head. Thus I decided swap the roles of
+<i>A</i> and <i>B</i>.</p>
+<p><a href="./sico.zip">sico.zip</a> contains sico.py, demos, and
+interpreters.</p>
+<!--
+Misc:
+	A better (simpler?) explanation for how SICO works.
+	Better examples?
+Libraries:
+	<link to libraries page>
+	Optimize math functions.
+	Floating point
+	Graphics/drawing
+	Strings
+Interpreter:
+	Speeding up interpreter.
+	Porting to other languages.
+	Webassembly version of SICO.run().
+	Would adding parentheses, multiplication, and division complicate the interpreter?
+-->
 </div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div id="footer">Created on 9 Apr 2020 - Modified on 2 Oct 2023<br>
+<div id="footer">Created on 9 Apr 2020 - Modified on 15 Oct 2023<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>

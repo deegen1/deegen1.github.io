@@ -2,39 +2,37 @@
 
 demo:
 
-	# Use ASCII character codes.
-	# Message must end with a 0.
+	# Multiplication
+	# ret0 = mul0 * mul1 >> 64
+	# ret1 = mul0 * mul1 & (2^64-1)
+	0 ? uint.mul .ret0 .ret1 .mul0 .mul1
+	0 ? string.print string.uint .mul0 '  '* '  string.uint .mul1 '  '= '  string.uint .ret1 10 0
 
-	# test
-	0 ? string.print 't 'e 's 't 10 0
+	# Division
+	# ret0 = num / den
+	# ret1 = num % den
+	0 ? uint.div .ret0 .ret1 .num .den
+	0 ? string.print string.uint .num '  '/ '  string.uint .den '  '  '= '  string.uint .ret0 '  'r 'e 'm 'a 'i 'n 'd 'e 'r '  string.uint .ret1 10 0
 
-	# a = [a]
-	0 ? string.print 'a '  '= '  string.uint .a 10 0
+	# Bitwise AND
+	# ret0 = and0 & and1
+	0 ? uint.and .ret0 .and0 .and1
+	0 ? string.print 32 string.uint .and0 '  '& '  string.uint .and1 '  '  '= '  string.uint .ret0 10 0
 
-	# b = [b]
-	0 ? string.print 'b '  '= '  string.uint .b 10 0
-
-	# [a], [b]
-	0 ? string.print string.str .str1 ', '  string.uint .b ', '  string.int .b 10 0
-
-	# Create and format a string in memory.
-	0 ? string.create .str2
-	0 ? string.writeinline .str2 string.str .str1 ', '  string.uint .b ', '  string.int .b 10 0
-	0 ? string.print 'o 'u 't ': '  string.str .str2 0
-	0 ? string.free .str2
-
-	# done
-	0 ? string.print 'd 'o 'n 'e 10 0
-
-	0 ? mem.alloc.verifyfree
-
-	0-1 0 ?-2
+	0-1 0 0
 
 	# Variables
-	.a: 103
-	.b: 0-1
-	.str1: ?+1 5 ?+1 'X '  'Y '  'Z
-	.str2: 0
+	.ret0: 0
+	.ret1: 0
+
+	.mul0: 457
+	.mul1: 135
+
+	.num:  933
+	.den:  51
+
+	.and0: 90
+	.and1: 17
 
 
 #|==============================================================================
@@ -52,8 +50,8 @@ Notes
 
 master.sico contains all basic libraries for ease of use in other projects.
 
-This library should be included after any other sico files. Display an error
-message and exit if it's not.
+This library should be included after any other sico files. If it's not, it will
+display an error message and exit.
 
 
           File      |  Line
@@ -61,8 +59,8 @@ message and exit if it's not.
          uint.sico  |    43
           int.sico  |  1966
        random.sico  |  3334
-       string.sico  |  3941
-       memory.sico  |  4493
+       string.sico  |  3942
+       memory.sico  |  4494
 
 
 |#
@@ -492,7 +490,7 @@ uint.write:
 	.mem:0
 	.hex:
 		'0 '0 '1 '1 '2 '2 '3 '3 '4 '4 '5 '5 '6 '6 '7 '7
-	     '8 '8 '9 '9 'a 'a 'b 'b 'c 'c 'd 'd 'e 'e 'f 'f
+		'8 '8 '9 '9 'a 'a 'b 'b 'c 'c 'd 'd 'e 'e 'f 'f
 	.nhex:0-.hex
 	.wretb0:0-.ret
 	.wretb1:0-.base1loop-6
@@ -2343,7 +2341,7 @@ int.write:
 	.minus:45
 	.hex:
 		'0 '0 '1 '1 '2 '2 '3 '3 '4 '4 '5 '5 '6 '6 '7 '7
-	     '8 '8 '9 '9 'a 'a 'b 'b 'c 'c 'd 'd 'e 'e 'f 'f
+		'8 '8 '9 '9 'a 'a 'b 'b 'c 'c 'd 'd 'e 'e 'f 'f
 	.nhex:0-.hex
 	.wret0:0-.isneg
 	.wret1:.isneg-.nextloop
@@ -3504,6 +3502,7 @@ TODO
 
 Figure out better constants for mod%4 = 1 or 3.
 See if there are better seeding algorithms.
+If calling random.mod(0), return random.get().
 
 
 |#
