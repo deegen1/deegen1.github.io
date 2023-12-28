@@ -4582,6 +4582,7 @@ Version History
 TODO
 
 
+Allow memory allocation to handle non 64-bit mods.
 Add mem.alloclen to return the allocated size of a block.
 Replace alloc hash table with AVL tree.
 	Find the smallest block that will fit an allocation.

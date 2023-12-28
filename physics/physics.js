@@ -848,7 +848,7 @@ class PhyAtomInteraction {
 		this.collide=0;
 		this.push=0;
 		this.elasticity=0;
-		// this.callBack=null;
+		// this.callback=null;
 		this.updateconstants();
 	}
 
@@ -1110,9 +1110,9 @@ class PhyAtom {
 		}
 		var rad=a.rad+b.rad;
 		if (dist<rad*rad) {
-			// If we have a callBack, allow it to handle the collision.
+			// If we have a callback, allow it to handle the collision.
 			var intr=a.type.intarr[b.type.id];
-			if (intr.collide===false) {// || (intr->callBack!==null && intr->callBack(a,b)==0)) {
+			if (intr.collide===false) {// || (intr.callback!==null && intr.callback(a,b)==0)) {
 				return;
 			}
 			var amass=a.mass,bmass=b.mass;
@@ -1944,13 +1944,13 @@ class PhyScene2 {
 		world.steps=2;
 		var viewheight=1.0,viewwidth=canvas.width/canvas.height;
 		var walltype=world.createatomtype(1.0,Infinity,1.0);
-		var normType=world.createatomtype(0.01,1.0,0.98);
+		var normtype=world.createatomtype(0.01,1.0,0.98);
 		var rnd=new Random(2);
 		var pos=new PhyVec(world.dim);
 		for (var p=0;p<1000;p++) {
 			pos.set(0,rnd.getf64()*viewwidth);
 			pos.set(1,rnd.getf64()*viewheight);
-			world.createatom(pos,0.007,normType);
+			world.createatom(pos,0.007,normtype);
 		}
 		// Walls
 		var wallrad=0.07,wallstep=wallrad/5;
@@ -2088,13 +2088,13 @@ class PhyScene1 {
 		world.steps=2;
 		var viewheight=1.0,viewwidth=canvas.width/canvas.height;
 		var walltype=world.createatomtype(1.0,Infinity,1.0);
-		var normType=world.createatomtype(0.01,1.0,0.98);
+		var normtype=world.createatomtype(0.01,1.0,0.98);
 		var rnd=new Random(2);
 		var pos=new PhyVec(world.dim);
 		for (var p=0;p<1000;p++) {
 			pos.set(0,rnd.getf64()*viewwidth);
 			pos.set(1,rnd.getf64()*viewheight);
-			world.createatom(pos,0.007,normType);
+			world.createatom(pos,0.007,normtype);
 		}
 		// Walls
 		var wallrad=0.07,wallstep=wallrad/5;
@@ -2163,6 +2163,175 @@ class PhyScene1 {
 			var pos=atom.pos.elem;
 			var rad=atom.rad*scale;
 			drawcircle(imgdata,imgwidth,imgheight,pos[0]*scale,pos[1]*scale,rad,u,0,255-u);
+			link=link.next;
+		}
+		// Draw bonds.
+		link=world.bondlist.head;
+		while (link!==null) {
+			var bond=link.obj;
+			var apos=bond.a.pos.elem;
+			var bpos=bond.b.pos.elem;
+			drawline(imgdata,imgwidth,imgheight,apos[0]*scale,apos[1]*scale,bpos[0]*scale,bpos[1]*scale,255,255,255);
+			link=link.next;
+		}
+		ctx.putImageData(this.backbuf,0,0);
+		ctx.fillStyle="#ffffff";
+		ctx.fillText("fps: "+this.fps.toFixed(2),5,20);
+		var frametime=performance.now()-this.frametime;
+		this.frametime=performance.now();
+		this.frameden+=frametime;
+		this.frames++;
+		if (this.frames>=60) {
+			this.fps=(this.frames*1000)/this.frameden;
+			this.frames=0;
+			this.frameden=0;
+		}
+	}
+
+}
+
+
+class PhyScene3 {
+
+	constructor(divid) {
+		// Swap the <div> with <canvas>
+		var elem=document.getElementById(divid);
+		var drawwidth=elem.clientWidth;
+		var canvas=document.createElement("canvas");
+		elem.replaceWith(canvas);
+		var drawheight=drawwidth;
+		canvas.width=drawwidth;
+		canvas.height=drawheight;
+		this.input=new Input(canvas);
+		this.input.disablenav();
+		// Setup the UI.
+		this.canvas=canvas;
+		this.ctx=this.canvas.getContext("2d");
+		this.backbuf=this.ctx.createImageData(canvas.width,canvas.height);
+		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
+		this.world=new PhyWorld(2);
+		this.mouse=new PhyVec(2);
+		this.frameden=0;
+		this.frames=0;
+		this.frametime=performance.now();
+		this.fps=0;
+		this.setup();
+		var state=this;
+		function update() {
+			setTimeout(update,1000/60);
+			state.update();
+		}
+		update();
+	}
+
+
+	setup() {
+		var canvas=this.canvas;
+		var world=this.world;
+		world.steps=2;
+		var viewheight=1.0,viewwidth=canvas.width/canvas.height;
+		var walltype=world.createatomtype(1.0,Infinity,1.0);
+		var normtype=world.createatomtype(0.0,1.0,1.0);
+		var rnd=new Random(2);
+		var pos=new PhyVec(world.dim);
+		world.gravity.elem[1]=0;
+		var spawn=performance.now()/1000.0;
+		for (var p=0;p<5000;p++) {
+			pos.set(0,rnd.getf64()*viewwidth);
+			pos.set(1,rnd.getf64()*viewheight);
+			var atom=world.createatom(pos,0.003,normtype);
+			atom.userdata={spawn:spawn,type:0,velcolor:0};
+			atom.vel.elem[0]=1.0;
+		}
+		pos=new PhyVec([viewwidth*0.5,viewheight*0.5]);
+		var atom=world.createatom(pos,0.03,walltype);
+		atom.userdata={spawn:spawn,type:1};
+		//var playertype=world.createatomtype(0.01,2.0,0.98);
+		// playertype.gravity=new PhyVec([0,0]);
+		/*this.playertype=playertype;
+		pos=new PhyVec([viewwidth*0.5,viewheight*0.33]);
+		this.mouse.copy(pos);*/
+		this.frametime=performance.now();
+		this.ctx.font="20px monospace";
+	}
+
+
+	update() {
+		var input=this.input;
+		input.update();
+		var canvas=this.canvas;
+		var imgwidth=canvas.width;
+		var imgheight=canvas.height;
+		var imgdata=this.backbuf32;
+		var scale=imgheight;
+		var ctx=this.ctx;
+		var world=this.world;
+		var rnd=new Random();
+		world.update();
+		drawfill(imgdata,imgwidth,imgheight,0,0,0);
+		// Convert mouse to world space.
+		/*var mpos=input.getmousepos();
+		var maxx=imgwidth/imgheight;
+		if (mpos[0]>=0 && mpos[0]<1 && mpos[1]>=0 && mpos[1]<1) {
+			this.mouse.set(0,mpos[0]*maxx);
+			this.mouse.set(1,mpos[1]);
+		}
+		if (input.getkeyhit(input.MOUSE.LEFT)) {
+			world.createbox(this.mouse,5,0.015,this.playertype);
+		}*/
+		// Move the player.
+		/*var link=world.atomlist.head;
+		while (link!==null) {
+			var atom=link.obj;
+			var data=atom.userdata;
+			if (data===undefined || data===null) {
+				data={velcolor:0};
+				atom.userdata=data;
+			}
+			var vel=atom.vel.mag();
+			data.velcolor*=0.99;
+			if (data.velcolor<vel) {
+				data.velcolor=vel;
+			}
+			var u=data.velcolor*(256*4);
+			u=Math.floor(u<255?u:255);
+			var pos=atom.pos.elem;
+			var rad=atom.rad*scale;
+			drawcircle(imgdata,imgwidth,imgheight,pos[0]*scale,pos[1]*scale,rad,u,0,255-u);
+			link=link.next;
+		}*/
+		var time=performance.now()/1000.0;
+		var cutoff=time-5.0;
+		var energymax=256.0*0.95;
+		var link=world.atomlist.head;
+		while (link!==null) {
+			var atom=link.obj;
+			var data=atom.userdata;
+			var pos=atom.pos.elem;
+			var vel=atom.vel.elem;
+			var rad=atom.rad*scale;
+			var velmag=atom.vel.mag();
+			var u=0;
+			if (data.type===0) {
+				//data.vel
+				data.velcolor*=0.99;
+				if (data.velcolor<velmag) {
+					data.velcolor=velmag;
+				}
+				if (data.spawn<cutoff || pos[0]>1+atom.rad || pos[1]<-0.5 || pos[1]>1.5) {
+					data.spawn=time;
+					vel[0]=0.9+rnd.getf64()*0.1;
+					vel[1]=(rnd.getf64()-0.5)*0.1;
+					pos[0]=-rnd.getf64()*0.1-atom.rad;
+					pos[1]=rnd.getf64();
+					data.velcolor=0;
+				}
+				u=data.velcolor*energymax;
+				if (u>255.0) {u=255.0;}
+			} else if (data.type==1) {
+				u=255.0;
+			}
+			drawcircle(imgdata,imgwidth,imgheight,pos[0]*scale,pos[1]*scale,rad,u,u,u);
 			link=link.next;
 		}
 		// Draw bonds.

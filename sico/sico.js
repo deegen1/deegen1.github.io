@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-sico.js - v2.06
+sico.js - v2.08
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -229,7 +229,7 @@ class SICO {
 		var e=new Uint8Array((new BigUint64Array([0x00ff01ff02ff03ffn])).buffer);
 		var [a,r,g,b]=[e.indexOf(0),e.indexOf(1),e.indexOf(2),e.indexOf(3)];
 		var imgpixels=imgwidth*imgheight*4;
-		imgdata=new Uint8Array(this.mem.buffer,imgdata);
+		imgdata=new Uint8Array(this.mem.buffer,imgdata+this.mem.byteOffset);
 		var dstdata=this.canvdata.data;
 		for (var i=0,j=0;i<imgpixels;i+=4,j+=8) {
 			dstdata[i  ]=imgdata[j+r];
@@ -274,11 +274,11 @@ class SICO {
 	findlabel(label) {
 		// Returns the given label's address. Returns null if no label was found.
 		var lbl=this.lblroot,len=label.length,c;
-		if (lbl===null) {return null;}
+		if (lbl===null) {return -1n;}
 		for (var i=0;i<len;i++) {
 			c=label.charCodeAt(i);
 			lbl=lbl.child[c];
-			if (lbl===undefined) {return null;}
+			if (lbl===undefined) {return -1n;}
 		}
 		return lbl.addr;
 	}
@@ -503,6 +503,7 @@ class SICO {
 
 	run(insts,time) {
 		// Run SICO while insts>0 and performance.now()<time.
+		if ((typeof SICO_fast_run)!=="undefined") {return SICO_fast_run(this,insts,time);}
 		if (insts===undefined) {insts=Infinity;}
 		if (time ===undefined) {time =Infinity;}
 		var ip=this.ip;

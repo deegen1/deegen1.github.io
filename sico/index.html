@@ -6,6 +6,7 @@
 	<link rel="stylesheet" href="../style/style.css" type="text/css">
 	<script src="../style/style.js"></script>
 	<script src="./sico.js"></script>
+	<script src="./sico_fast.js"></script>
 	<script src="./editor.js"></script>
 </head>
 <body>
@@ -42,7 +43,7 @@
 			<span style="padding-left:2rem;">&bull;</span> F11: release keyboard
 		</label>
 	</div>
-	<canvas id="sico_canvas" style="display:none;background:#000000;width:100%;margin-top:1rem"></canvas>
+	<canvas id="sico_canvas" style="display:none;background:#000000;width:100%;margin-top:1rem;margin-bottom:1rem;"></canvas>
 	<textarea id="sico_output" style="box-sizing:border-box;width:100%;height:14rem;" class="consoleblock" spellcheck="false" readonly>Please enable javascript to run</textarea>
 	<textarea id="sico_editor" style="box-sizing:border-box;width:100%;height:40rem;" class="codeblock" spellcheck="false">loop: 0-2  txt  ?+1         # Print a letter.
       len  one  exit        # Decrement [len]. If [len]&lt;=1, exit.
@@ -83,10 +84,11 @@ mem[A] -= mem[B]
 <p>The instruction pointer and memory values are all 64 bit unsigned integers.
 Interaction with the host environment is done by reading and writing from
 special memory addresses. For example: writing anything to <i>-1</i> will end
-the program.</p>
+execution.</p>
 <h2>SICO Assembly Language</h2>
-<p>Because there's only one instruction, we only need to define memory values.
-The flow of the program will decide what gets executed.</p>
+<p>Whatever the instruction pointer is pointing to is what gets executed, so
+there's no need to write out instructions like <i>mov</i>, <i>jmp</i>, etc. We
+only need an assembly language to help write memory values.</p>
 <p>A "Hello, World!" program in assembly:</p>
 <div class="codeblock langsico">loop: 0-2  txt  ?+1         # Print a letter.
       len  one  exit        # Decrement [len]. If [len]&lt;=1, exit.
@@ -117,7 +119,7 @@ one:  1
 <p>IO addresses (mod 2^64)</p>
 <table class="datatable">
 <tr><td><i>-1</i></td><td>Writing ends execution</td></tr>
-<tr><td><i>-2</i></td><td>Write to stdout</td></tr>
+<tr><td><i>-2</i></td><td>Writing prints to stdout</td></tr>
 <tr><td><i>-3</i></td><td>Read from stdin</td></tr>
 <tr><td><i>-4</i></td><td>Read timing frequency</td></tr>
 <tr><td><i>-5</i></td><td>Read system time</td></tr>
@@ -274,7 +276,7 @@ Interpreter:
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div id="footer">Created on 9 Apr 2020 - Modified on 15 Oct 2023<br>
+<div id="footer">Created on 9 Apr 2020 - Modified on 20 Dec 2023<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>

@@ -6,6 +6,7 @@ cat graphics_demo.sico graphics.sico master.sico > test.sico
 
 0 0 graphicstest.main
 
+
 graphicstest.main:
 	.timestart 0-5 ?+1
 
@@ -13,10 +14,11 @@ graphicstest.main:
 	0 ? uint.div .tmp 0 0-4 .fps
 	.nfps .tmp  ?+1
 
-	0 ? Image.Create .img .width .height
+	0 ? image.create .img .width .height
 	0 ? string.print 65 32 string.uint .img 10 0
-	0 ? Image.SetBuffer .img
-	0 ? Image.DrawRect .rectx .recty .rectw .recth
+	0 ? image.setbuffer .img
+	0 ? image.drawrect .rectx .recty .rectw .recth
+	
 	.y .y ?+1
 .yloop:
 	# Record the time for FPS tracking.
@@ -31,10 +33,10 @@ graphicstest.main:
 	0 ? uint.and .argb .argb .mask255
 	0 ? uint.mul 0 .argb .argb .mul
 	0 ? uint.add .argb .argb .alpha
-	0 ? Image.SetPixel .img .x .y .argb
+	0 ? image.setpixel .img .x .y .argb
 	.x .z-1 .xloop
 .xdone:
-	0 ? Image.DrawWindow .img
+	0 ? image.drawwindow .img
 	# Pause to match our FPS rate.
 	.tmp  .tmp  ?+1
 	.tmp  0-5   ?+1
@@ -51,7 +53,7 @@ graphicstest.main:
 .loop:
 	# 0 ? string.print string.uint .counter 10 0
 
-	0 ? Image.Free .img
+	0 ? image.free .img
 
 	# ------------------------ Timing ------------------------
 	0 ? uint.add .timestart .timestart 0-5
@@ -69,8 +71,8 @@ graphicstest.main:
 	.alpha:0xffff000000000000
 	.mul:0x0000010001000100
 	.img:0
-	.width:800
-	.height:600
+	.width:1920
+	.height:1080
 	.tmp:0
 	.x:50
 	.y:70
@@ -85,6 +87,69 @@ graphicstest.main:
 	.counter:0
 	.timestart:0
 	.timedec:1000000
+
+
+#|
+graphicstest.main:
+	0 ? image.create .img .width .height
+	0 ? image.setbuffer .img
+	.timestart 0-5 ?+1
+	.y .y ?+1
+.yloop:
+	# Record the time for FPS tracking.
+	0 ? uint.cmp .y .height ?+3 .ydone .ydone
+	# 0 ? string.print string.uint .y 10 0
+	.x .x ?+1
+.xloop:
+	0 ? uint.cmp .x .width ?+3 .xdone .xdone
+	0 ? uint.xor .argb .x .y
+	0 ? uint.and .argb .argb .mask255
+	0 ? uint.mul 0 .argb .argb .mul
+	0 ? uint.add .argb .argb .alpha
+	0 ? image.setpixel .img .x .y .argb
+	.x .z-1 .xloop
+.xdone:
+	.y .z-1 .yloop
+.ydone:
+	#0 ? image.drawwindow .img
+.loop:
+	# 0 ? string.print string.uint .counter 10 0
+
+	# ------------------------ Timing ------------------------
+	0 ? uint.add .timestart .timestart 0-5
+	0 ? uint.div .timestart .tmp .timestart 0-4
+	0 ? uint.mul 0 .tmp .tmp .timedec
+	0 ? uint.div .tmp 0 .tmp 0-4
+	0 ? string.print 't 'i 'm 'e ': '  string.uint .timestart '. string.uintinl .tmp 10 6 '0 10 0
+
+	0 ? image.free .img
+
+	0 ? mem.alloc.verifyfree
+	0-1 0 ?-2
+
+	# Variables
+	0-1 .z:0 1
+	.mask255:0xff
+	.alpha:0xffff000000000000
+	.mul:0x0000010001000100
+	.img:0
+	.width:1920
+	.height:1080
+	.tmp:0
+	.x:50
+	.y:70
+	.argb:0
+	.time:0
+	.fps:60
+	.nfps:0
+	.rectx:50
+	.recty:25
+	.rectw:100
+	.recth:200
+	.counter:0
+	.timestart:0
+	.timedec:1000000
+|#
 
 
 test.measure:
@@ -334,53 +399,53 @@ quicky determine if a pixel is completely transparent (ex: if pixel < 2^48).
 |#
 
 
-Image.Struct:
+image.struct:
 	# Used for calculating attribute offsets in Image functions.
-	.Width:  ?-Image.Struct
-	.Height: ?-Image.Struct
-	.Data:   ?-Image.Struct
-	.YOff:   ?-Image.Struct
-	.Size:   ?-Image.Struct
+	.width:  ?-image.struct
+	.height: ?-image.struct
+	.data:   ?-image.struct
+	.yoff:   ?-image.struct
+	.size:   ?-image.struct
 
 
-Image.Con:
-	.Buffer: 0
-	.Blend:  Image.Blend.Copy-Image.Blend
-	.Alpha:  0xffff
-	.Red:    0xffff
-	.Green:  0xffff
-	.Blue:   0xffff
-	# ( Positition * Scale ) * Rotation + Offset
-	.ScaleX: 0xffff
-	.ScaleY: 0xffff
-	.OffX:   0
-	.OffY:   0
-	.Rotate: 0
+image.con:
+	.buffer: 0
+	.blend:  image.blend.copy-image.blend
+	.alpha:  0xffff
+	.red:    0xffff
+	.green:  0xffff
+	.blue:   0xffff
+	# ( Positition * Scale ) * Rotation + offset
+	.scaleX: 0xffff
+	.scaleY: 0xffff
+	.offX:   0
+	.offY:   0
+	.rotate: 0
 
 
-Image.Blend:
-	.Copy:  ?-Image.Blend
-	.Alpha: ?-Image.Blend
-	.Add:   ?-Image.Blend
-	.Sub:   ?-Image.Blend
-	.Max:   ?-Image.Blend
-	.Min:   ?-Image.Blend
+image.blend:
+	.copy:  ?-image.blend
+	.alpha: ?-image.blend
+	.add:   ?-image.blend
+	.sub:   ?-image.blend
+	.max:   ?-image.blend
+	.min:   ?-image.blend
 
 
-Image.Create:
-	# Call  : 0 ? Image.Create ret width height
+image.create:
+	# Call  : 0 ? image.create ret width height
 	# Effect: Sets [ret] to an image with (width,height) pixels.
 	mem.getargs.0 ? mem.getargs .ret 0 .width 2 .height 2 .arg5 0 0
 	# Allocate the pixel data.
 	0 ? uint.mul 0 .pixels .width .height
 	# Allocate the image data.
-	0 ? mem.alloc  .img  Image.Struct.Size
+	0 ? mem.alloc  .img  image.struct.size
 	0 ? mem.alloc  .data .pixels
 	0 ? mem.alloc  .yoff .height
-	0 ? mem.setidx .img Image.Struct.Width  .width
-	0 ? mem.setidx .img Image.Struct.Height .height
-	0 ? mem.setidx .img Image.Struct.Data   .data
-	0 ? mem.setidx .img Image.Struct.YOff   .yoff
+	0 ? mem.setidx .img image.struct.width  .width
+	0 ? mem.setidx .img image.struct.height .height
+	0 ? mem.setidx .img image.struct.data   .data
+	0 ? mem.setidx .img image.struct.yoff   .yoff
 	# Precalculate the Y offset data.
 	.height .z      .ydone
 	.tmp    .tmp    ?+1
@@ -403,12 +468,12 @@ Image.Create:
 	.tmp:0
 
 
-Image.Free:
-	# Call  : 0 ? Image.Free img
+image.free:
+	# Call  : 0 ? image.free img
 	# Effect: Frees [img].
 	mem.getargs.0 ? mem.getargs .img 2 .arg3 0 0
-	0 ? mem.getidx .data .img Image.Struct.Data
-	0 ? mem.getidx .yoff .img Image.Struct.YOff
+	0 ? mem.getidx .data .img image.struct.data
+	0 ? mem.getidx .yoff .img image.struct.yoff
 	0 ? mem.free .yoff
 	0 ? mem.free .data
 	0 ? mem.free .img
@@ -419,31 +484,31 @@ Image.Free:
 	.yoff:0
 
 
-Image.GetWidth:
-	# Call  : 0 ? Image.GetWidth img ret
+image.getwidth:
+	# Call  : 0 ? image.getwidth img ret
 	# Effect: Sets [ret] to the image's width.
 	mem.getargs.0 ? mem.getargs .img 1 .ret 1 .arg4 0 0
-	0 ? mem.getidx .ret:0 .img:0 Image.Struct.Width
+	0 ? mem.getidx .ret:0 .img:0 image.struct.width
 	0 0 .arg4:0
 
 
-Image.GetHeight:
-	# Call  : 0 ? Image.GetHeight img ret
+image.getheight:
+	# Call  : 0 ? image.getheight img ret
 	# Effect: Sets [ret] to the image's height.
 	mem.getargs.0 ? mem.getargs .img 1 .ret 1 .arg4 0 0
-	0 ? mem.getidx .ret:0 .img:0 Image.Struct.Height
+	0 ? mem.getidx .ret:0 .img:0 image.struct.height
 	0 0 .arg4:0
 
 
-Image.DrawWindow:
-	# Call  : 0 ? Image.SetWindow img
+image.drawwindow:
+	# Call  : 0 ? image.setwindow img
 	# Effect: Creates a window and sets [img] as the buffer.
 	mem.getargs.0 ? mem.getargs .img 1 .arg3 0 0
 	0-7 .img:0 .arg3:0
 
 
-Image.GetPixel:
-	# Call  : 0 ? Image.GetPixel img x y ret
+image.getpixel:
+	# Call  : 0 ? image.getpixel img x y ret
 	# Effect: Sets [ret] to the pixel value at (x,y). If (x,y) is outside of the image
 	# boundaries, return 0.
 	# Time  : 62
@@ -490,7 +555,7 @@ Image.GetPixel:
 	# If [x]<[width], we're inside the image.
 	.tmp    .tmp    ?+1
 	.tmp    .nx     ?+1
-	.tmp    .imgw:Image.Struct.Width-Image.Struct ?+4
+	.tmp    .imgw:image.struct.width-image.struct ?+4
 	.tmp    .tmp    .ret
 	.tmp    .z      .ret
 	# Get [y].
@@ -503,11 +568,11 @@ Image.GetPixel:
 	# If [y]<[height], we're inside the image.
 	.tmp    .tmp    ?+1
 	.tmp    .ny     ?+1
-	.tmp    .imgh:Image.Struct.Height-Image.Struct ?+4
+	.tmp    .imgh:image.struct.height-image.struct ?+4
 	.tmp    .tmp    .ret
 	.tmp    .z      .ret
 	# Get the image pixel.
-	.ny     .imgy:Image.Struct.YOff-Image.Struct ?+1
+	.ny     .imgy:image.struct.yoff-image.struct ?+1
 	.yoff   .yoff   ?+1
 	.yoff   .ny     ?+1
 	.nx     .yoff:0 ?+1
@@ -528,11 +593,11 @@ Image.GetPixel:
 	.ny:0
 	.ncol:0
 	.img0:0
-	.wdif:Image.Struct.Width-Image.Struct
+	.wdif:image.struct.width-image.struct
 
 
-Image.SetPixel:
-	# Call  : 0 ? Image.SetPixel img x y argb
+image.setpixel:
+	# Call  : 0 ? image.setpixel img x y argb
 	# Effect: Sets the pixel at (x,y) to [argb].
 	# Time  : 62
 	# Setup stack pointer.
@@ -570,7 +635,7 @@ Image.SetPixel:
 	# If [x]<[width], we're inside the image.
 	.tmp    .tmp    ?+1
 	.tmp    .nx     ?+1
-	.tmp    .imgw:Image.Struct.Width-Image.Struct ?+4
+	.tmp    .imgw:image.struct.width-image.struct ?+4
 	.tmp    .tmp    .ret
 	.tmp    .z      .ret
 	# Get [y].
@@ -583,7 +648,7 @@ Image.SetPixel:
 	# If [y]<[height], we're inside the image.
 	.tmp    .tmp    ?+1
 	.tmp    .ny     ?+1
-	.tmp    .imgh:Image.Struct.Height-Image.Struct ?+4
+	.tmp    .imgh:image.struct.height-image.struct ?+4
 	.tmp    .tmp    .ret
 	.tmp    .z      .ret
 	# Get the new color.
@@ -594,7 +659,7 @@ Image.SetPixel:
 	.ncol   .ncol   ?+1
 	.ncol   .p3:0   ?+1
 	# Set the image pixel.
-	.ny     .imgy:Image.Struct.YOff-Image.Struct ?+1
+	.ny     .imgy:image.struct.yoff-image.struct ?+1
 	.yoff   .yoff   ?+1
 	.yoff   .ny     ?+1
 	.nx     .yoff:0 ?+1
@@ -615,11 +680,11 @@ Image.SetPixel:
 	.ny:0
 	.ncol:0
 	.img0:0
-	.wdif:Image.Struct.Width-Image.Struct
+	.wdif:image.struct.width-image.struct
 
 
-Image.SplitARGB:
-	# Call  : 0 ? Image.SplitARGB a r g b argb
+image.splitargb:
+	# Call  : 0 ? image.splitargb a r g b argb
 	# Effect:
 	#      [a] = ([argb]>>48)&0xffff
 	#      [r] = ([argb]>>32)&0xffff
@@ -627,26 +692,26 @@ Image.SplitARGB:
 	#      [b] = ([argb]    )&0xffff
 
 
-Image.CombineARGB:
-	# Call  : 0 ? Image.CombineARGB ret a r g b
+image.combineargb:
+	# Call  : 0 ? image.combineargb ret a r g b
 	# Effect:
 	#      [ret] = (([a]&0xffff)<<48) | (([r]&0xffff)<<32) |
 	#              (([g]&0xffff)<<16) |  ([b]&0xffff)
 
 
-Image.BlendPixel:
-	# Call  : 0 ? Image.BlendPixel dst src
+image.blendpixel:
+	# Call  : 0 ? image.blendpixel dst src
 
 
-Image.SetBuffer:
-	# Call  : 0 ? Image.SetBuffer img
+image.setbuffer:
+	# Call  : 0 ? image.setbuffer img
 	# Effect: Sets the buffer that we draw to.
 	mem.getargs.0 ? mem.getargs .img 1 .arg3 0 0
-	0 ? uint.set Image.Con.Buffer .img:0
+	0 ? uint.set image.con.buffer .img:0
 	0 0 .arg3:0
 
 
-Image.DrawRect:
+image.drawrect:
 	mem.getargs.0 ? mem.getargs .x 2 .y 2 .w 2 .h 2 .arg6 0 0
 	0 ? string.print string.int .x 32 string.int .y 32 string.int .w 32 string.int .h 10 0
 	# if w=0: abort
@@ -5222,6 +5287,7 @@ Version History
 TODO
 
 
+Allow memory allocation to handle non 64-bit mods.
 Add mem.alloclen to return the allocated size of a block.
 Replace alloc hash table with AVL tree.
 	Find the smallest block that will fit an allocation.
