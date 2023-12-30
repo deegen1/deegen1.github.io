@@ -503,7 +503,7 @@ class SICO {
 
 	run(insts,time) {
 		// Run SICO while insts>0 and performance.now()<time.
-		if ((typeof SICO_fast_run)!=="undefined") {return SICO_fast_run(this,insts,time);}
+		if ((typeof SICO_Fast_run)!=="undefined") {return SICO_Fast_run(this,insts,time);}
 		if (insts===undefined) {insts=Infinity;}
 		if (time ===undefined) {time =Infinity;}
 		var ip=this.ip;
