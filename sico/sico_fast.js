@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-sico_fast.js - v1.01
+sico_fast.js - v1.02
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -35,13 +35,11 @@ Memory layout:
 TODO
 
 
-wasm not loading in chrome
 create a wasm object
 reload if source changes
 use envlen, memlen, iolen, hlilen
-Allow sleeping
+allow sleeping
 Speed up drawimage byte shifting, add another IO buffer
-hlimap shrink after setting
 
 
 */
@@ -51,20 +49,26 @@ hlimap shrink after setting
 /* jshint curly: true    */
 
 
-function SICO_med_run(st,insts,time) {
+//--------------------------------------------------------------------------------
+// Pure Javascript Fallback
+
+
+function SICOUnrollRun(sico,insts,time) {
 	// This version of run() unrolls several operations to speed things up.
 	// It's 53 times faster than using bigint functions, but slower than wasm.
-	if (st.state!==st.RUNNING) {return;}
+	if (sico.state!==sico.RUNNING) {return;}
 	if (insts===undefined) {insts=Infinity;}
 	if (time ===undefined) {time =Infinity;}
-	var big=Object.is(st.oldmem,st.mem)-1;
-	var iphi=Number(st.ip>>32n),iplo=Number(st.ip&0xffffffffn);
-	var modhi=Number(st.mod>>32n),modlo=Number(st.mod&0xffffffffn);
-	var memh=st.memh,meml=st.meml;
-	var alloc=Number(st.alloc),alloc2=alloc-2;
+	var fast=sico.fast;
+	if (fast ===undefined) {sico.fast=fast={};}
+	var big=Object.is(fast.mem,sico.mem)-1;
+	var iphi=Number(sico.ip>>32n),iplo=Number(sico.ip&0xffffffffn);
+	var modhi=Number(sico.mod>>32n),modlo=Number(sico.mod&0xffffffffn);
+	var memh=fast.memh,meml=fast.meml;
+	var alloc=Number(sico.alloc),alloc2=alloc-2;
 	var ahi,alo,chi,clo;
 	var bhi,blo,mbhi,mblo;
-	var ip,a,b,c,ma,mb,mem;
+	var ip,a,b,ma,mb,mem;
 	var i,timeiters=0;
 	while (insts>0) {
 		// Periodically check if we've run for too long.
@@ -72,44 +76,43 @@ function SICO_med_run(st,insts,time) {
 			if (performance.now()>=time) {break;}
 			timeiters=2048;
 		}
-		if (st.sleep!==null) {
+		if (sico.sleep!==null) {
 			// If sleeping for longer than the time we have, abort.
-			if (st.sleep>=time) {break;}
+			if (sico.sleep>=time) {break;}
 			// If we're sleeping for more than 4ms, defer until later.
-			var sleep=st.sleep-performance.now();
+			var sleep=sico.sleep-performance.now();
 			if (sleep>4 && time<Infinity) {
-				setTimeout(st.run.bind(st,insts,time),sleep-2);
+				setTimeout(sico.run.bind(sico,insts,time),sleep-2);
 				break;
 			}
 			// Busy wait.
-			while (performance.now()<st.sleep) {}
-			st.sleep=null;
+			while (performance.now()<sico.sleep) {}
+			sico.sleep=null;
 			timeiters=0;
 		}
 		// Execute using bigints.
 		if (big!==0) {
 			big=0;
-			ip=st.uint((BigInt(iphi)<<32n)+BigInt(iplo));
-			a =st.getmem(ip++);
-			b =st.getmem(ip++);
-			c =st.getmem(ip++);
-			ma=st.getmem(a);
-			mb=st.getmem(b);
-			if (ma<=mb) {ip=c;}
-			st.setmem(a,ma-mb);
-			mem=st.mem;
-			if (!Object.is(st.oldmem,mem)) {
-				st.oldmem=mem;
+			ip=(BigInt(iphi)<<32n)+BigInt(iplo);
+			a =sico.getmem(ip++);
+			b =sico.getmem(ip++);
+			ma=sico.getmem(a);
+			mb=sico.getmem(b);
+			ip=ma<=mb?sico.getmem(ip):((ip+1n)%sico.mod);
+			sico.setmem(a,ma-mb);
+			mem=sico.mem;
+			if (!Object.is(fast.mem,mem)) {
+				fast.mem=mem;
 				var endian=(new Uint32Array((new BigUint64Array([4n])).buffer))[0];
-				st.memh=memh=new Uint32Array(mem.buffer,mem.byteOffset+  endian);
-				st.meml=meml=new Uint32Array(mem.buffer,mem.byteOffset+4-endian);
-				alloc=Number(st.alloc);
+				fast.memh=memh=new Uint32Array(mem.buffer,mem.byteOffset+  endian);
+				fast.meml=meml=new Uint32Array(mem.buffer,mem.byteOffset+4-endian);
+				alloc=Number(sico.alloc);
 				alloc2=alloc-2;
 			}
 			iphi=Number(ip>>32n);
 			iplo=Number(ip&0xffffffffn);
 			insts--;
-			if (st.state!==st.RUNNING) {break;}
+			if (sico.state!==sico.RUNNING) {break;}
 			continue;
 		}
 		// Load a, b, and c.
@@ -156,8 +159,12 @@ function SICO_med_run(st,insts,time) {
 		memh[i]=mbhi;
 		insts--;
 	}
-	st.ip=st.uint((BigInt(iphi)<<32n)+BigInt(iplo));
+	sico.ip=(BigInt(iphi)<<32n)+BigInt(iplo);
 }
+
+
+//--------------------------------------------------------------------------------
+// WASM
 
 
 function SICO_fast_resize(st) {
@@ -303,28 +310,27 @@ vTt379y9Pb+nXs7fmf8HtnzRypkmAAA=
 }
 
 
-function SICO_Fast_run(st,insts,time) {
+function SICOFastRun(st,insts,time) {
 	// On first run load the wasm module.
 	if (!Object.is(st.wasmbuf,st.mem)) {
 		st.wasmbuf=st.mem;
 		st.wasmmod=undefined;
 		SICO_fast_init(st);
 	}
-	if (st.state!==st.RUNNING) {
-		return;
-	}
 	if (st.wasmmod===undefined) {
 		// If wasm fails to load, use a backup.
-		return SICO_med_run(st,insts,time);
+		return SICOUnrollRun(st,insts,time);
+	}
+	if (st.state!==st.RUNNING) {
+		return;
 	}
 	SICO_fast_resize(st);
 	var lo32=st.wasmlo32,hi32=st.wasmhi32;
 	st.wasmio64[1]=st.ip;
+	hi32[6]=0;
 	if (insts===undefined || insts<0 || insts>0x80000000) {
-		hi32[6]=0;
 		lo32[6]=0xffffffff;
 	} else {
-		hi32[6]=0;
 		lo32[6]=insts;
 	}
 	if (time===undefined || time<0 || time>=Infinity) {
@@ -337,8 +343,8 @@ function SICO_Fast_run(st,insts,time) {
 	st.wasmmod.instance.exports.run();
 	st.ip=st.wasmio64[1];
 }
-	/*
-class SICO_Fast {
+/*
+class SICOFast {
 
 
 
@@ -375,8 +381,8 @@ Env:
 
 }
 
-function SICO_Fast_run(st,insts,time) {
+function sicofastinit(st,insts,time) {
 	if (st.fast===undefined) {new SICO_Fast(st);}
 	return st.fast.run(insts,time);
 }
-	*/
+*/
