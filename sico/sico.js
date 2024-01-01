@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-sico.js - v2.08
+sico.js - v2.09
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -117,8 +117,9 @@ class SICO {
 
 	static COMPLETE    =0;
 	static RUNNING     =1;
-	static ERROR_PARSER=2;
-	static ERROR_MEMORY=3;
+	static SLEEPING    =2;
+	static ERROR_PARSER=3;
+	static ERROR_MEMORY=4;
 
 
 	constructor(textout,canvas) {
@@ -133,6 +134,7 @@ class SICO {
 		this.io      =2n**63n;
 		this.lblroot =null;
 		this.sleep   =-Infinity;
+		this.timelimit=Infinity;
 		// Input/Output
 		this.textout =textout||null;
 		this.textpos =0;
@@ -152,6 +154,7 @@ class SICO {
 		this.alloc=0n;
 		this.lblroot=this.createlabel();
 		this.sleep=-Infinity;
+		this.timelimit=Infinity;
 		if (this.textout!==null) {
 			this.textout.value="";
 		}
@@ -209,14 +212,14 @@ class SICO {
 		// Draw an image to the canvas.
 		// Image structure is [width, height, pixel ptr].
 		var canvas=this.canvas;
-		var imgwidth =Number(this.getmem(imgaddr++));
-		var imgheight=Number(this.getmem(imgaddr++));
-		var imgdata  =Number(this.getmem(imgaddr))*8;
-		if (imgwidth>65536 || imgheight>65536 || !canvas) {
+		var imgwidth =Number(this.getmem(imgaddr   ));
+		var imgheight=Number(this.getmem(imgaddr+1n));
+		var imgdata  =Number(this.getmem(imgaddr+2n));
+		if (imgwidth>65536 || imgheight>65536 || canvas===null) {
 			return;
 		}
 		// Resize the canvas.
-		if (canvas.width!==imgwidth || canvas.height!==imgheight || !this.canvdata) {
+		if (canvas.width!==imgwidth || canvas.height!==imgheight || this.canvdata===null) {
 			canvas.width=imgwidth;
 			canvas.height=imgheight;
 			this.canvctx=canvas.getContext("2d");
@@ -226,16 +229,14 @@ class SICO {
 			}
 		}
 		// Map the ARGB bytes to their memory positions.
-		var e=new Uint8Array((new BigUint64Array([0x00ff01ff02ff03ffn])).buffer);
-		var [a,r,g,b]=[e.indexOf(0),e.indexOf(1),e.indexOf(2),e.indexOf(3)];
-		var imgpixels=imgwidth*imgheight*4;
-		imgdata=new Uint8Array(this.mem.buffer,imgdata+this.mem.byteOffset);
-		var dstdata=this.canvdata.data;
-		for (var i=0,j=0;i<imgpixels;i+=4,j+=8) {
-			dstdata[i  ]=imgdata[j+r];
-			dstdata[i+1]=imgdata[j+g];
-			dstdata[i+2]=imgdata[j+b];
-			dstdata[i+3]=imgdata[j+a];
+		var s=new Uint8Array((new BigUint64Array([0x03ff02ff01ff00ffn])).buffer);
+		var d=(new Uint32Array((new Uint8Array([2,1,0,3])).buffer))[0];
+		var buf=this.mem.buffer,off=this.mem.byteOffset+imgdata*8;
+		var [src0,src1,src2,src3]=Array.from([0,1,2,3],(i)=>new Uint8Array(buf,off+s.indexOf((d>>>(i*8))&255)));
+		var imgpixels=imgwidth*imgheight;
+		var dst=new Uint32Array(this.canvdata.data.buffer);
+		for (var i=0,j=0;i<imgpixels;i++,j+=8) {
+			dst[i]=(src3[j]<<24)|(src2[j]<<16)|(src1[j]<<8)|src0[j];
 		}
 		this.canvctx.putImageData(this.canvdata,0,0);
 	}
@@ -472,6 +473,11 @@ class SICO {
 				// Sleep.
 				var sleep=Number(val)/4294967.296;
 				this.sleep=performance.now()+sleep;
+				if (this.sleep>=this.timelimit) {
+					this.state=this.SLEEPING;
+				} else {
+					while (performance.now()<this.sleep) {}
+				}
 			} else if (addr===-7n) {
 				// Draw an image.
 				this.drawimage(val);
@@ -503,16 +509,18 @@ class SICO {
 
 	run(insts,time) {
 		// Run SICO while insts>0 and performance.now()<time.
-		if ((typeof SICOFastRun)!=="undefined") {return SICOFastRun(this,insts,time);}
 		if (insts===undefined) {insts=Infinity;}
 		if (time ===undefined) {time =Infinity;}
+		this.timelimit=time;
+		if (this.state===this.SLEEPING) {
+			if (this.sleep>=time) {return;}
+			while (performance.now()<this.sleep) {}
+			this.state=this.RUNNING;
+		}
+		if ((typeof SICOFastRun)!=="undefined") {return SICOFastRun(this,insts,time);}
 		var ip=this.ip;
 		var a,b,c,ma,mb,now;
-		for (;insts>0 && this.state===this.RUNNING;insts--) {
-			// Check if we need to sleep or stop.
-			now=performance.now();
-			if (now>=time || this.sleep>=time) {break;}
-			if (now<this.sleep) {continue;}
+		for (;this.state===this.RUNNING && insts>0 && performance.now()<time;insts--) {
 			// Main instruction.
 			a =this.getmem(ip++);
 			b =this.getmem(ip++);

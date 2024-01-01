@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-editor.js - v1.06
+editor.js - v1.07
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -37,7 +37,7 @@ function SicoInitEditor() {
 		// update for 12ms in the future. This will give the browser time to handle events
 		// and spend most of our time executing SICO instructions.
 		var runtext;
-		if (sico.state!==sico.RUNNING) {
+		if (sico.state!==sico.RUNNING && sico.state!==sico.SLEEPING) {
 			running=0;
 			runtext="&#9654;&nbsp;&nbsp;&nbsp;Run";
 			if (sico.state!==sico.COMPLETE) {
@@ -62,7 +62,7 @@ function SicoInitEditor() {
 	// Setup the run button.
 	if (runbutton!==null) {
 		runbutton.onclick=function() {
-			if (sico.state===sico.RUNNING) {
+			if (sico.state===sico.RUNNING || sico.state===sico.SLEEPING) {
 				running=1-running;
 			} else {
 				sico.parseassembly(input.value);

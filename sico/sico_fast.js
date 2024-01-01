@@ -12,7 +12,7 @@ Notes
 
 
 Webassembly acceleration for SICO.
-SICO.run() will call SICO_fast_run() automatically if it's detected.
+SICO.run() will call SICOFastRun() automatically if it's detected.
 
 
           Mode     |   Time
@@ -26,20 +26,33 @@ SICO.run() will call SICO_fast_run() automatically if it's detected.
 Memory layout:
 
 
-     +-----+-----+----+-----+
-     | env | mem | IO | HLI |
-     +-----+-----+----+-----+
+     +-----+-----+-----+-----+
+     | env | mem | buf | HLI |
+     +-----+-----+-----+-----+
+
+
+Environment variables:
+
+
+     0 envlen
+     1 memlen
+     2 buflen
+     3 hlilen
+     4 mod
+     5 IO start
+     6 ip
+     7 instruction limit
+     8 IO 1
+     9 IO 2
 
 
 --------------------------------------------------------------------------------
 TODO
 
 
-create a wasm object
-reload if source changes
-use envlen, memlen, iolen, hlilen
-allow sleeping
+drawimage: 0.0094s, 11.44s total
 Speed up drawimage byte shifting, add another IO buffer
+https://developer.mozilla.org/en-US/docs/Web/API/ImageData/ImageData
 
 
 */
@@ -49,18 +62,16 @@ Speed up drawimage byte shifting, add another IO buffer
 /* jshint curly: true    */
 
 
-//--------------------------------------------------------------------------------
-// Pure Javascript Fallback
+//---------------------------------------------------------------------------------
+// Javascript Fallback
 
 
-function SICOUnrollRun(sico,insts,time) {
+function SICOFastJSRun(sico,insts,time) {
 	// This version of run() unrolls several operations to speed things up.
 	// It's 53 times faster than using bigint functions, but slower than wasm.
 	if (sico.state!==sico.RUNNING) {return;}
-	if (insts===undefined) {insts=Infinity;}
-	if (time ===undefined) {time =Infinity;}
 	var fast=sico.fast;
-	if (fast ===undefined) {sico.fast=fast={};}
+	if (fast===undefined) {sico.fast=fast={};}
 	var big=Object.is(fast.mem,sico.mem)-1;
 	var iphi=Number(sico.ip>>32n),iplo=Number(sico.ip&0xffffffffn);
 	var modhi=Number(sico.mod>>32n),modlo=Number(sico.mod&0xffffffffn);
@@ -75,20 +86,6 @@ function SICOUnrollRun(sico,insts,time) {
 		if (--timeiters<=0) {
 			if (performance.now()>=time) {break;}
 			timeiters=2048;
-		}
-		if (sico.sleep!==null) {
-			// If sleeping for longer than the time we have, abort.
-			if (sico.sleep>=time) {break;}
-			// If we're sleeping for more than 4ms, defer until later.
-			var sleep=sico.sleep-performance.now();
-			if (sleep>4 && time<Infinity) {
-				setTimeout(sico.run.bind(sico,insts,time),sleep-2);
-				break;
-			}
-			// Busy wait.
-			while (performance.now()<sico.sleep) {}
-			sico.sleep=null;
-			timeiters=0;
 		}
 		// Execute using bigints.
 		if (big!==0) {
@@ -163,85 +160,30 @@ function SICOUnrollRun(sico,insts,time) {
 }
 
 
-//--------------------------------------------------------------------------------
+//---------------------------------------------------------------------------------
 // WASM
 
 
-function SICO_fast_resize(st) {
-	// wasm has its own sandboxed memory, so allocate memory in wasm and remap our
-	// IO buffer and SICO memory into it. If mem.byteOffset=0, SICO's memory has been
-	// reallocated.
-	if (st.mem.byteOffset!==0) {return;}
-	var wasm=st.wasmmod;
-	var io64=st.wasmio64,lo32=st.wasmlo32,hi32=st.wasmhi32;
-	var wasmmem=wasm.instance.exports.memory;
-	var iolen=8,hlilen=st.wasmhli.length,memlen=st.mem.length;
-	var pagebytes=65536;
-	var pages=Math.ceil((iolen*8+hlilen*2+memlen*8)/pagebytes);
-	pages-=Math.floor(wasmmem.buffer.byteLength/pagebytes);
-	if (pages>0) {wasmmem.grow(pages);}
-	var endian=(new Uint32Array((new BigUint64Array([4n])).buffer))[0];
-	var off=0,newhli,newmem;
-	io64  =new BigUint64Array(wasmmem.buffer,off,iolen ); off+=  io64.byteLength;
-	newmem=new BigUint64Array(wasmmem.buffer,off,memlen); off+=newmem.byteLength;
-	newhli=new    Uint16Array(wasmmem.buffer,off,hlilen); off+=newhli.byteLength;
-	hi32  =new    Uint32Array(wasmmem.buffer,  endian,iolen*2);
-	lo32  =new    Uint32Array(wasmmem.buffer,4-endian,iolen*2);
-	newhli.set(st.wasmhli,0);
-	newmem.set(st.mem,0);
-	st.wasmio64=io64;
-	st.wasmhi32=hi32;
-	st.wasmlo32=lo32;
-	st.wasmbuf=newmem;
-	st.mem=newmem;
-	io64[0]=st.mod;
-	io64[2]=st.alloc;
-	io64[5]=BigInt(hlilen);
-	st.print("resize: "+st.alloc+"\n");
+function SICOFastInit(st) {
+	st.wasm={
+		env64: null,
+		envh32:null,
+		envl32:null,
+		//memh32:null,
+		//meml32:null,
+		//buf32: null,
+		//buf64: null,
+		hli16: [],
+		module:undefined,
+		oldlbl:null,
+		oldmem:null
+	};
+	SICOFastLoadHLI(st);
+	SICOFastLoadWASM(st);
 }
 
 
-async function SICO_fast_init(st) {
-	// sico_wasm.c -> compile -> gzip -> base64
-	var wasmstr=`
-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
-vTt379y9Pb+nXs7fmf8HtnzRypkmAAA=
-	`;
-	var gzipbytes=Uint8Array.from(atob(wasmstr),(c)=>c.codePointAt(0));
-	var gzipstream=new Blob([gzipbytes]).stream();
-	var decstream=gzipstream.pipeThrough(new DecompressionStream("gzip"));
-	var decblob=await new Response(decstream).blob();
-	var wasmbytes=new Uint8Array(await decblob.arrayBuffer());
+function SICOFastLoadHLI(st) {
 	// Find high-level intercepts.
 	var hlitable=[
 		// 00xx - none
@@ -287,102 +229,144 @@ vTt379y9Pb+nXs7fmf8HtnzRypkmAAA=
 			hlimap[addr]=hliobj[1];
 		}
 	}
-	st.wasmhli=hlimap;
+	st.wasm.hli16=hlimap;
+	st.wasm.oldlbl=st.lblroot;
+}
+
+
+async function SICOFastLoadWASM(st) {
+	// Attempt to load the WebAssembly program.
+	// sico_wasm.c -> compile -> gzip -> base64
+	var wasmstr=`
+		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
+		9f8DVQwW/VMyAAA=
+	`;
+	var gzipbytes=Uint8Array.from(atob(wasmstr),(c)=>c.codePointAt(0));
+	var gzipstream=new Blob([gzipbytes]).stream();
+	var decstream=gzipstream.pipeThrough(new DecompressionStream("gzip"));
+	var decblob=await new Response(decstream).blob();
+	var wasmbytes=new Uint8Array(await decblob.arrayBuffer());
 	// Set up IO functions.
-	function getmem() {
-		var io64=st.wasmio64;
-		io64[7]=st.getmem(io64[6]);
+	function getmemjs() {
+		var env64=st.wasm.env64;
+		env64[9]=st.getmem(env64[8]);
 	}
-	function setmem() {
-		st.setmem(st.wasmio64[6],st.wasmio64[7]);
-		SICO_fast_resize(st);
-		st.wasmhi32[14]=0;
-		st.wasmlo32[14]=st.state!==st.RUNNING || st.mem.byteOffset===0;
+	function setmemjs() {
+		st.setmem(st.wasm.env64[8],st.wasm.env64[9]);
+		if (!Object.is(st.wasm.oldmem,st.mem)) {
+			SICOFastResize(st);
+		}
+		st.wasm.envh32[18]=0;
+		st.wasm.envl32[18]=st.state!==st.RUNNING || st.mem.byteOffset===0;
 	}
-	function gettime() {
-		st.wasmhi32[14]=0;
-		st.wasmlo32[14]=performance.now();
+	function timelimitjs() {
+		st.wasm.envh32[18]=0;
+		st.wasm.envl32[18]=performance.now()>=st.timelimit;
 	}
-	var imports={getmem,setmem,gettime};
+	var imports={getmemjs,setmemjs,timelimitjs};
 	WebAssembly.instantiate(wasmbytes,{env:imports}).then(
-		(mod)=>st.wasmmod=mod,
+		(mod)=>st.wasm.module=mod,
 	);
+}
+
+
+function SICOFastResize(st) {
+	// wasm has its own sandboxed memory, so allocate memory in wasm and remap our
+	// IO buffer and SICO memory into it. If mem.byteOffset=0, SICO's memory has been
+	// reallocated.
+	var module=st.wasm.module;
+	var wasmmem=module.instance.exports.memory;
+	var envlen=10,hlilen=st.wasm.hli16.length,memlen=st.mem.length;
+	var pagebytes=65536;
+	var pages=Math.ceil((envlen*8+hlilen*2+memlen*8)/pagebytes);
+	pages-=Math.floor(wasmmem.buffer.byteLength/pagebytes);
+	if (pages>0) {wasmmem.grow(pages);}
+	var endian=(new Uint32Array((new BigUint64Array([4n])).buffer))[0];
+	var off=0,newhli,newmem,env64,envh32,envl32;
+	env64 =new BigUint64Array(wasmmem.buffer,off,envlen); off+= env64.byteLength;
+	newmem=new BigUint64Array(wasmmem.buffer,off,memlen); off+=newmem.byteLength;
+	newhli=new    Uint16Array(wasmmem.buffer,off,hlilen); off+=newhli.byteLength;
+	envh32=new    Uint32Array(wasmmem.buffer,  endian,envlen*2);
+	envl32=new    Uint32Array(wasmmem.buffer,4-endian,envlen*2);
+	newhli.set(st.wasm.hli16,0);
+	if (st.mem.byteOffset===0) {newmem.set(st.mem,0);}
+	st.wasm.env64 =env64;
+	st.wasm.envh32=envh32;
+	st.wasm.envl32=envl32;
+	st.mem=newmem;
+	st.wasm.oldmem=st.mem;
+	env64[0]=BigInt(envlen);
+	env64[1]=BigInt(memlen);
+	env64[2]=0n;
+	env64[3]=BigInt(hlilen);
+	env64[4]=st.mod;
+	env64[5]=st.io;
 }
 
 
 function SICOFastRun(st,insts,time) {
 	// On first run load the wasm module.
-	if (!Object.is(st.wasmbuf,st.mem)) {
-		st.wasmbuf=st.mem;
-		st.wasmmod=undefined;
-		SICO_fast_init(st);
+	if (st.wasm===undefined || !Object.is(st.wasm.oldlbl,st.lblroot)) {
+		SICOFastInit(st);
 	}
-	if (st.wasmmod===undefined) {
+	var module=st.wasm.module;
+	if (module===undefined) {
 		// If wasm fails to load, use a backup.
-		return SICOUnrollRun(st,insts,time);
+		return SICOFastJSRun(st,insts,time);
 	}
 	if (st.state!==st.RUNNING) {
 		return;
 	}
-	SICO_fast_resize(st);
-	var lo32=st.wasmlo32,hi32=st.wasmhi32;
-	st.wasmio64[1]=st.ip;
-	hi32[6]=0;
-	if (insts===undefined || insts<0 || insts>0x80000000) {
-		lo32[6]=0xffffffff;
+	if (!Object.is(st.wasm.oldmem,st.mem)) {
+		SICOFastResize(st);
+	}
+	var env64=st.wasm.env64;
+	env64[6]=st.ip;
+	if (insts<0 || insts>0x80000000) {
+		env64[7]=0xffffffffffffffffn;
 	} else {
-		lo32[6]=insts;
+		env64[7]=BigInt(insts);
 	}
-	if (time===undefined || time<0 || time>=Infinity) {
-		hi32[8]=0xffffffff;
-		lo32[8]=0xffffffff;
-	} else {
-		hi32[8]=0;
-		lo32[8]=time;
-	}
-	st.wasmmod.instance.exports.run();
-	st.ip=st.wasmio64[1];
-}
-/*
-class SICOFast {
-
-
-
-Env:
- 0 envlen (8*len)
- 1 memlen (8*len)
- 2 buflen (8*len)
- 3 hlilen (2*len)
- 4 ip
- 5 mod
- 6 insts
- 7 time
- 8 sleep
- 9 IO 1
-10 IO 2
-
-
-	constructor(sico) {
-		sico.fast=this;
-		this.sico=sico;
-		this.envlen=8;
-		this.memlen=sico.alloc;
-		this.iolen =0;
-		this.hlilen=0;
-		this.hlimap=Uint16Array(0);
-		this.oldmem=undefined;
-		this.oldsrc=undefined;
-	}
-
-
-	async function loadwasm() {
-	}
-
-
+	module.instance.exports.run();
+	st.ip=st.wasm.env64[6];
 }
 
-function sicofastinit(st,insts,time) {
-	if (st.fast===undefined) {new SICO_Fast(st);}
-	return st.fast.run(insts,time);
-}
-*/
