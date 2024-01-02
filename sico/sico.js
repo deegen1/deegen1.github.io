@@ -519,7 +519,7 @@ class SICO {
 		}
 		if ((typeof SICOFastRun)!=="undefined") {return SICOFastRun(this,insts,time);}
 		var ip=this.ip;
-		var a,b,c,ma,mb,now;
+		var a,b,c,ma,mb;
 		for (;this.state===this.RUNNING && insts>0 && performance.now()<time;insts--) {
 			// Main instruction.
 			a =this.getmem(ip++);
