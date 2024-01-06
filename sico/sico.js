@@ -129,7 +129,7 @@ class SICO {
 		this.statestr="";
 		this.ip      =0n;
 		this.mem     =[];
-		this.alloc   =0n;
+		this.memlen  =0n;
 		this.mod     =2n**64n;
 		this.io      =2n**63n;
 		this.lblroot =null;
@@ -151,7 +151,7 @@ class SICO {
 		this.statestr="";
 		this.ip=0n;
 		this.mem=[];
-		this.alloc=0n;
+		this.memlen=0n;
 		this.lblroot=this.createlabel();
 		this.sleep=-Infinity;
 		this.timelimit=Infinity;
@@ -436,7 +436,7 @@ class SICO {
 	getmem(addr) {
 		// Return the memory value at addr.
 		addr=this.uint(addr);
-		if (addr<this.alloc) {
+		if (addr<this.memlen) {
 			return this.mem[addr];
 		} else if (addr>=this.io) {
 			// This is a special IO address.
@@ -486,22 +486,22 @@ class SICO {
 		}
 		val=this.uint(val);
 		var mem=this.mem;
-		if (addr>=this.alloc) {
+		if (addr>=this.memlen) {
 			// If we're writing to an address outside of our memory, attempt to resize it.
 			if (!val) {return;}
-			var alloc=this.io;
-			while ((alloc>>1n)>addr) {alloc>>=1n;}
+			var memlen=this.io;
+			while ((memlen>>1n)>addr) {memlen>>=1n;}
 			// Attempt to allocate.
 			try {
-				mem=new BigUint64Array(Number(alloc));
+				mem=new BigUint64Array(Number(memlen));
 			} catch(error) {
 				this.state=this.ERROR_MEMORY;
 				this.statestr="Failed to allocate memory.\nIndex: "+addr+"\n";
 				return;
 			}
-			mem.set(this.mem,0);
+			mem.set(this.mem);
 			this.mem=mem;
-			this.alloc=alloc;
+			this.memlen=memlen;
 		}
 		mem[addr]=val;
 	}
