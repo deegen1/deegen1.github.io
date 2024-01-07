@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-sico_fast.js - v1.03
+sico_fast.js - v1.05
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -26,9 +26,9 @@ SICO.run() will call SICOFastRun() automatically if it's detected.
 Memory layout:
 
 
-     +-----+-----+-----+
-     | env | mem | HLI |
-     +-----+-----+-----+
+     +-------+-----+-----+-----+
+     | stack | env | mem | HLI |
+     +-------+-----+-----+-----+
 
 
 Environment variables:
@@ -202,11 +202,12 @@ function SICOFastLoadHLI(st) {
 		["uint.xor",0x010f],
 		["image.setpixel",0x060a]
 	];
+	var memlen=st.memlen;
 	var hlilen=0;
 	for (var i=hlitable.length-1;i>=0;i--) {
 		var hliobj=hlitable[i];
 		var addr=Number(st.findlabel(hliobj[0]));
-		if (addr<0x100000000 && hlilen<=addr) {
+		if (addr<memlen && hlilen<=addr) {
 			hlilen=addr+1;
 		}
 	}
@@ -227,47 +228,43 @@ async function SICOFastLoadWASM(st) {
 	// Attempt to load the WebAssembly program.
 	// sico_wasm.c -> compile -> gzip -> base64
 	var wasmstr=`
-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
-/wdxNkoFPTIAAA==
+		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
+		F+eG4IZeNgAA
 	`;
 	var gzipbytes=Uint8Array.from(atob(wasmstr),(c)=>c.codePointAt(0));
 	var gzipstream=new Blob([gzipbytes]).stream();
@@ -276,7 +273,9 @@ aH4WnsOFg1aPPMmd986OL5qtXp9aUGy2+v3W8ftHX1Drd0cX3cGFaHYa3ef+4w8fPnr46P3HF/Lk44eP
 	var wasmbytes=new Uint8Array(await decblob.arrayBuffer());
 	// Set up IO functions.
 	function dbgprintjs(h,l) {
-		console.log("Debug:",(BigInt(h>>>0)<<32n)+BigInt(l>>>0));
+		var s="Debug: "+((BigInt(h>>>0)<<32n)+BigInt(l>>>0))+"\n";
+		console.log(s);
+		st.print(s);
 	}
 	function getmemjs() {
 		var env64=st.wasm.env64;
@@ -304,25 +303,23 @@ function SICOFastResize(st) {
 	// wasm has its own sandboxed memory, so allocate memory in wasm and remap our
 	// IO buffer and SICO memory into it. If mem.byteOffset=0, SICO's memory has been
 	// reallocated.
-	//var mems=st.mem.slice();
 	var module=st.wasm.module;
+	var off=module.instance.exports.getheapbase();
 	var wasmmem=module.instance.exports.memory;
 	var envlen=9,hlilen=st.wasm.hli16.length,memlen=st.mem.length;
 	var pagebytes=65536;
-	var pages=Math.ceil((envlen*8+memlen*8+hlilen*2)/pagebytes);
-	console.log("resize:",(envlen*8+memlen*8+hlilen*2));
+	var pages=Math.ceil((off+envlen*8+memlen*8+hlilen*2)/pagebytes);
 	pages-=Math.floor(wasmmem.buffer.byteLength/pagebytes);
 	if (pages>0) {wasmmem.grow(pages);}
 	var endian=(new Uint32Array((new BigUint64Array([4n])).buffer))[0];
-	var off=0,newhli,newmem,env64,envh32,envl32;
+	var newhli,newmem,env64,envh32,envl32;
 	env64 =new BigUint64Array(wasmmem.buffer,off,envlen); off+= env64.byteLength;
 	newmem=new BigUint64Array(wasmmem.buffer,off,memlen); off+=newmem.byteLength;
 	newhli=new    Uint16Array(wasmmem.buffer,off,hlilen); off+=newhli.byteLength;
 	envh32=new Uint32Array(env64.buffer,env64.byteOffset+  endian);
 	envl32=new Uint32Array(env64.buffer,env64.byteOffset+4-endian);
 	newhli.set(st.wasm.hli16);
-	if (st.mem.length!==0) {newmem.set(st.mem,0,memlen);}
-	//newmem.set(mems);
+	if (st.mem.length!==0) {newmem.set(st.mem);}
 	st.wasm.env64 =env64;
 	st.wasm.envh32=envh32;
 	st.wasm.envl32=envl32;
@@ -342,11 +339,10 @@ function SICOFastRun(st,insts,time) {
 		SICOFastInit(st);
 	}
 	var module=st.wasm.module;
-	//if (module===null) {
-		// If wasm fails to load, use a backup.
-	//	return;
+	if (module===null) {
+		// Use a backup until the module loads.
 		return SICOFastJSRun(st,insts,time);
-	//}
+	}
 	if (st.state!==st.RUNNING) {
 		return;
 	}
@@ -355,7 +351,7 @@ function SICOFastRun(st,insts,time) {
 	}
 	var env64=st.wasm.env64;
 	env64[5]=st.ip;
-	env64[6]=1000n;//(insts<0 || insts>0x80000000)?0xffffffffffffffffn:BigInt(insts);
+	env64[6]=(insts<0 || insts>0x80000000)?0xffffffffffffffffn:BigInt(insts);
 	module.instance.exports.run();
 	st.ip=st.wasm.env64[5];
 }

@@ -61,8 +61,8 @@ display an error message and exit.
          uint.sico  |    43
           int.sico  |  1966
        random.sico  |  3334
-       string.sico  |  3942
-       memory.sico  |  4494
+       string.sico  |  3943
+       memory.sico  |  4496
 
 
 |#
@@ -3978,6 +3978,7 @@ random.shuffle:
 	.narr:0
 	.len:0
 
+
 #|==============================================================================
 
 
@@ -4529,6 +4530,7 @@ string.input:
 	.memrem:0
 	.memlen:0
 	.ret2:0
+
 
 #|==============================================================================
 
@@ -6113,4 +6115,5 @@ mem.alloc.start:
 
 # The end of the universe and the start of unused memory. Nothing should come
 # after this label.
+
 

@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v1.12
+physics.js - v1.13
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -2246,7 +2246,7 @@ class PhyScene3 {
 		pos=new PhyVec([viewwidth*0.5,viewheight*0.5]);
 		var atom=world.createatom(pos,0.03,walltype);
 		atom.userdata={spawn:spawn,type:1};
-		//var playertype=world.createatomtype(0.01,2.0,0.98);
+		// var playertype=world.createatomtype(0.01,2.0,0.98);
 		// playertype.gravity=new PhyVec([0,0]);
 		/*this.playertype=playertype;
 		pos=new PhyVec([viewwidth*0.5,viewheight*0.33]);
@@ -2269,37 +2269,6 @@ class PhyScene3 {
 		var rnd=new Random();
 		world.update();
 		drawfill(imgdata,imgwidth,imgheight,0,0,0);
-		// Convert mouse to world space.
-		/*var mpos=input.getmousepos();
-		var maxx=imgwidth/imgheight;
-		if (mpos[0]>=0 && mpos[0]<1 && mpos[1]>=0 && mpos[1]<1) {
-			this.mouse.set(0,mpos[0]*maxx);
-			this.mouse.set(1,mpos[1]);
-		}
-		if (input.getkeyhit(input.MOUSE.LEFT)) {
-			world.createbox(this.mouse,5,0.015,this.playertype);
-		}*/
-		// Move the player.
-		/*var link=world.atomlist.head;
-		while (link!==null) {
-			var atom=link.obj;
-			var data=atom.userdata;
-			if (data===undefined || data===null) {
-				data={velcolor:0};
-				atom.userdata=data;
-			}
-			var vel=atom.vel.mag();
-			data.velcolor*=0.99;
-			if (data.velcolor<vel) {
-				data.velcolor=vel;
-			}
-			var u=data.velcolor*(256*4);
-			u=Math.floor(u<255?u:255);
-			var pos=atom.pos.elem;
-			var rad=atom.rad*scale;
-			drawcircle(imgdata,imgwidth,imgheight,pos[0]*scale,pos[1]*scale,rad,u,0,255-u);
-			link=link.next;
-		}*/
 		var time=performance.now()/1000.0;
 		var cutoff=time-5.0;
 		var energymax=256.0*0.95;
@@ -2313,7 +2282,7 @@ class PhyScene3 {
 			var velmag=atom.vel.mag();
 			var u=0;
 			if (data.type===0) {
-				//data.vel
+				// data.vel
 				data.velcolor*=0.99;
 				if (data.velcolor<velmag) {
 					data.velcolor=velmag;
