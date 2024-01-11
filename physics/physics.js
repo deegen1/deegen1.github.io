@@ -1941,13 +1941,13 @@ class PhyScene2 {
 	setup() {
 		var canvas=this.canvas;
 		var world=this.world;
-		world.steps=2;
+		world.steps=5;
 		var viewheight=1.0,viewwidth=canvas.width/canvas.height;
 		var walltype=world.createatomtype(1.0,Infinity,1.0);
 		var normtype=world.createatomtype(0.01,1.0,0.98);
 		var rnd=new Random(2);
 		var pos=new PhyVec(world.dim);
-		for (var p=0;p<1000;p++) {
+		for (var p=0;p<3000;p++) {
 			pos.set(0,rnd.getf64()*viewwidth);
 			pos.set(1,rnd.getf64()*viewheight);
 			world.createatom(pos,0.007,normtype);
@@ -1974,6 +1974,7 @@ class PhyScene2 {
 		this.playeratom=world.createatom(pos,0.035,playertype);
 		this.mouse.copy(pos);
 		this.frametime=performance.now();
+		console.log(world.atomlist.count);
 	}
 
 
