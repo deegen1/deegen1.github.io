@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v1.13
+physics.js - v1.15
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -11,8 +11,30 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
-sort instead of hash bucket
-herding game
+PhyVec.convert, handles arrays or vectors
+groups
+	center
+	set vel
+	add vel
+	add rotation
+	rotate
+	scale
+	move
+	copy
+gravity
+	vmul
+	vpmul
+	pmul
+	pvmul
+
+glow effect
+starfish
+limbs stick to things
+blob, expands bonds towards you
+bomb that deletes things
+enemy that spins and sheds its outer lining
+boss room, filled with objects, boss spins around and hits them
+laser that heats up atoms and makes them vibrate
 
 
 */
@@ -32,7 +54,7 @@ function PhyAssert(condition,data) {
 
 
 //---------------------------------------------------------------------------------
-// Input - v1.09
+// Input - v1.10
 
 
 class Input {
@@ -66,7 +88,7 @@ class Input {
 			}
 		}
 		this.active=null;
-		this.mousepos=[0,0];
+		this.mousepos=[-Infinity,-Infinity];
 		this.mousez=0;
 		this.touchfocus=0;
 		this.clickpos=[0,0];
@@ -231,9 +253,10 @@ class Input {
 			var focus=state.focus;
 			if (focus!==null) {
 				var touch=evt.touches.item(0);
-				var x=touch.pageX-focus.offsetLeft-focus.clientLeft;
-				var y=touch.pageY-focus.offsetTop -focus.clientTop;
-				if (x<0 || x>=focus.clientWidth || y<0 || y>=focus.clientHeight) {
+				var rect=this.getrect(focus);
+				var x=touch.pageX-rect.x;
+				var y=touch.pageY-rect.y;
+				if (x<0 || x>=rect.w || y<0 || y>=rect.h) {
 					state.touchfocus=0;
 				}
 			}
@@ -262,11 +285,25 @@ class Input {
 	}
 
 
+	getrect(elem) {
+		var width  =elem.clientWidth;
+		var height =elem.clientHeight;
+		var offleft=elem.clientLeft
+		var offtop =elem.clientTop;
+		while (elem!==null) {
+			offleft+=elem.offsetLeft;
+			offtop +=elem.offsetTop;
+			elem=elem.offsetParent;
+		}
+		return {x:offleft,y:offtop,w:width,h:height};
+	}
+
 	setmousepos(x,y) {
 		var focus=this.focus;
 		if (focus!==null) {
-			x=(x-focus.offsetLeft-focus.clientLeft)/focus.clientWidth;
-			y=(y-focus.offsetTop -focus.clientTop )/focus.clientHeight;
+			var rect=this.getrect(focus);
+			x=(x-rect.x)/rect.w;
+			y=(y-rect.y)/rect.h;
 		}
 		this.mousepos[0]=x;
 		this.mousepos[1]=y;
@@ -1931,7 +1968,7 @@ function drawline(imgdata,imgwidth,imgheight,x0,y0,x1,y1,r,g,b) {
 }
 
 
-class PhyScene4 {
+class PhyScene {
 
 	constructor(divid) {
 		// Swap the <div> with <canvas>
@@ -2040,8 +2077,15 @@ class PhyScene4 {
 		// Move the player.
 		var player=this.playeratom;
 		var dir=this.mouse.sub(player.pos);
-		var move=dir.sqr()>1e-6;
-		player.vel=dir.scale(move?0.2/world.deltatime:0);
+		var mag=dir.sqr();
+		if (mag>=Infinity) {
+			player.vel.fill(0);
+			player.pos.copy(this.mouse);
+		} else if (mag>1e-6) {
+			player.vel=dir.scale(0.2/world.deltatime);
+		} else {
+			player.vel.fill(0);
+		}
 		var link=world.atomlist.head;
 		var count=0;
 		while (link!==null) {

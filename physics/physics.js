@@ -11,10 +11,8 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
-use an interaction matrix
-mathworld.wolfram.com/NURBSCurve.html
-
-frame time = 0.0072 + steps*0.002424
+sort instead of hash bucket
+herding game
 
 
 */
@@ -509,6 +507,7 @@ class Random {
 class PhyVec {
 	static rnd=new Random();
 
+
 	constructor(elem,nocopy) {
 		if (elem===undefined) {
 			this.elem=[];
@@ -552,6 +551,13 @@ class PhyVec {
 			var ue=this.elem,ve=v.elem,elems=ue.length;
 			for (var i=0;i<elems;i++) {ue[i]=ve[i];}
 		}
+		return this;
+	}
+
+
+	fill(x) {
+		var ue=this.elem,elems=ue.length;
+		for (var i=0;i<elems;i++) {ue[i]=x;}
 		return this;
 	}
 
@@ -1060,10 +1066,7 @@ class PhyAtom {
 		// acc+=gravity
 		// pos+=vel*dt1+acc*dt2
 		// vel =vel*dt0+acc*dt1
-		// var world=this.world;
-		// var bndmin=world.bndmin.elem;
-		// var bndmax=world.bndmax.elem;
-		var pe=this.pos.elem,ve=this.vel.elem;
+		/*var pe=this.pos.elem,ve=this.vel.elem;
 		var dim=pe.length,type=this.type,v,a;
 		var ae=this.acc.elem,ge=type.gravity;
 		ge=(ge===null?this.world.gravity:ge).elem;
@@ -1074,7 +1077,18 @@ class PhyAtom {
 			pe[i]+=v*dt1+a*dt2;
 			ve[i] =v*dt0+a*dt1;
 			ae[i] =0;
-			/*pos=pe[i];
+		}*/
+		var world=this.world;
+		var bndmin=world.bndmin.elem;
+		var bndmax=world.bndmax.elem;
+		var pe=this.pos.elem,ve=this.vel.elem;
+		var dim=pe.length,type=this.type;
+		var ae=this.acc.elem,ge=type.gravity;
+		ge=(ge===null?this.world.gravity:ge).elem;
+		var dt0=type.dt0,dt1=type.dt1,dt2=type.dt2;
+		var pos,vel,acc,rad=this.rad;
+		for (var i=0;i<dim;i++) {
+			pos=pe[i];
 			vel=ve[i];
 			acc=ae[i]+ge[i];
 			pos+=vel*dt1+acc*dt2;
@@ -1089,7 +1103,7 @@ class PhyAtom {
 			}
 			pe[i]=pos;
 			ve[i]=vel;
-			ae[i]=0;*/
+			ae[i]=0;
 		}
 	}
 
@@ -1102,10 +1116,10 @@ class PhyAtom {
 		var apos=a.pos.elem,bpos=b.pos.elem;
 		var dim=apos.length;
 		// Determine if atoms are overlapping.
-		var dist=0.0,dif,i,tmpvec=a.world.tmpvec.elem;
+		var dist=0.0,dif,i,norm=a.world.tmpvec.elem;
 		for (i=0;i<dim;i++) {
 			dif=bpos[i]-apos[i];
-			tmpvec[i]=dif;
+			norm[i]=dif;
 			dist+=dif*dif;
 		}
 		var rad=a.rad+b.rad;
@@ -1136,8 +1150,8 @@ class PhyAtom {
 			var avel=a.vel.elem,bvel=b.vel.elem;
 			var veldif=0.0;
 			for (i=0;i<dim;i++) {
-				tmpvec[i]*=dif;
-				veldif-=(bvel[i]-avel[i])*tmpvec[i];
+				norm[i]*=dif;
+				veldif-=(bvel[i]-avel[i])*norm[i];
 			}
 			veldif*=intr.elasticity;
 			if (veldif<0.0) {veldif=0.0;}
@@ -1146,7 +1160,7 @@ class PhyAtom {
 			var posdif=(rad-dist)*intr.push;
 			var aposmul=posdif*bmass,bposmul=posdif*amass;
 			for (i=0;i<dim;i++) {
-				dif=tmpvec[i];
+				dif=norm[i];
 				apos[i]-=dif*aposmul;
 				avel[i]-=dif*avelmul;
 				bpos[i]+=dif*bposmul;
@@ -1220,11 +1234,11 @@ class PhyBond {
 		// Get the distance and direction between the atoms.
 		var apos=a.pos.elem,bpos=b.pos.elem;
 		var dim=apos.length,i,dif;
-		var tmpvec=a.world.tmpvec.elem;
+		var norm=a.world.tmpvec.elem;
 		var dist=0.0;
 		for (i=0;i<dim;i++) {
 			dif=bpos[i]-apos[i];
-			tmpvec[i]=dif;
+			norm[i]=dif;
 			dist+=dif*dif;
 		}
 		// If the atoms are too close together, randomize the direction.
@@ -1241,7 +1255,7 @@ class PhyBond {
 		var amul=force*bmass,bmul=force*amass;
 		var avel=a.vel.elem,bvel=b.vel.elem;
 		for (i=0;i<dim;i++) {
-			dif=tmpvec[i];
+			dif=norm[i];
 			apos[i]-=dif*amul;
 			avel[i]-=dif*amul;
 			bpos[i]+=dif*bmul;
@@ -1484,11 +1498,12 @@ class PhyBroadphase {
 		}
 		// Hash cell coordinates and add to the map.
 		var cellmask=cellend;
+		cellmask|=cellmask>>>16;
+		cellmask|=cellmask>>>8;
+		cellmask|=cellmask>>>4;
+		cellmask|=cellmask>>>2;
+		cellmask|=cellmask>>>1;
 		var mapused=cellmask+1;
-		while (cellmask&mapused) {
-			cellmask|=mapused;
-			mapused=cellmask+1;
-		}
 		if (mapused>cellmap.length) {
 			cellmap=new Array(mapused);
 		}
@@ -1548,6 +1563,8 @@ class PhyWorld {
 		this.rnd=new Random();
 		this.gravity=new PhyVec(dim);
 		this.gravity.set(dim-1,0.24);
+		this.bndmin=new PhyVec(dim).fill(-Infinity);
+		this.bndmax=new PhyVec(dim).fill( Infinity);
 		this.atomtypelist=new PhyList();
 		this.atomlist=new PhyList();
 		this.bondlist=new PhyList();
@@ -2328,3 +2345,4 @@ class PhyScene3 {
 	}
 
 }
+

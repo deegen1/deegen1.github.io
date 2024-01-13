@@ -15,17 +15,46 @@
 			vertical-align:baseline;
 		}
 		body {
+			font-family:sans-serif,sans-serif;
+			overflow:hidden;
 			background-color:#000000;
-			width:100%;
-			height:100%;
+			width:100vw;
+			height:100vh;
 		}
 	</style>
 	<script src="./physics.js"></script>
 </head>
 <body>
-<a href="../index.html" style="color:#a08000;">Alec Dee's General Site</a><br>
-<canvas id="physmain" style="display:block;margin:auto;aspect-ratio:16/9 auto;height:98vh;">
-</canvas>
-<script>new PhyScene4("physmain");</script>
+
+<table style="width:100%;height:100%;">
+<tr><td style="text-align:center">
+	<a href="../index.html" style="color:#ffa500;">Alec Dee's General Site</a></td></tr>
+<tr><td>
+	<canvas id="physmain" style="display:block;margin:auto;">
+	</canvas>
+</td></tr>
+</table>
+<!-- Properly resize the canvas -->
+<script>
+(function() {
+	var phy=new PhyScene("physmain");
+	function resize() {
+		var canvas =phy.canvas;
+		var parent =canvas.parentElement;
+		var width  =window.innerWidth-parent.offsetLeft;
+		var height =window.innerHeight-parent.offsetTop;
+		var ratio  =canvas.height/canvas.width;
+		if (ratio<(height/width)) {
+			height=Math.floor(width*ratio);
+		} else {
+			width=Math.floor(height/ratio);
+		}
+		canvas.style.width=width+"px";
+		canvas.style.height=height+"px";
+	}
+	window.onresize=resize;
+	resize();
+})();
+</script>
 </body>
 </html>
