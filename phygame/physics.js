@@ -253,7 +253,7 @@ class Input {
 			var focus=state.focus;
 			if (focus!==null) {
 				var touch=evt.touches.item(0);
-				var rect=this.getrect(focus);
+				var rect=state.getrect(focus);
 				var x=touch.pageX-rect.x;
 				var y=touch.pageY-rect.y;
 				if (x<0 || x>=rect.w || y<0 || y>=rect.h) {
@@ -288,7 +288,7 @@ class Input {
 	getrect(elem) {
 		var width  =elem.clientWidth;
 		var height =elem.clientHeight;
-		var offleft=elem.clientLeft
+		var offleft=elem.clientLeft;
 		var offtop =elem.clientTop;
 		while (elem!==null) {
 			offleft+=elem.offsetLeft;

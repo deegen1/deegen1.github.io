@@ -18,21 +18,14 @@
 			font-family:sans-serif,sans-serif;
 			overflow:hidden;
 			background-color:#000000;
-			width:100vw;
-			height:100vh;
 		}
 	</style>
 	<script src="./physics.js"></script>
 </head>
 <body>
-
 <table style="width:100%;height:100%;">
-<tr><td style="text-align:center">
-	<a href="../index.html" style="color:#ffa500;">Alec Dee's General Site</a></td></tr>
-<tr><td>
-	<canvas id="physmain" style="display:block;margin:auto;">
-	</canvas>
-</td></tr>
+<tr><td style="text-align:center"><a href="../index.html" style="color:#ffa500;">Alec Dee's General Site</a></td></tr>
+<tr><td><canvas id="physmain" style="display:block;margin:auto;"></canvas></td></tr>
 </table>
 <!-- Properly resize the canvas -->
 <script>
@@ -40,11 +33,18 @@
 	var phy=new PhyScene("physmain");
 	function resize() {
 		var canvas =phy.canvas;
-		var parent =canvas.parentElement;
-		var width  =window.innerWidth-parent.offsetLeft;
-		var height =window.innerHeight-parent.offsetTop;
 		var ratio  =canvas.height/canvas.width;
-		if (ratio<(height/width)) {
+		var elem   =canvas;
+		var offleft=elem.clientLeft;
+		var offtop =elem.clientTop;
+		while (elem!==null) {
+			offleft+=elem.offsetLeft;
+			offtop +=elem.offsetTop;
+			elem=elem.offsetParent;
+		}
+		var width  =window.innerWidth -offleft;
+		var height =window.innerHeight-offtop;
+		if (width*ratio<height) {
 			height=Math.floor(width*ratio);
 		} else {
 			width=Math.floor(height/ratio);
