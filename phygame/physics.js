@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v1.15
+physics.js - v1.16
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -11,7 +11,7 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
-PhyVec.convert, handles arrays or vectors
+fill bonds
 groups
 	center
 	set vel
@@ -21,11 +21,7 @@ groups
 	scale
 	move
 	copy
-gravity
-	vmul
-	vpmul
-	pmul
-	pvmul
+mouse, handle all touch events
 
 glow effect
 starfish
@@ -298,6 +294,7 @@ class Input {
 		return {x:offleft,y:offtop,w:width,h:height};
 	}
 
+
 	setmousepos(x,y) {
 		var focus=this.focus;
 		if (focus!==null) {
@@ -538,7 +535,7 @@ class Random {
 
 
 //---------------------------------------------------------------------------------
-// Vectors - v1.01
+// Vectors - v1.02
 
 
 class PhyVec {
@@ -578,24 +575,27 @@ class PhyVec {
 
 
 	set(i,val) {
-		// PhyAssert(i>=0 && i<this.elem.length);
-		this.elem[i]=val;
-	}
-
-
-	copy(v) {
-		if (v!==undefined) {
-			var ue=this.elem,ve=v.elem,elems=ue.length;
-			for (var i=0;i<elems;i++) {ue[i]=ve[i];}
+		// Copies values into the vector.
+		// Expects an array, vector, or i/val pair.
+		var ue=this.elem,elems=ue.length;
+		if (val===undefined) {
+			if (i.elem!==undefined) {i=i.elem;}
+			if (i.length!==undefined) {
+				// PhyAssert(i.length===elems);
+				for (var j=0;j<elems;j++) {ue[j]=i[j];}
+			} else {
+				ue.fill(i);
+			}
+		} else {
+			// PhyAssert(i>=0 && i<elems);
+			ue[i]=val;
 		}
 		return this;
 	}
 
 
-	fill(x) {
-		var ue=this.elem,elems=ue.length;
-		for (var i=0;i<elems;i++) {ue[i]=x;}
-		return this;
+	copy() {
+		return new PhyVec(this);
 	}
 
 
@@ -640,7 +640,7 @@ class PhyVec {
 	}
 
 
-	iscale(s) {
+	imul(s) {
 		// u*=s
 		var ue=this.elem,elems=ue.length;
 		for (var i=0;i<elems;i++) {ue[i]*=s;}
@@ -648,7 +648,7 @@ class PhyVec {
 	}
 
 
-	scale(s) {
+	mul(s) {
 		// u*s
 		var ue=this.elem,elems=ue.length,re=new Array(elems);
 		for (var i=0;i<elems;i++) {re[i]=ue[i]*s;}
@@ -889,8 +889,9 @@ class PhyAtomInteraction {
 		this.a=a;
 		this.b=b;
 		this.collide=0;
-		this.push=0;
-		this.elasticity=0;
+		this.pmul=0;
+		this.vmul=0;
+		this.vpmul=0;
 		this.callback=null;
 		this.updateconstants();
 	}
@@ -899,8 +900,9 @@ class PhyAtomInteraction {
 	updateconstants() {
 		var a=this.a,b=this.b;
 		this.collide=a.collide && b.collide;
-		this.push=a.push*b.push;
-		this.elasticity=a.elasticity+b.elasticity;
+		this.pmul=(a.pmul+b.pmul)*0.5;
+		this.vmul=a.vmul+b.vmul;
+		this.vpmul=(a.vpmul+b.vpmul)*0.5;
 	}
 
 
@@ -923,8 +925,9 @@ class PhyAtomType {
 		this.id=id;
 		this.damp=damp;
 		this.density=density;
-		this.push=1.0;
-		this.elasticity=elasticity;
+		this.pmul=1.0;
+		this.vmul=elasticity;
+		this.vpmul=1.0;
 		this.bound=true;
 		this.callback=null;
 		this.dt0=0;
@@ -1064,7 +1067,8 @@ class PhyAtom {
 		this.worldlink.obj=this;
 		this.world=type.world;
 		this.world.atomlist.add(this.worldlink);
-		this.pos=new PhyVec(pos);
+		pos=new PhyVec(pos);
+		this.pos=pos;
 		this.vel=new PhyVec(pos.length());
 		this.acc=new PhyVec(pos.length());
 		this.rad=rad;
@@ -1203,8 +1207,8 @@ class PhyAtom {
 			}
 			if (veldif<0.0) {veldif=0.0;}
 			var posdif=rad-dist;
-			veldif=veldif*intr.elasticity+posdif*intr.elasticity;
-			posdif*=intr.push;
+			veldif=veldif*intr.vmul+posdif*intr.vpmul;
+			posdif*=intr.pmul;
 			// Push the atoms apart.
 			var avelmul=veldif*bmass,bvelmul=veldif*amass;
 			var aposmul=posdif*bmass,bposmul=posdif*amass;
@@ -1612,8 +1616,8 @@ class PhyWorld {
 		this.rnd=new Random();
 		this.gravity=new PhyVec(dim);
 		this.gravity.set(dim-1,0.24);
-		this.bndmin=new PhyVec(dim).fill(-Infinity);
-		this.bndmax=new PhyVec(dim).fill( Infinity);
+		this.bndmin=new PhyVec(dim).set(-Infinity);
+		this.bndmax=new PhyVec(dim).set( Infinity);
 		this.atomtypelist=new PhyList();
 		this.atomlist=new PhyList();
 		this.bondlist=new PhyList();
@@ -1744,6 +1748,7 @@ class PhyWorld {
 
 
 	createbox(cen,side,rad,type) {
+		if (cen.elem!==undefined) {cen=cen.elem;}
 		var pos=new PhyVec(cen);
 		var atomcombos=1;
 		var i,x,dim=this.dim;
@@ -1755,7 +1760,7 @@ class PhyWorld {
 			for (i=0;i<dim;i++) {
 				x=atomtmp%side;
 				atomtmp=Math.floor(atomtmp/side);
-				pos.set(i,cen.get(i)+(x*2-side+1)*rad);
+				pos.set(i,cen[i]+(x*2-side+1)*rad);
 			}
 			atomarr[atomcombo]=this.createatom(pos,rad,type);
 		}
@@ -2006,14 +2011,14 @@ class PhyScene {
 		var canvas=this.canvas;
 		var world=this.world;
 		world.steps=3;
-		world.gravity.fill(0);
+		world.gravity.set(0);
 		var viewheight=1.0,viewwidth=canvas.width/canvas.height;
 		var walltype=world.createatomtype(1.0,Infinity,1.0);
 		var normtype=world.createatomtype(0.01,1.0,0.98);
 		var boxtype1=world.createatomtype(0.0,50.0,1.0);
 		var boxtype2=world.createatomtype(0.0,Infinity,1.0);
 		var portaltype=world.createatomtype(0.0,Infinity,0.0);
-		portaltype.push=0;
+		portaltype.pmul=0;
 		var rnd=new Random(2);
 		var pos=new PhyVec(world.dim);
 		for (var p=0;p<3000;p++) {
@@ -2021,15 +2026,15 @@ class PhyScene {
 			pos.set(1,rnd.getf64()*viewheight);
 			world.createatom(pos,0.004,normtype);
 		}
-		world.createatom(new PhyVec([viewwidth*0.5,0.1]),0.1,portaltype);
-		world.createbox(new PhyVec([0.3*viewwidth,0.3]),5,0.007,boxtype2);
-		world.createbox(new PhyVec([0.5*viewwidth,0.5]),5,0.007,boxtype1);
-		world.createbox(new PhyVec([0.7*viewwidth,0.3]),5,0.007,boxtype2);
+		world.createatom([viewwidth*0.5,0.1],0.1,portaltype);
+		world.createbox([0.3*viewwidth,0.3],5,0.007,boxtype2);
+		world.createbox([0.5*viewwidth,0.5],5,0.007,boxtype1);
+		world.createbox([0.7*viewwidth,0.3],5,0.007,boxtype2);
 		function reset(a,b) {
 			if (a.type.id===1) {var tmp=a;a=b;b=tmp;}
 			// a is the box
-			b.pos.copy(new PhyVec([world.bndmax.elem[0]*0.5,world.bndmax.elem[1]*0.9]));
-			b.vel.fill(0);
+			b.pos.set([world.bndmax.elem[0]*0.5,world.bndmax.elem[1]*0.9]);
+			b.vel.set(0);
 			return 1;
 		}
 		function eat(a,b) {
@@ -2048,9 +2053,9 @@ class PhyScene {
 		var playertype=world.createatomtype(0.0,Infinity,0.1);
 		playertype.bound=false;
 		playertype.gravity=new PhyVec([0,0]);
-		pos=new PhyVec([viewwidth*0.5,viewheight*0.33]);
+		pos.set([viewwidth*0.5,viewheight*0.33]);
 		this.playeratom=world.createatom(pos,0.035,playertype);
-		this.mouse.copy(pos);
+		this.mouse.set(pos);
 		this.frametime=performance.now();
 		console.log(world.atomlist.count);
 	}
@@ -2079,12 +2084,12 @@ class PhyScene {
 		var dir=this.mouse.sub(player.pos);
 		var mag=dir.sqr();
 		if (mag>=Infinity) {
-			player.vel.fill(0);
-			player.pos.copy(this.mouse);
+			player.vel.set(0);
+			player.pos.set(this.mouse);
 		} else if (mag>1e-6) {
-			player.vel=dir.scale(0.2/world.deltatime);
+			player.vel=dir.mul(0.2/world.deltatime);
 		} else {
-			player.vel.fill(0);
+			player.vel.set(0);
 		}
 		var link=world.atomlist.head;
 		var count=0;
