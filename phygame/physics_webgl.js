@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v1.17
+physics.js - v1.16
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -1836,7 +1836,7 @@ function drawfill(imgdata,imgwidth,imgheight,r,g,b) {
 }
 
 
-function drawcircle1(tmp,imgdata,imgwidth,imgheight,x,y,rad,r,g,b) {
+function drawcircle0(imgdata,imgwidth,imgheight,x,y,rad,r,g,b) {
 	// Manually draw a circle pixel by pixel.
 	// This is ugly, but it's faster than canvas.arc and drawimage.
 	x=x|0;
@@ -1974,78 +1974,70 @@ function drawline(imgdata,imgwidth,imgheight,x0,y0,x1,y1,r,g,b) {
 }
 
 
-function drawcircle(imgdata8,imgdata32,imgwidth,imgheight,x,y,rad,r,g,b) {
+function drawcircle(imgdata,imgwidth,imgheight,x,y,rad,r,g,b) {
 	// Manually draw a circle pixel by pixel.
 	// This is ugly, but it's faster than canvas.arc and drawimage.
+	//x=x|0;
+	//y=y|0;
+	//rad=rad|0;
 	if (rad<=0 || x-rad>imgwidth || x+rad<0 || y-rad>imgheight || y+rad<0) {
 		return;
 	}
 	var fillrgba=rgbatoint(r,g,b,255);
-	var minx=Math.floor(x-rad-0.5);
+	var alphashift=0;
+	var minx=Math.floor(x-rad);
 	if (minx<0) {minx=0;}
-	var maxx=Math.ceil(x+rad+0.5);
+	var maxx=Math.ceil(x+rad);
 	if (maxx>imgwidth) {maxx=imgwidth;}
 	var xs=Math.floor(x);
 	if (xs< minx) {xs=minx;}
 	if (xs>=maxx) {xs=maxx-1;}
-	var miny=Math.floor(y-rad-0.5);
+	var miny=Math.floor(y-rad);
 	if (miny<0) {miny=0;}
-	var maxy=Math.ceil(y+rad+0.5);
+	var maxy=Math.ceil(y+rad);
 	if (maxy>imgheight) {maxy=imgheight;}
 	var pixrow=miny*imgwidth;
-	var d,dn,d2;
-	var pixmin,pixmax,pix;
-	var dx,dy=miny-y+0.5;
-	var rad20=rad*rad;
-	var rad21=(rad+1)*(rad+1);
-	//var rnorm=1.0/(rad21-rad20);
 	for (var y0=miny;y0<maxy;y0++) {
-		dx=xs-x+0.5;
+		var x0=xs;
+		var dy=y0-y+0.5;
+		var dx=x0-x+0.5;
+		var d2=dy*dy+dx*dx-rad*rad;
+		var pixmax=pixrow+maxx;
+		var pix=pixrow+x0;
+		while (d2<0.0 && pix<pixmax) {
+			imgdata[pix++]=fillrgba;
+			d2+=2*dx+1;
+			dx+=1;
+		}
 		d2=dy*dy+dx*dx;
-		pixmax=pixrow+maxx;
-		pix=pixrow+xs;
-		while (d2<rad20 && pix<pixmax) {
-			imgdata32[pix++]=fillrgba;
-			d2+=dx+dx+1;
-			dx++;
+		while (pix<pixmax) {
+			var d=Math.sqrt(d2)-rad;
+			if (d>1) {break;}
+			if (d<0) {d=0;}
+			imgdata[pix++]=rgbatoint(r,g,b,(255*(1-d))|0);
+			d2+=2*dx+1;
+			dx+=1;
 		}
-		pix*=4;
-		pixmax*=4;
-		while (d2<rad21 && pix<pixmax) {
-			d=Math.sqrt(d2)-rad;
-			//d=(d2-rad20)*rnorm;
-			dn=1-d;
-			imgdata8[pix  ]=(imgdata8[pix  ]*d+r*dn)>>>0;
-			imgdata8[pix+1]=(imgdata8[pix+1]*d+g*dn)>>>0;
-			imgdata8[pix+2]=(imgdata8[pix+2]*d+b*dn)>>>0;
-			pix+=4;
-			d2+=dx+dx+1;
-			dx++;
+		x0=xs-1;
+		dx=x0-x+0.5;
+		d2=dy*dy+dx*dx-rad*rad;
+		var pixmin=pixrow+minx;
+		pix=pixrow+x0;
+		while (d2<0.0 && pix>=pixmin) {
+			imgdata[pix--]=fillrgba;
+			d2-=2*dx-1;
+			dx-=1;
 		}
-		dx=xs-x-0.5;
 		d2=dy*dy+dx*dx;
-		pixmin=pixrow+minx;
-		pix=pixrow+(xs-1);
-		while (d2<rad20 && pix>=pixmin) {
-			imgdata32[pix--]=fillrgba;
-			d2-=dx+dx-1;
-			dx--;
-		}
-		pix*=4;
-		pixmin*=4;
-		while (d2<rad21 && pix>=pixmin) {
-			d=Math.sqrt(d2)-rad;
-			//d=(d2-rad20)*rnorm;
-			dn=1-d;
-			imgdata8[pix  ]=(imgdata8[pix  ]*d+r*dn)>>>0;
-			imgdata8[pix+1]=(imgdata8[pix+1]*d+g*dn)>>>0;
-			imgdata8[pix+2]=(imgdata8[pix+2]*d+b*dn)>>>0;
-			pix-=4;
-			d2-=dx+dx-1;
-			dx--;
+		while (pix>=pixmin) {
+			var d=Math.sqrt(d2)-rad;
+			if (d>1) {break;}
+			if (d<0) {d=0;}
+			imgdata[pix--]=rgbatoint(r,g,b,(255*(1-d))|0);
+			d2-=2*dx-1;
+			dx-=1;
 		}
 		pixrow+=imgwidth;
-		dy++;
 	}
 }
 
@@ -2068,11 +2060,7 @@ class PhyScene {
 		this.fps=0;
 		this.promptshow=1;
 		this.promptframe=0;
-		// Setup the UI.
-		this.canvas=canvas;
-		this.ctx=this.canvas.getContext("2d");
-		this.backbuf=this.ctx.createImageData(canvas.width,canvas.height);
-		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
+		this.initgraphics(canvas);
 		this.initworld();
 		var state=this;
 		function update() {
@@ -2082,9 +2070,61 @@ class PhyScene {
 		update();
 	}
 
+
+	initgraphics(canvas) {
+		this.glcanv=canvas;
+		this.glctx=this.glcanv.getContext("webgl2");
+		// We can't use regular drawing commands in webgl, so display a regular canvas
+		// over the webgl canvas.
+		this.hudcanv=document.createElement("canvas");
+		this.hudctx=this.hudcanv.getContext("2d");
+		canvas.parentElement.appendChild(this.hudcanv);
+		this.hudcanv.width=canvas.width;
+		this.hudcanv.height=canvas.height;
+		this.hudcanv.style.position="absolute";
+		this.hudcanv.style.zIndex=2;
+		this.hudcanv.style.pointerEvents="none";
+		var gl=this.glctx;
+		gl.enable(gl.DEPTH_TEST);
+		gl.clearColor(0.0,0.0,0.0,1.0);
+		gl.clearDepth(1.0);
+		gl.depthFunc(gl.LEQUAL);
+		var vssource=`
+			attribute vec4 vertpos;
+			void main() {
+				gl_Position=vertpos;
+			}
+		`;
+		var fssource=`
+			void main() {
+				gl_FragColor=vec4(1.0,1.0,1.0,1.0);
+				// gl_FragDepth
+			}
+		`;
+		var shaders=[
+			[vssource,gl.VERTEX_SHADER],
+			[fssource,gl.FRAGMENT_SHADER]
+		];
+		var glprog=gl.createProgram();
+		for (var i=0;i<shaders.length;i++) {
+			var shader=gl.createShader(shaders[i][1]);
+			gl.shaderSource(shader,shaders[i][0]);
+			gl.compileShader(shader);
+			gl.attachShader(glprog,shader);
+		}
+		gl.linkProgram(glprog);
+		this.glprog=glprog;
+		this.glbuf=new Float32Array(0);
+		var posbuf=gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER,posbuf);
+		gl.bufferData(gl.ARRAY_BUFFER,this.glbuf,gl.STATIC_DRAW);
+		console.log(mat4);
+	}
+
+
 	initworld() {
 		this.world=new PhyWorld(2);
-		var canvas=this.canvas;
+		var canvas=this.glcanv;
 		var world=this.world;
 		world.steps=3;
 		world.gravity.set(0);
@@ -2140,16 +2180,15 @@ class PhyScene {
 	update() {
 		var input=this.input;
 		input.update();
-		var ctx=this.ctx;
-		var canvas=this.canvas;
+		var gl=this.glctx;
+		var canvas=this.glcanv;
 		var imgwidth=canvas.width;
 		var imgheight=canvas.height;
-		var imgdata8=this.backbuf.data;
-		var imgdata32=this.backbuf32;
+		var imgdata=this.backbuf32;
 		var scale=imgheight;
 		var world=this.world;
 		world.update();
-		drawfill(imgdata32,imgwidth,imgheight,0,0,0);
+		gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
 		// Convert mouse to world space.
 		var mpos=input.getmousepos();
 		var maxx=imgwidth/imgheight;
@@ -2200,7 +2239,7 @@ class PhyScene {
 				g=0;
 				b=255-u;
 			}
-			drawcircle(imgdata8,imgdata32,imgwidth,imgheight,pos[0]*scale,pos[1]*scale,rad,r,g,b);
+			//drawcircle(imgdata,imgwidth,imgheight,pos[0]*scale,pos[1]*scale,rad,r,g,b);
 			var next=link.next;
 			if (atom.delete!==undefined) {
 				atom.release();
@@ -2214,16 +2253,29 @@ class PhyScene {
 			var py=player.pos.get(1)*scale;
 			var rad=player.rad*scale;
 			var u=Math.floor((Math.sin((pframe/119.0)*Math.PI*2)+1.0)*0.5*255.0);
-			drawcircle(imgdata8,imgdata32,imgwidth,imgheight,px,py,rad,u,u,255);
+			//drawcircle(imgdata,imgwidth,imgheight,px,py,rad,u,u,255);
 		}
-		ctx.putImageData(this.backbuf,0,0);
 		// Draw the HUD
-		ctx.font="16px monospace";
-		ctx.fillStyle="rgba(255,255,255,255)";
-		ctx.fillText("FPS: "+this.fps.toFixed(2),5,20);
-		ctx.fillText("COUNT: "+count,5,44);
-		ctx.fillText("X: "+window.innerWidth+" / "+screen.width,5,68);
-		ctx.fillText("Y: "+window.innerHeight+" / "+screen.height,5,92);
+		var hudcanv=this.hudcanv;
+		if (hudcanv.width!==canvas.width || hudcanv.height!==canvas.height) {
+			hudcanv.width=canvas.width;
+			hudcanv.height=canvas.height;
+		}
+		var rect=canvas.getBoundingClientRect();
+		if (hudcanv.style.width!==canvas.style.width || hudcanv.style.height!==canvas.style.height) {
+			hudcanv.style.width=canvas.style.width;
+			hudcanv.style.height=canvas.style.height;
+		}
+		if (hudcanv.style.left!==rect.left+"px" || hudcanv.style.top!==rect.top+"px") {
+			hudcanv.style.left=rect.left+"px";
+			hudcanv.style.top=rect.top+"px";
+		}
+		var hudctx=this.hudctx;
+		hudctx.clearRect(0,0,hudcanv.width,hudcanv.height);
+		hudctx.font="16px monospace";
+		hudctx.fillStyle="rgba(255,255,255,255)";
+		hudctx.fillText("FPS: "+this.fps.toFixed(2),5,20);
+		hudctx.fillText("COUNT: "+count,5,44);
 		// Calculate the frame time.
 		var frametime=performance.now()-this.frametime;
 		this.frametime=performance.now();
