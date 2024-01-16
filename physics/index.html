@@ -18,8 +18,6 @@
 			overflow:hidden;
 			background-color:#000000;
 			font-family:sans-serif,sans-serif;
-			/*width:100vw;
-			height:100vh;*/
 		}
 		a {
 			color:#ffa500;
@@ -40,15 +38,15 @@
 		var canvas =phy.canvas;
 		var ratio  =canvas.height/canvas.width;
 		var elem   =canvas;
-		//var offleft=elem.clientLeft;
+		var offleft=elem.clientLeft;
 		var offtop =elem.clientTop;
 		while (elem!==null) {
-			//offleft+=elem.offsetLeft;
+			offleft+=elem.offsetLeft;
 			offtop +=elem.offsetTop;
 			elem=elem.offsetParent;
 		}
 		var pscale =1;//window.devicePixelRatio;
-		var width  =Math.floor(pscale*(window.innerWidth));//-offleft);
+		var width  =Math.floor(pscale*(window.innerWidth));//-offleft));
 		var height =Math.floor(pscale*(window.innerHeight-offtop));
 		if (width*ratio<height) {
 			height=Math.floor(width*ratio);

@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v1.18
+physics.js - v1.19
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -11,6 +11,7 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
+Create imgdatar/g/b/a
 fill bonds
 groups
 	center
@@ -1984,7 +1985,7 @@ function drawline(imgdata,imgwidth,imgheight,x0,y0,x1,y1,r,g,b) {
 function drawcircle(scene,x,y,rad,r,g,b) {
 	// Manually draw a circle pixel by pixel.
 	// This is ugly, but it's faster than canvas.arc and drawimage.
-	var imgdata8=scene.backbuf.data;
+	var imgdata8=scene.backbuf8;
 	var imgdata32=scene.backbuf32;
 	var imgwidth=scene.canvas.width;
 	var imgheight=scene.canvas.height;
@@ -2009,7 +2010,7 @@ function drawcircle(scene,x,y,rad,r,g,b) {
 	var dx,dy=miny-y+0.5;
 	var rad20=rad*rad;
 	var rad21=(rad+1)*(rad+1);
-	//var rnorm=1.0/(rad21-rad20);
+	// var rnorm=1.0/(rad21-rad20);
 	for (var y0=miny;y0<maxy;y0++) {
 		dx=xs-x+0.5;
 		d2=dy*dy+dx*dx;
@@ -2024,7 +2025,7 @@ function drawcircle(scene,x,y,rad,r,g,b) {
 		pixmax*=4;
 		while (d2<rad21 && pix<pixmax) {
 			d=Math.sqrt(d2)-rad;
-			//d=(d2-rad20)*rnorm;
+			// d=(d2-rad20)*rnorm;
 			dn=1-d;
 			imgdata8[pix  ]=(imgdata8[pix  ]*d+r*dn)>>>0;
 			imgdata8[pix+1]=(imgdata8[pix+1]*d+g*dn)>>>0;
@@ -2046,7 +2047,7 @@ function drawcircle(scene,x,y,rad,r,g,b) {
 		pixmin*=4;
 		while (d2<rad21 && pix>=pixmin) {
 			d=Math.sqrt(d2)-rad;
-			//d=(d2-rad20)*rnorm;
+			// d=(d2-rad20)*rnorm;
 			dn=1-d;
 			imgdata8[pix  ]=(imgdata8[pix  ]*d+r*dn)>>>0;
 			imgdata8[pix+1]=(imgdata8[pix+1]*d+g*dn)>>>0;
@@ -2065,8 +2066,8 @@ class PhyScene {
 
 	constructor(divid) {
 		// Setup the canvas
-		var drawwidth=603;
-		var drawheight=1072;
+		var drawwidth=600;
+		var drawheight=1066;
 		var canvas=document.getElementById(divid);
 		canvas.width=drawwidth;
 		canvas.height=drawheight;
@@ -2083,17 +2084,20 @@ class PhyScene {
 		this.canvas=canvas;
 		this.ctx=this.canvas.getContext("2d");
 		this.backbuf=this.ctx.createImageData(canvas.width,canvas.height);
+		// Reassigning the buffer data is faster for some reason.
+		this.backbuf8=new Uint8ClampedArray(this.backbuf.data.buffer);
 		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
 		this.initworld();
 		var state=this;
-		//function update2() {state.update();}
+		// function update2() {state.update();}
 		function update() {
 			setTimeout(update,1000/60);
 			state.update();
-			//requestAnimationFrame(update2);
+			// requestAnimationFrame(update2);
 		}
 		update();
 	}
+
 
 	initworld() {
 		this.world=new PhyWorld(2);
@@ -2203,20 +2207,6 @@ class PhyScene {
 		ctx.fillStyle="rgba(255,255,255,255)";
 		ctx.fillText("FPS: "+this.fps.toFixed(2),5,20);
 		ctx.fillText("Cnt: "+world.atomlist.count,5,44);
-		var pscale =window.devicePixelRatio;
-		var width0 =Math.floor(pscale*window.innerWidth);//-offleft);
-		var height0=Math.floor(pscale*window.innerHeight);
-		ctx.fillText("Win: "+window.innerWidth+", "+window.innerHeight+", "+window.devicePixelRatio,5,68);
-		ctx.fillText("Scr: "+width0+", "+height0,5,92);
-		var elem=canvas;
-		var offleft=elem.clientLeft;
-		var offtop =elem.clientTop;
-		while (elem!==null) {
-			offleft+=elem.offsetLeft;
-			offtop +=elem.offsetTop;
-			elem=elem.offsetParent;
-		}
-		ctx.fillText("Off: "+offleft+", "+offtop,5,116);
 		// Calculate the frame time.
 		var frametime=performance.now()-this.frametime;
 		this.frametime=performance.now();
