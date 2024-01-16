@@ -1,66 +1,9 @@
-<!DOCTYPE HTML>
-<html lang="en">
+<!DOCTYPE html>
+<html>
 <head>
-	<meta charset="utf-8">
-	<title>Physics Game</title>
-	<style>
-		* {
-			padding:0;
-			border:0;
-			border-collapse:collapse;
-			margin:0;
-			outline:none;
-			text-decoration:none;
-			font-size:100%;
-			vertical-align:baseline;
-		}
-		body {
-			overflow:hidden;
-			background-color:#000000;
-			font-family:sans-serif,sans-serif;
-			width:100vw;
-			height:100vh;
-		}
-		a {
-			color:#ffa500;
-		}
-	</style>
-	<script src="./physics.js"></script>
+	<meta http-equiv="refresh" content="0; url='../physics/index.html'"/>
 </head>
 <body>
-<table style="width:100%;height:100%;">
-<tr><td style="text-align:center"><a href="../index.html">Alec Dee's General Site</a></td></tr>
-<tr><td><canvas id="physmain" style="display:block;margin:auto;"></canvas></td></tr>
-</table>
-<!-- Properly resize the canvas -->
-<script>
-(function() {
-	var phy=new PhyScene("physmain");
-	function resize() {
-		var canvas =phy.canvas;
-		var ratio  =canvas.height/canvas.width;
-		var elem   =canvas;
-		var offleft=elem.clientLeft;
-		var offtop =elem.clientTop;
-		while (elem!==null) {
-			offleft+=elem.offsetLeft;
-			offtop +=elem.offsetTop;
-			elem=elem.offsetParent;
-		}
-		var pscale =window.devicePixelRatio;
-		var width  =pscale*(window.innerWidth -offleft);
-		var height =pscale*(window.innerHeight-offtop);
-		if (width*ratio<height) {
-			height=Math.floor(width*ratio);
-		} else {
-			width =Math.floor(height/ratio);
-		}
-		canvas.style.width =width +"px";
-		canvas.style.height=height+"px";
-	}
-	window.addEventListener("resize",resize);
-	window.addEventListener("load",resize);
-})();
-</script>
+	<p>Redirecting to <a href="../physics/index.html">physics</a></p>
 </body>
 </html>

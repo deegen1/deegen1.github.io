@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v1.13
+physics.js - v1.18
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -11,8 +11,27 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
-sort instead of hash bucket
-herding game
+fill bonds
+groups
+	center
+	set vel
+	add vel
+	add rotation
+	rotate
+	scale
+	move
+	copy
+mouse, handle all touch events
+get rid of phygame
+
+glow effect
+starfish
+limbs stick to things
+blob, expands bonds towards you
+bomb that deletes things
+enemy that spins and sheds its outer lining
+boss room, filled with objects, boss spins around and hits them
+laser that heats up atoms and makes them vibrate
 
 
 */
@@ -32,7 +51,7 @@ function PhyAssert(condition,data) {
 
 
 //---------------------------------------------------------------------------------
-// Input - v1.08
+// Input - v1.10
 
 
 class Input {
@@ -231,9 +250,10 @@ class Input {
 			var focus=state.focus;
 			if (focus!==null) {
 				var touch=evt.touches.item(0);
-				var x=touch.pageX-focus.offsetLeft-focus.clientLeft;
-				var y=touch.pageY-focus.offsetTop -focus.clientTop;
-				if (x<0 || x>=focus.clientWidth || y<0 || y>=focus.clientHeight) {
+				var rect=state.getrect(focus);
+				var x=touch.pageX-rect.x;
+				var y=touch.pageY-rect.y;
+				if (x<0 || x>=rect.w || y<0 || y>=rect.h) {
 					state.touchfocus=0;
 				}
 			}
@@ -262,11 +282,26 @@ class Input {
 	}
 
 
+	getrect(elem) {
+		var width  =elem.clientWidth;
+		var height =elem.clientHeight;
+		var offleft=elem.clientLeft;
+		var offtop =elem.clientTop;
+		while (elem!==null) {
+			offleft+=elem.offsetLeft;
+			offtop +=elem.offsetTop;
+			elem=elem.offsetParent;
+		}
+		return {x:offleft,y:offtop,w:width,h:height};
+	}
+
+
 	setmousepos(x,y) {
 		var focus=this.focus;
 		if (focus!==null) {
-			x=(x-focus.offsetLeft-focus.clientLeft)/focus.clientWidth;
-			y=(y-focus.offsetTop -focus.clientTop )/focus.clientHeight;
+			var rect=this.getrect(focus);
+			x=(x-rect.x)/rect.w;
+			y=(y-rect.y)/rect.h;
 		}
 		this.mousepos[0]=x;
 		this.mousepos[1]=y;
@@ -501,7 +536,7 @@ class Random {
 
 
 //---------------------------------------------------------------------------------
-// Vectors - v1.01
+// Vectors - v1.02
 
 
 class PhyVec {
@@ -541,24 +576,27 @@ class PhyVec {
 
 
 	set(i,val) {
-		// PhyAssert(i>=0 && i<this.elem.length);
-		this.elem[i]=val;
-	}
-
-
-	copy(v) {
-		if (v!==undefined) {
-			var ue=this.elem,ve=v.elem,elems=ue.length;
-			for (var i=0;i<elems;i++) {ue[i]=ve[i];}
+		// Copies values into the vector.
+		// Expects an array, vector, or i/val pair.
+		var ue=this.elem,elems=ue.length;
+		if (val===undefined) {
+			if (i.elem!==undefined) {i=i.elem;}
+			if (i.length!==undefined) {
+				// PhyAssert(i.length===elems);
+				for (var j=0;j<elems;j++) {ue[j]=i[j];}
+			} else {
+				ue.fill(i);
+			}
+		} else {
+			// PhyAssert(i>=0 && i<elems);
+			ue[i]=val;
 		}
 		return this;
 	}
 
 
-	fill(x) {
-		var ue=this.elem,elems=ue.length;
-		for (var i=0;i<elems;i++) {ue[i]=x;}
-		return this;
+	copy() {
+		return new PhyVec(this);
 	}
 
 
@@ -603,7 +641,7 @@ class PhyVec {
 	}
 
 
-	iscale(s) {
+	imul(s) {
 		// u*=s
 		var ue=this.elem,elems=ue.length;
 		for (var i=0;i<elems;i++) {ue[i]*=s;}
@@ -611,7 +649,7 @@ class PhyVec {
 	}
 
 
-	scale(s) {
+	mul(s) {
 		// u*s
 		var ue=this.elem,elems=ue.length,re=new Array(elems);
 		for (var i=0;i<elems;i++) {re[i]=ue[i]*s;}
@@ -852,9 +890,10 @@ class PhyAtomInteraction {
 		this.a=a;
 		this.b=b;
 		this.collide=0;
-		this.push=0;
-		this.elasticity=0;
-		// this.callback=null;
+		this.pmul=0;
+		this.vmul=0;
+		this.vpmul=0;
+		this.callback=null;
 		this.updateconstants();
 	}
 
@@ -862,8 +901,16 @@ class PhyAtomInteraction {
 	updateconstants() {
 		var a=this.a,b=this.b;
 		this.collide=a.collide && b.collide;
-		this.push=a.push*b.push;
-		this.elasticity=a.elasticity+b.elasticity;
+		this.pmul=(a.pmul+b.pmul)*0.5;
+		this.vmul=a.vmul+b.vmul;
+		this.vpmul=(a.vpmul+b.vpmul)*0.5;
+	}
+
+
+	static get(a,b) {
+		if (a.type!==undefined) {a=a.type;}
+		if (b.type!==undefined) {b=b.type;}
+		return a.intarr[b.id];
 	}
 
 }
@@ -879,9 +926,11 @@ class PhyAtomType {
 		this.id=id;
 		this.damp=damp;
 		this.density=density;
-		this.push=1.0;
-		this.elasticity=elasticity;
-		// this.callback=null;
+		this.pmul=1.0;
+		this.vmul=elasticity;
+		this.vpmul=1.0;
+		this.bound=true;
+		this.callback=null;
 		this.dt0=0;
 		this.dt1=0;
 		this.dt2=0;
@@ -1019,7 +1068,8 @@ class PhyAtom {
 		this.worldlink.obj=this;
 		this.world=type.world;
 		this.world.atomlist.add(this.worldlink);
-		this.pos=new PhyVec(pos);
+		pos=new PhyVec(pos);
+		this.pos=pos;
 		this.vel=new PhyVec(pos.length());
 		this.acc=new PhyVec(pos.length());
 		this.rad=rad;
@@ -1083,6 +1133,7 @@ class PhyAtom {
 		var bndmax=world.bndmax.elem;
 		var pe=this.pos.elem,ve=this.vel.elem;
 		var dim=pe.length,type=this.type;
+		var bound=type.bound;
 		var ae=this.acc.elem,ge=type.gravity;
 		ge=(ge===null?this.world.gravity:ge).elem;
 		var dt0=type.dt0,dt1=type.dt1,dt2=type.dt2;
@@ -1093,11 +1144,11 @@ class PhyAtom {
 			acc=ae[i]+ge[i];
 			pos+=vel*dt1+acc*dt2;
 			vel =vel*dt0+acc*dt1;
-			if (pos<bndmin[i]+rad) {
+			if (bound && pos<bndmin[i]+rad) {
 				pos=bndmin[i]+rad;
 				vel=vel<0?-vel:vel;
 			}
-			if (pos>bndmax[i]-rad) {
+			if (bound && pos>bndmax[i]-rad) {
 				pos=bndmax[i]-rad;
 				vel=vel>0?-vel:vel;
 			}
@@ -1108,7 +1159,7 @@ class PhyAtom {
 	}
 
 
-	static collideatom(a,b) {
+	static collideatom(a,b,callback) {
 		// Collides two atoms. Vector operations are unrolled to use constant memory.
 		if (Object.is(a,b)) {
 			return;
@@ -1126,7 +1177,9 @@ class PhyAtom {
 		if (dist<rad*rad) {
 			// If we have a callback, allow it to handle the collision.
 			var intr=a.type.intarr[b.type.id];
-			if (intr.collide===false) {// || (intr.callback!==null && intr.callback(a,b)==0)) {
+			if (intr.collide===false) {return;}
+			if (callback===undefined && intr.callback!==null) {
+				if (intr.callback(a,b)) {PhyAtom.collideatom(a,b,true);}
 				return;
 			}
 			var amass=a.mass,bmass=b.mass;
@@ -1153,11 +1206,12 @@ class PhyAtom {
 				norm[i]*=dif;
 				veldif-=(bvel[i]-avel[i])*norm[i];
 			}
-			veldif*=intr.elasticity;
 			if (veldif<0.0) {veldif=0.0;}
-			var avelmul=veldif*bmass,bvelmul=veldif*amass;
+			var posdif=rad-dist;
+			veldif=veldif*intr.vmul+posdif*intr.vpmul;
+			posdif*=intr.pmul;
 			// Push the atoms apart.
-			var posdif=(rad-dist)*intr.push;
+			var avelmul=veldif*bmass,bvelmul=veldif*amass;
 			var aposmul=posdif*bmass,bposmul=posdif*amass;
 			for (i=0;i<dim;i++) {
 				dif=norm[i];
@@ -1563,8 +1617,8 @@ class PhyWorld {
 		this.rnd=new Random();
 		this.gravity=new PhyVec(dim);
 		this.gravity.set(dim-1,0.24);
-		this.bndmin=new PhyVec(dim).fill(-Infinity);
-		this.bndmax=new PhyVec(dim).fill( Infinity);
+		this.bndmin=new PhyVec(dim).set(-Infinity);
+		this.bndmax=new PhyVec(dim).set( Infinity);
 		this.atomtypelist=new PhyList();
 		this.atomlist=new PhyList();
 		this.bondlist=new PhyList();
@@ -1695,6 +1749,7 @@ class PhyWorld {
 
 
 	createbox(cen,side,rad,type) {
+		if (cen.elem!==undefined) {cen=cen.elem;}
 		var pos=new PhyVec(cen);
 		var atomcombos=1;
 		var i,x,dim=this.dim;
@@ -1706,7 +1761,7 @@ class PhyWorld {
 			for (i=0;i<dim;i++) {
 				x=atomtmp%side;
 				atomtmp=Math.floor(atomtmp/side);
-				pos.set(i,cen.get(i)+(x*2-side+1)*rad);
+				pos.set(i,cen[i]+(x*2-side+1)*rad);
 			}
 			atomarr[atomcombo]=this.createatom(pos,rad,type);
 		}
@@ -1766,10 +1821,15 @@ function rgbatoint(r,g,b,a) {
 }
 
 
-function drawfill(imgdata,imgwidth,imgheight,r,g,b) {
+function drawfill(scene,r,g,b) {
 	var rgba=rgbatoint(r,g,b,255);
-	var i=imgwidth*imgheight;
-	while (i>3) {
+	var imgdata=scene.backbuf32;
+	var i=scene.canvas.width*scene.canvas.height;
+	while (i>7) {
+		imgdata[--i]=rgba;
+		imgdata[--i]=rgba;
+		imgdata[--i]=rgba;
+		imgdata[--i]=rgba;
 		imgdata[--i]=rgba;
 		imgdata[--i]=rgba;
 		imgdata[--i]=rgba;
@@ -1778,10 +1838,12 @@ function drawfill(imgdata,imgwidth,imgheight,r,g,b) {
 	while (i>0) {
 		imgdata[--i]=rgba;
 	}
+	// fill() is ~25% slower in testing.
+	// imgdata.fill(rgba);
 }
 
 
-function drawcircle(imgdata,imgwidth,imgheight,x,y,rad,r,g,b) {
+function drawcircle1(tmp,imgdata,imgwidth,imgheight,x,y,rad,r,g,b) {
 	// Manually draw a circle pixel by pixel.
 	// This is ugly, but it's faster than canvas.arc and drawimage.
 	x=x|0;
@@ -1919,25 +1981,97 @@ function drawline(imgdata,imgwidth,imgheight,x0,y0,x1,y1,r,g,b) {
 }
 
 
-class PhyScene2 {
+function drawcircle(scene,x,y,rad,r,g,b) {
+	// Manually draw a circle pixel by pixel.
+	// This is ugly, but it's faster than canvas.arc and drawimage.
+	var imgdata8=scene.backbuf.data;
+	var imgdata32=scene.backbuf32;
+	var imgwidth=scene.canvas.width;
+	var imgheight=scene.canvas.height;
+	if (rad<=0 || x-rad>imgwidth || x+rad<0 || y-rad>imgheight || y+rad<0) {
+		return;
+	}
+	var fillrgba=rgbatoint(r,g,b,255);
+	var minx=Math.floor(x-rad-0.5);
+	if (minx<0) {minx=0;}
+	var maxx=Math.ceil(x+rad+0.5);
+	if (maxx>imgwidth) {maxx=imgwidth;}
+	var xs=Math.floor(x);
+	if (xs< minx) {xs=minx;}
+	if (xs>=maxx) {xs=maxx-1;}
+	var miny=Math.floor(y-rad-0.5);
+	if (miny<0) {miny=0;}
+	var maxy=Math.ceil(y+rad+0.5);
+	if (maxy>imgheight) {maxy=imgheight;}
+	var pixrow=miny*imgwidth;
+	var d,dn,d2;
+	var pixmin,pixmax,pix;
+	var dx,dy=miny-y+0.5;
+	var rad20=rad*rad;
+	var rad21=(rad+1)*(rad+1);
+	//var rnorm=1.0/(rad21-rad20);
+	for (var y0=miny;y0<maxy;y0++) {
+		dx=xs-x+0.5;
+		d2=dy*dy+dx*dx;
+		pixmax=pixrow+maxx;
+		pix=pixrow+xs;
+		while (d2<rad20 && pix<pixmax) {
+			imgdata32[pix++]=fillrgba;
+			d2+=dx+dx+1;
+			dx++;
+		}
+		pix*=4;
+		pixmax*=4;
+		while (d2<rad21 && pix<pixmax) {
+			d=Math.sqrt(d2)-rad;
+			//d=(d2-rad20)*rnorm;
+			dn=1-d;
+			imgdata8[pix  ]=(imgdata8[pix  ]*d+r*dn)>>>0;
+			imgdata8[pix+1]=(imgdata8[pix+1]*d+g*dn)>>>0;
+			imgdata8[pix+2]=(imgdata8[pix+2]*d+b*dn)>>>0;
+			pix+=4;
+			d2+=dx+dx+1;
+			dx++;
+		}
+		dx=xs-x-0.5;
+		d2=dy*dy+dx*dx;
+		pixmin=pixrow+minx;
+		pix=pixrow+(xs-1);
+		while (d2<rad20 && pix>=pixmin) {
+			imgdata32[pix--]=fillrgba;
+			d2-=dx+dx-1;
+			dx--;
+		}
+		pix*=4;
+		pixmin*=4;
+		while (d2<rad21 && pix>=pixmin) {
+			d=Math.sqrt(d2)-rad;
+			//d=(d2-rad20)*rnorm;
+			dn=1-d;
+			imgdata8[pix  ]=(imgdata8[pix  ]*d+r*dn)>>>0;
+			imgdata8[pix+1]=(imgdata8[pix+1]*d+g*dn)>>>0;
+			imgdata8[pix+2]=(imgdata8[pix+2]*d+b*dn)>>>0;
+			pix-=4;
+			d2-=dx+dx-1;
+			dx--;
+		}
+		pixrow+=imgwidth;
+		dy++;
+	}
+}
+
+
+class PhyScene {
 
 	constructor(divid) {
-		// Swap the <div> with <canvas>
-		var elem=document.getElementById(divid);
-		var drawwidth=elem.clientWidth;
-		var canvas=document.createElement("canvas");
-		elem.replaceWith(canvas);
-		var drawheight=drawwidth;
+		// Setup the canvas
+		var drawwidth=603;
+		var drawheight=1072;
+		var canvas=document.getElementById(divid);
 		canvas.width=drawwidth;
 		canvas.height=drawheight;
 		this.input=new Input(canvas);
 		this.input.disablenav();
-		// Setup the UI.
-		this.canvas=canvas;
-		this.ctx=this.canvas.getContext("2d");
-		this.backbuf=this.ctx.createImageData(canvas.width,canvas.height);
-		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
-		this.world=new PhyWorld(2);
 		this.mouse=new PhyVec(2);
 		this.frameden=0;
 		this.frames=0;
@@ -1945,7 +2079,12 @@ class PhyScene2 {
 		this.fps=0;
 		this.promptshow=1;
 		this.promptframe=0;
-		this.setup();
+		// Setup the UI.
+		this.canvas=canvas;
+		this.ctx=this.canvas.getContext("2d");
+		this.backbuf=this.ctx.createImageData(canvas.width,canvas.height);
+		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
+		this.initworld();
 		var state=this;
 		function update() {
 			setTimeout(update,1000/60);
@@ -1954,75 +2093,68 @@ class PhyScene2 {
 		update();
 	}
 
-
-	setup() {
+	initworld() {
+		this.world=new PhyWorld(2);
 		var canvas=this.canvas;
 		var world=this.world;
-		world.steps=5;
+		world.steps=3;
+		world.gravity.set([0,0.1]);
 		var viewheight=1.0,viewwidth=canvas.width/canvas.height;
 		var walltype=world.createatomtype(1.0,Infinity,1.0);
 		var normtype=world.createatomtype(0.01,1.0,0.98);
+		var boxtype=world.createatomtype(0.0,2.0,1.0);
 		var rnd=new Random(2);
 		var pos=new PhyVec(world.dim);
 		for (var p=0;p<3000;p++) {
 			pos.set(0,rnd.getf64()*viewwidth);
 			pos.set(1,rnd.getf64()*viewheight);
-			world.createatom(pos,0.007,normtype);
+			world.createatom(pos,0.004,normtype);
 		}
-		// Walls
-		var wallrad=0.07,wallstep=wallrad/5;
-		for (var x=0;x<=viewwidth;x+=wallstep) {
-			pos.set(0,x);
-			pos.set(1,-wallrad);
-			world.createatom(pos,wallrad,walltype);
-			pos.set(1,1.0+wallrad);
-			world.createatom(pos,wallrad,walltype);
-		}
-		for (var y=0;y<=1.0;y+=wallstep) {
-			pos.set(1,y);
-			pos.set(0,viewwidth+wallrad);
-			world.createatom(pos,wallrad,walltype);
-			pos.set(0,-wallrad);
-			world.createatom(pos,wallrad,walltype);
-		}
+		world.createbox([0.3*viewwidth,0.3],5,0.007,boxtype);
+		world.createbox([0.5*viewwidth,0.5],5,0.007,boxtype);
+		world.createbox([0.7*viewwidth,0.3],5,0.007,boxtype);
+		world.bndmin=new PhyVec([0,0]);
+		world.bndmax=new PhyVec([viewwidth,1]);
 		var playertype=world.createatomtype(0.0,Infinity,0.1);
+		playertype.bound=false;
 		playertype.gravity=new PhyVec([0,0]);
-		pos=new PhyVec([viewwidth*0.5,viewheight*0.33]);
+		pos.set([viewwidth*0.5,viewheight*0.33]);
 		this.playeratom=world.createatom(pos,0.035,playertype);
-		this.mouse.copy(pos);
+		this.mouse.set(pos);
 		this.frametime=performance.now();
-		console.log(world.atomlist.count);
 	}
 
 
 	update() {
 		var input=this.input;
 		input.update();
-		var canvas=this.canvas;
-		var imgwidth=canvas.width;
-		var imgheight=canvas.height;
-		var imgdata=this.backbuf32;
-		var scale=imgheight;
 		var ctx=this.ctx;
+		var canvas=this.canvas;
+		var scale=canvas.height;
 		var world=this.world;
 		world.update();
-		drawfill(imgdata,imgwidth,imgheight,0,0,0);
+		drawfill(this,0,0,0);
 		// Convert mouse to world space.
 		var mpos=input.getmousepos();
-		var maxx=imgwidth/imgheight;
-		if (mpos[0]>=0 && mpos[0]<1 && mpos[1]>=0 && mpos[1]<1) {
-			this.mouse.set(0,mpos[0]*maxx);
-			this.mouse.set(1,mpos[1]);
-			this.promptshow=0;
-		}
+		var maxx=canvas.width/canvas.height;
+		this.mouse.set(0,mpos[0]*maxx);
+		this.mouse.set(1,mpos[1]);
 		// Move the player.
 		var player=this.playeratom;
 		var dir=this.mouse.sub(player.pos);
-		var move=dir.sqr()>1e-6;
-		player.vel=dir.scale(move?0.2/world.deltatime:0);
+		var mag=dir.sqr();
+		if (mag<Infinity) {
+			this.promptshow=0;
+			if (mag>1e-6) {
+				player.vel=dir.mul(0.2/world.deltatime);
+			} else {
+				player.vel.set(0);
+			}
+		}
 		var link=world.atomlist.head;
 		while (link!==null) {
 			var atom=link.obj;
+			var type=atom.type;
 			var data=atom.userdata;
 			if (data===undefined || data===null) {
 				data={velcolor:0};
@@ -2033,12 +2165,26 @@ class PhyScene2 {
 			if (data.velcolor<vel) {
 				data.velcolor=vel;
 			}
-			var u=data.velcolor*(256*4);
-			u=Math.floor(u<255?u:255);
 			var pos=atom.pos.elem;
 			var rad=atom.rad*scale;
-			drawcircle(imgdata,imgwidth,imgheight,pos[0]*scale,pos[1]*scale,rad,u,0,255-u);
-			link=link.next;
+			var r,g,b;
+			if (type.id===2) {
+				r=64;
+				g=200;
+				b=0;
+			} else {
+				var u=data.velcolor*(256*4);
+				u=Math.floor(u<255?u:255);
+				r=u;
+				g=0;
+				b=255-u;
+			}
+			drawcircle(this,pos[0]*scale,pos[1]*scale,rad,r,g,b);
+			var next=link.next;
+			if (atom.delete!==undefined) {
+				atom.release();
+			}
+			link=next;
 		}
 		if (this.promptshow!==0) {
 			var pframe=(this.promptframe+1)%120;
@@ -2047,12 +2193,26 @@ class PhyScene2 {
 			var py=player.pos.get(1)*scale;
 			var rad=player.rad*scale;
 			var u=Math.floor((Math.sin((pframe/119.0)*Math.PI*2)+1.0)*0.5*255.0);
-			drawcircle(imgdata,imgwidth,imgheight,px,py,rad,u,u,255);
+			drawcircle(this,px,py,rad,u,u,255);
 		}
 		ctx.putImageData(this.backbuf,0,0);
-		ctx.font="20px sans-serif";
-		ctx.fillStyle="#ffffff";
-		ctx.fillText("fps: "+this.fps.toFixed(2),5,20);
+		// Draw the HUD
+		ctx.font="16px monospace";
+		ctx.fillStyle="rgba(255,255,255,255)";
+		ctx.fillText("FPS: "+this.fps.toFixed(2),5,20);
+		ctx.fillText("Cnt: "+world.atomlist.count,5,44);
+		ctx.fillText("Win: "+window.innerWidth+", "+window.innerHeight+", "+window.devicePixelRatio,5,68);
+		ctx.fillText("Scr: "+screen.width+", "+screen.height,5,92);
+		var elem=canvas;
+		var offleft=elem.clientLeft;
+		var offtop =elem.clientTop;
+		while (elem!==null) {
+			offleft+=elem.offsetLeft;
+			offtop +=elem.offsetTop;
+			elem=elem.offsetParent;
+		}
+		ctx.fillText("Off: "+offleft+", "+offtop,5,116);
+		// Calculate the frame time.
 		var frametime=performance.now()-this.frametime;
 		this.frametime=performance.now();
 		this.frameden+=frametime;
@@ -2066,31 +2226,31 @@ class PhyScene2 {
 
 }
 
-class PhyScene1 {
+
+class PhyScene0 {
 
 	constructor(divid) {
 		// Swap the <div> with <canvas>
-		var elem=document.getElementById(divid);
-		var drawwidth=elem.clientWidth;
-		var canvas=document.createElement("canvas");
-		elem.replaceWith(canvas);
-		var drawheight=drawwidth;
+		var drawwidth=603;
+		var drawheight=1072;
+		var canvas=document.getElementById(divid);
 		canvas.width=drawwidth;
 		canvas.height=drawheight;
 		this.input=new Input(canvas);
 		this.input.disablenav();
-		// Setup the UI.
-		this.canvas=canvas;
-		this.ctx=this.canvas.getContext("2d");
-		this.backbuf=this.ctx.createImageData(canvas.width,canvas.height);
-		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
-		this.world=new PhyWorld(2);
 		this.mouse=new PhyVec(2);
 		this.frameden=0;
 		this.frames=0;
 		this.frametime=performance.now();
 		this.fps=0;
-		this.setup();
+		this.promptshow=1;
+		this.promptframe=0;
+		// Setup the UI.
+		this.canvas=canvas;
+		this.ctx=this.canvas.getContext("2d");
+		this.backbuf=this.ctx.createImageData(canvas.width,canvas.height);
+		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
+		this.initworld();
 		var state=this;
 		function update() {
 			setTimeout(update,1000/60);
@@ -2099,73 +2259,92 @@ class PhyScene1 {
 		update();
 	}
 
-
-	setup() {
+	initworld() {
+		this.world=new PhyWorld(2);
 		var canvas=this.canvas;
 		var world=this.world;
-		world.steps=2;
+		world.steps=3;
+		world.gravity.set(0);
 		var viewheight=1.0,viewwidth=canvas.width/canvas.height;
 		var walltype=world.createatomtype(1.0,Infinity,1.0);
 		var normtype=world.createatomtype(0.01,1.0,0.98);
+		var boxtype1=world.createatomtype(0.0,50.0,1.0);
+		var boxtype2=world.createatomtype(0.0,Infinity,1.0);
+		var portaltype=world.createatomtype(0.0,Infinity,0.0);
+		portaltype.pmul=0;
 		var rnd=new Random(2);
 		var pos=new PhyVec(world.dim);
-		for (var p=0;p<1000;p++) {
+		for (var p=0;p<3000;p++) {
 			pos.set(0,rnd.getf64()*viewwidth);
 			pos.set(1,rnd.getf64()*viewheight);
-			world.createatom(pos,0.007,normtype);
+			world.createatom(pos,0.004,normtype);
 		}
-		// Walls
-		var wallrad=0.07,wallstep=wallrad/5;
-		for (var x=0;x<=viewwidth;x+=wallstep) {
-			pos.set(0,x);
-			pos.set(1,-wallrad);
-			world.createatom(pos,wallrad,walltype);
-			pos.set(1,1.0+wallrad);
-			world.createatom(pos,wallrad,walltype);
+		world.createatom([viewwidth*0.5,0.1],0.1,portaltype);
+		world.createbox([0.3*viewwidth,0.3],5,0.007,boxtype2);
+		world.createbox([0.5*viewwidth,0.5],5,0.007,boxtype1);
+		world.createbox([0.7*viewwidth,0.3],5,0.007,boxtype2);
+		function reset(a,b) {
+			if (a.type.id===1) {var tmp=a;a=b;b=tmp;}
+			// a is the box
+			b.pos.set([world.bndmax.elem[0]*0.5,world.bndmax.elem[1]*0.9]);
+			b.vel.set(0);
+			return 1;
 		}
-		for (var y=0;y<=1.0;y+=wallstep) {
-			pos.set(1,y);
-			pos.set(0,viewwidth+wallrad);
-			world.createatom(pos,wallrad,walltype);
-			pos.set(0,-wallrad);
-			world.createatom(pos,wallrad,walltype);
+		function eat(a,b) {
+			if (a.type.id===1) {var tmp=a;a=b;b=tmp;}
+			// a is the box
+			b.delete=true;
 		}
-		var playertype=world.createatomtype(0.01,2.0,0.98);
-		// playertype.gravity=new PhyVec([0,0]);
-		this.playertype=playertype;
-		pos=new PhyVec([viewwidth*0.5,viewheight*0.33]);
-		this.mouse.copy(pos);
+		var intr=PhyAtomInteraction.get(boxtype1,normtype);
+		intr.callback=reset;
+		intr=PhyAtomInteraction.get(boxtype2,normtype);
+		intr.callback=reset;
+		intr=PhyAtomInteraction.get(portaltype,normtype);
+		intr.callback=eat;
+		world.bndmin=new PhyVec([0,0]);
+		world.bndmax=new PhyVec([viewwidth,1]);
+		var playertype=world.createatomtype(0.0,Infinity,0.1);
+		playertype.bound=false;
+		playertype.gravity=new PhyVec([0,0]);
+		pos.set([viewwidth*0.5,viewheight*0.33]);
+		this.playeratom=world.createatom(pos,0.035,playertype);
+		this.mouse.set(pos);
 		this.frametime=performance.now();
-		this.ctx.font="20px monospace";
+		console.log(world.atomlist.count);
 	}
 
 
 	update() {
 		var input=this.input;
 		input.update();
-		var canvas=this.canvas;
-		var imgwidth=canvas.width;
-		var imgheight=canvas.height;
-		var imgdata=this.backbuf32;
-		var scale=imgheight;
 		var ctx=this.ctx;
+		var canvas=this.canvas;
+		var scale=canvas.height;
 		var world=this.world;
 		world.update();
-		drawfill(imgdata,imgwidth,imgheight,0,0,0);
+		drawfill(this,0,0,0);
 		// Convert mouse to world space.
 		var mpos=input.getmousepos();
-		var maxx=imgwidth/imgheight;
-		if (mpos[0]>=0 && mpos[0]<1 && mpos[1]>=0 && mpos[1]<1) {
-			this.mouse.set(0,mpos[0]*maxx);
-			this.mouse.set(1,mpos[1]);
-		}
-		if (input.getkeyhit(input.MOUSE.LEFT)) {
-			world.createbox(this.mouse,5,0.015,this.playertype);
-		}
+		var maxx=canvas.width/canvas.height;
+		this.mouse.set(0,mpos[0]*maxx);
+		this.mouse.set(1,mpos[1]);
 		// Move the player.
+		var player=this.playeratom;
+		var dir=this.mouse.sub(player.pos);
+		var mag=dir.sqr();
+		if (mag<Infinity) {
+			this.promptshow=0;
+			if (mag>1e-6) {
+				player.vel=dir.mul(0.2/world.deltatime);
+			} else {
+				player.vel.set(0);
+			}
+		}
 		var link=world.atomlist.head;
+		var count=0;
 		while (link!==null) {
 			var atom=link.obj;
+			var type=atom.type;
 			var data=atom.userdata;
 			if (data===undefined || data===null) {
 				data={velcolor:0};
@@ -2176,163 +2355,48 @@ class PhyScene1 {
 			if (data.velcolor<vel) {
 				data.velcolor=vel;
 			}
-			var u=data.velcolor*(256*4);
-			u=Math.floor(u<255?u:255);
 			var pos=atom.pos.elem;
 			var rad=atom.rad*scale;
-			drawcircle(imgdata,imgwidth,imgheight,pos[0]*scale,pos[1]*scale,rad,u,0,255-u);
-			link=link.next;
-		}
-		// Draw bonds.
-		link=world.bondlist.head;
-		while (link!==null) {
-			var bond=link.obj;
-			var apos=bond.a.pos.elem;
-			var bpos=bond.b.pos.elem;
-			drawline(imgdata,imgwidth,imgheight,apos[0]*scale,apos[1]*scale,bpos[0]*scale,bpos[1]*scale,255,255,255);
-			link=link.next;
-		}
-		ctx.putImageData(this.backbuf,0,0);
-		ctx.fillStyle="#ffffff";
-		ctx.fillText("fps: "+this.fps.toFixed(2),5,20);
-		var frametime=performance.now()-this.frametime;
-		this.frametime=performance.now();
-		this.frameden+=frametime;
-		this.frames++;
-		if (this.frames>=60) {
-			this.fps=(this.frames*1000)/this.frameden;
-			this.frames=0;
-			this.frameden=0;
-		}
-	}
-
-}
-
-
-class PhyScene3 {
-
-	constructor(divid) {
-		// Swap the <div> with <canvas>
-		var elem=document.getElementById(divid);
-		var drawwidth=elem.clientWidth;
-		var canvas=document.createElement("canvas");
-		elem.replaceWith(canvas);
-		var drawheight=drawwidth;
-		canvas.width=drawwidth;
-		canvas.height=drawheight;
-		this.input=new Input(canvas);
-		this.input.disablenav();
-		// Setup the UI.
-		this.canvas=canvas;
-		this.ctx=this.canvas.getContext("2d");
-		this.backbuf=this.ctx.createImageData(canvas.width,canvas.height);
-		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
-		this.world=new PhyWorld(2);
-		this.mouse=new PhyVec(2);
-		this.frameden=0;
-		this.frames=0;
-		this.frametime=performance.now();
-		this.fps=0;
-		this.setup();
-		var state=this;
-		function update() {
-			setTimeout(update,1000/60);
-			state.update();
-		}
-		update();
-	}
-
-
-	setup() {
-		var canvas=this.canvas;
-		var world=this.world;
-		world.steps=2;
-		var viewheight=1.0,viewwidth=canvas.width/canvas.height;
-		var walltype=world.createatomtype(1.0,Infinity,1.0);
-		var normtype=world.createatomtype(0.0,1.0,1.0);
-		var rnd=new Random(2);
-		var pos=new PhyVec(world.dim);
-		world.gravity.elem[1]=0;
-		var spawn=performance.now()/1000.0;
-		for (var p=0;p<5000;p++) {
-			pos.set(0,rnd.getf64()*viewwidth);
-			pos.set(1,rnd.getf64()*viewheight);
-			var atom=world.createatom(pos,0.003,normtype);
-			atom.userdata={spawn:spawn,type:0,velcolor:0};
-			atom.vel.elem[0]=1.0;
-		}
-		pos=new PhyVec([viewwidth*0.5,viewheight*0.5]);
-		var atom=world.createatom(pos,0.03,walltype);
-		atom.userdata={spawn:spawn,type:1};
-		// var playertype=world.createatomtype(0.01,2.0,0.98);
-		// playertype.gravity=new PhyVec([0,0]);
-		/*this.playertype=playertype;
-		pos=new PhyVec([viewwidth*0.5,viewheight*0.33]);
-		this.mouse.copy(pos);*/
-		this.frametime=performance.now();
-		this.ctx.font="20px monospace";
-	}
-
-
-	update() {
-		var input=this.input;
-		input.update();
-		var canvas=this.canvas;
-		var imgwidth=canvas.width;
-		var imgheight=canvas.height;
-		var imgdata=this.backbuf32;
-		var scale=imgheight;
-		var ctx=this.ctx;
-		var world=this.world;
-		var rnd=new Random();
-		world.update();
-		drawfill(imgdata,imgwidth,imgheight,0,0,0);
-		var time=performance.now()/1000.0;
-		var cutoff=time-5.0;
-		var energymax=256.0*0.95;
-		var link=world.atomlist.head;
-		while (link!==null) {
-			var atom=link.obj;
-			var data=atom.userdata;
-			var pos=atom.pos.elem;
-			var vel=atom.vel.elem;
-			var rad=atom.rad*scale;
-			var velmag=atom.vel.mag();
-			var u=0;
-			if (data.type===0) {
-				// data.vel
-				data.velcolor*=0.99;
-				if (data.velcolor<velmag) {
-					data.velcolor=velmag;
-				}
-				if (data.spawn<cutoff || pos[0]>1+atom.rad || pos[1]<-0.5 || pos[1]>1.5) {
-					data.spawn=time;
-					vel[0]=0.9+rnd.getf64()*0.1;
-					vel[1]=(rnd.getf64()-0.5)*0.1;
-					pos[0]=-rnd.getf64()*0.1-atom.rad;
-					pos[1]=rnd.getf64();
-					data.velcolor=0;
-				}
-				u=data.velcolor*energymax;
-				if (u>255.0) {u=255.0;}
-			} else if (data.type==1) {
-				u=255.0;
+			var r,g,b;
+			if (type.id===1) {
+				count+=1;
 			}
-			drawcircle(imgdata,imgwidth,imgheight,pos[0]*scale,pos[1]*scale,rad,u,u,u);
-			link=link.next;
+			if (type.id===2 || type.id===3) {
+				r=64;
+				g=200;
+				b=0;
+			} else {
+				var u=data.velcolor*(256*4);
+				u=Math.floor(u<255?u:255);
+				r=u;
+				g=0;
+				b=255-u;
+			}
+			drawcircle(this,pos[0]*scale,pos[1]*scale,rad,r,g,b);
+			var next=link.next;
+			if (atom.delete!==undefined) {
+				atom.release();
+			}
+			link=next;
 		}
-		// Draw bonds.
-		link=world.bondlist.head;
-		while (link!==null) {
-			var bond=link.obj;
-			var apos=bond.a.pos.elem;
-			var bpos=bond.b.pos.elem;
-			drawline(imgdata,imgwidth,imgheight,apos[0]*scale,apos[1]*scale,bpos[0]*scale,bpos[1]*scale,255,255,255);
-			link=link.next;
+		if (this.promptshow!==0) {
+			var pframe=(this.promptframe+1)%120;
+			this.promptframe=pframe;
+			var px=player.pos.get(0)*scale;
+			var py=player.pos.get(1)*scale;
+			var rad=player.rad*scale;
+			var u=Math.floor((Math.sin((pframe/119.0)*Math.PI*2)+1.0)*0.5*255.0);
+			drawcircle(this,px,py,rad,u,u,255);
 		}
 		ctx.putImageData(this.backbuf,0,0);
-		ctx.fillStyle="#ffffff";
-		ctx.fillText("fps: "+this.fps.toFixed(2),5,20);
+		// Draw the HUD
+		ctx.font="16px monospace";
+		ctx.fillStyle="rgba(255,255,255,255)";
+		ctx.fillText("FPS: "+this.fps.toFixed(2),5,20);
+		ctx.fillText("Cnt: "+count,5,44);
+		ctx.fillText("Win: "+window.innerWidth+" , "+window.innerHeight+" , "+window.devicePixelRatio,5,68);
+		ctx.fillText("Scr: "+screen.width+" , "+screen.height,5,92);
+		// Calculate the frame time.
 		var frametime=performance.now()-this.frametime;
 		this.frametime=performance.now();
 		this.frameden+=frametime;
@@ -2345,4 +2409,3 @@ class PhyScene3 {
 	}
 
 }
-

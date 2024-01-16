@@ -2,33 +2,65 @@
 <html lang="en">
 <head>
 	<meta charset="utf-8">
-	<title>Physics Engine</title>
-	<link rel="stylesheet" href="../style/style.css" type="text/css">
-	<script src="../style/style.js"></script>
+	<title>Physics Game</title>
+	<style>
+		* {
+			padding:0;
+			border:0;
+			border-collapse:collapse;
+			margin:0;
+			outline:none;
+			text-decoration:none;
+			font-size:100%;
+			vertical-align:baseline;
+		}
+		body {
+			overflow:hidden;
+			background-color:#000000;
+			font-family:sans-serif,sans-serif;
+			/*width:100vw;
+			height:100vh;*/
+		}
+		a {
+			color:#ffa500;
+		}
+	</style>
 	<script src="./physics.js"></script>
 </head>
 <body>
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div id="header"><a href="../index.html">Alec Dee's General Site</a></div>
-
-
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Physics ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Physics</h1>
-<div id="physmain" class="consoleblock" style="width:80%;height:30rem;">
-Loading javascript...</div>
-<script>new PhyScene2("physmain");</script>
-</div>
-
-
-<div class="content"><h1>Still in Testing</h1>
-<p>Need to improve performance and frame pacing.</p>
-<p>Need to add bonds.</p>
-</div>
-
-
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div id="footer">Created on 12 Jun 2023 - Modified on 6 Sep 2023<br>
-Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
-<a href="../index.html">Alec Dee's General Site</a></div>
+<table style="width:100%;height:100%;">
+<tr><td style="text-align:center"><a href="../index.html">Alec Dee's General Site</a></td></tr>
+<tr><td><canvas id="physmain" style="display:block;margin:auto;"></canvas></td></tr>
+</table>
+<!-- Properly resize the canvas -->
+<script>
+(function() {
+	var phy=new PhyScene("physmain");
+	function resize() {
+		var canvas =phy.canvas;
+		var ratio  =canvas.height/canvas.width;
+		var elem   =canvas;
+		//var offleft=elem.clientLeft;
+		var offtop =elem.clientTop;
+		while (elem!==null) {
+			//offleft+=elem.offsetLeft;
+			offtop +=elem.offsetTop;
+			elem=elem.offsetParent;
+		}
+		var pscale =1;//window.devicePixelRatio;
+		var width  =pscale*(window.innerWidth );//-offleft);
+		var height =pscale*(window.innerHeight-offtop);
+		if (width*ratio<height) {
+			height=Math.floor(width*ratio);
+		} else {
+			width =Math.floor(height/ratio);
+		}
+		canvas.style.width =width +"px";
+		canvas.style.height=height+"px";
+	}
+	window.addEventListener("resize",resize);
+	window.addEventListener("load",resize);
+})();
+</script>
 </body>
 </html>
