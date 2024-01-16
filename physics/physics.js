@@ -2086,11 +2086,15 @@ class PhyScene {
 		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
 		this.initworld();
 		var state=this;
-		function update() {
-			setTimeout(update,1000/60);
+		function update2() {
 			state.update();
 		}
-		update();
+		function update1() {
+			setTimeout(update1,1000/60);
+			//state.update();
+			requestAnimationFrame(update2);
+		}
+		update1();
 	}
 
 	initworld() {
