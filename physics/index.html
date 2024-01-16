@@ -47,9 +47,9 @@
 			offtop +=elem.offsetTop;
 			elem=elem.offsetParent;
 		}
-		var pscale =1;//window.devicePixelRatio;
-		var width  =pscale*(window.innerWidth );//-offleft);
-		var height =pscale*(window.innerHeight-offtop);
+		var pscale =window.devicePixelRatio;
+		var width  =Math.floor(pscale*(window.innerWidth));//-offleft);
+		var height =Math.floor(pscale*(window.innerHeight-offtop));
 		if (width*ratio<height) {
 			height=Math.floor(width*ratio);
 		} else {

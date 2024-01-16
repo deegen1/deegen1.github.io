@@ -2086,15 +2086,13 @@ class PhyScene {
 		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
 		this.initworld();
 		var state=this;
-		function update2() {
+		//function update2() {state.update();}
+		function update() {
+			setTimeout(update,1000/60);
 			state.update();
+			//requestAnimationFrame(update2);
 		}
-		function update1() {
-			setTimeout(update1,1000/60);
-			//state.update();
-			requestAnimationFrame(update2);
-		}
-		update1();
+		update();
 	}
 
 	initworld() {
@@ -2205,8 +2203,11 @@ class PhyScene {
 		ctx.fillStyle="rgba(255,255,255,255)";
 		ctx.fillText("FPS: "+this.fps.toFixed(2),5,20);
 		ctx.fillText("Cnt: "+world.atomlist.count,5,44);
+		var pscale =window.devicePixelRatio;
+		var width0 =Math.floor(pscale*window.innerWidth);//-offleft);
+		var height0=Math.floor(pscale*window.innerHeight);
 		ctx.fillText("Win: "+window.innerWidth+", "+window.innerHeight+", "+window.devicePixelRatio,5,68);
-		ctx.fillText("Scr: "+screen.width+", "+screen.height,5,92);
+		ctx.fillText("Scr: "+width0+", "+height0,5,92);
 		var elem=canvas;
 		var offleft=elem.clientLeft;
 		var offtop =elem.clientTop;
