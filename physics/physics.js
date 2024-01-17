@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v1.19
+physics.js - v1.20
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -11,7 +11,6 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
-Create imgdatar/g/b/a
 fill bonds
 groups
 	center
@@ -1985,7 +1984,6 @@ function drawline(imgdata,imgwidth,imgheight,x0,y0,x1,y1,r,g,b) {
 function drawcircle(scene,x,y,rad,r,g,b) {
 	// Manually draw a circle pixel by pixel.
 	// This is ugly, but it's faster than canvas.arc and drawimage.
-	var imgdata8=scene.backbuf8;
 	var imgdata32=scene.backbuf32;
 	var imgwidth=scene.canvas.width;
 	var imgheight=scene.canvas.height;
@@ -1993,6 +1991,9 @@ function drawcircle(scene,x,y,rad,r,g,b) {
 		return;
 	}
 	var fillrgba=rgbatoint(r,g,b,255);
+	var lh=(fillrgba&0x00ff00ff)>>>0;
+	var hh=(fillrgba&0xff00ff00)>>>0;
+	var hh2=hh>>>8;
 	var minx=Math.floor(x-rad-0.5);
 	if (minx<0) {minx=0;}
 	var maxx=Math.ceil(x+rad+0.5);
@@ -2005,12 +2006,13 @@ function drawcircle(scene,x,y,rad,r,g,b) {
 	var maxy=Math.ceil(y+rad+0.5);
 	if (maxy>imgheight) {maxy=imgheight;}
 	var pixrow=miny*imgwidth;
-	var d,dn,d2;
+	var d,d2,dst;
 	var pixmin,pixmax,pix;
 	var dx,dy=miny-y+0.5;
 	var rad20=rad*rad;
 	var rad21=(rad+1)*(rad+1);
-	// var rnorm=1.0/(rad21-rad20);
+	var imul=Math.imul,sqrt=Math.sqrt;
+	//var rnorm=256.0/(rad21-rad20);
 	for (var y0=miny;y0<maxy;y0++) {
 		dx=xs-x+0.5;
 		d2=dy*dy+dx*dx;
@@ -2021,16 +2023,13 @@ function drawcircle(scene,x,y,rad,r,g,b) {
 			d2+=dx+dx+1;
 			dx++;
 		}
-		pix*=4;
-		pixmax*=4;
 		while (d2<rad21 && pix<pixmax) {
-			d=Math.sqrt(d2)-rad;
-			// d=(d2-rad20)*rnorm;
-			dn=1-d;
-			imgdata8[pix  ]=(imgdata8[pix  ]*d+r*dn)>>>0;
-			imgdata8[pix+1]=(imgdata8[pix+1]*d+g*dn)>>>0;
-			imgdata8[pix+2]=(imgdata8[pix+2]*d+b*dn)>>>0;
-			pix+=4;
+			d=((sqrt(d2)-rad)*256)|0;
+			//d=(d2-rad20)*rnorm|0;
+			dst=imgdata32[pix];
+			imgdata32[pix]=(((imul((dst&0x00ff00ff)-lh,d)>>>8)+lh)&0x00ff00ff)+
+			               ((imul(((dst&0xff00ff00)>>>8)-hh2,d)+hh)&0xff00ff00);
+			pix++;
 			d2+=dx+dx+1;
 			dx++;
 		}
@@ -2043,16 +2042,13 @@ function drawcircle(scene,x,y,rad,r,g,b) {
 			d2-=dx+dx-1;
 			dx--;
 		}
-		pix*=4;
-		pixmin*=4;
 		while (d2<rad21 && pix>=pixmin) {
-			d=Math.sqrt(d2)-rad;
-			// d=(d2-rad20)*rnorm;
-			dn=1-d;
-			imgdata8[pix  ]=(imgdata8[pix  ]*d+r*dn)>>>0;
-			imgdata8[pix+1]=(imgdata8[pix+1]*d+g*dn)>>>0;
-			imgdata8[pix+2]=(imgdata8[pix+2]*d+b*dn)>>>0;
-			pix-=4;
+			d=((sqrt(d2)-rad)*256)|0;
+			//d=(d2-rad20)*rnorm|0;
+			dst=imgdata32[pix];
+			imgdata32[pix]=(((imul((dst&0x00ff00ff)-lh,d)>>>8)+lh)&0x00ff00ff)+
+			               ((imul(((dst&0xff00ff00)>>>8)-hh2,d)+hh)&0xff00ff00);
+			pix--;
 			d2-=dx+dx-1;
 			dx--;
 		}
