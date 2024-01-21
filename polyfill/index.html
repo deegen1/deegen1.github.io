@@ -1,0 +1,67 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Polyfill</title>
+	<link rel="stylesheet" href="../style/style.css" type="text/css">
+	<script src="./polyfill.js"></script>
+	<!--<script src="./pixblendtest.js"></script>-->
+</head>
+<body>
+<!--<script>pixblendtest();</script>-->
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<div id="header"><a href="../index.html">Alec Dee's General Site</a></div>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Polyfill ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<div class="content"><h1>Polyfill</h1>
+<p>Polygon filling forms the basis for drawing text, circles, lines, and
+anything else we could want. However, doing it quickly and smoothly requires
+some research.</p>
+<div id="polydemo1" class="consoleblock" style="width:80%;height:30rem;">
+Loading javascript...</div>
+<script>new PolyDemo1("polydemo1");</script>
+<!--<p>Pixels on the edge of the polygon might not be entirely covered by the
+polygon. When this happens, we don't want to completely replace the background
+pixel's color. Instead we want to blend it with the polygon's color.</p>
+<p>Different algorithms give us different speed and accuracy.-->
+</div>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Polyfill ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<div class="content"><h1>Pixel Blending</h1>
+<p>There are several algorithms to blend pixels on the edge of the polygon with
+the background - some faster than others.</p>
+<table class="datatable headerrow">
+<tr><td>Algorithm</td><td>Firefox (ms)</td><td>Chrome (ms)</td>
+<td>Accurate</td></tr>
+<tr><td>Naive RGB #1</td><td>128</td><td>88</td><td>true</td></tr>
+<tr><td>Naive RGB #2</td><td>133</td><td>94</td><td>true</td></tr>
+<tr><td>32-bit #1</td><td>48</td><td>47</td><td>true</td></tr>
+<tr><td>32-bit #2</td><td>48</td><td>38</td><td>true</td></tr>
+<tr><td>32-bit #3</td><td>47</td><td>33</td><td>false</td></tr>
+<tr><td>imul #1</td><td>53</td><td>36</td><td>false</td></tr>
+<tr><td>imul #2</td><td>43</td><td>34</td><td>true</td></tr>
+</table>
+<p>The winning algorithm, imul #2, splits the pixel into red/blue and
+green/alpha bytes and uses some integer tricks:</p>
+<div class="codeblock">src = polygon color
+lh  = (src&0x00ff00ff)>>>0;
+hh  = (src&0xff00ff00)>>>0;
+hh2 = hh>>>8;
+
+
+a   = alpha in [0,256]
+col = img[i];
+col = (((Math.imul((col&0x00ff00ff)-lh,a)>>>8)+lh)&0x00ff00ff)+
+      ((Math.imul(((col&0xff00ff00)>>>8)-hh2,a)+hh)&0xff00ff00);
+</div>
+</div>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<div id="footer">Created on 21 Jan 2024 - Modified on 21 Jan 2024<br>
+Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
+<a href="../index.html">Alec Dee's General Site</a></div>
+</body>
+</html>

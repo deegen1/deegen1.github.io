@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v1.20
+physics.js - v1.21
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -11,6 +11,7 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
+polygon fill
 fill bonds
 groups
 	center
@@ -22,7 +23,6 @@ groups
 	move
 	copy
 mouse, handle all touch events
-get rid of phygame
 
 glow effect
 starfish
@@ -1822,6 +1822,8 @@ function rgbatoint(r,g,b,a) {
 
 
 function drawfill(scene,r,g,b) {
+	// fill() was ~25% slower during testing.
+	// imgdata.fill(rgba);
 	var rgba=rgbatoint(r,g,b,255);
 	var imgdata=scene.backbuf32;
 	var i=scene.canvas.width*scene.canvas.height;
@@ -1837,64 +1839,6 @@ function drawfill(scene,r,g,b) {
 	}
 	while (i>0) {
 		imgdata[--i]=rgba;
-	}
-	// fill() is ~25% slower in testing.
-	// imgdata.fill(rgba);
-}
-
-
-function drawcircle1(tmp,imgdata,imgwidth,imgheight,x,y,rad,r,g,b) {
-	// Manually draw a circle pixel by pixel.
-	// This is ugly, but it's faster than canvas.arc and drawimage.
-	x=x|0;
-	y=y|0;
-	rad=rad|0;
-	if (rad<=0 || x-rad>imgwidth || x+rad<0 || y-rad>imgheight || y+rad<0) {
-		return;
-	}
-	if (drawcircle.bndarr===undefined) {
-		drawcircle.bndarr=[];
-	}
-	var bnd=drawcircle.bndarr[rad];
-	// For a given radius, precalculate how many pixels we need to fill along each row.
-	if (bnd===undefined) {
-		bnd=new Array(rad*2);
-		for (var ly=0;ly<rad*2;ly++) {
-			var y0=ly-rad+0.5;
-			var lx=Math.sqrt(rad*rad-y0*y0)|0;
-			var mindist=Infinity;
-			var minx=lx;
-			for (var x0=-2;x0<=2;x0++) {
-				var x1=lx+x0;
-				var dist=Math.abs(rad-Math.sqrt(x1*x1+y0*y0));
-				if (mindist>dist && lx+x0>0) {
-					mindist=dist;
-					minx=lx+x0;
-				}
-			}
-			bnd[ly]=minx;
-		}
-		drawcircle.bndarr[rad]=bnd;
-	}
-	// Plot the pixels.
-	var miny=y-rad,minx;
-	var maxy=y+rad,maxx;
-	miny=miny>0?miny:0;
-	maxy=maxy<imgheight?maxy:imgheight;
-	var bndy=miny-y+rad;
-	miny*=imgwidth;
-	maxy*=imgwidth;
-	var rgba=rgbatoint(r,g,b,255);
-	while (miny<maxy) {
-		maxx=bnd[bndy++];
-		minx=x-maxx;
-		maxx+=x;
-		minx=(minx>0?minx:0)+miny;
-		maxx=(maxx<imgwidth?maxx:imgwidth)+miny;
-		while (minx<maxx) {
-			imgdata[minx++]=rgba;
-		}
-		miny+=imgwidth;
 	}
 }
 
@@ -1990,10 +1934,10 @@ function drawcircle(scene,x,y,rad,r,g,b) {
 	if (rad<=0 || x-rad>imgwidth || x+rad<0 || y-rad>imgheight || y+rad<0) {
 		return;
 	}
-	var fillrgba=rgbatoint(r,g,b,255);
-	var lh=(fillrgba&0x00ff00ff)>>>0;
-	var hh=(fillrgba&0xff00ff00)>>>0;
-	var hh2=hh>>>8;
+	var colrgba=rgbatoint(r,g,b,255);
+	var coll=(colrgba&0x00ff00ff)>>>0;
+	var colh=(colrgba&0xff00ff00)>>>0;
+	var colh2=colh>>>8;
 	var minx=Math.floor(x-rad-0.5);
 	if (minx<0) {minx=0;}
 	var maxx=Math.ceil(x+rad+0.5);
@@ -2012,23 +1956,23 @@ function drawcircle(scene,x,y,rad,r,g,b) {
 	var rad20=rad*rad;
 	var rad21=(rad+1)*(rad+1);
 	var imul=Math.imul,sqrt=Math.sqrt;
-	//var rnorm=256.0/(rad21-rad20);
+	// var rnorm=256.0/(rad21-rad20);
 	for (var y0=miny;y0<maxy;y0++) {
 		dx=xs-x+0.5;
 		d2=dy*dy+dx*dx;
 		pixmax=pixrow+maxx;
 		pix=pixrow+xs;
 		while (d2<rad20 && pix<pixmax) {
-			imgdata32[pix++]=fillrgba;
+			imgdata32[pix++]=colrgba;
 			d2+=dx+dx+1;
 			dx++;
 		}
 		while (d2<rad21 && pix<pixmax) {
 			d=((sqrt(d2)-rad)*256)|0;
-			//d=(d2-rad20)*rnorm|0;
+			// d=(d2-rad20)*rnorm|0;
 			dst=imgdata32[pix];
-			imgdata32[pix]=(((imul((dst&0x00ff00ff)-lh,d)>>>8)+lh)&0x00ff00ff)+
-			               ((imul(((dst&0xff00ff00)>>>8)-hh2,d)+hh)&0xff00ff00);
+			imgdata32[pix]=(((imul((dst&0x00ff00ff)-coll,d)>>>8)+coll)&0x00ff00ff)+
+			               ((imul(((dst&0xff00ff00)>>>8)-colh2,d)+colh)&0xff00ff00);
 			pix++;
 			d2+=dx+dx+1;
 			dx++;
@@ -2038,16 +1982,16 @@ function drawcircle(scene,x,y,rad,r,g,b) {
 		pixmin=pixrow+minx;
 		pix=pixrow+(xs-1);
 		while (d2<rad20 && pix>=pixmin) {
-			imgdata32[pix--]=fillrgba;
+			imgdata32[pix--]=colrgba;
 			d2-=dx+dx-1;
 			dx--;
 		}
 		while (d2<rad21 && pix>=pixmin) {
 			d=((sqrt(d2)-rad)*256)|0;
-			//d=(d2-rad20)*rnorm|0;
+			// d=(d2-rad20)*rnorm|0;
 			dst=imgdata32[pix];
-			imgdata32[pix]=(((imul((dst&0x00ff00ff)-lh,d)>>>8)+lh)&0x00ff00ff)+
-			               ((imul(((dst&0xff00ff00)>>>8)-hh2,d)+hh)&0xff00ff00);
+			imgdata32[pix]=(((imul((dst&0x00ff00ff)-coll,d)>>>8)+coll)&0x00ff00ff)+
+			               ((imul(((dst&0xff00ff00)>>>8)-colh2,d)+colh)&0xff00ff00);
 			pix--;
 			d2-=dx+dx-1;
 			dx--;
@@ -2070,9 +2014,8 @@ class PhyScene {
 		this.input=new Input(canvas);
 		this.input.disablenav();
 		this.mouse=new PhyVec(2);
-		this.frameden=0;
 		this.frames=0;
-		this.frametime=performance.now();
+		this.frametime=0;
 		this.fps=0;
 		this.promptshow=1;
 		this.promptframe=0;
@@ -2085,11 +2028,9 @@ class PhyScene {
 		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
 		this.initworld();
 		var state=this;
-		// function update2() {state.update();}
 		function update() {
 			setTimeout(update,1000/60);
 			state.update();
-			// requestAnimationFrame(update2);
 		}
 		update();
 	}
@@ -2128,6 +2069,7 @@ class PhyScene {
 
 
 	update() {
+		var frametime=performance.now();
 		var input=this.input;
 		input.update();
 		var ctx=this.ctx;
@@ -2201,17 +2143,15 @@ class PhyScene {
 		// Draw the HUD
 		ctx.font="16px monospace";
 		ctx.fillStyle="rgba(255,255,255,255)";
-		ctx.fillText("FPS: "+this.fps.toFixed(2),5,20);
+		ctx.fillText("FPS: "+this.fps.toFixed(1)+" ms",5,20);
 		ctx.fillText("Cnt: "+world.atomlist.count,5,44);
 		// Calculate the frame time.
-		var frametime=performance.now()-this.frametime;
-		this.frametime=performance.now();
-		this.frameden+=frametime;
+		this.frametime+=performance.now()-frametime;
 		this.frames++;
 		if (this.frames>=60) {
-			this.fps=(this.frames*1000)/this.frameden;
+			this.fps=this.frametime/this.frames;
 			this.frames=0;
-			this.frameden=0;
+			this.frametime=0;
 		}
 	}
 
@@ -2230,9 +2170,8 @@ class PhyScene0 {
 		this.input=new Input(canvas);
 		this.input.disablenav();
 		this.mouse=new PhyVec(2);
-		this.frameden=0;
 		this.frames=0;
-		this.frametime=performance.now();
+		this.frametime=0;
 		this.fps=0;
 		this.promptshow=1;
 		this.promptframe=0;
@@ -2306,6 +2245,7 @@ class PhyScene0 {
 
 
 	update() {
+		var frametime=performance.now();
 		var input=this.input;
 		input.update();
 		var ctx=this.ctx;
@@ -2383,19 +2323,18 @@ class PhyScene0 {
 		// Draw the HUD
 		ctx.font="16px monospace";
 		ctx.fillStyle="rgba(255,255,255,255)";
-		ctx.fillText("FPS: "+this.fps.toFixed(2),5,20);
+		ctx.fillText("FPS: "+this.fps.toFixed(1)+" ms",5,20);
 		ctx.fillText("Cnt: "+count,5,44);
 		ctx.fillText("Win: "+window.innerWidth+" , "+window.innerHeight+" , "+window.devicePixelRatio,5,68);
 		ctx.fillText("Scr: "+screen.width+" , "+screen.height,5,92);
 		// Calculate the frame time.
-		var frametime=performance.now()-this.frametime;
-		this.frametime=performance.now();
-		this.frameden+=frametime;
+		this.frametime+=performance.now()-frametime;
+		this.frametime+=frametime;
 		this.frames++;
 		if (this.frames>=60) {
-			this.fps=(this.frames*1000)/this.frameden;
+			this.fps=this.frametime/this.frames;
 			this.frames=0;
-			this.frameden=0;
+			this.frametime=0;
 		}
 	}
 
