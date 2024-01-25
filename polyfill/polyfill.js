@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-polyfill.js - v1.01
+polyfill.js - v1.02
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -11,6 +11,21 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
+Create font/image fitting.
+	per character
+	width
+	height
+	strips
+	strip 1
+	strip 2
+	...
+Create primitives.
+	lines
+	rectangles
+	circles
+	high line count
+	text
+Create stress tests.
 Optimize sorting lines. Heap/merge sort?
 Optimize clipping line to unit square.
 Instead of calculating per-pixel overlap, calculate [minx,maxx,delta].
@@ -29,12 +44,6 @@ for (var half=1;half<len;half+=half) {
 	while (j0<j1) {dst[i++]=arr[j0++];}
 	tmp=arr;arr=dst;dst=tmp;
 }
-
-lines
-rectangles
-circles
-high line count
-text
 
 
 */
@@ -59,6 +68,8 @@ class IMG {
 	static imgwidth =undefined;
 	static imgheight=undefined;
 	static imgdata  =undefined;
+	static rgba     =[255,255,255,255];
+	static rgb32    =0xffffffff;
 
 
 	static setimage(canvas,buf32) {
@@ -69,41 +80,6 @@ class IMG {
 		IMG.imgwidth=canvas.width;
 		IMG.imgheight=canvas.height;
 		IMG.imgdata=buf32;
-	}
-
-
-	// ----------------------------------------
-	// Transform
-	// p -> scale -> rotate -> offset
-
-
-	static linethickness=1.0;
-	static xscale   =1.0;
-	static yscale   =1.0;
-	static xoff     =0.0;
-	static yoff     =0.0;
-	static xrot     =1.0;
-	static yrot     =0.0;
-	static rgba     =[255,255,255,255];
-	static rgb32    =0xffffffff;
-
-
-	static setscale(x,y) {
-		IMG.xscale=x;
-		IMG.yscale=y;
-	}
-
-
-	static setangle(ang) {
-		IMG.ang=ang;
-		IMG.xrot=Math.cos(ang);
-		IMG.yrot=Math.sin(ang);
-	}
-
-
-	static setoffset(x,y) {
-		IMG.xoff=x;
-		IMG.yoff=y;
 	}
 
 
@@ -118,23 +94,69 @@ class IMG {
 	}
 
 
+	// ----------------------------------------
+	// Transform
+	// point -> scale -> rotate -> offset
+
+
+	static linethickness=1.0;
+	static scalex   =1.0;
+	static scaley   =1.0;
+	static offx     =0.0;
+	static offy     =0.0;
+	static ang      =0.0;
+	static rotx     =1.0;
+	static roty     =0.0;
+	static mulxx    =1.0;
+	static mulxy    =0.0;
+	static mulyx    =0.0;
+	static mulyy    =1.0;
+
+
+	static setscale(x,y) {
+		IMG.scalex=x;
+		IMG.scaley=y;
+		IMG.mulxx= IMG.rotx*x;
+		IMG.mulxy=-IMG.roty*y;
+		IMG.mulyx= IMG.roty*x;
+		IMG.mulyy= IMG.rotx*y;
+	}
+
+
+	static setangle(ang) {
+		IMG.ang=ang;
+		IMG.rotx=Math.cos(ang);
+		IMG.roty=Math.sin(ang);
+		IMG.setscale(IMG.scalex,IMG.scaley);
+	}
+
+
+	static setoffset(x,y) {
+		IMG.offx=x;
+		IMG.offy=y;
+	}
+
+
 	static cleartransform() {
 		IMG.linethickness=1.0;
-		IMG.xscale=1.0;
-		IMG.yscale=1.0;
-		IMG.xoff  =0.0;
-		IMG.yoff  =0.0;
-		IMG.xrot  =1.0;
-		IMG.yrot  =0.0;
+		IMG.scalex=1.0;
+		IMG.scaley=1.0;
+		IMG.offx  =0.0;
+		IMG.offy  =0.0;
+		IMG.ang   =0.0;
+		IMG.rotx  =1.0;
+		IMG.roty  =0.0;
+		IMG.mulxx =1.0;
+		IMG.mulxy =0.0;
+		IMG.mulyx =0.0;
+		IMG.mulyy =1.0;
 	}
 
 
 	static transform(x,y) {
-		x*=IMG.xscale;
-		y*=IMG.yscale;
 		var t=x;
-		x=t*IMG.xrot-y*IMG.yrot+IMG.xoff;
-		y=t*IMG.yrot+y*IMG.xrot+IMG.yoff;
+		x=t*IMG.mulxx+y*IMG.mulxy+IMG.offx;
+		y=t*IMG.mulyx+y*IMG.mulyy+IMG.offy;
 		return [x,y];
 	}
 
@@ -193,6 +215,10 @@ class IMG {
 	}
 
 
+	static oval(x,y,xrad,yrad) {
+	}
+
+
 	static rect(x,y,w,h) {
 	}
 
@@ -213,24 +239,23 @@ class IMG {
 		}
 		var lr=func.lr;
 		var imgdata=IMG.imgdata,imgwidth=IMG.imgwidth,imgheight=IMG.imgheight;
-		var xmul=IMG.xscale,xrot=IMG.xrot,xoff=IMG.xoff;
-		var ymul=IMG.yscale,yrot=IMG.yrot,yoff=IMG.yoff;
+		var mulxx=IMG.mulxx,mulxy=IMG.mulxy,offx=IMG.offx;
+		var mulyx=IMG.mulyx,mulyy=IMG.mulyy,offy=IMG.offy;
+		var swap=(IMG.scalex<0)!==(IMG.scaley<0);
 		var minx=imgwidth,maxx=0,miny=imgheight,maxy=0,ycnt=0;
+		var x0,y0,x1,y1;
 		var l,i,j,tmp;
 		for (i=lines.length-1;i>=0;i--) {
 			// Get the line points and transform() them.
 			// If we mirror the image, we need to flip the line direction.
-			var [x0,y0,x1,y1]=lines[i];
-			if ((xmul<0)!==(ymul<0)) {
-				tmp=x0;x0=x1;x1=tmp;
-				tmp=y0;y0=y1;y1=tmp;
-			}
-			tmp=x0*xmul;y0*=ymul;
-			x0=tmp*xrot-y0*yrot+xoff;
-			y0=tmp*yrot+y0*xrot+yoff;
-			tmp=x1*xmul;y1*=ymul;
-			x1=tmp*xrot-y1*yrot+xoff;
-			y1=tmp*yrot+y1*xrot+yoff;
+			if (swap) {[x1,y1,x0,y0]=lines[i];}
+			else      {[x0,y0,x1,y1]=lines[i];}
+			tmp=x0;
+			x0=tmp*mulxx+y0*mulxy+offx;
+			y0=tmp*mulyx+y0*mulyy+offy;
+			tmp=x1;
+			x1=tmp*mulxx+y1*mulxy+offx;
+			y1=tmp*mulyx+y1*mulyy+offy;
 			// Add the line if it's in the screen or to the left.
 			var dx=x1-x0;
 			var dy=y1-y0;
@@ -553,12 +578,14 @@ class PolyDemo1 {
 		var canvas=document.createElement("canvas");
 		elem.replaceWith(canvas);
 		// Setup the UI.
-		canvas.width=800;
-		canvas.height=500;
+		canvas.width=400;
+		canvas.height=200;
 		this.canvas=canvas;
 		this.ctx=this.canvas.getContext("2d");
 		this.backbuf=this.ctx.createImageData(canvas.width,canvas.height);
 		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
+		canvas.style.imageRendering="pixelated";
+		canvas.style.width="90%";
 		var state=this;
 		function update() {
 			state.update();
@@ -572,7 +599,7 @@ class PolyDemo1 {
 		var ctx=this.ctx;
 		IMG.setimage(this.canvas,this.backbuf32);
 		IMG.fill(this,0,0,0);
-		IMG.setoffset(250,250);
+		IMG.setoffset(115,100);
 		IMG.setangle(((performance.now()%18000)/18000)*3.14159265*2);
 		var sides=5;
 		var lines=[];
@@ -582,10 +609,10 @@ class PolyDemo1 {
 			lines[s*2+0]=[Math.cos(a0)*1.00,Math.sin(a0)*1.00,Math.cos(a1)*1.00,Math.sin(a1)*1.00];
 			lines[s*2+1]=[Math.cos(a1)*0.75,Math.sin(a1)*0.75,Math.cos(a0)*0.75,Math.sin(a0)*0.75];
 		}
-		IMG.setscale(120,120);
+		IMG.setscale(60,60);
 		IMG.polyfill(lines);
 		IMG.setangle(-IMG.ang-3.14159265/sides);
-		IMG.setoffset(550,IMG.yoff);
+		IMG.setoffset(285,IMG.offy);
 		var jaglines=[];
 		for (var s=0;s<lines.length;s++) {
 			var [x0,y0,x1,y1]=lines[s];
