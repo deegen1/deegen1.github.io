@@ -522,44 +522,7 @@ function polyfill_jag(imgdata,imgwidth,imgheight,lines) {
 					tmp=Math.max(Math.min(ly0,1),0)-Math.max(Math.min(ly1,1),0);
 				} else {
 					// Clamp the line segment to the unit square.
-					var lx0=l.x0-x;
-					var lx1=l.x1-x;
-					if (ly0>ly1) {
-						tmp=ly0;ly0=ly1;ly1=tmp;
-						tmp=lx0;lx0=lx1;lx1=tmp;
-					}
-					var difx=lx1-lx0;
-					var dify=ly1-ly0;
-					var dxy=difx/dify;
-					var dyx=dify/difx;
-					tmp=0.0;
-					var x0y=-lx0*dyx+ly0;
-					var x1y=x0y+dyx;
-					if (ly0<0.0) {
-						lx0-=ly0*dxy;
-						ly0=0.0;
-					}
-					if (ly1>1.0) {
-						lx1+=(1.0-ly1)*dxy;
-						ly1=1.0;
-					}
-					if (lx0<0.0) {
-						tmp=x0y-ly0;
-						lx0=0;
-						ly0=x0y;
-					} else if (lx0>1.0) {
-						ly0=x1y;
-						lx0=1.0;
-					}
-					if (lx1<0.0) {
-						tmp=ly1-x0y;
-						lx1=0;
-						ly1=x0y;
-					} else if (lx1>1.0) {
-						ly1=x1y;
-						lx1=1.0;
-					}
-					tmp+=(ly1-ly0)*(1-(lx0+lx1)*0.5);
+					tmp=1.0;
 					if (l.y0<l.y1) {tmp=-tmp;}
 				}
 				area+=tmp-l.area;
