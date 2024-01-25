@@ -40,13 +40,14 @@ function pixblendtest() {
 	var lh,hh,lh2,hh2;
 	var hash,time,pos,hash0=null;
 	// ----------------------------------------
-	arr.set(arr0);hash=1;time=performance.now();
+	arr.set(arr0);hash=1;
+	var base=performance.now();
 	for (var i=0;i<samples;i+=2) {
 		hash=arr[i+1];
 		hash=Math.imul(hash,0x1645a3d3)^arr[i];
 	}
-	time=performance.now()-time;
-	console.log("baseline:",time,hash);
+	base=performance.now()-base;
+	console.log("baseline:",base,hash);
 	console.log("Algorithm, Time, Accurate");
 	// ----------------------------------------
 	arr.set(arr0);hash=1;pos=0;time=performance.now();
@@ -59,7 +60,7 @@ function pixblendtest() {
 		hash=Math.imul(hash,0x1645a3d3)^arr[i];
 	}
 	hash0=hash;
-	time=performance.now()-time;
+	time=performance.now()-time-base;
 	console.log("Naive RGB #1",time,hash===hash0);
 	// ----------------------------------------
 	arr.set(arr0);hash=1;pos=0;time=performance.now();
@@ -71,7 +72,7 @@ function pixblendtest() {
 		arr8[pos]=(((arr8[pos]-src3)*a)>>8)+src3;pos+=5;
 		hash=Math.imul(hash,0x1645a3d3)^arr[i];
 	}
-	time=performance.now()-time;
+	time=performance.now()-time-base;
 	console.log("Naive RGB #2",time,hash===hash0);
 	// ----------------------------------------
 	arr.set(arr0);hash=1;pos=0;time=performance.now();
@@ -84,7 +85,7 @@ function pixblendtest() {
 		       ((((dst>>>8)&0x00ff00ff)*a+hh*(256-a))&0xff00ff00);
 		hash=Math.imul(hash,0x1645a3d3)^arr[i];
 	}
-	time=performance.now()-time;
+	time=performance.now()-time-base;
 	console.log("32-bit #1",time,hash===hash0);
 	// ----------------------------------------
 	arr.set(arr0);hash=1;pos=0;time=performance.now();
@@ -99,7 +100,7 @@ function pixblendtest() {
 		       (((((dst>>>8)&0x00ff00ff)-hh)*a+hh2)&0xff00ff00);
 		hash=Math.imul(hash,0x1645a3d3)^arr[i];
 	}
-	time=performance.now()-time;
+	time=performance.now()-time-base;
 	console.log("32-bit #2",time,hash===hash0);
 	// ----------------------------------------
 	arr.set(arr0);hash=1;pos=0;time=performance.now();
@@ -113,7 +114,7 @@ function pixblendtest() {
 		       ((((dst&0xff00ff00)-hh)*a+hh)&0xff00ff00);
 		hash=Math.imul(hash,0x1645a3d3)^arr[i];
 	}
-	time=performance.now()-time;
+	time=performance.now()-time-base;
 	console.log("32-bit #3",time,hash===hash0);
 	// ----------------------------------------
 	arr.set(arr0);hash=1;pos=0;time=performance.now();
@@ -126,7 +127,7 @@ function pixblendtest() {
 		       ((Math.imul(((dst&0xff00ff00)-hh)>>>8,a)+hh)&0xff00ff00);
 		hash=Math.imul(hash,0x1645a3d3)^arr[i];
 	}
-	time=performance.now()-time;
+	time=performance.now()-time-base;
 	console.log("imul #1",time,hash===hash0);
 	// ----------------------------------------
 	arr.set(arr0);hash=1;pos=0;time=performance.now();
@@ -140,6 +141,6 @@ function pixblendtest() {
 		       ((Math.imul(((dst&0xff00ff00)>>>8)-hh2,a)+hh)&0xff00ff00);
 		hash=Math.imul(hash,0x1645a3d3)^arr[i];
 	}
-	time=performance.now()-time;
+	time=performance.now()-time-base;
 	console.log("imul #2",time,hash===hash0);
 }

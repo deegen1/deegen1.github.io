@@ -22,7 +22,7 @@ groups
 	scale
 	move
 	copy
-mouse, handle all touch events
+firefox on windows setTimeout() isn't running at 60fps.
 
 glow effect
 starfish
