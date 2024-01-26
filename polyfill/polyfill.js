@@ -584,7 +584,7 @@ class PolyDemo1 {
 		this.ctx=this.canvas.getContext("2d");
 		this.backbuf=this.ctx.createImageData(canvas.width,canvas.height);
 		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
-		canvas.style.imageRendering="pixelated";
+		//canvas.style.imageRendering="pixelated";
 		canvas.style.width="90%";
 		var state=this;
 		function update() {
@@ -596,10 +596,18 @@ class PolyDemo1 {
 
 
 	update() {
+		// Resize the canvas to an integer multiple of the pixels.
+		/*var canvas=this.canvas;
+		var rect=canvas.parentNode.getBoundingClientRect();
+		var width=canvas.width;
+		width=(Math.floor(rect.width/width)||1)*width+"px";
+		if (canvas.style.width!==width) {
+			//canvas.style.width=width;
+		}*/
 		var ctx=this.ctx;
 		IMG.setimage(this.canvas,this.backbuf32);
 		IMG.fill(this,0,0,0);
-		IMG.setoffset(115,100);
+		IMG.setoffset(125,100);
 		IMG.setangle(((performance.now()%18000)/18000)*3.14159265*2);
 		var sides=5;
 		var lines=[];
@@ -612,7 +620,7 @@ class PolyDemo1 {
 		IMG.setscale(60,60);
 		IMG.polyfill(lines);
 		IMG.setangle(-IMG.ang-3.14159265/sides);
-		IMG.setoffset(285,IMG.offy);
+		IMG.setoffset(275,IMG.offy);
 		var jaglines=[];
 		for (var s=0;s<lines.length;s++) {
 			var [x0,y0,x1,y1]=lines[s];
