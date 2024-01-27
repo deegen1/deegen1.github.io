@@ -432,7 +432,7 @@ class Input {
 
 
 //---------------------------------------------------------------------------------
-// PRNG - v1.01
+// PRNG - v1.02
 
 
 class Random {
@@ -523,7 +523,7 @@ class Random {
 		// Returns a normally distributed random variable. This function uses a linear
 		// piecewise approximation of sqrt(2)*erfinv((x+1)*0.5) to quickly compute values.
 		// Find the greatest y[i]<=x, then return x*m[i]+b[i].
-		var x=this.getf64(),xmb=Random.xmbarr,i=48;
+		var x=this.getf64(),xmb=this.xmbarr,i=48;
 		i+=x<xmb[i]?-24:24;
 		i+=x<xmb[i]?-12:12;
 		i+=x<xmb[i]?-6:6;
