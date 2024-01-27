@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v1.21
+physics.js - v1.22
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -432,12 +432,13 @@ class Input {
 
 
 //---------------------------------------------------------------------------------
-// PRNG - v1.02
+// PRNG - v1.03
 
 
 class Random {
 
 	constructor(seed) {
+		this.xmbarr=this.constructor.xmbarr;
 		this.acc=0;
 		this.inc=1;
 		this.seed(seed);
