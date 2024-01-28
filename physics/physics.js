@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v1.22
+physics.js - v1.23
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -51,7 +51,7 @@ function PhyAssert(condition,data) {
 
 
 //---------------------------------------------------------------------------------
-// Input - v1.10
+// Input - v1.11
 
 
 class Input {
@@ -85,7 +85,10 @@ class Input {
 			}
 		}
 		this.active=null;
+		this.scrollupdate=false;
+		this.scroll=[window.scrollX,window.scrollY];
 		this.mousepos=[-Infinity,-Infinity];
+		this.mouseraw=[-Infinity,-Infinity];
 		this.mousez=0;
 		this.touchfocus=0;
 		this.clickpos=[0,0];
@@ -205,7 +208,7 @@ class Input {
 
 	initmouse() {
 		var state=this;
-		this.MOUSE=Input.MOUSE;
+		this.MOUSE=this.constructor.MOUSE;
 		var keys=Object.keys(this.MOUSE);
 		for (var i=0;i<keys.length;i++) {
 			var code=this.MOUSE[keys[i]];
@@ -230,6 +233,14 @@ class Input {
 		function mouseup(evt) {
 			if (evt.button===0) {
 				state.setkeyup(state.MOUSE.LEFT);
+			}
+		}
+		function onscroll(evt) {
+			// Update relative position on scroll.
+			if (state.scrollupdate) {
+				var difx=window.scrollX-state.scroll[0];
+				var dify=window.scrollY-state.scroll[1];
+				state.setmousepos(state.mouseraw[0]+difx,state.mouseraw[1]+dify);
 			}
 		}
 		// Touch controls.
@@ -274,6 +285,7 @@ class Input {
 			["mousewheel" ,mousewheel ,false],
 			["mousedown"  ,mousedown  ,false],
 			["mouseup"    ,mouseup    ,false],
+			["scroll"     ,onscroll   ,false],
 			["touchstart" ,touchstart ,false],
 			["touchmove"  ,touchmove  ,false],
 			["touchend"   ,touchend   ,false],
@@ -297,6 +309,10 @@ class Input {
 
 
 	setmousepos(x,y) {
+		this.mouseraw[0]=x;
+		this.mouseraw[1]=y;
+		this.scroll[0]=window.scrollX;
+		this.scroll[1]=window.scrollY;
 		var focus=this.focus;
 		if (focus!==null) {
 			var rect=this.getrect(focus);
@@ -336,7 +352,7 @@ class Input {
 
 	initkeyboard() {
 		var state=this;
-		this.KEY=Input.KEY;
+		this.KEY=this.constructor.KEY;
 		var keys=Object.keys(this.KEY);
 		for (var i=0;i<keys.length;i++) {
 			var code=this.KEY[keys[i]];
@@ -432,15 +448,15 @@ class Input {
 
 
 //---------------------------------------------------------------------------------
-// PRNG - v1.03
+// PRNG - v1.04
 
 
 class Random {
 
 	constructor(seed) {
-		this.xmbarr=this.constructor.xmbarr;
 		this.acc=0;
 		this.inc=1;
+		this.xmbarr=this.constructor.xmbarr;
 		this.seed(seed);
 	}
 

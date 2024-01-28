@@ -19,7 +19,7 @@ TODO
 
 
 //---------------------------------------------------------------------------------
-// Input - v1.10
+// Input - v1.11
 
 
 class Input {
@@ -53,7 +53,10 @@ class Input {
 			}
 		}
 		this.active=null;
+		this.scrollupdate=false;
+		this.scroll=[window.scrollX,window.scrollY];
 		this.mousepos=[-Infinity,-Infinity];
+		this.mouseraw=[-Infinity,-Infinity];
 		this.mousez=0;
 		this.touchfocus=0;
 		this.clickpos=[0,0];
@@ -173,7 +176,7 @@ class Input {
 
 	initmouse() {
 		var state=this;
-		this.MOUSE=Input.MOUSE;
+		this.MOUSE=this.constructor.MOUSE;
 		var keys=Object.keys(this.MOUSE);
 		for (var i=0;i<keys.length;i++) {
 			var code=this.MOUSE[keys[i]];
@@ -198,6 +201,14 @@ class Input {
 		function mouseup(evt) {
 			if (evt.button===0) {
 				state.setkeyup(state.MOUSE.LEFT);
+			}
+		}
+		function onscroll(evt) {
+			// Update relative position on scroll.
+			if (state.scrollupdate) {
+				var difx=window.scrollX-state.scroll[0];
+				var dify=window.scrollY-state.scroll[1];
+				state.setmousepos(state.mouseraw[0]+difx,state.mouseraw[1]+dify);
 			}
 		}
 		// Touch controls.
@@ -242,6 +253,7 @@ class Input {
 			["mousewheel" ,mousewheel ,false],
 			["mousedown"  ,mousedown  ,false],
 			["mouseup"    ,mouseup    ,false],
+			["scroll"     ,onscroll   ,false],
 			["touchstart" ,touchstart ,false],
 			["touchmove"  ,touchmove  ,false],
 			["touchend"   ,touchend   ,false],
@@ -265,6 +277,10 @@ class Input {
 
 
 	setmousepos(x,y) {
+		this.mouseraw[0]=x;
+		this.mouseraw[1]=y;
+		this.scroll[0]=window.scrollX;
+		this.scroll[1]=window.scrollY;
 		var focus=this.focus;
 		if (focus!==null) {
 			var rect=this.getrect(focus);
@@ -304,7 +320,7 @@ class Input {
 
 	initkeyboard() {
 		var state=this;
-		this.KEY=Input.KEY;
+		this.KEY=this.constructor.KEY;
 		var keys=Object.keys(this.KEY);
 		for (var i=0;i<keys.length;i++) {
 			var code=this.KEY[keys[i]];
@@ -400,15 +416,15 @@ class Input {
 
 
 //---------------------------------------------------------------------------------
-// PRNG - v1.03
+// PRNG - v1.04
 
 
 class Random {
 
 	constructor(seed) {
-		this.xmbarr=this.constructor.xmbarr;
 		this.acc=0;
 		this.inc=1;
+		this.xmbarr=this.constructor.xmbarr;
 		this.seed(seed);
 	}
 
@@ -508,144 +524,6 @@ class Random {
 // Demo 1 - Rotating Hexagons
 
 
-function polyfilljag(imgdata,imgwidth,imgheight,lines,mag) {
-	// Preprocess the lines. Reject anything with a NaN, too narrow (y1-y0), or
-	// above or below the image.
-	var func=polyfilljag;
-	var cache=func.cache||0;
-	if (cache<lines.length) {
-		cache=cache*2>lines.length?cache*2:lines.length;
-		func.cache=cache;
-		func.lr=new Array(cache);
-	}
-	var lr=func.lr;
-	var minx=imgwidth,maxx=0,miny=imgheight,maxy=0,ycnt=0;
-	var l,i,j,tmp;
-	for (i=lines.length-1;i>=0;i--) {
-		l=lr[ycnt];
-		if (l===undefined) {lr[ycnt]=l={};}
-		var [x0,y0,x1,y1]=lines[i];
-		var dx=x1-x0;
-		var dy=y1-y0;
-		l.miny=Math.max(Math.floor(Math.min(y0,y1)),0);
-		l.maxy=Math.min(Math.ceil(Math.max(y0,y1)),imgheight);
-		if (Math.abs(dy)>1e-10 && l.miny<l.maxy && !isNaN(dx)) {
-			l.minx=Math.max(Math.floor(Math.min(x0,x1)),0);
-			l.maxx=Math.min(Math.ceil(Math.max(x0,x1)),imgwidth);
-			if (l.minx<imgwidth) {
-				l.x0=x0;
-				l.y0=y0;
-				l.x1=x1;
-				l.y1=y1;
-				l.dxy=dx/dy;
-				l.cxy=x0-y0*l.dxy;
-				l.dyx=dy/dx;
-				l.cyx=y0-x0*l.dyx;
-				l.minr=0;
-				l.maxr=0;
-				ycnt++;
-				miny=Math.min(miny,l.miny);
-				maxy=Math.max(maxy,l.maxy);
-			}
-			minx=Math.min(minx,l.minx);
-			maxx=Math.max(maxx,l.maxx);
-		}
-	}
-	// If all lines are outside the image, abort.
-	if (minx>=maxx || miny>=maxy) {
-		return;
-	}
-	// Sort by min y.
-	for (i=1;i<ycnt;i++) {
-		j=i;l=lr[i];tmp=l.miny;
-		while (j>0 && tmp<lr[j-1].miny) {lr[j]=lr[j-1];j--;}
-		lr[j]=l;
-	}
-	// Split RGB.
-	var colrgba=0xffffffff;
-	// Process the lines row by row.
-	var ylo=0,yhi=0,y=miny,ynext=y,ny;
-	var pixrow=y*imgwidth;
-	while (y<maxy) {
-		// Add any new lines on this row.
-		ny=y+1;
-		while (ynext<ny) {
-			l=lr[yhi++];
-			ynext=yhi<ycnt?lr[yhi].miny:imgheight;
-		}
-		// Sort by min row and remove rows we've passed.
-		for (i=ylo;i<yhi;i++) {
-			l=lr[i];j=i;
-			if (l.maxy<=y) {
-				while (j>ylo) {lr[j]=lr[j-1];j--;}
-				ylo++;
-			} else {
-				l.minr=Math.min(Math.max(Math.floor((l.dxy>0?y:ny)*l.dxy+l.cxy),l.minx),maxx);
-				l.maxr=Math.min(Math.ceil((l.dxy>0?ny:y)*l.dxy+l.cxy),l.maxx);
-				tmp=l.minr;
-				while (j>ylo && tmp<lr[j-1].minr) {lr[j]=lr[j-1];j--;}
-			}
-			lr[j]=l;
-		}
-		// Skip any gaps of empty rows.
-		if (ylo===yhi) {
-			if (ylo>=ycnt) {break;}
-			y=ynext;
-			pixrow=y*imgwidth;
-			continue;
-		}
-		var xlo=ylo,xhi=ylo,x=lr[xhi].minr,xnext=x;
-		var area=0.0;
-		var pixcol,pixstop;
-		// Process the lines on this row, column by column.
-		while (x<maxx) {
-			while (xnext<=x) {
-				l=lr[xhi++];
-				l.area=0.0;
-				xnext=xhi<yhi?lr[xhi].minr:maxx;
-			}
-			for (i=xlo;i<xhi;i++) {
-				l=lr[i];
-				var ly0=l.y0-y;
-				var ly1=l.y1-y;
-				if (l.maxr<=x) {
-					j=i;
-					while (j>xlo) {lr[j]=lr[j-1];j--;}
-					lr[j]=l;
-					xlo++;
-					tmp=Math.max(Math.min(ly0,1),0)-Math.max(Math.min(ly1,1),0);
-				} else {
-					// Clamp the line segment to the unit square.
-					tmp=1.0;
-					if (l.y0<l.y1) {tmp=-tmp;}
-				}
-				area+=tmp-l.area;
-				l.area=tmp;
-			}
-			// Shade the pixels based on how much we're covering.
-			pixcol=pixrow+x;
-			x=xlo===xhi?xnext:(x+1);
-			pixstop=pixrow+x;
-			if (area>=0.5) {
-				var ty=y*mag;
-				var tx=(pixcol-pixrow)*mag;
-				while (pixcol<pixstop) {
-					for (var my=0;my<mag;my++) {
-						for (var mx=0;mx<mag;mx++) {
-							imgdata[(ty+my)*imgwidth+(tx+mx)]=colrgba;
-						}
-					}
-					tx+=mag;
-					pixcol++;
-				}
-			}
-		}
-		pixrow+=imgwidth;
-		y++;
-	}
-}
-
-
 class PolyDemo1 {
 
 	constructor(divid) {
@@ -660,10 +538,8 @@ class PolyDemo1 {
 		this.ctx=this.canvas.getContext("2d");
 		this.backbuf=this.ctx.createImageData(canvas.width,canvas.height);
 		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
-		//canvas.style.imageRendering="pixelated";
+		// canvas.style.imageRendering="pixelated";
 		canvas.style.width="90%";
-		this.draw=new Draw();
-		this.draw.setimage(this.canvas,this.backbuf32);
 		var state=this;
 		function update() {
 			state.update();
@@ -673,42 +549,226 @@ class PolyDemo1 {
 	}
 
 
+	polyfill(imgdata,imgwidth,imgheight,lines,mag) {
+		// Preprocess the lines. Reject anything with a NaN, too narrow (y1-y0), or
+		// above or below the image.
+		var cache=this.cache||0;
+		if (cache<lines.length) {
+			cache=cache*2>lines.length?cache*2:lines.length;
+			this.cache=cache;
+			this.lr=new Array(cache);
+		}
+		var lr=this.lr;
+		var minx=imgwidth,maxx=0,miny=imgheight,maxy=0,ycnt=0;
+		var l,i,j,tmp,x0,y0,x1,y1;
+		for (i=lines.length-1;i>=0;i--) {
+			l=lr[ycnt];
+			if (l===undefined) {lr[ycnt]=l={};}
+			[x0,y0,x1,y1]=lines[i];
+			var dx=x1-x0;
+			var dy=y1-y0;
+			l.miny=Math.max(Math.floor(Math.min(y0,y1)),0);
+			l.maxy=Math.min(Math.ceil(Math.max(y0,y1)),imgheight);
+			if (Math.abs(dy)>1e-10 && l.miny<l.maxy && !isNaN(dx)) {
+				l.minx=Math.max(Math.floor(Math.min(x0,x1)),0);
+				l.maxx=Math.min(Math.ceil(Math.max(x0,x1)),imgwidth);
+				if (l.minx<imgwidth) {
+					l.x0=x0;
+					l.y0=y0;
+					l.x1=x1;
+					l.y1=y1;
+					l.dxy=dx/dy;
+					l.cxy=x0-y0*l.dxy;
+					l.dyx=dy/dx;
+					l.cyx=y0-x0*l.dyx;
+					l.minr=0;
+					l.maxr=0;
+					ycnt++;
+					miny=Math.min(miny,l.miny);
+					maxy=Math.max(maxy,l.maxy);
+				}
+				minx=Math.min(minx,l.minx);
+				maxx=Math.max(maxx,l.maxx);
+			}
+		}
+		// If all lines are outside the image, abort.
+		if (minx>=maxx || miny>=maxy) {
+			return;
+		}
+		// Sort by min y.
+		for (i=1;i<ycnt;i++) {
+			j=i;l=lr[i];tmp=l.miny;
+			while (j>0 && tmp<lr[j-1].miny) {lr[j]=lr[j-1];j--;}
+			lr[j]=l;
+		}
+		// Split RGB.
+		var colrgba=0xffffffff;
+		var coll=(colrgba&0x00ff00ff)>>>0;
+		var colh=(colrgba&0xff00ff00)>>>0;
+		var colh2=colh>>>8;
+		// Process the lines row by row.
+		var ylo=0,yhi=0,y=miny,ynext=y,ny;
+		var pixrow=y*imgwidth;
+		while (y<maxy) {
+			// Add any new lines on this row.
+			ny=y+1;
+			while (ynext<ny) {
+				l=lr[yhi++];
+				ynext=yhi<ycnt?lr[yhi].miny:imgheight;
+			}
+			// Sort by min row and remove rows we've passed.
+			for (i=ylo;i<yhi;i++) {
+				l=lr[i];j=i;
+				if (l.maxy<=y) {
+					while (j>ylo) {lr[j]=lr[j-1];j--;}
+					ylo++;
+				} else {
+					l.minr=Math.min(Math.max(Math.floor((l.dxy>0?y:ny)*l.dxy+l.cxy),l.minx),maxx);
+					l.maxr=Math.min(Math.ceil((l.dxy>0?ny:y)*l.dxy+l.cxy),l.maxx);
+					tmp=l.minr;
+					while (j>ylo && tmp<lr[j-1].minr) {lr[j]=lr[j-1];j--;}
+				}
+				lr[j]=l;
+			}
+			// Skip any gaps of empty rows.
+			if (ylo===yhi) {
+				if (ylo>=ycnt) {break;}
+				y=ynext;
+				pixrow=y*imgwidth;
+				continue;
+			}
+			var xlo=ylo,xhi=ylo,x=lr[xhi].minr,xnext=x;
+			var area=0.0,a,dst;
+			var pixcol,pixstop;
+			// Process the lines on this row, column by column.
+			while (x<maxx) {
+				while (xnext<=x) {
+					l=lr[xhi++];
+					l.area=0.0;
+					xnext=xhi<yhi?lr[xhi].minr:maxx;
+				}
+				for (i=xlo;i<xhi;i++) {
+					l=lr[i];
+					y0=l.y0-y;
+					y1=l.y1-y;
+					if (l.maxr<=x) {
+						j=i;
+						while (j>xlo) {lr[j]=lr[j-1];j--;}
+						lr[j]=l;
+						xlo++;
+						tmp=Math.max(Math.min(y0,1),0)-Math.max(Math.min(y1,1),0);
+					} else {
+						// Clamp the line segment to the unit square.
+						x0=l.x0-x;
+						x1=l.x1-x;
+						if (y0>y1) {
+							tmp=y0;y0=y1;y1=tmp;
+							tmp=x0;x0=x1;x1=tmp;
+						}
+						var difx=x1-x0;
+						var dify=y1-y0;
+						var dxy=difx/dify;
+						var dyx=dify/difx;
+						var x0y=-x0*dyx+y0;
+						var x1y=x0y+dyx;
+						tmp=0.0;
+						if (y0<0.0) {
+							x0-=y0*dxy;
+							y0=0.0;
+						}
+						if (y1>1.0) {
+							x1+=(1.0-y1)*dxy;
+							y1=1.0;
+						}
+						if (x0<0.0) {
+							tmp=x0y-y0;
+							x0=0;
+							y0=x0y;
+						} else if (x0>1.0) {
+							x0=1.0;
+							y0=x1y;
+						}
+						if (x1<0.0) {
+							tmp=y1-x0y;
+							x1=0;
+							y1=x0y;
+						} else if (x1>1.0) {
+							x1=1.0;
+							y1=x1y;
+						}
+						tmp+=(y1-y0)*(1-(x0+x1)*0.5);
+						if (l.y0<l.y1) {tmp=-tmp;}
+					}
+					area+=tmp-l.area;
+					l.area=tmp;
+				}
+				// Shade the pixels based on how much we're covering.
+				pixcol=pixrow+x;
+				x=xlo===xhi?xnext:(x+1);
+				pixstop=pixrow+x;
+				if (mag===1) {
+					if (area>=0.9981) {
+						while (pixcol<pixstop) {
+							imgdata[pixcol++]=colrgba;
+						}
+					} else if (area>0.0019) {
+						a=Math.floor((1.0-area)*256);
+						while (pixcol<pixstop) {
+							dst=imgdata[pixcol];
+							imgdata[pixcol++]=
+								(((Math.imul((dst&0x00ff00ff)-coll,a)>>>8)+coll)&0x00ff00ff)+
+								((Math.imul(((dst&0xff00ff00)>>>8)-colh2,a)+colh)&0xff00ff00);
+						}
+					}
+				} else if (area>=0.5) {
+					var ty=y*mag;
+					var tx=(pixcol-pixrow)*mag;
+					while (pixcol<pixstop) {
+						for (var my=0;my<mag;my++) {
+							for (var mx=0;mx<mag;mx++) {
+								imgdata[(ty+my)*imgwidth+(tx+mx)]=colrgba;
+							}
+						}
+						tx+=mag;
+						pixcol++;
+					}
+				}
+			}
+			pixrow+=imgwidth;
+			y++;
+		}
+	}
+
+
 	update() {
-		// Resize the canvas to an integer multiple of the pixels.
-		/*var canvas=this.canvas;
-		var rect=canvas.parentNode.getBoundingClientRect();
-		var width=canvas.width;
-		width=(Math.floor(rect.width/width)||1)*width+"px";
-		if (canvas.style.width!==width) {
-			//canvas.style.width=width;
-		}*/
-		var draw=this.draw;
-		var ctx=this.ctx;
-		draw.fill(this,0,0,0);
-		draw.setoffset(155,125);
-		draw.setangle(((performance.now()%18000)/18000)*3.14159265*2);
+		this.backbuf32[0]=0;
+		this.backbuf.data[3]=255;
+		this.backbuf32.fill(this.backbuf32[0]);
+		var width=this.canvas.width,height=this.canvas.height;
+		var offx=155,offy=125,rad=75;
+		var ang=((performance.now()%18000)/18000)*3.14159265*2;
 		var sides=5;
 		var lines=[];
 		for (var s=0;s<sides;s++) {
-			var a0=3.14159265*2*(s+0)/sides;
-			var a1=3.14159265*2*(s+1)/sides;
-			lines[s*2+0]=[Math.cos(a0)*1.00,Math.sin(a0)*1.00,Math.cos(a1)*1.00,Math.sin(a1)*1.00];
-			lines[s*2+1]=[Math.cos(a1)*0.75,Math.sin(a1)*0.75,Math.cos(a0)*0.75,Math.sin(a0)*0.75];
+			var m1=rad*1.00,m2=rad*0.75;
+			var a0=ang+3.14159265*2*(s+0)/sides;
+			var a1=ang+3.14159265*2*(s+1)/sides;
+			lines[s*2+0]=[Math.cos(a0)*m1+offx,Math.sin(a0)*m1+offy,Math.cos(a1)*m1+offx,Math.sin(a1)*m1+offy];
+			lines[s*2+1]=[Math.cos(a1)*m2+offx,Math.sin(a1)*m2+offy,Math.cos(a0)*m2+offx,Math.sin(a0)*m2+offy];
 		}
-		draw.setscale(75,75);
-		draw.polyfill(lines);
-		draw.setangle(-draw.ang-3.14159265/sides);
-		draw.setoffset(345,draw.offy);
+		this.polyfill(this.backbuf32,width,height,lines,1);
 		var mag=2;
-		var jaglines=[];
-		for (var s=0;s<lines.length;s++) {
-			var [x0,y0,x1,y1]=lines[s];
-			[x0,y0]=draw.transform(x0,y0);
-			[x1,y1]=draw.transform(x1,y1);
-			jaglines[s]=[x0/mag,y0/mag,x1/mag,y1/mag];
+		offx=345/mag;
+		offy/=mag;
+		for (var s=0;s<sides;s++) {
+			var m1=rad*1.00/mag,m2=rad*0.75/mag;
+			var a0=-ang+3.14159265*2*(s+0.5)/sides;
+			var a1=-ang+3.14159265*2*(s+1.5)/sides;
+			lines[s*2+0]=[Math.cos(a0)*m1+offx,Math.sin(a0)*m1+offy,Math.cos(a1)*m1+offx,Math.sin(a1)*m1+offy];
+			lines[s*2+1]=[Math.cos(a1)*m2+offx,Math.sin(a1)*m2+offy,Math.cos(a0)*m2+offx,Math.sin(a0)*m2+offy];
 		}
-		polyfilljag(draw.imgdata,draw.imgwidth,draw.imgheight,jaglines,mag);
-		ctx.putImageData(this.backbuf,0,0);
+		this.polyfill(this.backbuf32,width,height,lines,mag);
+		this.ctx.putImageData(this.backbuf,0,0);
 	}
 
 }
@@ -733,6 +793,7 @@ class PolyDemo2 {
 		this.backbuf=this.ctx.createImageData(canvas.width,canvas.height);
 		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
 		this.input=new Input(canvas);
+		this.input.scrollupdate=true;
 		canvas.style.width="90%";
 		this.draw=new Draw();
 		this.draw.setimage(this.canvas,this.backbuf32);
@@ -747,15 +808,14 @@ class PolyDemo2 {
 
 	update() {
 		var draw=this.draw;
-		var ctx=this.ctx;
+		draw.fill(0,0,0);
 		draw.setangle(0.45);
-		draw.fill(this,0,0,0);
 		draw.setcolor(255,0,0);
 		var [mx,my]=this.input.getmousepos();
 		mx*=this.canvas.width;
 		my*=this.canvas.height;
-		draw.rect(mx,my,200,100);
-		ctx.putImageData(this.backbuf,0,0);
+		draw.fillrect(mx,my,200,100);
+		this.ctx.putImageData(this.backbuf,0,0);
 	}
 
 }
