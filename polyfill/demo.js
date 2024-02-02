@@ -681,7 +681,7 @@ class PolyDemo1 {
 							y1=1.0;
 						}
 						if (x0<0.0) {
-							tmp=x0y-y0;
+							tmp+=x0y-y0;
 							x0=0;
 							y0=x0y;
 						} else if (x0>1.0) {
@@ -689,7 +689,7 @@ class PolyDemo1 {
 							y0=x1y;
 						}
 						if (x1<0.0) {
-							tmp=y1-x0y;
+							tmp+=y1-x0y;
 							x1=0;
 							y1=x0y;
 						} else if (x1>1.0) {
@@ -775,7 +775,7 @@ class PolyDemo1 {
 
 
 //---------------------------------------------------------------------------------
-// Demo 2 - Primitives
+// Demo 2 - Ellipses
 
 
 class PolyDemo2 {
@@ -797,6 +797,7 @@ class PolyDemo2 {
 		canvas.style.width="90%";
 		this.draw=new Draw();
 		this.draw.setimage(this.canvas,this.backbuf32);
+		var trans=new Draw.Transform();
 		var state=this;
 		function update() {
 			state.update();
@@ -809,12 +810,63 @@ class PolyDemo2 {
 	update() {
 		var draw=this.draw;
 		draw.fill(0,0,0);
-		draw.setangle(0.45);
+		draw.setangle(performance.now()*0.0002);
 		draw.setcolor(255,0,0);
 		var [mx,my]=this.input.getmousepos();
 		mx*=this.canvas.width;
-		my*=this.canvas.height;
-		draw.fillrect(mx,my,200,100);
+		my=(1-my)*this.canvas.height;
+		draw.filloval(this.canvas.width/2,this.canvas.height/2,300,100);
+		this.ctx.putImageData(this.backbuf,0,0);
+	}
+
+}
+
+
+//---------------------------------------------------------------------------------
+// Demo 3 - Primitives
+
+
+class PolyDemo3 {
+
+	constructor(divid) {
+		// Swap the <div> with <canvas>
+		var elem=document.getElementById(divid);
+		this.parentelem=elem.parentNode;
+		var canvas=document.createElement("canvas");
+		elem.replaceWith(canvas);
+		canvas.width=800;
+		canvas.height=400;
+		this.canvas=canvas;
+		this.ctx=this.canvas.getContext("2d");
+		this.backbuf=this.ctx.createImageData(canvas.width,canvas.height);
+		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
+		this.input=new Input(canvas);
+		this.input.scrollupdate=true;
+		canvas.style.width="90%";
+		this.draw=new Draw();
+		this.draw.setimage(this.canvas,this.backbuf32);
+		var trans=new Draw.Transform();
+		var state=this;
+		function update() {
+			state.update();
+			requestAnimationFrame(update);
+		}
+		update();
+	}
+
+
+	update() {
+		var draw=this.draw;
+		draw.fill(0,0,0);
+		//draw.setangle(performance.now()*0.0002);
+		draw.setcolor(255,0,0);
+		var [mx,my]=this.input.getmousepos();
+		mx*=this.canvas.width;
+		my=(1-my)*this.canvas.height;
+		//draw.fillrect(mx,my,300,100);
+		//draw.filloval(mx,my,300,100);
+		draw.linewidth=40;
+		draw.line(this.canvas.width/2,this.canvas.height/2,mx,my);
 		this.ctx.putImageData(this.backbuf,0,0);
 	}
 

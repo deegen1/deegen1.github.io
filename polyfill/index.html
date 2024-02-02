@@ -4,12 +4,11 @@
 	<meta charset="utf-8">
 	<title>Polyfill</title>
 	<link rel="stylesheet" href="../style/style.css" type="text/css">
-	<script src="./polyfill.js"></script>
+	<script src="./drawing.js"></script>
 	<script src="./demo.js"></script>
-	<!--<script src="./pixblendtest.js"></script>-->
+	<!--<script src="./polytests.js"></script>-->
 </head>
 <body>
-<!--<script>pixblendtest();</script>-->
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <div id="header"><a href="../index.html">Alec Dee's General Site</a></div>
 
@@ -28,14 +27,62 @@ pixel's color. Instead we want to blend it with the polygon's color.</p>
 <p>Different algorithms give us different speed and accuracy.-->
 </div>
 
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Primitive ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<!--<div class="content"><h1>Primitives</h1>
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Ellipses ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<div class="content"><h1>Ellipses</h1>
+<p>We can approximate drawing ellipses by drawing a polygon with a large number
+of sides.</p>
+<!--style="border:1px solid black;" style=""-->
+<svg version="1.1" viewBox="0 0 1000 300" class="diagram" text-anchor="middle"
+dominant-baseline="middle" style="font-family:monospace;font-size:32px;background-color:#000000;">
+<g transform="translate(200,50)" class="backstroke">
+	<text x="0" y="12">4</text>
+	<g transform="translate(0,120) scale(75,75)" stroke-width="0px">
+		<circle cx="0" cy="0" r="1" class="highfill"/>
+		<polygon class="fgfill" points="1,0 0,1 -1,0 0,-1"/>
+	</g>
+</g>
+<g transform="translate(500,50)" class="backstroke">
+	<text x="0" y="12">12</text>
+	<g transform="translate(0,120) scale(75,75)" stroke-width="0px">
+		<circle cx="0" cy="0" r="1" class="highfill"/>
+		<polygon class="fgfill" points="1.000,0.000
+		0.866,0.500 0.500,0.866 0.000,1.000 -0.500,0.866 -0.866,0.500
+		-1.000,0.000 -0.866,-0.500 -0.500,-0.866 -0.000,-1.000 0.500,-0.866
+		0.866,-0.500"/>
+	</g>
+</g>
+<g transform="translate(800,50)" class="backstroke">
+	<text x="0" y="12">36</text>
+	<g transform="translate(0,120) scale(75,75)" stroke-width="0px">
+		<circle cx="0" cy="0" r="1" class="highfill"/>
+		<polygon class="fgfill" points="1.000,0.000
+		0.985,0.174 0.940,0.342 0.866,0.500 0.766,0.643 0.643,0.766
+		0.500,0.866 0.342,0.940 0.174,0.985 0.000,1.000 -0.174,0.985
+		-0.342,0.940 -0.500,0.866 -0.643,0.766 -0.766,0.643 -0.866,0.500
+		-0.940,0.342 -0.985,0.174 -1.000,0.000 -0.985,-0.174 -0.940,-0.342
+		-0.866,-0.500 -0.766,-0.643 -0.643,-0.766 -0.500,-0.866 -0.342,-0.940
+		-0.174,-0.985 -0.000,-1.000 0.174,-0.985 0.342,-0.940 0.500,-0.866
+		0.643,-0.766 0.766,-0.643 0.866,-0.500 0.940,-0.342 0.985,-0.174"/>
+	</g>
+</g>
+</svg>
+<p>Or by approximating it with bezier curves:</p>
 <div id="polydemo2" class="consoleblock" style="width:80%;height:30rem;">
 Loading javascript...</div>
 <script>new PolyDemo2("polydemo2");</script>
-</div>-->
+</div>
 
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Polyfill ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Primitive ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<div class="content"><h1>Primitives</h1>
+<div id="polydemo3" class="consoleblock" style="width:80%;height:30rem;">
+Loading javascript...</div>
+<script>new PolyDemo3("polydemo3");</script>
+</div>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Blending ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <div class="content"><h1>Pixel Blending</h1>
 <p>There are several algorithms to blend pixels on the edge of the polygon with
 the background - some faster than others.</p>
@@ -67,7 +114,7 @@ col = (((Math.imul((col&0x00ff00ff)-lh,a)>>>8)+lh)&0x00ff00ff)+
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div id="footer">Created on 21 Jan 2024 - Modified on 28 Jan 2024<br>
+<div id="footer">Created on 21 Jan 2024 - Modified on 2 Feb 2024<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>
