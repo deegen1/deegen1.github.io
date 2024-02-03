@@ -257,6 +257,65 @@ function blendtest() {
 
 
 //---------------------------------------------------------------------------------
+// Test 3 - Bezier parameterization
+
+
+function bezier0(points,u) {
+	var v=1-u;
+	var cpx=v*v*v*points[0]+3*v*v*u*points[2]+3*v*u*u*points[4]+u*u*u*points[6];
+	var cpy=v*v*v*points[1]+3*v*v*u*points[3]+3*v*u*u*points[5]+u*u*u*points[7];
+	return [cpx,cpy];
+}
+
+
+function bezier1(points,u1) {
+	var p0x=points[0],p0y=points[1];
+	var p1x=points[2],p1y=points[3];
+	var p2x=points[4],p2y=points[5];
+	var p3x=points[6],p3y=points[7];
+	/*p3x=p3x+3*(p1x-p2x)-p0x;
+	p3y=p3y+3*(p1y-p2y)-p0y;
+	p2x=3*(p2x-2*p1x+p0x);
+	p2y=3*(p2y-2*p1y+p0y);
+	p1x=3*(p1x-p0x);
+	p1y=3*(p1y-p0y);
+	var cpx=p0x+u1*(p1x+u1*(p2x+u1*p3x));
+	var cpy=p0y+u1*(p1y+u1*(p2y+u1*p3y));*/
+	p3x=p3x-p0x+3*(p1x-p2x);
+	p3y=p3y-p0y+3*(p1y-p2y);
+	p2x=3*(p2x+p0x-2*p1x);
+	p2y=3*(p2y+p0y-2*p1y);
+	p1x=3*(p1x-p0x);
+	p1y=3*(p1y-p0y);
+	var cpx=p0x+u1*(p1x+u1*(p2x+u1*p3x));
+	var cpy=p0y+u1*(p1y+u1*(p2y+u1*p3y));
+	return [cpx,cpy];
+}
+
+
+function beziertest() {
+	var tests=10000;
+	var points=new Float64Array(8);
+	var maxerr=0.0;
+	for (var test=0;test<tests;test++) {
+		for (var i=0;i<8;i++) {
+			points[i]=Math.random()*10-5;
+		}
+		var u=Math.random()*10-5;
+		var [x0,y0]=bezier0(points,u);
+		var [x1,y1]=bezier1(points,u);
+		x1-=x0;
+		y1-=y0;
+		var err=x1*x1+y1*y1;
+		if (maxerr<err || !(err===err)) {
+			maxerr=err;
+		}
+	}
+	console.log("bezier err: "+maxerr);
+}
+
+
+//---------------------------------------------------------------------------------
 // Test 3 - Linear Ellipse Approximation
 
 
@@ -851,6 +910,7 @@ function testmain() {
 	console.log("starting polygon tests");
 	//areatest();
 	//blendtest();
+	//beziertest();
 	//circumtest();
 	//ellipsegenerate();
 	//ellipsegraph();

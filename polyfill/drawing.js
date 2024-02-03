@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v1.08
+drawing.js - v1.09
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -11,8 +11,6 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
-see if getting clipped when out of bounds
-floating point colors
 Create font/image fitting.
 	average r,g,b values to account for both grayscale and subpixel accuracy
 	per character
@@ -27,14 +25,14 @@ Create font/image fitting.
 		unkchar
 		charmap
 	}
+floating point colors
 Create stress tests.
 Optimize sorting lines. Heap/merge sort?
 Instead of calculating per-pixel overlap, calculate [minx,maxx,delta].
 	While x in [minx,maxx), area+=delta
 	If multiple spans overlap, add delta to shortest split.
-push/pop transform
-Better clipping of lines on corner of screen.
-Prune small curves.
+Clip lines on corner of screen.
+More accurate linearization of curves.
 
 
 for (var half=1;half<len;half+=half) {
@@ -58,7 +56,7 @@ for (var half=1;half<len;half+=half) {
 
 
 //---------------------------------------------------------------------------------
-// Anti-aliased Image Drawing - v1.08
+// Anti-aliased Image Drawing - v1.09
 
 
 class _DrawTransform {
@@ -282,7 +280,7 @@ class _DrawPoly {
 			this.moved=2;
 			vidx+=2;
 		}
-		this.resize(1,1,0);
+		this.resize(2,1,0);
 		this.linearr[lidx++]=vidx-2;
 		this.linearr[lidx++]=vidx;
 		this.lineidx=lidx;
@@ -304,7 +302,7 @@ class _DrawPoly {
 			this.moved=2;
 			vidx+=2;
 		}
-		this.resize(3,0,1);
+		this.resize(4,0,1);
 		this.curvarr[cidx++]=vidx-2;
 		this.curvarr[cidx++]=vidx;
 		this.vertarr[vidx++]=x0;
@@ -334,7 +332,7 @@ class _DrawPoly {
 	}
 
 
-	addlines(points) {
+	addarray(points) {
 		// Assumes an array of [x0,y0,x1,y1,...] where every 2 pairs is a separate line.
 		var len=points.length;
 		if (len<=0 || (len%4)!==0) {return;}
@@ -451,6 +449,7 @@ class Draw {
 		this.tmppoly  =new this.constructor.Poly();
 		this.tmpvert  =[];
 		this.tmpline  =[];
+		this.tmpsort  =[];
 	}
 
 
@@ -562,6 +561,87 @@ class Draw {
 
 
 	// ----------------------------------------
+	// Basic Drawing
+
+
+	fill(r,g,b,a) {
+		// Fills the current buffer with a solid color.
+		// imgdata.fill(rgba) was ~25% slower during testing.
+		if (r===undefined) {r=g=b=0;}
+		if (a===undefined) {a=255;}
+		var rgba=this.rgbatoint(r,g,b,a);
+		var imgdata=this.imgdata;
+		var i=this.imgwidth*this.imgheight;
+		while (i>7) {
+			imgdata[--i]=rgba;
+			imgdata[--i]=rgba;
+			imgdata[--i]=rgba;
+			imgdata[--i]=rgba;
+			imgdata[--i]=rgba;
+			imgdata[--i]=rgba;
+			imgdata[--i]=rgba;
+			imgdata[--i]=rgba;
+		}
+		while (i>0) {
+			imgdata[--i]=rgba;
+		}
+	}
+
+
+	// ----------------------------------------
+	// Primitives
+
+
+	line(x0,y0,x1,y1) {
+		var poly=this.tmppoly,trans=this.deftrans;
+		poly.begin();
+		poly.addline(x0,y0,x1,y1,this.linewidth*0.5);
+		this.fillpoly(poly,trans);
+	}
+
+
+	fillrect(x,y,w,h) {
+		var poly=this.tmppoly,trans=this.tmptrans;
+		trans.copy(this.deftrans).addoffset(x,y).mulscale(w,h);
+		poly.begin();
+		poly.addrect(0,0,1,1);
+		this.fillpoly(poly,trans);
+	}
+
+
+	fillcircle(x,y,rad) {
+		this.filloval(x,y,rad,rad);
+	}
+
+
+	filloval(x,y,xrad,yrad) {
+		var poly=this.tmppoly,trans=this.tmptrans;
+		trans.copy(this.deftrans).addoffset(x,y).mulscale(xrad,yrad);
+		poly.begin();
+		poly.addoval(0,0,1,1);
+		this.fillpoly(poly,trans);
+	}
+
+
+	// ----------------------------------------
+	// Text
+
+
+	setfont(name) {
+	}
+
+
+	filltext(x,y,str,scale) {
+		if (scale===undefined) {scale=1.0;}
+	}
+
+
+	textrect(str,scale) {
+		// Returns the rectangle bounding the text.
+	}
+
+
+	// ----------------------------------------
 	// Polygon Filling
 
 
@@ -635,8 +715,8 @@ class Draw {
 				continue;
 			}
 			// Interpolate points.
-			p3x=p3x-3*p2x+3*p1x-p0x;
-			p3y=p3y-3*p2y+3*p1y-p0y;
+			p3x=p3x+3*(p1x-p2x)-p0x;
+			p3y=p3y+3*(p1y-p2y)-p0y;
 			p2x=3*(p2x-2*p1x+p0x);
 			p2y=3*(p2y-2*p1y+p0y);
 			p1x=3*(p1x-p0x);
@@ -837,87 +917,6 @@ class Draw {
 			pixrow-=imgwidth;
 			y++;
 		}
-	}
-
-
-	// ----------------------------------------
-	// Basic Drawing
-
-
-	fill(r,g,b,a) {
-		// Fills the current buffer with a solid color.
-		// imgdata.fill(rgba) was ~25% slower during testing.
-		if (r===undefined) {r=g=b=0;}
-		if (a===undefined) {a=255;}
-		var rgba=this.rgbatoint(r,g,b,a);
-		var imgdata=this.imgdata;
-		var i=this.imgwidth*this.imgheight;
-		while (i>7) {
-			imgdata[--i]=rgba;
-			imgdata[--i]=rgba;
-			imgdata[--i]=rgba;
-			imgdata[--i]=rgba;
-			imgdata[--i]=rgba;
-			imgdata[--i]=rgba;
-			imgdata[--i]=rgba;
-			imgdata[--i]=rgba;
-		}
-		while (i>0) {
-			imgdata[--i]=rgba;
-		}
-	}
-
-
-	// ----------------------------------------
-	// Primitives
-
-
-	line(x0,y0,x1,y1) {
-		var poly=this.tmppoly,trans=this.deftrans;
-		poly.begin();
-		poly.addline(x0,y0,x1,y1,this.linewidth*0.5);
-		this.fillpoly(poly,trans);
-	}
-
-
-	fillrect(x,y,w,h) {
-		var poly=this.tmppoly,trans=this.tmptrans;
-		trans.copy(this.deftrans).addoffset(x,y).mulscale(w,h);
-		poly.begin();
-		poly.addrect(0,0,1,1);
-		this.fillpoly(poly,trans);
-	}
-
-
-	fillcircle(x,y,rad) {
-		this.filloval(x,y,rad,rad);
-	}
-
-
-	filloval(x,y,xrad,yrad) {
-		var poly=this.tmppoly,trans=this.tmptrans;
-		trans.copy(this.deftrans).addoffset(x,y).mulscale(xrad,yrad);
-		poly.begin();
-		poly.addoval(0,0,1,1);
-		this.fillpoly(poly,trans);
-	}
-
-
-	// ----------------------------------------
-	// Text
-
-
-	setfont(name) {
-	}
-
-
-	filltext(x,y,str,scale) {
-		if (scale===undefined) {scale=1.0;}
-	}
-
-
-	textrect(str,scale) {
-		// Returns the rectangle bounding the text.
 	}
 
 }

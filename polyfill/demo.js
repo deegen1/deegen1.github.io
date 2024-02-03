@@ -797,7 +797,6 @@ class PolyDemo2 {
 		canvas.style.width="90%";
 		this.draw=new Draw();
 		this.draw.setimage(this.canvas,this.backbuf32);
-		var trans=new Draw.Transform();
 		var state=this;
 		function update() {
 			state.update();
@@ -845,7 +844,6 @@ class PolyDemo3 {
 		canvas.style.width="90%";
 		this.draw=new Draw();
 		this.draw.setimage(this.canvas,this.backbuf32);
-		var trans=new Draw.Transform();
 		var state=this;
 		function update() {
 			state.update();
@@ -865,9 +863,141 @@ class PolyDemo3 {
 		my=(1-my)*this.canvas.height;
 		//draw.fillrect(mx,my,300,100);
 		//draw.filloval(mx,my,300,100);
-		draw.linewidth=40;
+		draw.linewidth=40.0;
 		draw.line(this.canvas.width/2,this.canvas.height/2,mx,my);
 		this.ctx.putImageData(this.backbuf,0,0);
+	}
+
+}
+
+
+class PolyDemo4 {
+
+	constructor() {
+		var canvas=document.createElement("canvas");
+		canvas.width=1000;
+		canvas.height=1000;
+		this.canvas=canvas;
+		this.ctx=this.canvas.getContext("2d");
+		this.backbuf=this.ctx.createImageData(canvas.width,canvas.height);
+		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
+		this.input=new Input(canvas);
+		this.input.scrollupdate=true;
+		this.draw=new Draw();
+		this.draw.setimage(this.canvas,this.backbuf32);
+		this.test=0;
+		var state=this;
+		function update() {
+			if (state.update()) {
+				requestAnimationFrame(update);
+			}
+		}
+		update();
+	}
+
+
+	drawcircle(x,y,rad) {
+		// Manually draw a circle pixel by pixel.
+		// This is ugly, but it's faster than canvas.arc and drawimage.
+		var imgdata32=this.backbuf32;
+		var imgwidth=this.canvas.width;
+		var imgheight=this.canvas.height;
+		if (rad<=0 || x-rad>imgwidth || x+rad<0 || y-rad>imgheight || y+rad<0) {
+			return;
+		}
+		var colrgba=this.draw.rgba32[0];
+		var coll=(colrgba&0x00ff00ff)>>>0;
+		var colh=(colrgba&0xff00ff00)>>>0;
+		var colh2=colh>>>8;
+		var minx=Math.floor(x-rad-0.5);
+		if (minx<0) {minx=0;}
+		var maxx=Math.ceil(x+rad+0.5);
+		if (maxx>imgwidth) {maxx=imgwidth;}
+		var xs=Math.floor(x);
+		if (xs< minx) {xs=minx;}
+		if (xs>=maxx) {xs=maxx-1;}
+		var miny=Math.floor(y-rad-0.5);
+		if (miny<0) {miny=0;}
+		var maxy=Math.ceil(y+rad+0.5);
+		if (maxy>imgheight) {maxy=imgheight;}
+		var pixrow=miny*imgwidth;
+		var d,d2,dst;
+		var pixmin,pixmax,pix;
+		var dx,dy=miny-y+0.5;
+		var rad20=rad*rad;
+		var rad21=(rad+1)*(rad+1);
+		var imul=Math.imul,sqrt=Math.sqrt;
+		// var rnorm=256.0/(rad21-rad20);
+		for (var y0=miny;y0<maxy;y0++) {
+			dx=xs-x+0.5;
+			d2=dy*dy+dx*dx;
+			pixmax=pixrow+maxx;
+			pix=pixrow+xs;
+			while (d2<rad20 && pix<pixmax) {
+				imgdata32[pix++]=colrgba;
+				d2+=dx+dx+1;
+				dx++;
+			}
+			while (d2<rad21 && pix<pixmax) {
+				d=((sqrt(d2)-rad)*256)|0;
+				// d=(d2-rad20)*rnorm|0;
+				dst=imgdata32[pix];
+				imgdata32[pix]=(((imul((dst&0x00ff00ff)-coll,d)>>>8)+coll)&0x00ff00ff)+
+					          ((imul(((dst&0xff00ff00)>>>8)-colh2,d)+colh)&0xff00ff00);
+				pix++;
+				d2+=dx+dx+1;
+				dx++;
+			}
+			dx=xs-x-0.5;
+			d2=dy*dy+dx*dx;
+			pixmin=pixrow+minx;
+			pix=pixrow+(xs-1);
+			while (d2<rad20 && pix>=pixmin) {
+				imgdata32[pix--]=colrgba;
+				d2-=dx+dx-1;
+				dx--;
+			}
+			while (d2<rad21 && pix>=pixmin) {
+				d=((sqrt(d2)-rad)*256)|0;
+				// d=(d2-rad20)*rnorm|0;
+				dst=imgdata32[pix];
+				imgdata32[pix]=(((imul((dst&0x00ff00ff)-coll,d)>>>8)+coll)&0x00ff00ff)+
+					          ((imul(((dst&0xff00ff00)>>>8)-colh2,d)+colh)&0xff00ff00);
+				pix--;
+				d2-=dx+dx-1;
+				dx--;
+			}
+			pixrow+=imgwidth;
+			dy++;
+		}
+	}
+
+
+	update() {
+		var test=this.test++;
+		var imgwidth=this.canvas.width;
+		var imgheight=this.canvas.height;
+		var t0=performance.now();
+		if (test===0) {
+			for (var i=0;i<100000;i++) {
+				var x=(Math.random()*3-1)*imgwidth;
+				var y=(Math.random()*3-1)*imgheight;
+				var rad=300;
+				this.drawcircle(x,y,rad);
+			}
+			console.log(performance.now()-t0);
+			return 1;
+		} else if (test===1) {
+			for (var i=0;i<100000;i++) {
+				var x=(Math.random()*3-1)*imgwidth;
+				var y=(Math.random()*3-1)*imgheight;
+				var rad=300;
+				this.draw.filloval(x,y,rad,rad);
+			}
+			console.log(performance.now()-t0);
+			return 1;
+		}
+		return 0;
 	}
 
 }
