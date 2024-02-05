@@ -11,8 +11,17 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
-Create font/image fitting.
+Path string format
+	M Z L C
+	add tostring()
+	change internal representation
+add image class
+	resize
+	save as bmp
+Have article include curve diagrams, like schematics.
+Create font/image fitting
 	average r,g,b values to account for both grayscale and subpixel accuracy
+	assign cost: 40/curve+10/line+1/point
 	per character
 	width
 	strips
@@ -25,26 +34,30 @@ Create font/image fitting.
 		unkchar
 		charmap
 	}
-floating point colors
+Floating point colors.
 Create stress tests.
-Optimize sorting lines. Heap/merge sort?
-Instead of calculating per-pixel overlap, calculate [minx,maxx,delta].
+Speed up fillpoly()
+	mergesort
+	Instead of calculating per-pixel overlap, calculate [minx,maxx,delta].
 	While x in [minx,maxx), area+=delta
 	If multiple spans overlap, add delta to shortest split.
 Clip lines on corner of screen.
-More accurate linearization of curves.
+More accurate linearization of curves. Split on curvature, not length.
+Add tracepoly().
+Switch from mergesort to powersort.
 
-
-for (var half=1;half<len;half+=half) {
-	i=0;i0=0;i1=half;j0=half;j1=half+half;
-	j1=j1<len?j1:len;
-	while (i0<i1 && j0<j1) {
-		if (arr[i0]<=arr[j0]) {dst[i++]=arr[i0++];}
-		else {dst[i++]=arr[j0++];}
+function polysort(arr,field) {
+	for (var half=1;half<len;half+=half) {
+		i=0;i0=0;i1=half;j0=half;j1=half+half;
+		j1=j1<len?j1:len;
+		while (i0<i1 && j0<j1) {
+			if (arr[i0]<=arr[j0]) {dst[i++]=arr[i0++];}
+			else {dst[i++]=arr[j0++];}
+		}
+		while (i0<i1) {dst[i++]=arr[i0++];}
+		while (j0<j1) {dst[i++]=arr[j0++];}
+		tmp=arr;arr=dst;dst=tmp;
 	}
-	while (i0<i1) {dst[i++]=arr[i0++];}
-	while (j0<j1) {dst[i++]=arr[j0++];}
-	tmp=arr;arr=dst;dst=tmp;
 }
 
 
@@ -322,7 +335,7 @@ class _DrawPoly {
 	close() {
 		// Draw a line from the current vertex to our last moveto() call.
 		if (this.moved!==2) {return this;}
-		this.resize(0,1);
+		this.resize(0,1,0);
 		var lidx=this.lineidx;
 		this.linearr[lidx++]=this.vertidx-2;
 		this.linearr[lidx++]=this.moveidx;
@@ -357,9 +370,9 @@ class _DrawPoly {
 	}
 
 
-	//addpoly(poly,transform) {
-	//	return this;
-	//}
+	// addpoly(poly,transform) {
+	// 	return this;
+	// }
 
 
 	addline(x0,y0,x1,y1,rad) {
@@ -444,7 +457,7 @@ class Draw {
 		this.stack    =[this.deftrans];
 		this.stackidx =0;
 		// Rendering variables
-		this.linewidth=0.001;
+		this.linewidth=1.0;
 		this.tmptrans =new this.constructor.Transform();
 		this.tmppoly  =new this.constructor.Poly();
 		this.tmpvert  =[];
@@ -511,9 +524,7 @@ class Draw {
 
 
 	loadstate() {
-		if (this.stackidx<=0) {
-			throw "loading null stack";
-		}
+		if (this.stackidx<=0) {throw "loading null stack";}
 		this.deftrans=this.stack[--this.stackidx];
 	}
 

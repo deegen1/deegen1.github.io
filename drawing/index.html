@@ -11,28 +11,75 @@
 <body>
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <div id="header"><a href="../index.html">Alec Dee's General Site</a></div>
-
+<div id="content">
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Polyfill ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Polyfill</h1>
-<p>Polygon filling forms the basis for drawing text, circles, lines, and
-anything else we could want. However, doing it quickly and smoothly requires
-some research.</p>
+<h1>Polyfill</h1>
+<p><a href="./drawing.js">drawing.js</a> uses polygons for drawing text,
+circles, lines, and anything else we could want. Polygons are superior to
+traditional raster graphics in that they allow scaling and transformations with
+no loss in quality, but it comes at the cost complex math and shape
+definitions.</p>
 <div id="polydemo1" class="consoleblock" style="width:80%;height:30rem;">
 Loading javascript...</div>
 <script>new PolyDemo1("polydemo1");</script>
-<!--<p>Pixels on the edge of the polygon might not be entirely covered by the
-polygon. When this happens, we don't want to completely replace the background
-pixel's color. Instead we want to blend it with the polygon's color.</p>
-<p>Different algorithms give us different speed and accuracy.-->
-</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Ellipses ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Ellipses</h1>
-<p>We can approximate drawing ellipses by drawing a polygon with a large number
-of sides.</p>
-<!--style="border:1px solid black;" style=""-->
+<h1>Work in progress</h1>
+<p>todo</p>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Ellipses ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<!--
+<h1>Building Blocks</h1>
+<p>All shapes are constructed by some combination of lines and cubic Bezier
+curves. These 2 building blocks allow us to construct rounded lines, circles,
+regular polygons, and even text:</p>
+<svg version="1.1" viewBox="0 0 1200 800" class="diagram"
+dominant-baseline="hanging" style="border:1px solid #000000;">
+<g transform="translate(0,0) scale(.5,.5)" style="fill:#000000;stroke:#ffffff;stroke-width:4">
+	<path d="
+		M  66  58
+		L 211  58
+		C 305  62, 366 100, 367 191
+		C 366 287, 290 314, 260 322
+		C 312 340, 324 402, 405 562
+		L 328 562
+		L 246 387
+		C 225 349, 209 341, 177 337
+		L 135 337
+		L 135 562
+		L  66 562
+		Z
+		M 201 282
+		C 231 281, 296 266, 295 196
+		C 295 137, 255 118, 206 116
+		L 135 116
+		L 135 282
+		Z
+	"/>
+	<circle cx="66" cy="58" r="8" />
+	<circle cx="211" cy="58" r="8" />
+	<circle cx="367" cy="191" r="8" />
+	<g transform="translate(-8,-8)">
+		<rect x="305" y="62" width="16" height="16" />
+		<rect x="366" y="100" width="16" height="16" />
+		<rect x="366" y="287" width="16" height="16" />
+		<rect x="290" y="314" width="16" height="16" />
+		<rect x="312" y="340" width="16" height="16" />
+		<rect x="324" y="402" width="16" height="16" />
+		<rect x="225" y="349" width="16" height="16" />
+		<rect x="209" y="341" width="16" height="16" />
+		<rect x="231" y="281" width="16" height="16" />
+		<rect x="296" y="266" width="16" height="16" />
+		<rect x="295" y="137" width="16" height="16" />
+		<rect x="255" y="118" width="16" height="16" />
+	</g>
+</g>
+</svg>
+-->
+<!--
 <svg version="1.1" viewBox="0 0 1000 300" class="diagram" text-anchor="middle"
 dominant-baseline="middle" style="font-family:monospace;font-size:32px;background-color:#000000;">
 <g transform="translate(200,50)" class="backstroke">
@@ -67,24 +114,30 @@ dominant-baseline="middle" style="font-family:monospace;font-size:32px;backgroun
 	</g>
 </g>
 </svg>
-<p>Or with bezier curves:</p>
+-->
+<!--
+<p>When rendering, after points are transformed to image space, we break the
+Bezier curve into small line segments about 3 pixels long each. This allows the
+main rendering loop to focus on only drawing lines.</p>
 <div id="polydemo2" class="consoleblock" style="width:80%;height:30rem;">
 Loading javascript...</div>
 <script>new PolyDemo2("polydemo2");</script>
-<!--<script>new PolyDemo4();</script>-->
-</div>
+-->
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Primitive ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Primitives</h1>
+<!--
+<h1>Primitives</h1>
 <div id="polydemo3" class="consoleblock" style="width:80%;height:30rem;">
 Loading javascript...</div>
 <script>new PolyDemo3("polydemo3");</script>
-</div>
-
+-->
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Blending ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Pixel Blending</h1>
+<h1>Pixel Blending</h1>
+<p>Pixels on the edge of the polygon might not be entirely covered by the
+polygon. When this happens, we don't want to completely replace the background
+pixel's color. Instead we want to blend it with the polygon's color.</p>
 <p>There are several algorithms to blend pixels on the edge of the polygon with
 the background - some faster than others.</p>
 <table class="datatable headerrow">
@@ -111,11 +164,10 @@ col = img[i];
 col = (((Math.imul((col&0x00ff00ff)-lh,a)>>>8)+lh)&0x00ff00ff)+
       ((Math.imul(((col&0xff00ff00)>>>8)-hh2,a)+hh)&0xff00ff00);
 </div>
-</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div id="footer">Created on 21 Jan 2024 - Modified on 2 Feb 2024<br>
+</div><div id="footer">Created on 21 Jan 2024 - Modified on 4 Feb 2024<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>

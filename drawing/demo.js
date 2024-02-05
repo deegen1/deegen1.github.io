@@ -533,13 +533,16 @@ class PolyDemo1 {
 		var canvas=document.createElement("canvas");
 		elem.replaceWith(canvas);
 		canvas.width=500;
-		canvas.height=250;
+		canvas.height=200;
 		this.canvas=canvas;
 		this.ctx=this.canvas.getContext("2d");
 		this.backbuf=this.ctx.createImageData(canvas.width,canvas.height);
 		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
 		// canvas.style.imageRendering="pixelated";
 		canvas.style.width="90%";
+		//canvas.style.maxHeight="20rem";
+		canvas.style.maxWidth="50rem";
+		//canvas.style.border="1px solid red";
 		var state=this;
 		function update() {
 			state.update();
@@ -742,10 +745,10 @@ class PolyDemo1 {
 
 	update() {
 		this.backbuf32[0]=0;
-		this.backbuf.data[3]=255;
+		this.backbuf.data[3]=0;
 		this.backbuf32.fill(this.backbuf32[0]);
 		var width=this.canvas.width,height=this.canvas.height;
-		var offx=155,offy=125,rad=75;
+		var offx=155,offy=100,rad=75;
 		var ang=((performance.now()%18000)/18000)*3.14159265*2;
 		var sides=5;
 		var lines=[];
@@ -856,13 +859,13 @@ class PolyDemo3 {
 	update() {
 		var draw=this.draw;
 		draw.fill(0,0,0);
-		//draw.setangle(performance.now()*0.0002);
+		// draw.setangle(performance.now()*0.0002);
 		draw.setcolor(255,0,0);
 		var [mx,my]=this.input.getmousepos();
 		mx*=this.canvas.width;
 		my=(1-my)*this.canvas.height;
-		//draw.fillrect(mx,my,300,100);
-		//draw.filloval(mx,my,300,100);
+		// draw.fillrect(mx,my,300,100);
+		// draw.filloval(mx,my,300,100);
 		draw.linewidth=40.0;
 		draw.line(this.canvas.width/2,this.canvas.height/2,mx,my);
 		this.ctx.putImageData(this.backbuf,0,0);

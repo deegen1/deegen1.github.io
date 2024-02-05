@@ -9,10 +9,11 @@
 <body>
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <div id="header"><a href="../index.html">Alec Dee's General Site</a></div>
+<div id="content">
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Range Encoding ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Range Encoding</h1>
+<h1>Range Encoding</h1>
 <p>Range encoders are a type of entropy encoder used in modern day data
 compressors. They're an evolution of earlier entropy encoders (most notably
 Huffman encoding) which were restricted to encoding data as a whole number of
@@ -52,11 +53,10 @@ range/arithmetic encoders.</p>
 <tr><td>trans</td><td>93,695</td><td>62,856</td><td>32%</td></tr>
 <tr><td>=</td><td>3,141,622</td><td>1,688,518</td><td>46%</td></tr>
 </table>
-</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~ Proof of Concept ~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Proof of Concept</h1>
+<h1>Proof of Concept</h1>
 <p>When learning about range encoding, the overall concept can be eclipsed by
 all of the details that a practical implementation demands. In truth, range
 encoders are based off of the fairly simple concept of scaling one interval to
@@ -845,11 +845,10 @@ also say mathematically that
 actually keep decoding indefinitely by following the steps we used for our first
 4 symbols. However, since we know our message is only 4 symbols long, these
 extra symbols would just be gibberish and thus we stop decoding here.</p>
-</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Explanation ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Explanation</h1>
+<h1>Explanation</h1>
 <p>The biggest problem that an actual range encoder implementation faces is the
 use of finite precision arithmetic, in particular, fixed size integers. Ideally,
 we would use real numbers or arbitrarily sized bignum's, but one is unavailable
@@ -1221,11 +1220,10 @@ positions are in the queue before outputting any data.</p>
 Thus, it simply holds the exact bits that are ready to be added to <i>low</i>.
 When the input stream has no more data in it, the input queue is filled with 1's
 since that's what the encoder expects it to be padded with.</p>
-</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Notes ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Notes</h1>
+<h1>Notes</h1>
 <p>One of the most needlessly complex parts of the range encoder is the
 input/output queue we use. Future versions might use a different queue provided
 it is simpler and can handle carries up arbitrarily long chains in constant
@@ -1244,11 +1242,10 @@ during the shifting step, in which arithmetic encoders judge settled bits by
 comparing low and high values, and must also track overflow and underflow. Range
 encoding, by contrast, only needs to track overflow, or 'carrying'. In reality,
 they're both different ways of performing the same task.</p>
-</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div id="footer">Created on 27 Apr 2018 - Modified on 30 Jun 2023<br>
+</div><div id="footer">Created on 27 Apr 2018 - Modified on 30 Jun 2023<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>

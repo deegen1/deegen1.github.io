@@ -9,9 +9,11 @@
 <body>
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <div id="header"><a href="../index.html">Alec Dee's General Site</a></div>
+<div id="content">
+
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Functions ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Functions</h1>
+<h1>Functions</h1>
 <p>In the introduction to SICO, we showed how to perform several higher level
 operations, such as comparing values. Even though we can perform these useful
 operations, we may need to write out dozens of SICO instructions to do so.
@@ -21,11 +23,10 @@ and prone to errors.</p>
 for functions. These functions will allow us to reuse other instructions with
 very little effort on our part, and they can be implemented within SICO. That
 is, we won't need to introduce any new assembly notation.</p>
-</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~ Calling Convention ~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Calling Convention</h1>
+<h1>Calling Convention</h1>
 <p>We will continue to use the shorthand <i>[x]</i> to represent <i>mem[x]</i>,
 or the value at memory address <i>x</i>. Now, assume that the label <i>func</i>
 is the function we want to call, and address <i>0</i> always holds the value
@@ -52,11 +53,10 @@ function call to resume program flow. So if the function has two arguments like
 in the example above, it will need to jump to <i>-[0]+4</i> when it's done.
 We'll also want to make sure that <i>[0]=0</i> upon returning so that any
 subsequent function calls can assume <i>[0]=0</i>.</p>
-</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~ First Function: Adding Numbers ~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>First Function: Adding Numbers</h1>
+<h1>First Function: Adding Numbers</h1>
 <p>SICO's single instruction nature means that it lacks even the common
 mathematical operations that most languages have by default. Large SICO programs
 will need functions like multiplication and division in order to be easy to read
@@ -301,19 +301,17 @@ main:
 like, <i>0 ? addnum r a b</i>, even though we could probably omit the <i>0 ?</i>
 portion. This is needed because some special case functions may need a different
 calling convention. Especially if they avoid the use of address <i>0</i>.</p>
-</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Notes ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Notes</h1>
+<h1>Notes</h1>
 <p>Because mathematical functions are used so often, it pays to optimize them as
 much as possible. The definition of <i>addnum</i> given above takes 35
 instructions to execute, but it can be trimmed down to 30 instructions.</p>
-</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div id="footer">Created on 18 Aug 2020 - Modified on 28 Jun 2023<br>
+</div><div id="footer">Created on 18 Aug 2020 - Modified on 28 Jun 2023<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>

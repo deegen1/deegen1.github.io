@@ -9,6 +9,7 @@
 <body>
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <div id="header"><a href="../index.html">Alec Dee's General Site</a></div>
+<div id="content">
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Outline ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
@@ -45,7 +46,7 @@ BVH
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Introduction ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>NTrace</h1>
+<h1>NTrace</h1>
 <p><a href="./NTrace.py">NTrace.py</a> is a ray tracer written in pure python
 (without numpy or GPU acceleration) that can work in n-dimensional space. NTrace
 produces extremely realistic images compared to traditional forms of rendering,
@@ -78,11 +79,10 @@ biased random number generator.</p>
 <p>An improperly set epsilon in the ray-triangle intersection algorithm caused
 rays to become stuck inside of the mirror sphere. This resulted in the infinite
 mirror effect seen above.</p>
-</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Overview ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Overview</h1>
+<h1>Overview</h1>
 <p>The major feature that this ray tracer presents is its ability to render
 arbitrary dimensional scenes. That is, it can render in 3D, 4D, or any other
 number of dimensions. In this article, we'll go over the main concepts that make
@@ -268,11 +268,10 @@ compensate for this, thousands of rays must be shot per pixel. This obviously
 slows rendering down, however, it is also very easy to parallelize across any
 number of threads. Most ray tracers will assign a different set of pixels to
 different threads since there will be minimal memory contention.</p>
-</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Meshes ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Meshes</h1>
+<h1>Meshes</h1>
 <p>Every solid object in our scene will be a mesh of some sort. Meshes serve to
 contain collision detection information, geometry faces, and material
 properties. A face, in particular, is the most basic building block of a solid
@@ -561,11 +560,10 @@ array, then we may rotate a matrix as shown below.</p>
 				ival+=n
 				jval+=n
 </div>
-</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Primitives ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Primitives</h1>
+<h1>Primitives</h1>
 <p>For the purposes of creating scenes easily, there are 2 geometric primitives
 we provide by default in the ray tracer: cubes and spheres. The primary reason
 for choosing these primitives is that they have analogs in all dimensions.
@@ -1215,11 +1213,10 @@ will be many planes to choose to rotate along.</p>
 <p>It should be noted that we choose the number of segments to be even. This
 allows the UV sphere to have the same arrangement of vertices around each pole
 and avoid a flat a appearance at one of the poles.</p>
-</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Materials ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Materials</h1>
+<h1>Materials</h1>
 <p>When a ray hits a face, we need to decide which direction it will go next and
 how its color will change. For instance, if the ray hits a mirror, it should
 reflect off perfectly. But if the ray hits a diffuse surface, it should scatter
@@ -1913,11 +1910,10 @@ rotated. Without performing the rotation on all points in the mesh, we instead
 have to approximate them by rotating the vertices of the mesh's root bounding
 box and using these vertices to construct the node's bounding box. This will end
 up inflating the size of the node's AABB.</p>
-</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Notes ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Notes</h1>
+<h1>Notes</h1>
 <p>We have covered the overall implementation of a n-dimensional ray tracer. In
 general, most of the concepts are the same as a 3 dimensional ray tracer. The
 biggest difference manifests itself in the matrix algebra we have to use. For a
@@ -1958,11 +1954,10 @@ to be noticable. Denoising is a popular way to reduce the noisy appearance of
 the image in exchange for approximating pixel values at a much faster speed.
 Denoisers have the downside of sometimes making the wrong pixel approximation
 and making the image look worse.</p>
-</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div id="footer">Created on 17 Mar 2019 - Modified on 1 Jul 2023<br>
+</div><div id="footer">Created on 17 Mar 2019 - Modified on 1 Jul 2023<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>

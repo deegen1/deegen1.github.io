@@ -12,10 +12,11 @@
 <body>
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <div id="header"><a href="../index.html">Alec Dee's General Site</a></div>
+<div id="content">
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Implementation ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Prime Numbers in Python</h1>
+<h1>Prime Numbers in Python</h1>
 <p>Here is the full generator. The source can also be downloaded from here:
 <a href="./primegen.py">primegen.py</a><br>
 It's based on the code posted
@@ -82,11 +83,10 @@ Loop iterator test:
 41
 43
 47</div>
-</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Performance ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Performance</h1>
+<h1>Performance</h1>
 <p>Our performance data has been generated from
 <a href="./profiling.zip">profiling.zip</a> using pypy and python2.
 <a href="./primegen.py">primegen.py</a> will need to be included in the same
@@ -112,11 +112,10 @@ than the next best.</p>
 these algorithms involve finding a factor of <i>n</i>, their performance appears
 linear with respect to <i>n</i>.</p>
 <img src="graph.svg" style="width:100%;" alt="performance comparison graph">
-</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Explanation ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Explanation</h1>
+<h1>Explanation</h1>
 <p>The algorithm relies on having a rolling dictionary of upcoming composite
 numbers, and being able to retrieve their factors quickly. We'll first analyze a
 simple version of this dictionary and then look at ways to speed it up.</p>
@@ -385,11 +384,10 @@ primes to generate.</p>
 			while q*f in comp: q+=jump[q%30]
 			comp[q*f]=f
 		n+=jump[n%30]</div>
-</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Notes ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Notes</h1>
+<h1>Notes</h1>
 <p>We have explained how the prime generating algorithm works and shown that it
 is faster than current related algorithms. We now list some current ideas for
 improving it.</p>
@@ -426,10 +424,10 @@ def primegen():
 time using the Rabin-Miller primality test. In practice, the <i>isprime()</i>
 function is too slow to compete with the current <i>primegen</i> for real-world
 values of <i>n</i>.</p>
-</div>
+
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div id="footer">Created on 31 Dec 2017 - Modified on 29 Jun 2023<br>
+</div><div id="footer">Created on 31 Dec 2017 - Modified on 29 Jun 2023<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>

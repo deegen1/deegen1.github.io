@@ -9,10 +9,11 @@
 <body>
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <div id="header"><a href="../index.html">Alec Dee's General Site</a></div>
+<div id="content">
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~ Weight Balanced Trees ~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Weight Balanced Trees</h1>
+<h1>Weight Balanced Trees</h1>
 <p>Searching for self balancing trees on the internet will yield plenty of
 results for red-black and AVL trees, but almost no results for
 <a href="https://en.wikipedia.org/wiki/Weight-balanced_tree">weight balanced
@@ -58,11 +59,10 @@ Index:
 5: Friday</div>
 <p>The tree also accepts custom sorting functions and can be toggled to accept
 (or reject) duplicate elements</p>
-</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Performance ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Performance</h1>
+<h1>Performance</h1>
 <p>We've compared WBTree's performance against various other self balancing
 trees. The data was generated using speedtest.py in
 <a href="./testing.zip">testing.zip</a> using the python3 runtime. Our own
@@ -112,11 +112,10 @@ sibling nodes.</td></tr>
 <i>O(log(n))</i> for all of the normal <i>add()</i>, <i>remove()</i>, and
 <i>search()</i> operations. So even though its relative performance isn't good,
 it will never become pathologically bad.</p>
-</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Explanation ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Explanation</h1>
+<h1>Explanation</h1>
 <p>Imagine keeping track of the residents in a city. As people decide to move to
 the city, or move elsewhere, we'd like to update our ledger of residents and
 also query basic information about them as fast as possible. An array would
@@ -1654,11 +1653,10 @@ the weight of the left child plus 1 to our index.</p>
 		node=node.parent
 	return i
 </div>
-</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Time Complexity ~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Time Complexity</h1>
+<h1>Time Complexity</h1>
 <p>Proving that the weights of two children will always stay within a ratio 2.5
 is fairly difficult. We will instead be taking this balance as fact, and simply
 proving that the height of the tree is bound by
@@ -1704,11 +1702,10 @@ finding the next node, which is <i>O(log(n))</i>, swapping, which is
 down the tree, which is <i>O(log(n))</i>. Finding an index given a node only
 moves up the tree, which is also <i>O(log(n))</i>. Thus indexing is
 <i>O(log(n))</i>.</p>
-</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Notes ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div class="content"><h1>Notes</h1>
+<h1>Notes</h1>
 <p>Better balancing is possible by avoiding ratios entirely. Instead, we can
 attempt a double or single rotation and see which one results in a better
 balance. Research is needed to simplify when balancing is performed and what its
@@ -1727,11 +1724,10 @@ trees.</p>
 <p>I'd like to implement set theory operations in the future. Until I actually
 need them, I don't know what I'd like the API to look like, so I'll hold off for
 now.</p>
-</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<div id="footer">Created on 27 Apr 2018 - Modified on 2 Jul 2023<br>
+</div><div id="footer">Created on 27 Apr 2018 - Modified on 2 Jul 2023<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>

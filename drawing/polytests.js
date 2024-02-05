@@ -339,8 +339,8 @@ function circumtest() {
 		sumlen=j;
 	}
 	console.log(distarr[0],Math.sqrt(xrad*xrad+yrad*yrad)*Math.sqrt(2)*Math.PI);
-	var xtmp=xrad+1e-20;//Math.abs(xrad*scalex*viewmul)+1e-10;
-	var ytmp=yrad+1e-20;//Math.abs(yrad*scaley*viewmul)+1e-10;
+	var xtmp=xrad+1e-20;// Math.abs(xrad*scalex*viewmul)+1e-10;
+	var ytmp=yrad+1e-20;// Math.abs(yrad*scaley*viewmul)+1e-10;
 	var d=xtmp+ytmp,h=(xtmp-ytmp)/d;h*=h;
 	var mul=Math.PI/256;
 	var circ=(d*(256+h*(64+h*(4+h)))*mul);
@@ -704,16 +704,16 @@ function ellipsegraph0() {
 	var minx=0,maxx=0,miny=0,maxy=0;
 	for (var d=0;d<datalen;d++) {
 		var xr=data[d][0],yr=data[d][1],y=data[d][2];
-		//var h=(xr-yr)/(xr+yr);h*=h;
-		//var x=(xr+yr)*(1+h/4+h*h/64+h*h*h/256+h*h*h*h*25/16384);
-		//var x;
-		//if (xr*3<yr || yr*3<xr) {x=Math.max(xr,yr);}
-		//else {x=Math.sqrt(xr*xr+yr*yr);}
+		// var h=(xr-yr)/(xr+yr);h*=h;
+		// var x=(xr+yr)*(1+h/4+h*h/64+h*h*h/256+h*h*h*h*25/16384);
+		// var x;
+		// if (xr*3<yr || yr*3<xr) {x=Math.max(xr,yr);}
+		// else {x=Math.sqrt(xr*xr+yr*yr);}
 		var x=Math.sqrt(xr*xr+yr*yr);
-		//var x=Math.sqrt(xr*yr);
-		//var x=Math.max(xr,yr);
-		//var x=xr+yr;
-		//var x=Math.min(xr,yr);
+		// var x=Math.sqrt(xr*yr);
+		// var x=Math.max(xr,yr);
+		// var x=xr+yr;
+		// var x=Math.min(xr,yr);
 		data[d][0]=x;
 		minx=Math.min(minx,x);
 		maxx=Math.max(maxx,x);
@@ -864,9 +864,9 @@ function ellipsegraph() {
 		y=(rect.h-(y-miny)*muly)+rect.y;
 		console.log(x,y);
 		ctx.lineTo(x,y);
-		//ctx.beginPath();
-		//ctx.arc(x,y,2*imgscale,0,Math.PI*2);
-		//ctx.fill();
+		// ctx.beginPath();
+		// ctx.arc(x,y,2*imgscale,0,Math.PI*2);
+		// ctx.fill();
 	}
 	ctx.stroke();
 	console.log("best: "+maxmul+", "+maxrate);
@@ -880,7 +880,8 @@ function ellipsegraph() {
 				testcon=y-y0;
 			}
 		}
-		var testarea=(testcon+testmul*Math.sqrt(maxx)*2/3)*maxx-(testcon+testmul*Math.sqrt(minx)*2/3)*minx;
+		var testarea=(testcon+testmul*Math.sqrt(maxx)*2/3)*maxx-
+		             (testcon+testmul*Math.sqrt(minx)*2/3)*minx;
 		if (aarea>testarea) {
 			aarea=testarea;
 			amul=testmul;
@@ -908,12 +909,12 @@ function ellipsegraph() {
 
 function testmain() {
 	console.log("starting polygon tests");
-	//areatest();
-	//blendtest();
-	//beziertest();
-	//circumtest();
-	//ellipsegenerate();
-	//ellipsegraph();
+	// areatest();
+	// blendtest();
+	// beziertest();
+	// circumtest();
+	// ellipsegenerate();
+	// ellipsegraph();
 }
 
 
