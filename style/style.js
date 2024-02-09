@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-style.js - v2.03
+style.js - v2.04
 
 Copyright 2018 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -15,6 +15,31 @@ TODO
 /* jshint bitwise: false */
 /* jshint eqeqeq: true   */
 /* jshint curly: true    */
+
+
+function GetCSSValue(name) {
+	var style=getComputedStyle(document.body);
+	var val=style.getPropertyValue(name);
+	if (val===null || val===undefined || val==="") {
+		throw "can't find "+name;
+	}
+	return val;
+}
+
+
+function GetCSSRGBA(name) {
+	var val=GetCSSValue(name);
+	var arr=val.match(/\d+/g).map(Number);
+	if (arr===null || arr.length!==4) {
+		throw name+' = "'+val+'" not an RGBA value';
+	}
+	return arr;
+}
+
+
+function SetCSSValue(name,value) {
+	document.documentElement.style.setProperty(name,value);
+}
 
 
 function HighlightPython(text) {

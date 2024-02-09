@@ -11,13 +11,14 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
+add image class
+	resize
+	save as bmp
+	test speed
 Path string format
 	M Z L C
 	add tostring()
 	change internal representation
-add image class
-	resize
-	save as bmp
 Have article include curve diagrams, like schematics.
 Create font/image fitting
 	average r,g,b values to account for both grayscale and subpixel accuracy
@@ -427,6 +428,43 @@ class _DrawPoly {
 
 
 class _DrawFont {
+}
+
+
+class _DrawImage {
+
+	constructor(width,height) {
+		var srcdata=null;
+		if (height===undefined) {
+			if (width===undefined) {
+				width=0;
+				height=0;
+			} else if (width instanceof _DrawImage) {
+				var img=width;
+				width=img.width;
+				height=img.height;
+				srcdata=img.data32;
+			} else if (width instanceof HTMLCanvasElement) {
+			}
+		}
+		this.width =width;
+		this.height=height;
+		this.data32=new Uint32Array(width*height);
+		this.data8 =new Uint8Array(this.data32.buffer);
+		this.datac =new CANVASDATA(); ////////////////////////////
+		if (srcdata!==null) {this.data8.set(srcdata);}
+	}
+
+
+	draw(dst,x,y,w,h) {
+		if (x===undefined) {x=0;}
+		if (y===undefined) {y=0;}
+		if (w===undefined) {w=this.width;}
+		if (h===undefined) {h=this.height;}
+		if (w>dst.width) {w=dst.width;}
+		if (h>dst.height) {h=dst.height;}
+	}
+
 }
 
 

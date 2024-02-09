@@ -11,34 +11,6 @@ Write the articles as if there are no images. Add images later to help.
 */
 
 
-/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Coloring ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
-
-body {
-	/* Whitepace after the ":" is preserved */
-	--main-back   :rgb(26,26,26,255);
-	--main-text   :rgb(193,193,193,255);
-	--main-title1 :rgb( 80,171,255,255);
-	--main-title2 :rgb(128,128,255,255);
-	--main-link   :rgb(181,148, 16,255);
-	--table-header:rgb(180,180,180,255);
-	--table-cell  :rgb(220,220,220,255);
-	--table-border:rgb(128,128,128,255);
-	--diag-high1  :rgb(0  ,128,255,255);
-	--diag-high2  :rgb( 64,138,255,255);
-	--diag-high3  :rgb(128,148,255,255);
-	--diag-back3  :rgb( 32, 32, 32,255);
-	--diag-back2  :rgb( 80, 80, 80,255);
-	--diag-back1  :rgb(255,255,255,255);
-	--code-back   :rgb(250,250,250,255);
-	--code-text   :rgb( 10, 10, 10,255);
-	--code-comment:rgb(120,120,221,255);
-	--code-number :rgb( 42,161,152,255);
-	--code-string :rgb( 42,161,152,255);
-	--code-keyword:rgb(133,153,  0,255);
-}
-
-
 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~ Override Default HTML ~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 
@@ -60,10 +32,10 @@ body {
 	the left side of the right copy, will be covered by the content. */
 	background-image:url("./background.png");
 	background-size:50% auto;
+	background-color:#000000;
 	background-repeat:repeat;
 	background-attachment:fixed;
-	background-color:#000000;
-	color:var(--main-text);
+	color:#eeeeee;
 	font-family:sans-serif,sans-serif;
 	font-size:1.1em;
 	/* Prevent weird font resizing on mobile. */
@@ -92,15 +64,19 @@ sub {
 
 
 #content, #header, #footer {
-	max-width:65rem;
-	padding:2.98rem;
+	max-width:70rem;
+	padding:1.98rem;
 	padding-top:0rem;
 	padding-bottom:0.8rem;
 	/* border:1px solid #6060ff; */
 	/* border-radius:8px; */
-	background-color:var(--main-back);
+	background-color:#444444;
 	margin:auto;
 	margin-bottom:3rem;
+	background-image:inherit;
+}
+#content {
+	background-size:0 0;
 }
 #content canvas, #content img {
 	display:block;
@@ -110,28 +86,52 @@ sub {
 }
 #content h1 {
 	display:block;
-	/*width:100%;*/
-	margin:0;
-	margin-bottom:2rem;
-	padding:0;
-	padding-top:2.30rem;
-	border-bottom:2px solid #0080ff;
+	width:100%;
+	padding:inherit;
+	padding-top:1rem;
+	padding-bottom:1rem;
+	border-bottom:inherit;
 	border-radius:inherit;
-	color:#0080ff;
+	border-bottom-left-radius:0;
+	border-bottom-right-radius:0;
+	margin:-1.98rem;
+	margin-top:2.0rem;
+	margin-bottom:2.0rem;
+	background-color:#5050ff;
 	font-family:sans-serif,sans-serif;
 	font-size:170%;
 	font-weight:bold;
+	/*line-height:150%;*/
+	background-image:inherit;
+	background-size:0 0;
+}
+#content h1::before {
+	content:" ";
+	display:block;
+	width:100%;
+	height:3rem;
+	padding:inherit;
+	margin:-1.98rem;
+	margin-top:-1.0rem;
+	margin-bottom:1.0rem;
+	/*background-image:url("./background.png");
+	background-color:#000000;
+	background-attachment:fixed;*/
+	background-image:inherit;
+	background-attachment:fixed;
+	background-color:black;
+	font-size:0;
 }
 #content h2 {
 	display:block;
 	width:100%;
-	border-bottom:0.165rem solid var(--main-title2);
+	border-bottom:0.165rem solid #8080ff;
 	margin-top:4rem;
 	font-family:sans-serif,sans-serif;
 	font-size:150%;
 	font-weight:bold;
 	line-height:150%;
-	color:var(--main-title2);
+	color:#8080ff;
 }
 #content .codeblock, #content .consoleblock, #content i, .diagram {
 	font-family:Consolas,monospace,monospace;
@@ -148,7 +148,7 @@ sub {
 	margin:auto;
 	margin-top:2.5rem;
 	margin-bottom:2.5rem;
-	background-color:#252525;
+	background-color:#333333;
 	overflow:auto;
 	color:inherit;
 }
@@ -205,7 +205,7 @@ button:hover, select:hover {
 	margin:auto;
 	margin-top:4rem;
 	margin-bottom:4rem;
-	border:1px solid #444444;
+	border:2px solid #555555;
 	/* border-collapse:separate; */
 	/* border-spacing:0.2rem; */
 }
@@ -213,8 +213,8 @@ button:hover, select:hover {
 	padding:0.4rem;
 	padding-left:0.75rem;
 	padding-right:0.75rem;
-	border:1px solid #444444;
-	background-color:#2b2b2b;
+	border:2px solid #555555;
+	background-color:#3b3b3b;
 	vertical-align:top;
 	/* font-family:sans-serif,sans-serif; */
 }
@@ -225,13 +225,13 @@ button:hover, select:hover {
 	border:none;
 }
 .headercol td:nth-child(1) {
-	background-color:#404040;
+	background-color:#666666;
 	font-weight:bold;
 }
 .headerrow tr:nth-child(1) td {
 	/* border-bottom:1px solid #808080; */
 	/* padding-bottom:0.3rem; */
-	background-color:#404040;
+	background-color:#666666;
 	font-weight:bold;
 	text-align:center;
 }
@@ -251,17 +251,19 @@ button:hover, select:hover {
 	/* background:#333333; */
 	font-family:Consolas,monospace,monospace;
 	stroke-width:2px;
-	stroke:var(--main-text);
+	stroke:#eeeeee;
 	stroke-linecap:round;
-	fill:var(--main-text);
+	fill:#eeeeee;
 }
-.diagram text        {stroke-width:0;}
-.diagram .bgfill     {fill:var(--main-back);}
-.diagram .bgstroke   {stroke:var(--main-back);}
+.diagram text        {stroke-width:0;/*fill:#8080ff;*/}
+.diagram .bgfill     {fill:#444444;}
+.diagram .bgstroke   {stroke:#444444;}
 .diagram .fgfill     {fill:#eeeeee;}
 .diagram .fgstroke   {stroke:#eeeeee;}
 .diagram .highfill   {fill:#6666ff;}
 .diagram .highstroke {stroke:#6666ff;}
+.diagram .fill2 {fill:#ffa500};
+.diagram .stroke2 {stroke:#ffa500};
 .diagram .dimstroke  {stroke:#666666;}
 .diagram .dimfill    {fill:#666666;}
 
@@ -269,15 +271,31 @@ button:hover, select:hover {
 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header/Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 
-#header, #footer {
-	background-color:rgb(0,0,0,255);
+/*#header, #footer {
+	width:100%;
+	max-width:none;
 	text-align:center;
 	padding-top:0;
 	padding-bottom:0;
+	border:none;
+	background:#000000;
+	border-bottom:2px solid #808080;
+	font-family:sans-serif,sans-serif;
+}*/
+#header, #footer {
+	text-align:center;
+	padding-top:0;
+	padding-bottom:0;
+	border:none;
+	background-image:inherit;
+	background-attachment:fixed;
+	background-color:black;
+	font-family:sans-serif,sans-serif;
 }
 #header {
-	margin-bottom:2rem;
-	margin-top:2.3rem;
+	padding-top:2.3rem;
+	padding-bottom:2.3rem;
+	margin-bottom:-7rem;
 }
 #footer {
 	margin-top:-0.9rem;

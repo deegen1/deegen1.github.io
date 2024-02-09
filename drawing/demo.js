@@ -605,10 +605,9 @@ class PolyDemo1 {
 			lr[j]=l;
 		}
 		// Split RGB.
-		var colrgba=0xffffffff;
-		var coll=(colrgba&0x00ff00ff)>>>0;
-		var colh=(colrgba&0xff00ff00)>>>0;
-		var colh2=colh>>>8;
+		var rgba8=new Uint8Array([0,128,255,255]);
+		var rgba32=new Uint32Array(rgba8.buffer);
+		var colrgba=rgba32[0];
 		// Process the lines row by row.
 		var ylo=0,yhi=0,y=miny,ynext=y,ny;
 		var pixrow=y*imgwidth;
@@ -715,12 +714,10 @@ class PolyDemo1 {
 							imgdata[pixcol++]=colrgba;
 						}
 					} else if (area>0.0019) {
-						a=Math.floor((1.0-area)*256);
+						rgba8[3]=Math.floor(area*256);
+						var col=rgba32[0];
 						while (pixcol<pixstop) {
-							dst=imgdata[pixcol];
-							imgdata[pixcol++]=
-								(((Math.imul((dst&0x00ff00ff)-coll,a)>>>8)+coll)&0x00ff00ff)+
-								((Math.imul(((dst&0xff00ff00)>>>8)-colh2,a)+colh)&0xff00ff00);
+							imgdata[pixcol++]=col;
 						}
 					}
 				} else if (area>=0.5) {
@@ -745,7 +742,7 @@ class PolyDemo1 {
 
 	update() {
 		this.backbuf32[0]=0;
-		this.backbuf.data[3]=0;
+		this.backbuf.data[3]=255;
 		this.backbuf32.fill(this.backbuf32[0]);
 		var width=this.canvas.width,height=this.canvas.height;
 		var offx=155,offy=100,rad=75;
