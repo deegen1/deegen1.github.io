@@ -102,10 +102,10 @@ body {
 	font-size:1.0em;
 	/*line-height:140%;*/
 	/* Prevent weird font resizing on mobile. */
-	-webkit-text-size-adjust:none;
+	/*-webkit-text-size-adjust:none;
 	-moz-text-size-adjust:none;
 	-ms-text-size-adjust:none;
-	text-size-adjust:none;
+	text-size-adjust:none;*/
 }
 a, a:hover {
 	color:var(--main-link);
@@ -139,9 +139,12 @@ sub {
 }
 /* Resize for mobile to prevent text becoming small */
 @media (max-aspect-ratio: 0.5) {
-	#content {
+	/*#content {
 		max-width:30rem;
-	}
+	}*/
+	/*body {
+		font-size:1.5rem;
+	}*/
 }
 #content canvas, #content img {
 	display:block;
