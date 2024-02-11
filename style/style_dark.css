@@ -138,6 +138,12 @@ sub {
 	margin:auto;
 	margin-bottom:3rem;
 }
+/* Resize for mobile to prevent text becoming small */
+@media (max-aspect-ratio: 0.5) {
+	#content {
+		max-width:30rem;
+	}
+}
 #content canvas, #content img {
 	display:block;
 	margin:auto;
@@ -175,6 +181,7 @@ sub {
 }
 #content .codeblock, #content .consoleblock {
 	display:block;
+	box-sizing:border-box;
 	width:100%;
 	padding:0.5775rem;
 	margin:auto;
