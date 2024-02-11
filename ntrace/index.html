@@ -126,7 +126,7 @@ have any number of lights without changing performance.</p>
 	<line x1="0" y1="0" x2="-0" y2="-80"/>
 	<line x1="-40" y1="69" x2="40" y2="-69"/>
 	<line x1="-69" y1="40" x2="69" y2="-40"/>
-	<circle cx="0" cy="0" r="25" stroke-width="4px" class="bgstroke highfill"/>
+	<circle cx="0" cy="0" r="25" stroke-width="4px" class="backstroke highfill"/>
 </g>
 <g transform="translate(320,150)" text-anchor="middle">
 	<rect x="0" y="0" width="40" height="40" transform="rotate(45)"/>
@@ -153,7 +153,7 @@ have any number of lights without changing performance.</p>
 	<line x1="100" y1="170" x2="298" y2="169"/>
 </g>
 <g transform="translate(800,50)" stroke-width="3px" class="highstroke">
-	<circle cx="0" cy="0" r="25" stroke-width="4px" class="bgstroke highfill"/>
+	<circle cx="0" cy="0" r="25" stroke-width="4px" class="backstroke highfill"/>
 </g>
 <g transform="translate(820,150)" text-anchor="middle">
 	<rect x="0" y="0" width="40" height="40" transform="rotate(45)"/>
@@ -705,13 +705,13 @@ etc.</p>
 sphere, we rotate a line (a 1D sphere) around the XY plane:</p>
 <svg version="1.1" viewBox="0 0 1000 300" class="diagram">
 <g transform="translate(100,150)">
-	<circle cx="0" cy="0" r="80" class="dimstroke bgfill"/>
+	<circle cx="0" cy="0" r="80" class="dimstroke backfill"/>
 	<line x1="80" y1="0" x2="-80" y2="-0" class="highstroke"/>
 	<circle cx="80" cy="0" r="3" class="highstroke highfill"/>
 	<circle cx="-80" cy="0" r="3" class="highstroke highfill"/>
 </g>
 <g transform="translate(366,150)">
-	<circle cx="0" cy="0" r="80" class="dimstroke bgfill"/>
+	<circle cx="0" cy="0" r="80" class="dimstroke backfill"/>
 	<line x1="69" y1="40" x2="-69" y2="-40" class="highstroke"/>
 	<line x1="80" y1="0" x2="69" y2="40"/>
 	<line x1="-80" y1="0" x2="-69" y2="-40"/>
@@ -721,7 +721,7 @@ sphere, we rotate a line (a 1D sphere) around the XY plane:</p>
 	<circle cx="-69" cy="-40" r="3" class="highstroke highfill"/>
 </g>
 <g transform="translate(632,150)">
-	<circle cx="0" cy="0" r="80" class="dimstroke bgfill"/>
+	<circle cx="0" cy="0" r="80" class="dimstroke backfill"/>
 	<line x1="40" y1="69" x2="-40" y2="-69" class="highstroke"/>
 	<line x1="80" y1="0" x2="69" y2="40"/>
 	<line x1="69" y1="40" x2="40" y2="69"/>
@@ -735,7 +735,7 @@ sphere, we rotate a line (a 1D sphere) around the XY plane:</p>
 	<circle cx="-40" cy="-69" r="3" class="highstroke highfill"/>
 </g>
 <g transform="translate(898,150)">
-	<circle cx="0" cy="0" r="80" class="dimstroke bgfill"/>
+	<circle cx="0" cy="0" r="80" class="dimstroke backfill"/>
 	<line x1="80" y1="0" x2="69" y2="40"/>
 	<line x1="69" y1="40" x2="40" y2="69"/>
 	<line x1="40" y1="69" x2="0" y2="80"/>
@@ -1356,7 +1356,7 @@ continues through the object with its direction bent. This is what causes
 objects to appear to shift when looking through glass or water.</p>
 <svg version="1.1" viewBox="0 0 1000 280" class="diagram">
 <g transform="translate(500,140)">
-	<circle cx="0" cy="0" r="80" class="bgfill"/>
+	<circle cx="0" cy="0" r="80" class="backfill"/>
 	<line x1="-150" y1="-60" x2="-53" y2="-60" class="highstroke"/>
 	<line x1="-53" y1="-60" x2="70" y2="-39" class="highstroke"/>
 	<line x1="70" y1="-39" x2="150" y2="-10" class="highstroke"/>
@@ -1378,11 +1378,11 @@ refraction. We label then <i>idx0</i>, <i>idx1</i>, <i>ang0</i>, and <i>ang1</i>
 respectively.</p>
 <svg version="1.1" viewBox="0 0 1000 260" class="diagram">
 <g transform="translate(500,130)">
-	<circle cx="0" cy="0" r="30" stroke-width="1.5px" class="bgfill"/>
+	<circle cx="0" cy="0" r="30" stroke-width="1.5px" class="backfill"/>
 	<rect x="-18" y="-34" width="82" height="34" stroke-width="0"
-	class="bgfill"/>
+	class="backfill"/>
 	<rect x="-100" y="0" width="125" height="34" stroke-width="0"
-	class="bgfill"/>
+	class="backfill"/>
 	<rect x="-100" y="-1" width="200" height="2" stroke-width="0"/>
 	<line x1="-60" y1="-80" x2="0" y2="0" class="highstroke"/>
 	<g class="highstroke" transform="translate(0,0) rotate(35)">
@@ -1421,8 +1421,8 @@ way to maximize total internal reflection. The diagram below shows a basic
 situation in which this can occur.</p>
 <svg version="1.1" viewBox="0 0 1000 280" class="diagram">
 <g transform="translate(500,200)">
-	<circle cx="0" cy="0" r="100" class="bgfill"/>
-	<rect x="-102" y="0" width="204" height="102" stroke-width="0" class="bgfill"/>
+	<circle cx="0" cy="0" r="100" class="backfill"/>
+	<rect x="-102" y="0" width="204" height="102" stroke-width="0" class="backfill"/>
 	<line x1="-100" y1="0" x2="100" y2="0"/>
 	<line x1="-110" y1="-110" x2="0" y2="0" class="highstroke"/>
 	<g class="highstroke" transform="translate(0,0) rotate(-45)">

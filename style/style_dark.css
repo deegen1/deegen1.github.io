@@ -16,7 +16,7 @@ Write the articles as if there are no images. Add images later to help.
 
 body {
 	/* Whitepace after the ":" is preserved */
-/*
+
 	--main-back   :rgb( 26, 26, 26,255);
 	--main-text   :rgb(230,230,230,255);
 	--main-title1 :rgb(  0,128,255,255);
@@ -37,7 +37,7 @@ body {
 	--code-string :rgb( 42,161,152,255);
 	--code-keyword:rgb(133,153,  0,255);
 	--code-label  :rgb(170,187,128,255);
-*/
+/*
 	--main-back   :rgb(239,239,239,255);
 	--main-text   :rgb(  0,  0,  0,255);
 	--main-title1 :rgb( 64,160,255,255);
@@ -58,6 +58,7 @@ body {
 	--code-string :rgb(128, 90,128,255);
 	--code-keyword:rgb(133,103,  0,255);
 	--code-label  :rgb(110,127, 68,255);
+*/
 }
 
 
@@ -90,12 +91,12 @@ body {
 	overflow-y:scroll;
 	/* Repeat the background twice horizontally. The right side of the left copy, and
 	the left side of the right copy, will be covered by the content. */
-	/*background-image:url("./background.png");
+	background-image:url("./background.png");
 	background-size:50% auto;
 	background-repeat:repeat;
 	background-attachment:fixed;
-	background-color:#000000;*/
-	background-color:#efefef;
+	background-color:#000000;
+	/*background-color:#efefef;*/
 	color:var(--main-text);
 	font-family:Montserrat,sans-serif,sans-serif;
 	/*font-family:Arial,"Lucida Grande","Lucida Sans Unicode","GNU Unifont",Verdana,Helvetica,sans-serif;*/
@@ -109,7 +110,7 @@ body {
 }
 a, a:hover {
 	color:var(--main-link);
-	font-family:sans-serif,sans-serif;
+	/*font-family:sans-serif,sans-serif;*/
 	/*font-weight:bold;*/
 }
 a:hover {
@@ -211,7 +212,7 @@ button, select {
 	/* margin-right:0.0825rem; */
 	color:#ffffff;
 	border:1px solid;
-	border-color:#8080af;
+	border-color:#4040af;
 	background-color:#6060ff;
 	padding:0.2rem;
 	padding-left:0.4rem;
@@ -305,8 +306,8 @@ button:hover, select:hover {
 	padding-bottom:0;
 }
 #header {
-	padding-top:2rem;
-	padding-bottom:0rem;
+	padding-top:1rem;
+	padding-bottom:1rem;
 }
 #footer {
 	margin-top:-1.9rem;

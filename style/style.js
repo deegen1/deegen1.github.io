@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-style.js - v2.04
+style.js - v2.05
 
 Copyright 2018 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -44,17 +44,17 @@ function SetCSSValue(name,value) {
 
 function HighlightPython(text) {
 	// Set up regular expressions to match an expression to a style.
-	var styledefault   ="color:#cccccc";
-	var stylecomment   ="color:#999999";
-	var stylequote     ="color:#2aa198";
-	var stylemultiquote="color:#2aa198";
-	var stylenumber    ="color:#2aa198";
-	var styleoperator  ="color:#cccccc";
-	var stylespecial   ="color:#2aa198";
-	var styleimport    ="color:#859900";
-	var stylebuiltin   ="color:#859900";
-	var stylekeyword   ="color:#859900";
-	var styleexception ="color:#859900";
+	var styledefault   ="color:"+GetCSSValue("--code-text");
+	var stylecomment   ="color:"+GetCSSValue("--code-comment");
+	var stylequote     ="color:"+GetCSSValue("--code-string");
+	var stylemultiquote="color:"+GetCSSValue("--code-string");
+	var stylenumber    ="color:"+GetCSSValue("--code-number");
+	var styleoperator  ="color:"+GetCSSValue("--code-text");
+	var stylespecial   ="color:"+GetCSSValue("--code-number");
+	var styleimport    ="color:"+GetCSSValue("--code-keyword");
+	var stylebuiltin   ="color:"+GetCSSValue("--code-keyword");
+	var stylekeyword   ="color:"+GetCSSValue("--code-keyword");
+	var styleexception ="color:"+GetCSSValue("--code-keyword");
 	var arrspecial=["False","None","True"];
 	var arrimport=["as","from","import"];
 	var arrbuiltin=[
@@ -151,10 +151,10 @@ function HighlightSico(str) {
 	// Convert SICO assembly language into a formatted HTML string.
 	// Define styles.
 	var stylearr=[
-		"</span><span style='color:#eeeeee'>", // default, number, operator, label ref
-		"</span><span style='color:#9999dd'>", // comment
-		"</span><span style='color:#aabb80'>", // label declaration
-		"</span><span style='color:#909090'>"  // ASCII literal
+		"</span><span style='color:"+GetCSSValue("--code-text"   )+"'>", // default, number, operator, label ref
+		"</span><span style='color:"+GetCSSValue("--code-comment")+"'>", // comment
+		"</span><span style='color:"+GetCSSValue("--code-label"  )+"'>", // label declaration
+		"</span><span style='color:"+GetCSSValue("--code-string" )+"'>"  // ASCII literal
 	];
 	var styledefault =0;
 	var stylecomment =1;

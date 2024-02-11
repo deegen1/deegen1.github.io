@@ -451,7 +451,7 @@ class _DrawImage {
 		this.height=height;
 		this.data32=new Uint32Array(width*height);
 		this.data8 =new Uint8Array(this.data32.buffer);
-		this.datac =new CANVASDATA(); ////////////////////////////
+		this.datac =new CANVASDATA(); // //////////////////////////
 		if (srcdata!==null) {this.data8.set(srcdata);}
 	}
 

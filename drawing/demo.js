@@ -540,9 +540,9 @@ class PolyDemo1 {
 		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
 		// canvas.style.imageRendering="pixelated";
 		canvas.style.width="90%";
-		//canvas.style.maxHeight="20rem";
+		// canvas.style.maxHeight="20rem";
 		canvas.style.maxWidth="50rem";
-		//canvas.style.border="1px solid red";
+		// canvas.style.border="1px solid red";
 		var state=this;
 		function update() {
 			state.update();
@@ -605,7 +605,7 @@ class PolyDemo1 {
 			lr[j]=l;
 		}
 		// Split RGB.
-		var rgba8=new Uint8Array([0,128,255,255]);
+		var rgba8=new Uint8Array([255,255,255,255]);
 		var rgba32=new Uint32Array(rgba8.buffer);
 		var colrgba=rgba32[0];
 		// Process the lines row by row.

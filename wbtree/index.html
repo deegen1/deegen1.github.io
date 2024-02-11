@@ -142,7 +142,7 @@ children per node, a root node, and some balancing mechanism.</p>
 	<line x1="419" y1="199" x2="379" y2="139"/>
 	<line x1="499" y1="199" x2="539" y2="139"/>
 	<line x1="579" y1="199" x2="539" y2="139"/>
-	<g class="bgfill highstroke">
+	<g class="backfill">
 		<circle cx="299" cy="19" r="17"/>
 		<circle cx="139" cy="79" r="17"/>
 		<circle cx="459" cy="79" r="17"/>
@@ -202,7 +202,7 @@ to have a weight of <i>0</i>.</p>
 	<line x1="240" y1="60" x2="280" y2="120"/>
 	<line x1="40" y1="120" x2="0" y2="180"/>
 	<line x1="40" y1="120" x2="80" y2="180"/>
-	<g class="bgfill highstroke">
+	<g class="backfill">
 		<circle cx="160" cy="0" r="17"/>
 		<circle cx="80" cy="60" r="17"/>
 		<circle cx="240" cy="60" r="17"/>
@@ -267,7 +267,7 @@ left of the root node are less than <i>7</i>, and all children to the right are
 greater than <i>7</i>.</p>
 <svg version="1.1" viewBox="0 0 1000 234" class="diagram">
 <g transform="translate(201,10)">
-	<g class="fgfill fgstroke">
+	<g>
 		<line x1="139" y1="79" x2="299" y2="19"/>
 		<line x1="459" y1="79" x2="299" y2="19"/>
 		<line x1="59" y1="139" x2="139" y2="79"/>
@@ -283,7 +283,7 @@ greater than <i>7</i>.</p>
 		<line x1="499" y1="199" x2="539" y2="139"/>
 		<line x1="579" y1="199" x2="539" y2="139"/>
 	</g>
-	<g class="bgfill highstroke">
+	<g class="backfill">
 		<circle cx="299" cy="19" r="17"/>
 		<circle cx="139" cy="79" r="17"/>
 		<circle cx="459" cy="79" r="17"/>
@@ -317,11 +317,11 @@ greater than <i>7</i>.</p>
 		<text x="499" y="200" dy="0.3em">12</text>
 		<text x="579" y="200" dy="0.3em">14</text>
 	</g>
-	<g transform="translate(341,13) rotate(20.55) scale(0.8)">
+	<g transform="translate(341,12) rotate(20.55) scale(0.8)">
 		<text x="0" y="0" class="highfill">greater than</text>
 		<text x="0" y="1.2em" class="highfill">or equal to 7</text>
 	</g>
-	<g transform="translate(168,46) rotate(-20.55) scale(0.8)">
+	<g transform="translate(168,45) rotate(-20.55) scale(0.8)">
 		<text x="0" y="0" class="highfill">lesser than</text>
 		<text x="0" y="1.2em" class="highfill">or equal to 7</text>
 	</g>
@@ -346,9 +346,9 @@ rotations that can be performed: left rotations and right rotations.</p>
 	<line x1="138" y1="78" x2="98" y2="18"/>
 	<line x1="18" y1="138" x2="58" y2="78"/>
 	<line x1="98" y1="138" x2="58" y2="78"/>
-	<g class="bgfill highstroke">
-		<circle cx="98" cy="18" r="17"/>
-		<circle cx="58" cy="78" r="17"/>
+	<g class="backfill">
+		<circle cx="98" cy="18" r="17" class="highstroke"/>
+		<circle cx="58" cy="78" r="17" class="highstroke"/>
 		<circle cx="138" cy="78" r="17"/>
 		<circle cx="18" cy="138" r="17"/>
 		<circle cx="98" cy="138" r="17"/>
@@ -371,12 +371,12 @@ rotations that can be performed: left rotations and right rotations.</p>
 	<line x1="98" y1="78" x2="58" y2="18"/>
 	<line x1="58" y1="138" x2="98" y2="78"/>
 	<line x1="138" y1="138" x2="98" y2="78"/>
-	<g class="bgfill highstroke">
-		<circle cx="58" cy="18" r="17"/>
+	<g class="backfill">
 		<circle cx="18" cy="78" r="17"/>
-		<circle cx="98" cy="78" r="17"/>
 		<circle cx="58" cy="138" r="17"/>
 		<circle cx="138" cy="138" r="17"/>
+		<circle cx="58" cy="18" r="17" class="highstroke"/>
+		<circle cx="98" cy="78" r="17" class="highstroke"/>
 	</g>
 	<g text-anchor="middle">
 		<text x="58" y="18" dy="0.3em">B</text>
@@ -407,10 +407,10 @@ order of the nodes by maintaining the following order:</p>
 	<line x1="98" y1="78" x2="58" y2="18"/>
 	<line x1="58" y1="138" x2="98" y2="78"/>
 	<line x1="138" y1="138" x2="98" y2="78"/>
-	<g class="bgfill highstroke">
-		<circle cx="58" cy="18" r="17"/>
+	<g class="backfill">
+		<circle cx="58" cy="18" r="17" class="highstroke"/>
 		<circle cx="18" cy="78" r="17"/>
-		<circle cx="98" cy="78" r="17"/>
+		<circle cx="98" cy="78" r="17" class="highstroke"/>
 		<circle cx="58" cy="138" r="17"/>
 		<circle cx="138" cy="138" r="17"/>
 	</g>
@@ -432,9 +432,9 @@ order of the nodes by maintaining the following order:</p>
 	<line x1="138" y1="78" x2="98" y2="18"/>
 	<line x1="18" y1="138" x2="58" y2="78"/>
 	<line x1="98" y1="138" x2="58" y2="78"/>
-	<g class="bgfill highstroke">
-		<circle cx="98" cy="18" r="17"/>
-		<circle cx="58" cy="78" r="17"/>
+	<g class="backfill">
+		<circle cx="98" cy="18" r="17" class="highstroke"/>
+		<circle cx="58" cy="78" r="17" class="highstroke"/>
 		<circle cx="138" cy="78" r="17"/>
 		<circle cx="18" cy="138" r="17"/>
 		<circle cx="98" cy="138" r="17"/>
@@ -526,7 +526,7 @@ other invariants that can be used.</p>
 	<line x1="59" y1="139" x2="99" y2="79"/>
 	<line x1="139" y1="139" x2="99" y2="79"/>
 	<line x1="19" y1="199" x2="59" y2="139"/>
-	<g class="bgfill highstroke">
+	<g class="backfill">
 		<circle cx="179" cy="19" r="17"/>
 		<circle cx="99" cy="79" r="17"/>
 		<circle cx="259" cy="79" r="17"/>
@@ -589,9 +589,9 @@ rotation looks like:</p>
 		<line x1="59" y1="139" x2="99" y2="79"/>
 		<line x1="139" y1="139" x2="99" y2="79"/>
 		<line x1="19" y1="199" x2="59" y2="139"/>
-		<g class="bgfill highstroke">
-			<circle cx="179" cy="19" r="17"/>
-			<circle cx="99" cy="79" r="17"/>
+		<g class="backfill">
+			<circle cx="179" cy="19" r="17" class="highstroke"/>
+			<circle cx="99" cy="79" r="17" class="highstroke"/>
 			<circle cx="259" cy="79" r="17"/>
 			<circle cx="59" cy="139" r="17"/>
 			<circle cx="139" cy="139" r="17"/>
@@ -616,10 +616,10 @@ rotation looks like:</p>
 		<line x1="19" y1="139" x2="59" y2="79"/>
 		<line x1="179" y1="139" x2="219" y2="79"/>
 		<line x1="259" y1="139" x2="219" y2="79"/>
-		<g class="bgfill highstroke">
-			<circle cx="139" cy="19" r="17"/>
+		<g class="backfill">
+			<circle cx="139" cy="19" r="17" class="highstroke"/>
 			<circle cx="59" cy="79" r="17"/>
-			<circle cx="219" cy="79" r="17"/>
+			<circle cx="219" cy="79" r="17" class="highstroke"/>
 			<circle cx="19" cy="139" r="17"/>
 			<circle cx="179" cy="139" r="17"/>
 			<circle cx="259" cy="139" r="17"/>
@@ -664,9 +664,9 @@ we didn't make this correction.</p>
 		<line x1="19" y1="139" x2="99" y2="79"/>
 		<line x1="179" y1="139" x2="99" y2="79"/>
 		<line x1="219" y1="199" x2="179" y2="139"/>
-		<g class="bgfill highstroke">
-			<circle cx="219" cy="19" r="17"/>
-			<circle cx="99" cy="79" r="17"/>
+		<g class="backfill">
+			<circle cx="219" cy="19" r="17" class="highstroke"/>
+			<circle cx="99" cy="79" r="17" class="highstroke"/>
 			<circle cx="339" cy="79" r="17"/>
 			<circle cx="19" cy="139" r="17"/>
 			<circle cx="179" cy="139" r="17"/>
@@ -691,10 +691,10 @@ we didn't make this correction.</p>
 		<line x1="179" y1="139" x2="259" y2="79"/>
 		<line x1="339" y1="139" x2="259" y2="79"/>
 		<line x1="219" y1="199" x2="179" y2="139"/>
-		<g class="bgfill highstroke">
-			<circle cx="139" cy="19" r="17"/>
+		<g class="backfill">
+			<circle cx="139" cy="19" r="17" class="highstroke"/>
 			<circle cx="19" cy="79" r="17"/>
-			<circle cx="259" cy="79" r="17"/>
+			<circle cx="259" cy="79" r="17" class="highstroke"/>
 			<circle cx="179" cy="139" r="17"/>
 			<circle cx="339" cy="139" r="17"/>
 			<circle cx="219" cy="199" r="17"/>
@@ -748,12 +748,12 @@ we didn't make this correction.</p>
 		<line x1="19" y1="139" x2="99" y2="79"/>
 		<line x1="179" y1="139" x2="99" y2="79"/>
 		<line x1="219" y1="199" x2="179" y2="139"/>
-		<g class="bgfill highstroke">
-			<circle cx="219" cy="19" r="17"/>
-			<circle cx="99" cy="79" r="17"/>
+		<g class="backfill">
+			<circle cx="219" cy="19" r="17" class="highstroke"/>
+			<circle cx="99" cy="79" r="17" class="highstroke"/>
 			<circle cx="339" cy="79" r="17"/>
 			<circle cx="19" cy="139" r="17"/>
-			<circle cx="179" cy="139" r="17"/>
+			<circle cx="179" cy="139" r="17" class="highstroke"/>
 			<circle cx="219" cy="199" r="17"/>
 		</g>
 		<g text-anchor="middle">
@@ -775,11 +775,11 @@ we didn't make this correction.</p>
 		<line x1="59" y1="139" x2="139" y2="79"/>
 		<line x1="219" y1="139" x2="139" y2="79"/>
 		<line x1="19" y1="199" x2="59" y2="139"/>
-		<g class="bgfill highstroke">
-			<circle cx="259" cy="19" r="17"/>
-			<circle cx="139" cy="79" r="17"/>
+		<g class="backfill">
+			<circle cx="259" cy="19" r="17" class="highstroke"/>
+			<circle cx="139" cy="79" r="17" class="highstroke"/>
 			<circle cx="379" cy="79" r="17"/>
-			<circle cx="59" cy="139" r="17"/>
+			<circle cx="59" cy="139" r="17" class="highstroke"/>
 			<circle cx="219" cy="139" r="17"/>
 			<circle cx="19" cy="199" r="17"/>
 		</g>
@@ -801,10 +801,10 @@ we didn't make this correction.</p>
 		<line x1="19" y1="139" x2="59" y2="79"/>
 		<line x1="219" y1="139" x2="299" y2="79"/>
 		<line x1="379" y1="139" x2="299" y2="79"/>
-		<g class="bgfill highstroke">
-			<circle cx="179" cy="19" r="17"/>
-			<circle cx="59" cy="79" r="17"/>
-			<circle cx="299" cy="79" r="17"/>
+		<g class="backfill">
+			<circle cx="179" cy="19" r="17" class="highstroke"/>
+			<circle cx="59" cy="79" r="17" class="highstroke"/>
+			<circle cx="299" cy="79" r="17" class="highstroke"/>
 			<circle cx="19" cy="139" r="17"/>
 			<circle cx="219" cy="139" r="17"/>
 			<circle cx="379" cy="139" r="17"/>
@@ -893,23 +893,23 @@ tree.</p>
 	<line x1="499" y1="199" x2="539" y2="139"/>
 	<line x1="579" y1="199" x2="539" y2="139"/>
 	<line x1="259" y1="199" x2="219" y2="259" stroke-width="4" class="highstroke"/>
-	<g class="bgfill highstroke">
-		<circle cx="299" cy="19" r="17"/>
-		<circle cx="139" cy="79" r="17"/>
+	<g class="backfill">
+		<circle cx="299" cy="19" r="17" class="highstroke"/>
+		<circle cx="139" cy="79" r="17" class="highstroke"/>
 		<circle cx="459" cy="79" r="17"/>
 		<circle cx="59" cy="139" r="17"/>
-		<circle cx="219" cy="139" r="17"/>
+		<circle cx="219" cy="139" r="17" class="highstroke"/>
 		<circle cx="379" cy="139" r="17"/>
 		<circle cx="539" cy="139" r="17"/>
 		<circle cx="19" cy="199" r="17"/>
 		<circle cx="99" cy="199" r="17"/>
 		<circle cx="179" cy="199" r="17"/>
-		<circle cx="259" cy="199" r="17"/>
+		<circle cx="259" cy="199" r="17" class="highstroke"/>
 		<circle cx="339" cy="199" r="17"/>
 		<circle cx="419" cy="199" r="17"/>
 		<circle cx="499" cy="199" r="17"/>
 		<circle cx="579" cy="199" r="17"/>
-		<circle cx="219" cy="259" r="17"/>
+		<circle cx="219" cy="259" r="17" class="highstroke"/>
 	</g>
 	<g text-anchor="middle">
 		<text x="299" y="20" dy="0.3em">7</text>
@@ -977,9 +977,9 @@ tree:</p>
 	<line x1="219" y1="79" x2="139" y2="19" stroke-width="4" class="highstroke"/>
 	<line x1="259" y1="139" x2="219" y2="79" stroke-width="4" class="highstroke"/>
 	<line x1="299" y1="199" x2="259" y2="139" stroke-width="4" class="highstroke"/>
-	<g class="bgfill highstroke">
+	<g class="backfill highstroke">
 		<circle cx="139" cy="19" r="17"/>
-		<circle cx="59" cy="79" r="17"/>
+		<circle cx="59" cy="79" r="17" class="forestroke"/>
 		<circle cx="219" cy="79" r="17"/>
 		<circle cx="259" cy="139" r="17"/>
 		<circle cx="299" cy="199" r="17"/>
@@ -1012,12 +1012,12 @@ tree:</p>
 	<line x1="179" y1="79" x2="99" y2="19"/>
 	<line x1="219" y1="139" x2="179" y2="79"/>
 	<line x1="259" y1="199" x2="219" y2="139"/>
-	<g class="bgfill highstroke">
+	<g class="backfill">
 		<circle cx="99" cy="19" r="17"/>
 		<circle cx="19" cy="79" r="17"/>
 		<circle cx="179" cy="79" r="17"/>
 		<circle cx="219" cy="139" r="17"/>
-		<circle cx="259" cy="199" r="17"/>
+		<circle cx="259" cy="199" r="17" class="highstroke"/>
 	</g>
 	<g text-anchor="middle">
 		<text x="99" y="20" dy="0.3em">1</text>
@@ -1038,12 +1038,12 @@ node.</p>
 	class="highstroke"/>
 	<line x1="299" y1="199" x2="259" y2="139"  stroke-width="4"
 	class="highstroke"/>
-	<g class="bgfill highstroke">
+	<g class="backfill">
 		<circle cx="139" cy="19" r="17"/>
 		<circle cx="59" cy="79" r="17"/>
-		<circle cx="219" cy="79" r="17"/>
-		<circle cx="259" cy="139" r="17"/>
-		<circle cx="299" cy="199" r="17"/>
+		<circle cx="219" cy="79" r="17" class="highstroke"/>
+		<circle cx="259" cy="139" r="17" class="highstroke"/>
+		<circle cx="299" cy="199" r="17" class="highstroke"/>
 	</g>
 	<g text-anchor="middle">
 		<text x="139" y="20" dy="0.3em">1</text>
@@ -1070,10 +1070,10 @@ node.</p>
 	class="highstroke"/>
 	<line x1="219" y1="139" x2="299" y2="79"/>
 	<line x1="379" y1="139" x2="299" y2="79"/>
-	<g class="bgfill highstroke">
-		<circle cx="179" cy="19" r="17"/>
+	<g class="backfill">
+		<circle cx="179" cy="19" r="17" class="highstroke"/>
 		<circle cx="59" cy="79" r="17"/>
-		<circle cx="299" cy="79" r="17"/>
+		<circle cx="299" cy="79" r="17" class="highstroke"/>
 		<circle cx="219" cy="139" r="17"/>
 		<circle cx="379" cy="139" r="17"/>
 	</g>
@@ -1139,13 +1139,13 @@ until we move up a left branch.</td></tr>
 		<line x1="99" y1="139" x2="59" y2="79"/>
 		<line x1="179" y1="139" x2="219" y2="79" stroke-width="4" class="highstroke"/>
 		<line x1="259" y1="139" x2="219" y2="79"/>
-		<g class="bgfill highstroke">
-			<circle cx="139" cy="19" r="17"/>
+		<g class="backfill">
+			<circle cx="139" cy="19" r="17" class="highstroke"/>
 			<circle cx="59" cy="79" r="17"/>
-			<circle cx="219" cy="79" r="17"/>
+			<circle cx="219" cy="79" r="17" class="highstroke"/>
 			<circle cx="19" cy="139" r="17"/>
 			<circle cx="99" cy="139" r="17"/>
-			<circle cx="179" cy="139" r="17"/>
+			<circle cx="179" cy="139" r="17" class="highstroke"/>
 			<circle cx="259" cy="139" r="17"/>
 		</g>
 		<g text-anchor="middle">
@@ -1175,12 +1175,12 @@ until we move up a left branch.</td></tr>
 		<line x1="99" y1="139" x2="59" y2="79" stroke-width="4" class="highstroke"/>
 		<line x1="179" y1="139" x2="219" y2="79"/>
 		<line x1="259" y1="139" x2="219" y2="79"/>
-		<g class="bgfill highstroke">
-			<circle cx="139" cy="19" r="17"/>
-			<circle cx="59" cy="79" r="17"/>
+		<g class="backfill">
+			<circle cx="139" cy="19" r="17" class="highstroke"/>
+			<circle cx="59" cy="79" r="17" class="highstroke"/>
 			<circle cx="219" cy="79" r="17"/>
 			<circle cx="19" cy="139" r="17"/>
-			<circle cx="99" cy="139" r="17"/>
+			<circle cx="99" cy="139" r="17" class="highstroke"/>
 			<circle cx="179" cy="139" r="17"/>
 			<circle cx="259" cy="139" r="17"/>
 		</g>
@@ -1268,10 +1268,10 @@ remove node <i>5</i> in the diagram below.</p>
 		<line x1="139" y1="139" x2="99" y2="79"/>
 		<line x1="19" y1="199" x2="59" y2="139"/>
 		<line x1="99" y1="199" x2="59" y2="139"/>
-		<g class="bgfill highstroke">
+		<g class="backfill">
 			<circle cx="59" cy="19" r="17"/>
 			<circle cx="19" cy="79" r="17"/>
-			<circle cx="99" cy="79" r="17" class="dimfill"/>
+			<circle cx="99" cy="79" r="17" class="highstroke"/>
 			<circle cx="59" cy="139" r="17"/>
 			<circle cx="139" cy="139" r="17"/>
 			<circle cx="19" cy="199" r="17"/>
@@ -1295,7 +1295,7 @@ remove node <i>5</i> in the diagram below.</p>
 		<line x1="99" y1="79" x2="59" y2="19"/>
 		<line x1="59" y1="139" x2="99" y2="79"/>
 		<line x1="139" y1="139" x2="99" y2="79"/>
-		<g class="bgfill highstroke">
+		<g class="backfill">
 			<circle cx="59" cy="19" r="17"/>
 			<circle cx="19" cy="79" r="17"/>
 			<circle cx="99" cy="79" r="17"/>
@@ -1341,10 +1341,10 @@ about shuffling around either nodes' children.</p>
 		<line x1="139" y1="139" x2="99" y2="79"/>
 		<line x1="99" y1="199" x2="139" y2="139"/>
 		<line x1="179" y1="199" x2="139" y2="139"/>
-		<g class="bgfill highstroke">
+		<g class="backfill">
 			<circle cx="59" cy="19" r="17"/>
 			<circle cx="19" cy="79" r="17"/>
-			<circle cx="99" cy="79" r="17" class="dimfill"/>
+			<circle cx="99" cy="79" r="17" class="highstroke""/>
 			<circle cx="59" cy="139" r="17"/>
 			<circle cx="139" cy="139" r="17"/>
 			<circle cx="99" cy="199" r="17"/>
@@ -1371,7 +1371,7 @@ about shuffling around either nodes' children.</p>
 		<line x1="99" y1="79" x2="59" y2="19"/>
 		<line x1="59" y1="139" x2="99" y2="79"/>
 		<line x1="139" y1="139" x2="99" y2="79"/>
-		<g class="bgfill highstroke">
+		<g class="backfill">
 			<circle cx="59" cy="19" r="17"/>
 			<circle cx="19" cy="79" r="17"/>
 			<circle cx="99" cy="79" r="17"/>
@@ -1429,8 +1429,8 @@ next node.</p>
 		<line x1="139" y1="139" x2="99" y2="79"/>
 		<line x1="19" y1="199" x2="59" y2="139"/>
 		<line x1="99" y1="199" x2="59" y2="139"/>
-		<g class="bgfill highstroke">
-			<circle cx="59" cy="19" r="17" class="dimfill"/>
+		<g class="backfill">
+			<circle cx="59" cy="19" r="17" class="highstroke"/>
 			<circle cx="19" cy="79" r="17"/>
 			<circle cx="99" cy="79" r="17"/>
 			<circle cx="59" cy="139" r="17"/>
@@ -1459,8 +1459,8 @@ next node.</p>
 		<line x1="99" y1="79" x2="59" y2="19"/>
 		<line x1="59" y1="139" x2="99" y2="79"/>
 		<line x1="139" y1="139" x2="99" y2="79"/>
-		<g class="bgfill highstroke">
-			<circle cx="59" cy="19" r="17" class="dimfill"/>
+		<g class="backfill">
+			<circle cx="59" cy="19" r="17" class="highstroke"/>
 			<circle cx="19" cy="79" r="17"/>
 			<circle cx="99" cy="79" r="17"/>
 			<circle cx="59" cy="139" r="17"/>
@@ -1483,8 +1483,8 @@ next node.</p>
 		<line x1="99" y1="79" x2="59" y2="19"/>
 		<line x1="59" y1="139" x2="99" y2="79"/>
 		<line x1="139" y1="139" x2="99" y2="79"/>
-		<g class="bgfill highstroke">
-			<circle cx="59" cy="19" r="17"/>
+		<g class="backfill">
+			<circle cx="59" cy="19" r="17" class="highstroke"/>
 			<circle cx="19" cy="79" r="17"/>
 			<circle cx="99" cy="79" r="17"/>
 			<circle cx="59" cy="139" r="17"/>
@@ -1569,20 +1569,20 @@ Note that all of the numbers we'll be using will refer to weights.</p>
 	<line x1="419" y1="199" x2="379" y2="139" stroke-width="4" class="highstroke"/>
 	<line x1="499" y1="199" x2="539" y2="139"/>
 	<line x1="579" y1="199" x2="539" y2="139"/>
-	<g class="bgfill highstroke">
-		<circle cx="299" cy="19" r="17"/>
+	<g class="backfill">
+		<circle cx="299" cy="19" r="17" class="highstroke"/>
 		<circle cx="139" cy="79" r="17"/>
-		<circle cx="459" cy="79" r="17"/>
+		<circle cx="459" cy="79" r="17" class="highstroke"/>
 		<circle cx="59" cy="139" r="17"/>
 		<circle cx="219" cy="139" r="17"/>
-		<circle cx="379" cy="139" r="17"/>
+		<circle cx="379" cy="139" r="17" class="highstroke"/>
 		<circle cx="539" cy="139" r="17"/>
 		<circle cx="19" cy="199" r="17"/>
 		<circle cx="99" cy="199" r="17"/>
 		<circle cx="179" cy="199" r="17"/>
 		<circle cx="259" cy="199" r="17"/>
 		<circle cx="339" cy="199" r="17"/>
-		<circle cx="419" cy="199" r="17"/>
+		<circle cx="419" cy="199" r="17" class="highstroke"/>
 		<circle cx="499" cy="199" r="17"/>
 		<circle cx="579" cy="199" r="17"/>
 	</g>
@@ -1729,7 +1729,7 @@ now.</p>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-</div><div id="footer">Created on 27 Apr 2018 - Modified on 2 Jul 2023<br>
+</div><div id="footer">Created on 27 Apr 2018 - Modified on 10 Feb 2024<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>
