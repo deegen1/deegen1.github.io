@@ -714,7 +714,7 @@ class PolyDemo1 {
 							imgdata[pixcol++]=colrgba;
 						}
 					} else if (area>0.0019) {
-						rgba8[3]=Math.floor(area*256);
+						rgba8[0]=rgba8[1]=rgba8[2]=Math.floor(area*256);
 						var col=rgba32[0];
 						while (pixcol<pixstop) {
 							imgdata[pixcol++]=col;
