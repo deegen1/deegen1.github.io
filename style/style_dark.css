@@ -139,7 +139,7 @@ sub {
 	margin-bottom:3rem;
 }
 /* Resize for mobile to prevent text becoming small */
-@media (max-aspect-ratio: 2.0) {
+@media (max-aspect-ratio: 1.0) {
 	/*#content {
 		max-width:30rem;
 	}*/
@@ -155,7 +155,8 @@ sub {
 }
 #content h1 {
 	display:block;
-	/*width:100%;*/
+	box-sizing:border-box;
+	width:100%;
 	margin:0;
 	margin-bottom:1rem;
 	padding:0;
@@ -168,6 +169,7 @@ sub {
 }
 #content h2 {
 	display:block;
+	box-sizing:border-box;
 	width:100%;
 	margin-top:3rem;
 	margin-bottom:0rem;
@@ -222,7 +224,7 @@ button, select {
 	/* margin-right:0.0825rem; */
 	color:#ffffff;
 	border:1px solid;
-	border-color:#4040af;
+	border-color:#8080af;
 	background-color:#6060ff;
 	padding:0.2rem;
 	padding-left:0.4rem;
@@ -282,7 +284,7 @@ button:hover, select:hover {
 
 .diagram {
 	display:block;
-	width:56rem;
+	width:85%;
 	height:auto;
 	margin:auto;
 	margin-top:2rem;
