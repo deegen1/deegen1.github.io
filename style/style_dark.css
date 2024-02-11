@@ -144,7 +144,7 @@ sub {
 		max-width:30rem;
 	}*/
 	body {
-		font-size:1.5rem;
+		font-size:1.75rem;
 	}
 }
 #content canvas, #content img {
@@ -224,7 +224,7 @@ button, select {
 	/* margin-right:0.0825rem; */
 	color:#ffffff;
 	border:1px solid;
-	border-color:#8080af;
+	border-color:#4040af;
 	background-color:#6060ff;
 	padding:0.2rem;
 	padding-left:0.4rem;
