@@ -139,13 +139,13 @@ sub {
 	margin-bottom:3rem;
 }
 /* Resize for mobile to prevent text becoming small */
-@media (max-aspect-ratio: 1.0) {
-	#content {
+@media (max-aspect-ratio: 2.0) {
+	/*#content {
 		max-width:30rem;
-	}
-	/*body {
-		font-size:1.5rem;
 	}*/
+	body {
+		font-size:1.5rem;
+	}
 }
 #content canvas, #content img {
 	display:block;
