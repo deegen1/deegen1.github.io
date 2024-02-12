@@ -16,6 +16,7 @@ Write the articles as if there are no images. Add images later to help.
 
 body {
 	/* Whitepace after the ":" is preserved */
+/*
 	--main-back   :rgb( 26, 26, 26,255);
 	--main-text   :rgb(230,230,230,255);
 	--main-title1 :rgb(  0,128,255,255);
@@ -36,12 +37,12 @@ body {
 	--code-string :rgb( 42,161,152,255);
 	--code-keyword:rgb(133,153,  0,255);
 	--code-label  :rgb(170,187,128,255);
-/*
+*/
 	--main-back   :rgb(239,239,239,255);
 	--main-text   :rgb(  0,  0,  0,255);
 	--main-title1 :rgb( 64,160,255,255);
 	--main-title2 :rgb(128,128,255,255);
-	--main-link   :rgb( 64,160,255,255);
+	--main-link   :rgb( 32, 80,255,255);
 	--table-header:rgb(200,200,200,255);
 	--table-cell  :rgb(220,220,220,255);
 	--table-border:rgb(160,160,160,255);
@@ -57,7 +58,7 @@ body {
 	--code-string :rgb(128, 90,128,255);
 	--code-keyword:rgb(133,103,  0,255);
 	--code-label  :rgb(110,127, 68,255);
-*/
+
 }
 
 
@@ -133,6 +134,7 @@ sub {
 	padding:2.98rem;
 	padding-top:0rem;
 	padding-bottom:0.8rem;
+	border:1px solid #ffffff;
 	background-color:var(--main-back);
 	margin:auto;
 	margin-bottom:3rem;
@@ -312,9 +314,13 @@ button:hover, select:hover {
 
 
 #header, #footer {
-	text-align:center;
 	padding-top:0;
 	padding-bottom:0;
+	text-align:center;
+	color:#ffffff;
+}
+#header a, #footer a {
+	color:#ffa500;
 }
 #header {
 	padding-top:1rem;
