@@ -19,8 +19,8 @@ body {
 /*
 	--main-back   :rgb( 26, 26, 26,255);
 	--main-text   :rgb(230,230,230,255);
-	--main-title1 :rgb(  0,128,255,255);
-	--main-title2 :rgb(128,128,255,255);
+	--main-title1 :rgb(230,230,230,255);
+	--main-title2 :rgb(230,230,230,255);
 	--main-link   :rgb(255,165,  0,255);
 	--table-header:rgb( 64, 64, 64,255);
 	--table-cell  :rgb( 43, 43, 43,255);
@@ -38,6 +38,27 @@ body {
 	--code-keyword:rgb(133,153,  0,255);
 	--code-label  :rgb(170,187,128,255);
 */
+	--main-back   :rgb(239,239,239,255);
+	--main-text   :rgb(  0,  0,  0,255);
+	--main-title1 :rgb(  0,  0,  0,255);
+	--main-title2 :rgb(  0,  0,  0,255);
+	--main-link   :rgb( 32, 80,255,255);
+	--table-header:rgb(200,200,200,255);
+	--table-cell  :rgb(220,220,220,255);
+	--table-border:rgb(160,160,160,255);
+	--diag-back   :var(--main-back);
+	--diag-fore   :var(--main-text);
+	--diag-high   :rgb( 64,148,255,255);
+	--diag-dim    :rgb(165,165,165,255);
+	--code-border :rgb(210,210,210,255);
+	--code-back   :rgb(230,230,230,255);
+	--code-text   :rgb( 10, 10, 10,255);
+	--code-comment:rgb( 90, 90,221,255);
+	--code-number :rgb( 67, 49,158,255);
+	--code-string :rgb(128, 90,128,255);
+	--code-keyword:rgb(133,103,  0,255);
+	--code-label  :rgb(110,127, 68,255);
+/*
 	--main-back   :rgb(239,239,239,255);
 	--main-text   :rgb(  0,  0,  0,255);
 	--main-title1 :rgb( 64,160,255,255);
@@ -58,7 +79,7 @@ body {
 	--code-string :rgb(128, 90,128,255);
 	--code-keyword:rgb(133,103,  0,255);
 	--code-label  :rgb(110,127, 68,255);
-
+*/
 }
 
 
@@ -110,6 +131,7 @@ body {
 }
 a, a:hover {
 	color:var(--main-link);
+	/*background-color:rgb(210,210,210);*/
 	/*font-family:sans-serif,sans-serif;*/
 	/*font-weight:bold;*/
 }
@@ -134,7 +156,7 @@ sub {
 	padding:2.98rem;
 	padding-top:0rem;
 	padding-bottom:0.8rem;
-	border:1px solid #ffffff;
+	border:1px solid #808080;
 	background-color:var(--main-back);
 	margin:auto;
 	margin-bottom:3rem;
@@ -165,7 +187,7 @@ sub {
 	border-bottom:2px solid var(--main-title1);
 	border-radius:inherit;
 	color:var(--main-title1);
-	font-size:170%;
+	font-size:180%;
 	font-weight:bold;
 }
 #content h2 {
