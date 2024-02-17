@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v1.09
+drawing.js - v1.10
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -11,55 +11,38 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
+https://gasiulis.name/cubic-curve-offsetting/
+Speed up fillpoly()
+	Create stress tests
+		few lines / curves, short
+		many lines / curves, short
+		few  L/C, med
+		many L/C, med
+		few  L/C, large
+		many L/C, large
+		old circle drawing
+		drawing images
+		many = 2^n
+		size = % of background image
+	mergesort
+	Instead of calculating per-pixel overlap, calculate [minx,maxx,delta].
+	While x in [minx,maxx), area+=delta
+	More accurate linearization of curves. Split on curvature, not length.
 add image class
-	resize
 	save as bmp
-	test speed
 Path string format
 	M Z L C
 	add tostring()
 	change internal representation
+tracing
+	path inflection points
+	project out based on tangent
 Have article include curve diagrams, like schematics.
 Create font/image fitting
 	average r,g,b values to account for both grayscale and subpixel accuracy
-	assign cost: 40/curve+10/line+1/point
-	per character
-	width
-	strips
-	strip 1
-	strip 2
-	...
-	class Font {
-		name
-		height
-		unkchar
-		charmap
-	}
-Floating point colors.
-Create stress tests.
-Speed up fillpoly()
-	mergesort
-	Instead of calculating per-pixel overlap, calculate [minx,maxx,delta].
-	While x in [minx,maxx), area+=delta
-	If multiple spans overlap, add delta to shortest split.
+	assign cost: 80/curve+10/line+1/point
 Clip lines on corner of screen.
-More accurate linearization of curves. Split on curvature, not length.
 Add tracepoly().
-Switch from mergesort to powersort.
-
-function polysort(arr,field) {
-	for (var half=1;half<len;half+=half) {
-		i=0;i0=0;i1=half;j0=half;j1=half+half;
-		j1=j1<len?j1:len;
-		while (i0<i1 && j0<j1) {
-			if (arr[i0]<=arr[j0]) {dst[i++]=arr[i0++];}
-			else {dst[i++]=arr[j0++];}
-		}
-		while (i0<i1) {dst[i++]=arr[i0++];}
-		while (j0<j1) {dst[i++]=arr[j0++];}
-		tmp=arr;arr=dst;dst=tmp;
-	}
-}
 
 
 */
@@ -428,6 +411,11 @@ class _DrawPoly {
 
 
 class _DrawFont {
+
+	constructor(name) {
+		this.glyphs={};
+	}
+
 }
 
 
@@ -436,33 +424,31 @@ class _DrawImage {
 	constructor(width,height) {
 		var srcdata=null;
 		if (height===undefined) {
+			var img=width;
 			if (width===undefined) {
 				width=0;
 				height=0;
-			} else if (width instanceof _DrawImage) {
-				var img=width;
+			} else if (img instanceof _DrawImage) {
 				width=img.width;
 				height=img.height;
-				srcdata=img.data32;
-			} else if (width instanceof HTMLCanvasElement) {
+				srcdata=img.data8;
+			} else if (img instanceof HTMLCanvasElement) {
+				width=img.width;
+				height=img.height;
+				srcdata=img.getContext("2d").createImageData(width,height).data;
+			} else if (img instanceof ImageData) {
+				width=img.width;
+				height=img.height;
+				srcdata=img.data;
 			}
 		}
 		this.width =width;
 		this.height=height;
-		this.data32=new Uint32Array(width*height);
-		this.data8 =new Uint8Array(this.data32.buffer);
-		this.datac =new CANVASDATA(); // //////////////////////////
+		this.dataim=new ImageData(width,height);
+		this.data8 =new Uint8Array(this.dataim.data.buffer);
+		this.datac8=new Uint8ClampedArray(this.data8.buffer);
+		this.data32=new Uint32Array(this.data8.buffer);
 		if (srcdata!==null) {this.data8.set(srcdata);}
-	}
-
-
-	draw(dst,x,y,w,h) {
-		if (x===undefined) {x=0;}
-		if (y===undefined) {y=0;}
-		if (w===undefined) {w=this.width;}
-		if (h===undefined) {h=this.height;}
-		if (w>dst.width) {w=dst.width;}
-		if (h>dst.height) {h=dst.height;}
 	}
 
 }
@@ -474,30 +460,34 @@ class Draw {
 	static Transform=_DrawTransform;
 	static Poly     =_DrawPoly;
 	static Font     =_DrawFont;
+	static Image    =_DrawImage;
 
 
 	constructor() {
+		var con=this.constructor;
 		// Image info
-		this.canvas   =undefined;
-		this.imgwidth =undefined;
-		this.imgheight=undefined;
-		this.imgdata  =undefined;
-		this.rgba     =new Uint8ClampedArray([255,255,255,255]);
+		this.img      =new con.Image(1,1);
+		this.rgba     =new Uint8ClampedArray([0,1,2,3]);
 		this.rgba32   =new Uint32Array(this.rgba.buffer);
+		this.rgbashift=[0,0,0,0];
+		var col=this.rgba32[0];
+		for (var i=0;i<32;i+=8) {this.rgbashift[(col>>>i)&255]=i;}
+		this.rgba32[0]=0xffffffff;
 		// Screen transforms
 		this.viewoffx =0.0;
 		this.viewoffy =0.0;
 		this.viewmulx =1.0;
 		this.viewmuly =1.0;
 		// Object transforms
-		this.deftrans =new this.constructor.Transform();
-		this.defpoly  =new this.constructor.Poly();
+		this.deffont  =new con.Font();
+		this.deftrans =new con.Transform();
+		this.defpoly  =new con.Poly();
 		this.stack    =[this.deftrans];
 		this.stackidx =0;
 		// Rendering variables
 		this.linewidth=1.0;
-		this.tmptrans =new this.constructor.Transform();
-		this.tmppoly  =new this.constructor.Poly();
+		this.tmptrans =new con.Transform();
+		this.tmppoly  =new con.Poly();
 		this.tmpvert  =[];
 		this.tmpline  =[];
 		this.tmpsort  =[];
@@ -508,14 +498,11 @@ class Draw {
 	// Image Information
 
 
-	setimage(canvas,buf32) {
-		if (!(buf32 instanceof Uint32Array)) {
-			throw "buf32 is not a Uint32Array";
+	setimage(img) {
+		if (!(img instanceof this.constructor.Image)) {
+			img=new this.constructor.Image(img);
 		}
-		this.canvas=canvas;
-		this.imgwidth=canvas.width;
-		this.imgheight=canvas.height;
-		this.imgdata=buf32;
+		this.img=img;
 	}
 
 
@@ -619,8 +606,8 @@ class Draw {
 		if (r===undefined) {r=g=b=0;}
 		if (a===undefined) {a=255;}
 		var rgba=this.rgbatoint(r,g,b,a);
-		var imgdata=this.imgdata;
-		var i=this.imgwidth*this.imgheight;
+		var imgdata=this.img.data32;
+		var i=this.img.width*this.img.height;
 		while (i>7) {
 			imgdata[--i]=rgba;
 			imgdata[--i]=rgba;
@@ -694,6 +681,25 @@ class Draw {
 	// Polygon Filling
 
 
+	polysort(arr,start,stop,field) {
+		var len=stop-start;
+		for (var i=0;i<len;i++) {
+			sortval[i]=arr[i+start][field];
+		}
+		/*for (var half=1;half<len;half+=half) {
+			i=0;i0=0;i1=half;j0=half;j1=half+half;
+			j1=j1<len?j1:len;
+			while (i0<i1 && j0<j1) {
+				if (arr[i0]<=arr[j0]) {dst[i++]=arr[i0++];}
+				else {dst[i++]=arr[j0++];}
+			}
+			while (i0<i1) {dst[i++]=arr[i0++];}
+			while (j0<j1) {dst[i++]=arr[j0++];}
+			tmp=arr;arr=dst;dst=tmp;
+		}*/
+	}
+
+
 	fillpoly(poly,trans) {
 		// Preprocess the lines and curves. Reject anything with a NaN, too narrow, or
 		// outside the image.
@@ -701,7 +707,7 @@ class Draw {
 		if (trans===undefined) {trans=this.deftrans;}
 		if (poly.lineidx<=0 && poly.curvidx<=0) {return;}
 		var l,i,j,tmp;
-		var imgdata=this.imgdata,imgwidth=this.imgwidth,imgheight=this.imgheight;
+		var imgdata=this.img.data32,imgwidth=this.img.width,imgheight=this.img.height;
 		// Convert all points to screenspace.
 		var vmulx=this.viewmulx,voffx=this.viewoffx;
 		var vmuly=this.viewmuly,voffy=this.viewoffy;
@@ -764,12 +770,8 @@ class Draw {
 				continue;
 			}
 			// Interpolate points.
-			p3x=p3x+3*(p1x-p2x)-p0x;
-			p3y=p3y+3*(p1y-p2y)-p0y;
-			p2x=3*(p2x-2*p1x+p0x);
-			p2y=3*(p2y-2*p1y+p0y);
-			p1x=3*(p1x-p0x);
-			p1y=3*(p1y-p0y);
+			p2x=(p2x-p1x)*3;p1x=(p1x-p0x)*3;p3x-=p0x+p2x;p2x-=p1x;
+			p2y=(p2y-p1y)*3;p1y=(p1y-p0y)*3;p3y-=p0y+p2y;p2y-=p1y;
 			var ppx=p0x,ppy=p0y,u0=0;
 			for (j=0;j<4;j++) {
 				var u1=(j+1)/4;
@@ -965,6 +967,58 @@ class Draw {
 			}
 			pixrow-=imgwidth;
 			y++;
+		}
+	}
+
+
+	drawimage(src,dx,dy,dw,dh) {
+		var dst=this.img;
+		dx=(dx===undefined)?0:(dx|0);
+		dy=(dy===undefined)?0:(dy|0);
+		dw=(dw===undefined || dw>src.width )?src.width :(dx|0);
+		dh=(dh===undefined || dh>src.height)?src.height:(dh|0);
+		var sx=0,sy=0;
+		dw+=dx;
+		if (dx<0) {sx=-dx;dx=0;}
+		dw=(dw>dst.width?dst.width:dw)-dx;
+		dh+=dy;
+		if (dy<0) {sy=-dy;dy=0;}
+		dh=(dh>dst.height?dst.height:dh)-dy;
+		if (dw<=0 || dh<=0) {return;}
+		var dst8=dst.datac8,dst32=dst.data32,drow=dy*dst.width+dx,dinc=dst.width-dw;
+		var src8=src.datac8,src32=src.data32,srow=sy*src.width+sx,sinc=src.width-dw;
+		var ystop=drow+dst.width*dh,xstop=drow+dw;
+		dw=dst.width;
+		var sa,sc,da,si,di,a;
+		var s3=this.rgbashift[3];
+		var n=1.0/255.0;
+		while (drow<ystop) {
+			while (drow<xstop) {
+				// a = sa + da*(1-sa)
+				// c = (sc*sa + dc*da*(1-sa)) / a
+				sc=src32[srow];
+				sa=(sc>>>s3)&255;
+				if (sa===255) {
+					dst32[drow]=sc;
+				} else if (sa>0) {
+					di=drow<<2;
+					si=srow<<2;
+					sa*=n;
+					a=sa+dst8[di+3]*n*(1-sa);
+					sa/=a;
+					da=1-sa;
+					// Clamped to [0,255].
+					dst8[di  ]=src8[si  ]*sa+dst8[di  ]*da;
+					dst8[di+1]=src8[si+1]*sa+dst8[di+1]*da;
+					dst8[di+2]=src8[si+2]*sa+dst8[di+2]*da;
+					dst8[di+3]=a*255.001;
+				}
+				srow++;
+				drow++;
+			}
+			xstop+=dw;
+			drow+=dinc;
+			srow+=sinc;
 		}
 	}
 

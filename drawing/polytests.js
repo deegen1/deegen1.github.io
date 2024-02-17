@@ -281,12 +281,16 @@ function bezier1(points,u1) {
 	p1y=3*(p1y-p0y);
 	var cpx=p0x+u1*(p1x+u1*(p2x+u1*p3x));
 	var cpy=p0y+u1*(p1y+u1*(p2y+u1*p3y));*/
-	p3x=p3x-p0x+3*(p1x-p2x);
+	/*p3x=p3x-p0x+3*(p1x-p2x);
 	p3y=p3y-p0y+3*(p1y-p2y);
 	p2x=3*(p2x+p0x-2*p1x);
 	p2y=3*(p2y+p0y-2*p1y);
 	p1x=3*(p1x-p0x);
 	p1y=3*(p1y-p0y);
+	var cpx=p0x+u1*(p1x+u1*(p2x+u1*p3x));
+	var cpy=p0y+u1*(p1y+u1*(p2y+u1*p3y));*/
+	p2x=(p2x-p1x)*3;p1x=(p1x-p0x)*3;p3x-=p0x+p2x;p2x-=p1x;
+	p2y=(p2y-p1y)*3;p1y=(p1y-p0y)*3;p3y-=p0y+p2y;p2y-=p1y;
 	var cpx=p0x+u1*(p1x+u1*(p2x+u1*p3x));
 	var cpy=p0y+u1*(p1y+u1*(p2y+u1*p3y));
 	return [cpx,cpy];
@@ -907,15 +911,44 @@ function ellipsegraph() {
 // Main
 
 
+function blendtest2() {
+	// https://en.wikipedia.org/wiki/Alpha_compositing
+	// src drawn on dst
+	// a = sa + da*(1-sa)
+	// c = (sc*sa + dc*da*(1-sa)) / a
+	console.log("testing blending 2");
+	var cols=16;
+	var combos=cols*cols*cols*cols;
+	var max=0;
+	for (var combo=0;combo<combos;combo++) {
+		var tmp=combo;
+		var sa=tmp%cols; tmp=Math.floor(tmp/cols);
+		var sc=tmp%cols; tmp=Math.floor(tmp/cols);
+		var da=tmp%cols; tmp=Math.floor(tmp/cols);
+		var dc=tmp%cols;
+		var a0=sa+da*(cols-1-sa);
+		var c0=a0?Math.floor((sc*sa+dc*da*(cols-1-sa))/a0):0;
+		//
+		//var a1=sa+da*(cols-1-sa);
+		//var m0=sa/a1;
+		//var m1=da*(cols-1-sa)/a1;
+		var x=dc*da*(cols-1-sa);
+		if (max<x) {max=x;}
+	}
+	console.log(max);
+}
+
+
 function testmain() {
 	console.log("starting polygon tests");
 	// areatest();
 	// blendtest();
-	// beziertest();
+	//blendtest2();
+	//beziertest();
 	// circumtest();
 	// ellipsegenerate();
 	// ellipsegraph();
 }
 
 
-window.addEventListener("load",testmain);
+//window.addEventListener("load",testmain);

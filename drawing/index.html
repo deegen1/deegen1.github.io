@@ -7,7 +7,7 @@
 	<script src="../style/style.js"></script>
 	<script src="./drawing.js"></script>
 	<script src="./demo.js"></script>
-	<!--<script src="./polytests.js"></script>-->
+	<script src="./polytests.js"></script>
 </head>
 <body>
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
@@ -23,8 +23,8 @@ became obvious that I would need a 2D graphics solution to draw the wide variety
 of shapes my engine would support. I've also noticed that as I've moved between
 languages and platforms I needed something portable as well. Ideally the
 graphics library would be: simple, easy to port, capable of scaling to high
-resolutions, and support embedded fonts. The need for embedded fonts is
-noteworthy, as most font libraries are fairly large (hence difficult to port).
+resolutions, and support embedded fonts. The requirement for embedded fonts is
+important as most font libraries are fairly large (hence difficult to port).
 <a href="https://github.com/nothings/stb/blob/master/stb_truetype.h">
 stb_truetype.h</a> for instance is a single-file library of 194kb.</p>
 <p>All of these requirements have led me to create
@@ -126,14 +126,12 @@ dominant-baseline="middle" style="font-family:monospace;font-size:32px;backgroun
 </g>
 </svg>
 -->
-<!--
 <p>When rendering, after points are transformed to image space, we break the
 Bezier curve into small line segments about 3 pixels long each. This allows the
 main rendering loop to focus on only drawing lines.</p>
 <div id="polydemo2" class="consoleblock" style="width:80%;height:30rem;">
 Loading javascript...</div>
 <script>new PolyDemo2("polydemo2");</script>
--->
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Primitive ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
@@ -143,6 +141,7 @@ Loading javascript...</div>
 Loading javascript...</div>
 <script>new PolyDemo3("polydemo3");</script>
 -->
+<!--<script>new PolyDemo4();</script>-->
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Blending ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <h1>Pixel Blending</h1>

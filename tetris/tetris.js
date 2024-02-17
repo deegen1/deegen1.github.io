@@ -1282,7 +1282,7 @@ class TetrisGUI {
 		var elem=document.getElementById(divid);
 		this.parentelem=elem.parentNode;
 		var canvas=document.createElement("canvas");
-		canvas.style.width="50%";
+		canvas.style.width="60%";
 		elem.replaceWith(canvas);
 		// Setup the UI.
 		this.canvas=canvas;
