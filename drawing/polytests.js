@@ -257,6 +257,251 @@ function blendtest() {
 
 
 //---------------------------------------------------------------------------------
+// Test 3 - Pixel compositing
+
+
+var blend_rgbashift=[0,0,0,0];
+(function (){
+	var rgba  =new Uint8ClampedArray([0,1,2,3]);
+	var rgba32=new Uint32Array(rgba.buffer);
+	var col=rgba32[0];
+	for (var i=0;i<32;i+=8) {blend_rgbashift[(col>>>i)&255]=i;}
+})();
+const [blend_r,blend_g,blend_b,blend_a]=blend_rgbashift;
+
+
+function blendref(dst,src) {
+	// a = sa + da*(1-sa)
+	// c = (sc*sa + dc*da*(1-sa)) / a
+	var sa=(src>>>blend_a)&255;
+	if (sa===0) {return dst;}
+	sa/=255.0;
+	var a=sa+(((dst>>>blend_a)&255)/255.0)*(1-sa);
+	sa/=a;
+	var da=1-sa;
+	return ((Math.max(Math.min(a*255.001,255),0)<<blend_a)+
+		(Math.max(Math.min(((src>>>blend_r)&255)*sa+((dst>>>blend_r)&255)*da,255),0)<<blend_r)+
+		(Math.max(Math.min(((src>>>blend_g)&255)*sa+((dst>>>blend_g)&255)*da,255),0)<<blend_g)+
+		(Math.max(Math.min(((src>>>blend_b)&255)*sa+((dst>>>blend_b)&255)*da,255),0)<<blend_b))>>>0;
+}
+
+
+function blendfast1(dst,src) {
+	// a = sa + da*(1-sa)
+	// c = (sc*sa + dc*da*(1-sa)) / a
+	var sa=(src>>>blend_a)&255;
+	if (sa===0  ) {return dst;}
+	if (sa===255) {return src;}
+	var da=(dst>>>blend_a)&255;
+	if (da===0  ) {return src;}
+	if (da===255) {
+		sa/=255.0;
+		var da=1-sa;
+		return ((255<<blend_a)|
+			(Math.max(Math.min(((src>>>blend_r)&255)*sa+((dst>>>blend_r)&255)*da,255),0)<<blend_r)|
+			(Math.max(Math.min(((src>>>blend_g)&255)*sa+((dst>>>blend_g)&255)*da,255),0)<<blend_g)|
+			(Math.max(Math.min(((src>>>blend_b)&255)*sa+((dst>>>blend_b)&255)*da,255),0)<<blend_b))>>>0;
+	}
+	sa/=255.0;
+	var a=sa+(da/255.0)*(1-sa);
+	sa/=a;
+	var da=1-sa;
+	return ((Math.max(Math.min(a*255.001,255),0)<<blend_a)+
+		(Math.max(Math.min(((src>>>blend_r)&255)*sa+((dst>>>blend_r)&255)*da,255),0)<<blend_r)+
+		(Math.max(Math.min(((src>>>blend_g)&255)*sa+((dst>>>blend_g)&255)*da,255),0)<<blend_g)+
+		(Math.max(Math.min(((src>>>blend_b)&255)*sa+((dst>>>blend_b)&255)*da,255),0)<<blend_b))>>>0;
+}
+
+
+function blendfast3(dst,src) {
+	// a = sa + da*(1-sa)
+	// c = (sc*sa + dc*da*(1-sa)) / a
+	var sa=(src>>>blend_a)&255;
+	if (sa===0  ) {return dst;}
+	if (sa===255) {return src;}
+	var da=(dst>>>blend_a)&255;
+	if (da===0  ) {return src;}
+	// Approximate blending by expanding sa from [0,255] to [0,256].
+	if (da===255) {
+		sa+=sa>>>7;
+		src|=255<<blend_a;
+	} else {
+		da=(sa+da)*255-sa*da;
+		sa=Math.floor((sa*0xff00+(da>>>1))/da);
+		da=Math.floor((da*0x00ff+0x7f00)/65025)<<blend_a;
+		src=(src&(~(255<<blend_a)))|da;
+		dst=(dst&(~(255<<blend_a)))|da;
+	}
+	var l=dst&0x00ff00ff,h=dst&0xff00ff00;
+	return ((((Math.imul((src&0x00ff00ff)-l,sa)>>>8)+l)&0x00ff00ff)+
+		  ((Math.imul(((src>>>8)&0x00ff00ff)-(h>>>8),sa)+h)&0xff00ff00))>>>0;
+}
+
+
+const blendfast2=new Function("dst","src",`
+	// a = sa + da*(1-sa)
+	// c = (sc*sa + dc*da*(1-sa)) / a
+	var sa=(src>>>${blend_a})&255;
+	if (sa===0  ) {return dst;}
+	if (sa===255) {return src;}
+	var da=(dst>>>${blend_a})&255;
+	if (da===0  ) {return src;}
+	if (da===255) {
+		//((imul((dst&0x00ff00ff)-coll,d)>>>8)+coll)&0x00ff00ff)+
+		//((imul(((dst&0xff00ff00)>>>8)-colh2,d)+colh)&0xff00ff00);
+		//return 0;
+	}
+	sa/=255.0;
+	var a=sa+(da/255.0)*(1-sa);
+	sa/=a;
+	var da=1-sa;
+	return ((Math.max(Math.min(a*255.001,255),0)<<${blend_a})+
+		(Math.max(Math.min(((src>>>${blend_r})&255)*sa+((dst>>>${blend_r})&255)*da,255),0)<<${blend_r})+
+		(Math.max(Math.min(((src>>>${blend_g})&255)*sa+((dst>>>${blend_g})&255)*da,255),0)<<${blend_g})+
+		(Math.max(Math.min(((src>>>${blend_b})&255)*sa+((dst>>>${blend_b})&255)*da,255),0)<<${blend_b}))>>> 0;
+`.replace(/(>>>)0/g,""));
+
+const blendfast4=new Function("dst","src",`
+	// a = sa + da*(1-sa)
+	// c = (sc*sa + dc*da*(1-sa)) / a
+	var sa=(src>>>${blend_a})&255;
+	if (sa===0  ) {return dst;}
+	if (sa===255) {return src;}
+	var da=(dst>>>${blend_a})&255;
+	if (da===0  ) {return src;}
+	// Approximate blending by expanding sa from [0,255] to [0,256].
+	if (da===255) {
+		sa+=sa>>>7;
+		src|=${(255<<blend_a)>>>0};
+	} else {
+		da=(sa+da)*255-sa*da;
+		sa=Math.floor((sa*0xff00+(da>>>1))/da);
+		da=Math.floor((da*0x00ff+0x7f00)/65025)<<${blend_a};
+		src=(src&${(~(255<<blend_a)>>>0)})|da;
+		dst=(dst&${(~(255<<blend_a)>>>0)})|da;
+	}
+	var l=dst&0x00ff00ff,h=dst&0xff00ff00;
+	return ((((Math.imul((src&0x00ff00ff)-l,sa)>>>8)+l)&0x00ff00ff)+
+		  ((Math.imul(((src>>>8)&0x00ff00ff)-(h>>>8),sa)+h)&0xff00ff00))>>>0;
+`);
+
+/* Inline blending
+
+// Setup
+var sa,sa0,sa1,sai,da,dst;
+var ashift=this.rgbashift[3],amask=(255<<ashift)>>>0,namask=(~amask)>>>0;
+var colrgba=this.rgba32[0]|amask,alpha=this.rgba[3]/255.0;
+var coll=colrgba&0x00ff00ff,colh=colrgba&0xff00ff00,colh8=colh>>>8;
+
+// Execution
+sa0=Math.min(area,1)*alpha;
+if (sa0>=0.999) {
+	while (pixcol<pixstop) {
+		imgdata[pixcol++]=colrgba;
+	}
+} else if (sa0>=1/256.0) {
+	// Inlining blending is twice as fast as a blend() function.
+	sai=(1-sa0)/255.0;
+	sa1=256-Math.floor(sa0*256);
+	while (pixcol<pixstop) {
+		// Approximate blending by expanding sa from [0,255] to [0,256].
+		dst=imgdata[pixcol];
+		da=(dst>>>ashift)&255;
+		if (da===0) {
+			imgdata[pixcol++]=0xffffffff;
+			continue;
+		} else if (da===255) {
+			sa=sa1;
+		} else if (da<255) {
+			da=sa0+da*sai;
+			sa=256-Math.floor(Math.min(sa0/da,1)*256);
+			da=Math.floor(da*255+0.5);
+		}
+		imgdata[pixcol++]=((
+			(((Math.imul((dst&0x00ff00ff)-coll,sa)>>>8)+coll)&0x00ff00ff)+
+			((Math.imul(((dst>>>8)&0x00ff00ff)-colh8,sa)+colh)&0xff00ff00)
+			)&namask)|(da<<ashift);
+	}
+}
+*/
+
+function blendtest2() {
+	// https://en.wikipedia.org/wiki/Alpha_compositing
+	// src drawn on dst
+	// a = sa + da*(1-sa)
+	// c = (sc*sa + dc*da*(1-sa)) / a
+	console.log("testing blending 3");
+	var am=255<<blend_a,nm=(~am)>>>0;
+	var count=0;
+	for (var test=0;test<1000000;test++) {
+		var src=Math.floor(Math.random()*0x100000000);
+		var dst=Math.floor(Math.random()*0x100000000);
+		if ((test& 3)===0) {src=(src&nm)>>>0;}
+		if ((test& 3)===1) {src=(src|am)>>>0;}
+		if ((test&12)===0) {dst=(dst&nm)>>>0;}
+		if ((test&12)===8) {dst=(dst|am)>>>0;}
+		dst>>>=0;
+		src>>>=0;
+		var ref=blendref(dst,src);
+		var calc=blendfast4(dst,src);
+		var err=0;
+		var dif0=Math.abs(((ref>>>0)&255)-((calc>>>0)&255));
+		var dif1=Math.abs(((ref>>>8)&255)-((calc>>>8)&255));
+		var dif2=Math.abs(((ref>>>16)&255)-((calc>>>16)&255));
+		var dif3=Math.abs(((ref>>>24)&255)-((calc>>>24)&255));
+		count+=dif0+dif1+dif2+dif3;
+		if (dif0>1 || dif1>1 || dif2>1 || dif3>1) {
+			console.log("error");
+			console.log(src,dst);
+			console.log(ref.toString(16),calc.toString(16));
+			return;
+		}
+	}
+	console.log("sum: "+count);
+	console.log("passed");
+	var sum=0,dst,src;
+	var t0=performance.now();
+	for (var test=0;test<10000000;test++) {
+		src=Math.floor(Math.random()*0x100000000);
+		dst=Math.floor(Math.random()*0x100000000);
+		if ((test& 3)===0) {src=(src&nm)>>>0;}
+		if ((test& 3)===1) {src=(src|am)>>>0;}
+		if ((test&12)===0) {dst=(dst&nm)>>>0;}
+		if ((test&12)===8) {dst=(dst|am)>>>0;}
+		sum^=blendref(dst,src);
+	}
+	t0=performance.now()-t0;
+	var t1=performance.now();
+	for (var test=0;test<10000000;test++) {
+		src=Math.floor(Math.random()*0x100000000);
+		dst=Math.floor(Math.random()*0x100000000);
+		if ((test& 3)===0) {src=(src&nm)>>>0;}
+		if ((test& 3)===1) {src=(src|am)>>>0;}
+		if ((test&12)===0) {dst=(dst&nm)>>>0;}
+		if ((test&12)===8) {dst=(dst|am)>>>0;}
+		sum^=blendfast3(dst,src);
+	}
+	t1=performance.now()-t1;
+	var t2=performance.now();
+	for (var test=0;test<10000000;test++) {
+		src=Math.floor(Math.random()*0x100000000);
+		dst=Math.floor(Math.random()*0x100000000);
+		if ((test& 3)===0) {src=(src&nm)>>>0;}
+		if ((test& 3)===1) {src=(src|am)>>>0;}
+		if ((test&12)===0) {dst=(dst&nm)>>>0;}
+		if ((test&12)===8) {dst=(dst|am)>>>0;}
+		sum^=blendfast4(dst,src);
+	}
+	t2=performance.now()-t2;
+	console.log(sum);
+	console.log(t0);
+	console.log(t1);
+	console.log(t2);
+	console.log("passed");
+}
+
+
+//---------------------------------------------------------------------------------
 // Test 3 - Bezier parameterization
 
 
@@ -911,40 +1156,12 @@ function ellipsegraph() {
 // Main
 
 
-function blendtest2() {
-	// https://en.wikipedia.org/wiki/Alpha_compositing
-	// src drawn on dst
-	// a = sa + da*(1-sa)
-	// c = (sc*sa + dc*da*(1-sa)) / a
-	console.log("testing blending 2");
-	var cols=16;
-	var combos=cols*cols*cols*cols;
-	var max=0;
-	for (var combo=0;combo<combos;combo++) {
-		var tmp=combo;
-		var sa=tmp%cols; tmp=Math.floor(tmp/cols);
-		var sc=tmp%cols; tmp=Math.floor(tmp/cols);
-		var da=tmp%cols; tmp=Math.floor(tmp/cols);
-		var dc=tmp%cols;
-		var a0=sa+da*(cols-1-sa);
-		var c0=a0?Math.floor((sc*sa+dc*da*(cols-1-sa))/a0):0;
-		//
-		//var a1=sa+da*(cols-1-sa);
-		//var m0=sa/a1;
-		//var m1=da*(cols-1-sa)/a1;
-		var x=dc*da*(cols-1-sa);
-		if (max<x) {max=x;}
-	}
-	console.log(max);
-}
-
-
 function testmain() {
 	console.log("starting polygon tests");
 	// areatest();
 	// blendtest();
-	//blendtest2();
-	//beziertest();
+	// blendtest2();
+	// beziertest();
 	// circumtest();
 	// ellipsegenerate();
 	// ellipsegraph();

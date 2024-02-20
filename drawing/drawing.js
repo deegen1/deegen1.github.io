@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v1.10
+drawing.js - v1.11
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -43,6 +43,7 @@ Create font/image fitting
 	assign cost: 80/curve+10/line+1/point
 Clip lines on corner of screen.
 Add tracepoly().
+Inline blending using toString() and new Function().
 
 
 */
@@ -473,6 +474,7 @@ class Draw {
 		var col=this.rgba32[0];
 		for (var i=0;i<32;i+=8) {this.rgbashift[(col>>>i)&255]=i;}
 		this.rgba32[0]=0xffffffff;
+		this.compileblending();
 		// Screen transforms
 		this.viewoffx =0.0;
 		this.viewoffy =0.0;
@@ -506,13 +508,12 @@ class Draw {
 	}
 
 
-	setcolor(r,g,b) {
-		r=Math.floor(r);r=r>0?r:0;r=r<255?r:255;
-		g=Math.floor(g);g=g>0?g:0;g=g<255?g:255;
-		b=Math.floor(b);b=b>0?b:0;b=b<255?b:255;
-		this.rgba[0]=r;
-		this.rgba[1]=g;
-		this.rgba[2]=b;
+	setcolor(r,g,b,a) {
+		if (a===undefined) {a=255;}
+		this.rgba[0]=Math.max(Math.min(Math.floor(r?r:0),255),0);
+		this.rgba[1]=Math.max(Math.min(Math.floor(g?g:0),255),0);
+		this.rgba[2]=Math.max(Math.min(Math.floor(b?b:0),255),0);
+		this.rgba[3]=Math.max(Math.min(Math.floor(a?a:0),255),0);
 	}
 
 
@@ -527,6 +528,35 @@ class Draw {
 		rgba=this.rgba32[0];
 		this.rgba32[0]=tmp;
 		return rgba;
+	}
+
+
+	compileblending() {
+		// Compiling to constants is slightly faster.
+		var ashift=this.rgbashift[3];
+		this.alphablend=new Function("dst","src",`
+			// a = sa + da*(1-sa)
+			// c = (sc*sa + dc*da*(1-sa)) / a
+			var sa=(src>>>${ashift})&255;
+			if (sa===0  ) {return dst;}
+			if (sa===255) {return src;}
+			var da=(dst>>>${ashift})&255;
+			if (da===0  ) {return src;}
+			// Approximate blending by expanding sa from [0,255] to [0,256].
+			if (da===255) {
+				sa+=sa>>>7;
+				src|=${(255<<ashift)>>>0};
+			} else {
+				da=(sa+da)*255-sa*da;
+				sa=Math.floor((sa*0xff00+(da>>>1))/da);
+				da=Math.floor((da*0x00ff+0x7f00)/65025)<<${ashift};
+				src=(src&${(~(255<<ashift)>>>0)})|da;
+				dst=(dst&${(~(255<<ashift)>>>0)})|da;
+			}
+			var l=dst&0x00ff00ff,h=dst&0xff00ff00;
+			return ((((Math.imul((src&0x00ff00ff)-l,sa)>>>8)+l)&0x00ff00ff)+
+				  ((Math.imul(((src>>>8)&0x00ff00ff)-(h>>>8),sa)+h)&0xff00ff00))>>>0;
+		`);
 	}
 
 
@@ -707,7 +737,7 @@ class Draw {
 		if (trans===undefined) {trans=this.deftrans;}
 		if (poly.lineidx<=0 && poly.curvidx<=0) {return;}
 		var l,i,j,tmp;
-		var imgdata=this.img.data32,imgwidth=this.img.width,imgheight=this.img.height;
+		var imgwidth=this.img.width,imgheight=this.img.height,imgdata=this.img.data32;
 		// Convert all points to screenspace.
 		var vmulx=this.viewmulx,voffx=this.viewoffx;
 		var vmuly=this.viewmuly,voffy=this.viewoffy;
@@ -847,11 +877,12 @@ class Draw {
 			while (j>0 && tmp<lr[j-1].miny) {lr[j]=lr[j-1];j--;}
 			lr[j]=l;
 		}
-		// Split RGB.
-		var colrgba=this.rgba32[0];
-		var coll=(colrgba&0x00ff00ff)>>>0;
-		var colh=(colrgba&0xff00ff00)>>>0;
-		var colh2=colh>>>8;
+		// Init blending.
+		var ashift=this.rgbashift[3];
+		var amul=this.rgba[3]*(256.0/255.0);
+		var colrgba=(this.rgba32[0]|(255<<ashift))>>>0;
+		var colrgb=(colrgba&(~(255<<ashift)))>>>0;
+		var blend=this.alphablend;
 		// Process the lines row by row.
 		var ylo=0,yhi=0,y=miny,ynext=y,ny;
 		var pixrow=(imgheight-1-y)*imgwidth;
@@ -886,8 +917,8 @@ class Draw {
 				continue;
 			}
 			var xlo=ylo,xhi=ylo,x=lr[xhi].minr,xnext=x;
-			var area=0.0,a;
-			var pixcol,pixstop,dst;
+			var area=0.0;
+			var pixcol,pixstop;
 			// Process the lines on this row, column by column.
 			while (x<maxx) {
 				while (xnext<=x) {
@@ -951,17 +982,15 @@ class Draw {
 				pixcol=pixrow+x;
 				x=xlo===xhi?xnext:(x+1);
 				pixstop=pixrow+x;
-				if (area>=0.9981) {
+				tmp=Math.min(area,1)*amul;
+				if (tmp>=255) {
 					while (pixcol<pixstop) {
 						imgdata[pixcol++]=colrgba;
 					}
-				} else if (area>0.0019) {
-					a=Math.floor((1.0-area)*256);
+				} else if (tmp>=1) {
+					tmp=colrgb+(Math.floor(tmp)<<ashift);
 					while (pixcol<pixstop) {
-						dst=imgdata[pixcol];
-						imgdata[pixcol++]=
-							(((Math.imul((dst&0x00ff00ff)-coll,a)>>>8)+coll)&0x00ff00ff)+
-							((Math.imul(((dst&0xff00ff00)>>>8)-colh2,a)+colh)&0xff00ff00);
+						imgdata[pixcol]=blend(imgdata[pixcol++],tmp);
 					}
 				}
 			}
@@ -985,35 +1014,22 @@ class Draw {
 		if (dy<0) {sy=-dy;dy=0;}
 		dh=(dh>dst.height?dst.height:dh)-dy;
 		if (dw<=0 || dh<=0) {return;}
-		var dst8=dst.datac8,dst32=dst.data32,drow=dy*dst.width+dx,dinc=dst.width-dw;
-		var src8=src.datac8,src32=src.data32,srow=sy*src.width+sx,sinc=src.width-dw;
+		var dstdata=dst.data32,drow=dy*dst.width+dx,dinc=dst.width-dw;
+		var srcdata=src.data32,srow=sy*src.width+sx,sinc=src.width-dw;
 		var ystop=drow+dst.width*dh,xstop=drow+dw;
 		dw=dst.width;
-		var sa,sc,da,si,di,a;
-		var s3=this.rgbashift[3];
-		var n=1.0/255.0;
+		var s3=this.rgbashift[3],sc,sa;
+		const blend=this.alphablend;
+		const blendfill=255;
 		while (drow<ystop) {
 			while (drow<xstop) {
-				// a = sa + da*(1-sa)
-				// c = (sc*sa + dc*da*(1-sa)) / a
-				sc=src32[srow];
+				sc=srcdata[srow++];
 				sa=(sc>>>s3)&255;
-				if (sa===255) {
-					dst32[drow]=sc;
+				if (sa>=blendfill) {
+					dstdata[drow]=sc;
 				} else if (sa>0) {
-					di=drow<<2;
-					si=srow<<2;
-					sa*=n;
-					a=sa+dst8[di+3]*n*(1-sa);
-					sa/=a;
-					da=1-sa;
-					// Clamped to [0,255].
-					dst8[di  ]=src8[si  ]*sa+dst8[di  ]*da;
-					dst8[di+1]=src8[si+1]*sa+dst8[di+1]*da;
-					dst8[di+2]=src8[si+2]*sa+dst8[di+2]*da;
-					dst8[di+3]=a*255.001;
+					dstdata[drow]=blend(dstdata[drow],sc);
 				}
-				srow++;
 				drow++;
 			}
 			xstop+=dw;
@@ -1023,4 +1039,3 @@ class Draw {
 	}
 
 }
-

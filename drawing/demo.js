@@ -857,13 +857,13 @@ class PolyDemo3 {
 		// draw.setangle(performance.now()*0.0002);
 		draw.setcolor(255,0,0);
 		var [mx,my]=this.input.getmousepos();
-		mx*=this.canvas.width;
-		my=(1-my)*this.canvas.height;
+		mx*=draw.img.width;
+		my=(1-my)*draw.img.height;
 		// draw.fillrect(mx,my,300,100);
 		// draw.filloval(mx,my,300,100);
-		draw.linewidth=40.0;
-		draw.line(this.canvas.width/2,this.canvas.height/2,mx,my);
-		this.ctx.putImageData(this.backbuf,0,0);
+		//draw.linewidth=40.0;
+		draw.line(draw.img.width/2,draw.img.height/2,mx,my);
+		this.ctx.putImageData(draw.img.dataim,0,0);
 	}
 
 }
@@ -887,21 +887,6 @@ class PolyDemo4 {
 		this.draw.setimage(this.canvas);
 		this.test=0;
 		this.log("starting tests");
-		/*var dif=0;
-		for (var sa=0;sa<256;sa++) {
-			for (var da=0;da<256;da++) {
-				var st=sa/255.0;
-				var dt=da/255.0;
-				var a=st+dt*(1-st);
-				if (a>0) {
-					dt=dt*(1-st)/a;
-					st=st/a;
-					var d=Math.abs((1.0-st)-dt);
-					if (dif<d) {dif=d;}
-				}
-			}
-		}
-		console.log("dif: "+dif);*/
 		var state=this;
 		function update() {
 			if (state.update()) {
@@ -1101,9 +1086,18 @@ class PolyDemo4 {
 				var rad=rnd.modu32(10);
 				this.draw.drawimage(cache[rad],x,y);
 			}
+		} else if (test==4) {
+			tests=10000;
+			for (var i=0;i<tests;i++) {
+				var x0=(rnd.getf64()*3-1)*imgwidth;
+				var y0=(rnd.getf64()*3-1)*imgheight;
+				var x1=(rnd.getf64()*3-1)*imgwidth;
+				var y1=(rnd.getf64()*3-1)*imgheight;
+				this.draw.line(x0,y0,x1,y1);
+			}
 		}
 		if (tests>0) {
-			var names=["Circle alias","Circle smooth","Circle curve","Circle cache"];
+			var names=["Circle alias","Circle smooth","Circle curve","Image cache","Lines"];
 			t0=(performance.now()-t0)/tests;
 			this.log(names[test]+": "+t0);
 			return 1;
