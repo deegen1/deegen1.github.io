@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v1.11
+drawing.js - v1.12
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -43,7 +43,6 @@ Create font/image fitting
 	assign cost: 80/curve+10/line+1/point
 Clip lines on corner of screen.
 Add tracepoly().
-Inline blending using toString() and new Function().
 
 
 */
@@ -452,6 +451,113 @@ class _DrawImage {
 		if (srcdata!==null) {this.data8.set(srcdata);}
 	}
 
+
+	frombmp() {
+		/*
+		//Load a BMP image from "file".
+		sfrgimgkill(img);
+		FILE* in;
+		if (sffileexists(file)!=0 || (in=fopen(file,"rb"))==0)
+		{
+			return 0;
+		}
+		//"BM" header.
+		if (sfread16(in)!=0x424d)
+		{
+			fclose(in);
+			return 0;
+		}
+		u32 info[7];
+		for (u32 i=0;i<7;i++)
+		{
+			info[i]=((u32)sfread8(in))|(((u32)sfread8(in))<<8)|(((u32)sfread8(in))<<16)|(((u32)sfread8(in))<<24);
+		}
+		//Check additional parameters.
+		if (info[3]!=0x00000028 || ((s32)info[4])<=0 || info[5]==0 || info[6]!=0x00180001)
+		{
+			fclose(in);
+			return 0;
+		}
+		//Load image dimensions.
+		s32 size=img->pixwidth*3;
+		s32 inc=(size+3)&~3;
+		if (((s32)info[5])<0)
+		{
+			info[5]=-info[5];
+		}
+		else
+		{
+			info[2]+=inc*(info[5]-1);
+			inc=-inc;
+		}
+		sfrgimginit(img,info[4],info[5]);
+		//Load image pixels.
+		f64* rgba=img->rgba;
+		while (info[5]--!=0)
+		{
+			sffilegoto(in,info[2]);
+			info[2]+=inc;
+			for (s32 i=0;i<img->pixwidth;i++)
+			{
+				*(rgba+3)=1.0;
+				*(rgba+2)=((f64)sfread8(in))*(1.0/255.0);
+				*(rgba+1)=((f64)sfread8(in))*(1.0/255.0);
+				*(rgba+0)=((f64)sfread8(in))*(1.0/255.0);
+				rgba+=4;
+			}
+		}
+		fclose(in);
+		return 1;*/
+	}
+
+
+	tobmp() {
+		// Save the image as a BMP file at "file".
+		/*sfwrite8(out,'B');
+		sfwrite8(out,'M');
+		u32 padding=img->pixwidth*-3;
+		u32 bmpsize=((3-padding)&~3)*img->pixheight;
+		padding&=3;
+		u32 info[13];
+		info[ 0]=bmpsize+54;
+		info[ 1]=0x00000000;
+		info[ 2]=0x00000036;
+		info[ 3]=0x00000028;
+		info[ 4]=img->pixwidth;
+		info[ 5]=-img->pixheight;
+		info[ 6]=0x00180001;
+		info[ 7]=0x00000000;
+		info[ 8]=bmpsize;
+		info[ 9]=0x00000000;
+		info[10]=0x00000000;
+		info[11]=0x00000000;
+		info[12]=0x00000000;
+		for (u32 i=0;i<13;i++)
+		{
+			sfwrite8(out,info[i]&255);
+			sfwrite8(out,(info[i]>>8)&255);
+			sfwrite8(out,(info[i]>>16)&255);
+			sfwrite8(out,info[i]>>24);
+		}
+		f64* rgba=img->rgba;
+		for (s32 t=0;t<img->pixheight;t++)
+		{
+			for (s32 i=0;i<img->pixwidth;i++)
+			{
+				f64 mul=rgba[3]*255.0;
+				sfwrite8(out,rgba[2]*mul);
+				sfwrite8(out,rgba[1]*mul);
+				sfwrite8(out,rgba[0]*mul);
+				rgba+=4;
+			}
+			for (u32 i=0;i<padding;i++)
+			{
+				sfwrite8(out,0);
+			}
+		}
+		fclose(out);*/
+	}
+
 }
 
 
@@ -534,29 +640,52 @@ class Draw {
 	compileblending() {
 		// Compiling to constants is slightly faster.
 		var ashift=this.rgbashift[3];
-		this.alphablend=new Function("dst","src",`
+		function hex(x) {return "0x"+(x>>>0).toString(16).padStart(8,"0");}
+		function splitfunc(str) {
+			// Returns parameter array and function body.
+			var split=/^[\s\S]*?\(([\s\S]*?)\)\s*\{([\s\S]*)\}\s*$/gi.exec(str);
+			return [split[1].split(",").map((x)=>x.trim()),split[2]];
+		}
+		this.alphablend=new Function("dstarr","dstidx","src",`
 			// a = sa + da*(1-sa)
 			// c = (sc*sa + dc*da*(1-sa)) / a
-			var sa=(src>>>${ashift})&255;
-			if (sa===0  ) {return dst;}
-			if (sa===255) {return src;}
-			var da=(dst>>>${ashift})&255;
-			if (da===0  ) {return src;}
+			var sa,da,l,h,dst;
+			sa=(src>>>${ashift})&255;
+			if (sa===0  ) {return;}
+			if (sa===255) {dstarr[dstidx]=src; return;}
+			dst=dstarr[dstidx];
+			da=(dst>>>${ashift})&255;
+			if (da===0  ) {dstarr[dstidx]=src; return;}
 			// Approximate blending by expanding sa from [0,255] to [0,256].
 			if (da===255) {
 				sa+=sa>>>7;
-				src|=${(255<<ashift)>>>0};
+				src|=${hex(255<<ashift)};
 			} else {
 				da=(sa+da)*255-sa*da;
 				sa=Math.floor((sa*0xff00+(da>>>1))/da);
 				da=Math.floor((da*0x00ff+0x7f00)/65025)<<${ashift};
-				src=(src&${(~(255<<ashift)>>>0)})|da;
-				dst=(dst&${(~(255<<ashift)>>>0)})|da;
+				src=(src&${hex(~(255<<ashift))})|da;
+				dst=(dst&${hex(~(255<<ashift))})|da;
 			}
-			var l=dst&0x00ff00ff,h=dst&0xff00ff00;
-			return ((((Math.imul((src&0x00ff00ff)-l,sa)>>>8)+l)&0x00ff00ff)+
-				  ((Math.imul(((src>>>8)&0x00ff00ff)-(h>>>8),sa)+h)&0xff00ff00))>>>0;
+			l=dst&0x00ff00ff;
+			h=dst&0xff00ff00;
+			dstarr[dstidx]=(
+				(((Math.imul((src&0x00ff00ff)-l,sa)>>>8)+l)&0x00ff00ff)+
+				((Math.imul(((src>>>8)&0x00ff00ff)-(h>>>8),sa)+h)&0xff00ff00)
+			)>>>0;
 		`);
+		// Inlining the blend() functions is ~50% faster across browsers.
+		var blendfunc=splitfunc(this.alphablend.toString());
+		var blendreg=/blend\(\s*(.*?)\s*,\s*(.*?)\s*,\s*(.*?)\s*\);/;
+		for (var f=0;f<2;f++) {
+			var name=["fillpoly","drawimage"][f];
+			var func=splitfunc(this[name].toString());
+			var rep=blendreg.exec(func[1]);
+			var blend=blendfunc[1].replace(new RegExp(blendfunc[0][0],"g"),rep[1]);
+			blend=blend.replace(/return/g,"continue");
+			blend=`\nvar dstidx=${rep[2]},src=${rep[3]};\n`+blend;
+			this[name]=new Function(func[0],func[1].replace(blendreg,blend));
+		}
 	}
 
 
@@ -879,7 +1008,7 @@ class Draw {
 		}
 		// Init blending.
 		var ashift=this.rgbashift[3];
-		var amul=this.rgba[3]*(256.0/255.0);
+		var amul=this.rgba[3]*(255.5/255.0);
 		var colrgba=(this.rgba32[0]|(255<<ashift))>>>0;
 		var colrgb=(colrgba&(~(255<<ashift)))>>>0;
 		var blend=this.alphablend;
@@ -990,7 +1119,7 @@ class Draw {
 				} else if (tmp>=1) {
 					tmp=colrgb+(Math.floor(tmp)<<ashift);
 					while (pixcol<pixstop) {
-						imgdata[pixcol]=blend(imgdata[pixcol++],tmp);
+						blend(imgdata,pixcol++,tmp);
 					}
 				}
 			}
@@ -1018,19 +1147,10 @@ class Draw {
 		var srcdata=src.data32,srow=sy*src.width+sx,sinc=src.width-dw;
 		var ystop=drow+dst.width*dh,xstop=drow+dw;
 		dw=dst.width;
-		var s3=this.rgbashift[3],sc,sa;
 		const blend=this.alphablend;
-		const blendfill=255;
 		while (drow<ystop) {
 			while (drow<xstop) {
-				sc=srcdata[srow++];
-				sa=(sc>>>s3)&255;
-				if (sa>=blendfill) {
-					dstdata[drow]=sc;
-				} else if (sa>0) {
-					dstdata[drow]=blend(dstdata[drow],sc);
-				}
-				drow++;
+				blend(dstdata,drow++,srcdata[srow++]);
 			}
 			xstop+=dw;
 			drow+=dinc;
