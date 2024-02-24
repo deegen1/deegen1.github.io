@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v1.12
+drawing.js - v1.13
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -11,6 +11,10 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
+add image class
+	add image to push()
+	resize
+	save as bmp
 https://gasiulis.name/cubic-curve-offsetting/
 Speed up fillpoly()
 	Create stress tests
@@ -28,8 +32,6 @@ Speed up fillpoly()
 	Instead of calculating per-pixel overlap, calculate [minx,maxx,delta].
 	While x in [minx,maxx), area+=delta
 	More accurate linearization of curves. Split on curvature, not length.
-add image class
-	save as bmp
 Path string format
 	M Z L C
 	add tostring()
@@ -43,6 +45,7 @@ Create font/image fitting
 	assign cost: 80/curve+10/line+1/point
 Clip lines on corner of screen.
 Add tracepoly().
+Optimize blend if ashift=0 or 24.
 
 
 */
@@ -452,7 +455,11 @@ class _DrawImage {
 	}
 
 
-	frombmp() {
+	resize(width,height) {
+	}
+
+
+	frombmp(arr8) {
 		/*
 		//Load a BMP image from "file".
 		sfrgimgkill(img);
@@ -512,7 +519,7 @@ class _DrawImage {
 
 
 	tobmp() {
-		// Save the image as a BMP file at "file".
+		// Returns a Uint8Array with the BMP data.
 		/*sfwrite8(out,'B');
 		sfwrite8(out,'M');
 		u32 padding=img->pixwidth*-3;
@@ -580,7 +587,6 @@ class Draw {
 		var col=this.rgba32[0];
 		for (var i=0;i<32;i+=8) {this.rgbashift[(col>>>i)&255]=i;}
 		this.rgba32[0]=0xffffffff;
-		this.compileblending();
 		// Screen transforms
 		this.viewoffx =0.0;
 		this.viewoffy =0.0;
@@ -634,58 +640,6 @@ class Draw {
 		rgba=this.rgba32[0];
 		this.rgba32[0]=tmp;
 		return rgba;
-	}
-
-
-	compileblending() {
-		// Compiling to constants is slightly faster.
-		var ashift=this.rgbashift[3];
-		function hex(x) {return "0x"+(x>>>0).toString(16).padStart(8,"0");}
-		function splitfunc(str) {
-			// Returns parameter array and function body.
-			var split=/^[\s\S]*?\(([\s\S]*?)\)\s*\{([\s\S]*)\}\s*$/gi.exec(str);
-			return [split[1].split(",").map((x)=>x.trim()),split[2]];
-		}
-		this.alphablend=new Function("dstarr","dstidx","src",`
-			// a = sa + da*(1-sa)
-			// c = (sc*sa + dc*da*(1-sa)) / a
-			var sa,da,l,h,dst;
-			sa=(src>>>${ashift})&255;
-			if (sa===0  ) {return;}
-			if (sa===255) {dstarr[dstidx]=src; return;}
-			dst=dstarr[dstidx];
-			da=(dst>>>${ashift})&255;
-			if (da===0  ) {dstarr[dstidx]=src; return;}
-			// Approximate blending by expanding sa from [0,255] to [0,256].
-			if (da===255) {
-				sa+=sa>>>7;
-				src|=${hex(255<<ashift)};
-			} else {
-				da=(sa+da)*255-sa*da;
-				sa=Math.floor((sa*0xff00+(da>>>1))/da);
-				da=Math.floor((da*0x00ff+0x7f00)/65025)<<${ashift};
-				src=(src&${hex(~(255<<ashift))})|da;
-				dst=(dst&${hex(~(255<<ashift))})|da;
-			}
-			l=dst&0x00ff00ff;
-			h=dst&0xff00ff00;
-			dstarr[dstidx]=(
-				(((Math.imul((src&0x00ff00ff)-l,sa)>>>8)+l)&0x00ff00ff)+
-				((Math.imul(((src>>>8)&0x00ff00ff)-(h>>>8),sa)+h)&0xff00ff00)
-			)>>>0;
-		`);
-		// Inlining the blend() functions is ~50% faster across browsers.
-		var blendfunc=splitfunc(this.alphablend.toString());
-		var blendreg=/blend\(\s*(.*?)\s*,\s*(.*?)\s*,\s*(.*?)\s*\);/;
-		for (var f=0;f<2;f++) {
-			var name=["fillpoly","drawimage"][f];
-			var func=splitfunc(this[name].toString());
-			var rep=blendreg.exec(func[1]);
-			var blend=blendfunc[1].replace(new RegExp(blendfunc[0][0],"g"),rep[1]);
-			blend=blend.replace(/return/g,"continue");
-			blend=`\nvar dstidx=${rep[2]},src=${rep[3]};\n`+blend;
-			this[name]=new Function(func[0],func[1].replace(blendreg,blend));
-		}
 	}
 
 
@@ -885,19 +839,19 @@ class Draw {
 			tv[i+1]=x0*matyx+y0*matyy+maty;
 		}
 		// Add regular lines.
-		var lr=this.tmpline,lrcnt=lr.length,ycnt=0;
+		var lr=this.tmpline,lrcnt=lr.length,ycnt=0,newlen;
 		if (ycnt+(poly.lineidx>>1)>=lrcnt) {
-			var newlen=(ycnt+(poly.lineidx>>1))*2;
+			newlen=(ycnt+(poly.lineidx>>1))*2;
 			while (lrcnt<newlen) {lr.push({});lrcnt++;}
 			this.tmpline=lr;
 		}
 		for (i=poly.lineidx-2;i>=0;i-=2) {
-			var p0=poly.linearr[i],p1=poly.linearr[i+1];
+			var a=poly.linearr[i],b=poly.linearr[i+1];
 			l=lr[ycnt++];
-			l.x0=tv[p0  ];
-			l.y0=tv[p0+1];
-			l.x1=tv[p1  ];
-			l.y1=tv[p1+1];
+			l.x0=tv[a  ];
+			l.y0=tv[a+1];
+			l.x1=tv[b  ];
+			l.y1=tv[b+1];
 		}
 		// Linear decomposition of curves.
 		// 1: split into 4 segments
@@ -917,7 +871,7 @@ class Draw {
 			if (x0>=imgwidth || y0>=imgheight || y1<=0) {continue;}
 			if (x1<=0) {
 				if (ycnt>=lrcnt) {
-					var newlen=(ycnt+1)*2;
+					newlen=(ycnt+1)*2;
 					while (lrcnt<newlen) {lr.push({});lrcnt++;}
 					this.tmpline=lr;
 				}
@@ -940,7 +894,7 @@ class Draw {
 				var segs=Math.ceil(dist/splitlen);
 				// Split up the current segment.
 				if (ycnt+segs>=lrcnt) {
-					var newlen=(ycnt+segs)*2;
+					newlen=(ycnt+segs)*2;
 					while (lrcnt<newlen) {lr.push({});lrcnt++;}
 					this.tmpline=lr;
 				}
@@ -980,7 +934,7 @@ class Draw {
 			l.minx=Math.max(Math.floor(Math.min(x0,x1)),0);
 			l.miny=Math.max(Math.floor(Math.min(y0,y1)),0);
 			l.maxy=Math.min(Math.ceil(Math.max(y0,y1)),imgheight);
-			if (l.minx<imgwidth && l.miny<l.maxy && dx===dx && Math.abs(dy)>1e-10) {
+			if (/*l.minx<imgwidth && */l.miny<l.maxy && dx===dx && Math.abs(dy)>1e-10) {
 				l.dxy=dx/dy;
 				l.cxy=x0-y0*l.dxy;
 				l.dyx=Math.abs(dx)>1e-10?dy/dx:0;
@@ -1007,11 +961,13 @@ class Draw {
 			lr[j]=l;
 		}
 		// Init blending.
-		var ashift=this.rgbashift[3];
-		var amul=this.rgba[3]*(255.5/255.0);
-		var colrgba=(this.rgba32[0]|(255<<ashift))>>>0;
-		var colrgb=(colrgba&(~(255<<ashift)))>>>0;
-		var blend=this.alphablend;
+		var ashift=this.rgbashift[3],amask=(255<<ashift)>>>0;
+		var maskl=(0x00ff00ff&~amask)>>>0,maskh=(0xff00ff00&~amask)>>>0;
+		var sa,da,sa0,sa1,sai;
+		var amul=this.rgba[3]/255.0;
+		var colrgb=(this.rgba32[0]&~amask)>>>0;
+		var coll=(colrgb&0x00ff00ff)>>>0,colh=(colrgb&0xff00ff00)>>>0,colh8=colh>>>8;
+		var filllim=255;
 		// Process the lines row by row.
 		var ylo=0,yhi=0,y=miny,ynext=y,ny;
 		var pixrow=(imgheight-1-y)*imgwidth;
@@ -1111,15 +1067,31 @@ class Draw {
 				pixcol=pixrow+x;
 				x=xlo===xhi?xnext:(x+1);
 				pixstop=pixrow+x;
-				tmp=Math.min(area,1)*amul;
-				if (tmp>=255) {
+				sa0=area*amul;
+				sa1=Math.floor(sa0*255+0.5);
+				if (sa1>=filllim) {
+					tmp=colrgb|(Math.min(sa1,255)<<ashift);
 					while (pixcol<pixstop) {
-						imgdata[pixcol++]=colrgba;
+						imgdata[pixcol++]=tmp;
 					}
-				} else if (tmp>=1) {
-					tmp=colrgb+(Math.floor(tmp)<<ashift);
+				} else if (sa1>=1) {
+					sai=(1-sa0)/amask;
+					sa1=256-Math.floor(sa0*256+0.5);
 					while (pixcol<pixstop) {
-						blend(imgdata,pixcol++,tmp);
+						// a = sa + da*(1-sa)
+						// c = (sc*sa + dc*da*(1-sa)) / a
+						tmp=imgdata[pixcol];
+						da=(tmp&amask)>>>0;
+						if (da===amask) {
+							sa=sa1;
+						} else {
+							da=sa0+da*sai;
+							sa=256-Math.floor((sa0/da)*256+0.5);
+							da=Math.floor(da*255+0.5)<<ashift;
+						}
+						imgdata[pixcol++]=da|
+							(((Math.imul((tmp&0x00ff00ff)-coll,sa)>>>8)+coll)&maskl)|
+							((Math.imul(((tmp>>>8)&0x00ff00ff)-colh8,sa)+colh)&maskh);
 					}
 				}
 			}
@@ -1130,6 +1102,7 @@ class Draw {
 
 
 	drawimage(src,dx,dy,dw,dh) {
+		// Draw an image with alpha blending.
 		var dst=this.img;
 		dx=(dx===undefined)?0:(dx|0);
 		dy=(dy===undefined)?0:(dy|0);
@@ -1146,11 +1119,45 @@ class Draw {
 		var dstdata=dst.data32,drow=dy*dst.width+dx,dinc=dst.width-dw;
 		var srcdata=src.data32,srow=sy*src.width+sx,sinc=src.width-dw;
 		var ystop=drow+dst.width*dh,xstop=drow+dw;
+		var amul=this.rgba[3],amul0=amul/255.0,amul1=amul*(256.0/65025.0);
+		var filllim=amul0>0?255/amul0:Infinity;
+		var ashift=this.rgbashift[3],amask=(255<<ashift)>>>0,namask=(~amask)>>>0;
+		var maskl=0x00ff00ff&namask,maskh=0xff00ff00&namask;
+		var sa,da,l,h,tmp;
 		dw=dst.width;
-		const blend=this.alphablend;
 		while (drow<ystop) {
 			while (drow<xstop) {
-				blend(dstdata,drow++,srcdata[srow++]);
+				// a = sa + da*(1-sa)
+				// c = (sc*sa + dc*da*(1-sa)) / a
+				src=srcdata[srow++];
+				sa=(src>>>ashift)&255;
+				src&=namask;
+				if (sa>=filllim) {
+					dstdata[drow++]=src|(Math.floor(sa*amul0)<<ashift);
+					continue;
+				}
+				if (sa<=0) {drow++;continue;}
+				tmp=dstdata[drow];
+				da=(tmp>>>ashift)&255;
+				if (da===0) {
+					dstdata[drow++]=src|(Math.floor(sa*amul0)<<ashift);
+					continue;
+				}
+				// Approximate blending by expanding sa from [0,255] to [0,256].
+				if (da===255) {
+					sa=Math.floor(sa*amul1);
+					da=amask;
+				} else {
+					sa*=amul;
+					da=sa*255+da*(65025-sa);
+					sa=Math.floor((sa*0xff00+(da>>>1))/da);
+					da=Math.floor((da+32512)/65025)<<ashift;
+				}
+				l=tmp&0x00ff00ff;
+				h=tmp&0xff00ff00;
+				dstdata[drow++]=da|
+					(((Math.imul((src&0x00ff00ff)-l,sa)>>>8)+l)&maskl)|
+					((Math.imul(((src>>>8)&0x00ff00ff)-(h>>>8),sa)+h)&maskh);
 			}
 			xstop+=dw;
 			drow+=dinc;

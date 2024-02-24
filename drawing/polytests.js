@@ -132,7 +132,7 @@ function areatest() {
 
 function blendtest() {
 	// expects alpha in [0,256], NOT [0,256).
-	var samples=10000000*2;
+	var samples=20000000*2;
 	var arr0=new Uint32Array(samples);
 	var i;
 	for (i=0;i<samples;i+=2) {
@@ -1159,7 +1159,7 @@ function ellipsegraph() {
 function testmain() {
 	console.log("starting polygon tests");
 	// areatest();
-	// blendtest();
+	//blendtest();
 	// blendtest2();
 	// beziertest();
 	// circumtest();

@@ -805,7 +805,7 @@ class PolyDemo2 {
 
 
 	update() {
-		var draw=this.draw;
+		/*var draw=this.draw;
 		draw.fill(0,0,0);
 		draw.setangle(performance.now()*0.0002);
 		draw.setcolor(255,0,0);
@@ -813,6 +813,29 @@ class PolyDemo2 {
 		mx*=draw.img.width;
 		my=(1-my)*draw.img.height;
 		draw.filloval(this.canvas.width/2,this.canvas.height/2,300,100);
+		this.ctx.putImageData(draw.img.dataim,0,0);*/
+		var draw=this.draw;
+		draw.fill(0,0,0);
+		draw.setangle(0);
+		for (var i=0;i<16;i++) {
+			for (var j=0;j<9;j++) {
+				if ((i^j)&1) {draw.setcolor(200,200,200);}
+				else {draw.setcolor(255,255,255);}
+				draw.fillrect(i*50,j*50,50,50);
+			}
+		}
+		/*draw.setcolor(255,0,0);
+		draw.setangle(performance.now()*0.0002);
+		draw.filloval(this.canvas.width/2,this.canvas.height/2,300,100);*/
+		var img=new Draw.Image(800,400);
+		var prev=draw.img;
+		draw.setimage(img);
+		draw.fill(0,0,0,0);
+		draw.setcolor(255,0,0);
+		draw.setangle(performance.now()*0.0002);
+		draw.filloval(this.canvas.width/2,this.canvas.height/2,300,100);
+		draw.setimage(prev);
+		draw.drawimage(img);
 		this.ctx.putImageData(draw.img.dataim,0,0);
 	}
 
