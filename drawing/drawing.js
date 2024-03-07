@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v1.13
+drawing.js - v1.14
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -11,41 +11,44 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
-add image class
-	add image to push()
-	resize
-	save as bmp
-https://gasiulis.name/cubic-curve-offsetting/
+dx=x1-x0
+dy=y1-y0
+(p0+dir*u-p)*dir=0
+(p-p0)*dir-(dir*dir)*u=0
+u=(p-p0)*dir/(dir*dir)
+
+((p-p0)-dir*u)^2
+p-=p0
+
+p*p-2*u*(p*dir)+(dir*dir)*u*u
+
+p*p-2*(p*dir)*(p*dir)/(dir*dir)+(p*dir)*(p*dir)/(dir*dir)
+p*p-(p*dir)*(p*dir)/(dir*dir)
+
+c=px*dx+py*dy
+px*px+py*py-(c*c)/(dx*dx+dy*dy)
+
+c=px*dy-py*dx
+dist=c*c/(dx*dx+dy*dy)
+
+
 Speed up fillpoly()
-	Create stress tests
-		few lines / curves, short
-		many lines / curves, short
-		few  L/C, med
-		many L/C, med
-		few  L/C, large
-		many L/C, large
-		old circle drawing
-		drawing images
-		many = 2^n
-		size = % of background image
-	mergesort
-	Instead of calculating per-pixel overlap, calculate [minx,maxx,delta].
-	While x in [minx,maxx), area+=delta
 	More accurate linearization of curves. Split on curvature, not length.
+add image class
+	save as bmp
 Path string format
 	M Z L C
 	add tostring()
 	change internal representation
 tracing
+	https://gasiulis.name/cubic-curve-offsetting/
 	path inflection points
 	project out based on tangent
 Have article include curve diagrams, like schematics.
 Create font/image fitting
 	average r,g,b values to account for both grayscale and subpixel accuracy
+	color=(r+g+b)/(3*255)
 	assign cost: 80/curve+10/line+1/point
-Clip lines on corner of screen.
-Add tracepoly().
-Optimize blend if ashift=0 or 24.
 
 
 */
@@ -596,7 +599,7 @@ class Draw {
 		this.deffont  =new con.Font();
 		this.deftrans =new con.Transform();
 		this.defpoly  =new con.Poly();
-		this.stack    =[this.deftrans];
+		this.stack    =[];
 		this.stackidx =0;
 		// Rendering variables
 		this.linewidth=1.0;
@@ -604,7 +607,6 @@ class Draw {
 		this.tmppoly  =new con.Poly();
 		this.tmpvert  =[];
 		this.tmpline  =[];
-		this.tmpsort  =[];
 	}
 
 
@@ -621,6 +623,7 @@ class Draw {
 
 
 	setcolor(r,g,b,a) {
+		if (g===undefined) {a=(r>>>0)&255;b=(r>>>8)&255;g=(r>>>16)&255;r>>>=24;}
 		if (a===undefined) {a=255;}
 		this.rgba[0]=Math.max(Math.min(Math.floor(r?r:0),255),0);
 		this.rgba[1]=Math.max(Math.min(Math.floor(g?g:0),255),0);
@@ -648,22 +651,40 @@ class Draw {
 	// point -> scale -> rotate -> offset -> view offset -> view scale
 
 
-	clearstate() {return this.deftrans.clear();}
+	clearstate() {
+		this.rgba32[0]=0xffffffff;
+		this.deftrans.clear();
+	}
 
 
 	savestate() {
-		var trans=this.stack[++this.stackidx];
-		if (trans===undefined) {
-			trans=new this.constructor.Transform();
-			this.stack[this.stackidx]=trans;
+		var mem=this.stack[this.stackidx++];
+		if (mem===undefined) {
+			mem={
+				img  :null,
+				rgba :null,
+				trans:new this.constructor.Transform(),
+				poly :null,
+				font :null
+			};
+			this.stack[this.stackidx-1]=mem;
 		}
-		this.deftrans=trans.copy(this.deftrans);
+		mem.img =this.img;
+		mem.rgba=this.rgba32[0];
+		mem.trans.copy(this.deftrans);
+		mem.poly=this.defpoly;
+		mem.font=this.deffont;
 	}
 
 
 	loadstate() {
 		if (this.stackidx<=0) {throw "loading null stack";}
-		this.deftrans=this.stack[--this.stackidx];
+		var mem=this.stack[--this.stackidx];
+		this.img=mem.img;
+		this.rgba32[0]=mem.rgba;
+		this.deftrans.copy(mem.trans);
+		this.defpoly=mem.poly;
+		this.deffont=mem.font;
 	}
 
 
@@ -794,33 +815,15 @@ class Draw {
 	// Polygon Filling
 
 
-	polysort(arr,start,stop,field) {
-		var len=stop-start;
-		for (var i=0;i<len;i++) {
-			sortval[i]=arr[i+start][field];
-		}
-		/*for (var half=1;half<len;half+=half) {
-			i=0;i0=0;i1=half;j0=half;j1=half+half;
-			j1=j1<len?j1:len;
-			while (i0<i1 && j0<j1) {
-				if (arr[i0]<=arr[j0]) {dst[i++]=arr[i0++];}
-				else {dst[i++]=arr[j0++];}
-			}
-			while (i0<i1) {dst[i++]=arr[i0++];}
-			while (j0<j1) {dst[i++]=arr[j0++];}
-			tmp=arr;arr=dst;dst=tmp;
-		}*/
-	}
-
-
 	fillpoly(poly,trans) {
+		// Use a binary heap to dynamically sort lines.
 		// Preprocess the lines and curves. Reject anything with a NaN, too narrow, or
 		// outside the image.
 		if (poly ===undefined) {poly =this.defpoly ;}
 		if (trans===undefined) {trans=this.deftrans;}
 		if (poly.lineidx<=0 && poly.curvidx<=0) {return;}
 		var l,i,j,tmp;
-		var imgwidth=this.img.width,imgheight=this.img.height,imgdata=this.img.data32;
+		var iw=this.img.width,ih=this.img.height,imgdata=this.img.data32;
 		// Convert all points to screenspace.
 		var vmulx=this.viewmulx,voffx=this.viewoffx;
 		var vmuly=this.viewmuly,voffy=this.viewoffy;
@@ -839,15 +842,15 @@ class Draw {
 			tv[i+1]=x0*matyx+y0*matyy+maty;
 		}
 		// Add regular lines.
-		var lr=this.tmpline,lrcnt=lr.length,ycnt=0,newlen;
-		if (ycnt+(poly.lineidx>>1)>=lrcnt) {
-			newlen=(ycnt+(poly.lineidx>>1))*2;
+		var lr=this.tmpline,lrcnt=lr.length,lcnt=0,newlen;
+		if (lcnt+(poly.lineidx>>1)>=lrcnt) {
+			newlen=(lcnt+(poly.lineidx>>1))*2;
 			while (lrcnt<newlen) {lr.push({});lrcnt++;}
 			this.tmpline=lr;
 		}
 		for (i=poly.lineidx-2;i>=0;i-=2) {
 			var a=poly.linearr[i],b=poly.linearr[i+1];
-			l=lr[ycnt++];
+			l=lr[lcnt++];
 			l.x0=tv[a  ];
 			l.y0=tv[a+1];
 			l.x1=tv[b  ];
@@ -868,14 +871,14 @@ class Draw {
 			x1=Math.max(p0x,Math.max(p1x,Math.max(p2x,p3x)));
 			y0=Math.min(p0y,Math.min(p1y,Math.min(p2y,p3y)));
 			y1=Math.max(p0y,Math.max(p1y,Math.max(p2y,p3y)));
-			if (x0>=imgwidth || y0>=imgheight || y1<=0) {continue;}
+			if (x0>=iw || y0>=ih || y1<=0) {continue;}
 			if (x1<=0) {
-				if (ycnt>=lrcnt) {
-					newlen=(ycnt+1)*2;
+				if (lcnt>=lrcnt) {
+					newlen=(lcnt+1)*2;
 					while (lrcnt<newlen) {lr.push({});lrcnt++;}
 					this.tmpline=lr;
 				}
-				l=lr[ycnt++];
+				l=lr[lcnt++];
 				l.x0=p0x;
 				l.y0=p0y;
 				l.x1=p3x;
@@ -893,8 +896,8 @@ class Draw {
 				var dist=Math.sqrt(cpx*cpx+cpy*cpy);
 				var segs=Math.ceil(dist/splitlen);
 				// Split up the current segment.
-				if (ycnt+segs>=lrcnt) {
-					newlen=(ycnt+segs)*2;
+				if (lcnt+segs>=lrcnt) {
+					newlen=(lcnt+segs)*2;
 					while (lrcnt<newlen) {lr.push({});lrcnt++;}
 					this.tmpline=lr;
 				}
@@ -903,7 +906,7 @@ class Draw {
 					u0+=u1;
 					cpx=p0x+u0*(p1x+u0*(p2x+u0*p3x));
 					cpy=p0y+u0*(p1y+u0*(p2y+u0*p3y));
-					l=lr[ycnt++];
+					l=lr[lcnt++];
 					l.x0=ppx;
 					l.y0=ppy;
 					l.x1=cpx;
@@ -914,189 +917,182 @@ class Draw {
 			}
 		}
 		// Prune lines.
-		var swap=((matxx<0)!==(matyy<0))+0;
-		var minx=imgwidth,maxx=0,miny=imgheight,maxy=0;
-		for (i=ycnt-1;i>=0;i--) {
+		var minx=iw,maxx=0,miny=ih,maxy=0,maxcnt=lcnt;
+		var amul=this.rgba[3]/255.0;
+		var y0x,y1x,dy,dx;
+		if ((matxx<0)!==(matyy<0)) {amul=-amul;}
+		lcnt=0;
+		for (i=0;i<maxcnt;i++) {
 			l=lr[i];
 			// If we mirror the image, we need to flip the line direction.
-			if (swap) {
-				x0=l.x1;y0=l.y1;
-				x1=l.x0;y1=l.y0;
-				l.x0=x0;l.x1=x1;
-				l.y0=y0;l.y1=y1;
-			} else {
-				x0=l.x0;y0=l.y0;
-				x1=l.x1;y1=l.y1;
-			}
-			// Add the line if it's in the screen or to the left.
-			var dx=x1-x0;
-			var dy=y1-y0;
+			x0=l.x0;y0=l.y0;
+			x1=l.x1;y1=l.y1;
+			dx=x1-x0;
+			dy=y1-y0;
+			// Too thin or NaN.
+			if (!(dx===dx) || !(Math.abs(dy)>1e-10)) {continue;}
+			// Clamp y to [0,imgheight), then clamp x so x<imgwidth.
+			l.dxy=dx/dy;
+			l.dyx=Math.abs(dx)>1e-10?dy/dx:0;
+			y0x=x0-y0*l.dxy;
+			var yhx=x0+(ih-y0)*l.dxy;
+			var xwy=y0+(iw-x0)*l.dyx;
+			if (y0<0 ) {y0=0 ;x0=y0x;}
+			if (y0>ih) {y0=ih;x0=yhx;}
+			if (y1<0 ) {y1=0 ;x1=y0x;}
+			if (y1>ih) {y1=ih;x1=yhx;}
+			if (Math.abs(y1-y0)<1e-20) {continue;}
+			if (x0>=iw && x1>=iw) {maxx=iw;continue;}
+			var fx=y0<y1?x0:x1;
+			if (x0>=iw) {x0=iw;y0=xwy;}
+			if (x1>=iw) {x1=iw;y1=xwy;}
+			// Calculate the bounding box.
 			l.minx=Math.max(Math.floor(Math.min(x0,x1)),0);
-			l.miny=Math.max(Math.floor(Math.min(y0,y1)),0);
-			l.maxy=Math.min(Math.ceil(Math.max(y0,y1)),imgheight);
-			if (/*l.minx<imgwidth && */l.miny<l.maxy && dx===dx && Math.abs(dy)>1e-10) {
-				l.dxy=dx/dy;
-				l.cxy=x0-y0*l.dxy;
-				l.dyx=Math.abs(dx)>1e-10?dy/dx:0;
-				l.cyx=y0-x0*l.dyx;
-				l.maxx=Math.min(Math.ceil(Math.max(x0,x1)),imgwidth);
-				minx=Math.min(minx,l.minx);
-				maxx=Math.max(maxx,l.maxx);
-				miny=Math.min(miny,l.miny);
-				maxy=Math.max(maxy,l.maxy);
-				continue;
+			var fy=Math.floor(Math.min(y0,y1));
+			l.maxy=Math.ceil(Math.max(y0,y1));
+			minx=Math.min(minx,l.minx);
+			maxx=Math.max(maxx,Math.max(x0,x1));
+			miny=Math.min(miny,fy);
+			maxy=Math.max(maxy,l.maxy);
+			l.maxy*=iw;
+			// Heap sort based on miny and x.
+			l.yidx=-1;
+			fx=Math.min(fx,(fy+1-l.y0)*l.dxy+l.x0);
+			l.sort=fy*iw+Math.max(Math.floor(fx),l.minx);
+			j=lcnt++;
+			lr[i]=lr[j];
+			var p,lp;
+			while (j>0 && l.sort<(lp=lr[p=(j-1)>>1]).sort) {
+				lr[j]=lp;
+				j=p;
 			}
-			// Remove the line.
-			lr[i]=lr[--ycnt];
-			lr[ycnt]=l;
-		}
-		// If all lines are outside the image, abort.
-		if (minx>=maxx || miny>=maxy) {
-			return;
-		}
-		// Sort by min y.
-		for (i=1;i<ycnt;i++) {
-			j=i;l=lr[i];tmp=l.miny;
-			while (j>0 && tmp<lr[j-1].miny) {lr[j]=lr[j-1];j--;}
 			lr[j]=l;
 		}
+		// If all lines are outside the image, abort.
+		if (minx>=iw || maxx<=0 || minx>=maxx || miny>=maxy || lcnt<=0) {
+			return;
+		}
 		// Init blending.
-		var ashift=this.rgbashift[3],amask=(255<<ashift)>>>0;
+		var ashift=this.rgbashift[3],amask=(255<<ashift)>>>0,imask=1.0/amask;
 		var maskl=(0x00ff00ff&~amask)>>>0,maskh=(0xff00ff00&~amask)>>>0;
-		var sa,da,sa0,sa1,sai;
-		var amul=this.rgba[3]/255.0;
+		var sa,da;
 		var colrgb=(this.rgba32[0]&~amask)>>>0;
 		var coll=(colrgb&0x00ff00ff)>>>0,colh=(colrgb&0xff00ff00)>>>0,colh8=colh>>>8;
-		var filllim=255;
+		var filllim=(255-0.5)/255;
 		// Process the lines row by row.
-		var ylo=0,yhi=0,y=miny,ynext=y,ny;
-		var pixrow=(imgheight-1-y)*imgwidth;
-		while (y<maxy) {
-			// Add any new lines on this row.
-			ny=y+1;
-			while (ynext<ny) {
-				l=lr[yhi++];
-				l.minr=0;
-				l.maxr=0;
-				ynext=yhi<ycnt?lr[yhi].miny:maxy;
+		var x=lr[0].sort,y;
+		var xnext=x,xrow=-1;
+		var area,areadx1,areadx2;
+		var pixels=iw*ih;
+		while (true) {
+			areadx2=0;
+			if (x>=xrow) {
+				if (xnext<x || xnext>=pixels) {break;}
+				x=xnext;
+				y=Math.floor(x/iw);
+				xrow=(y+1)*iw;
+				area=0;
+				areadx1=0;
 			}
-			// Sort by min row and remove rows we've passed.
-			for (i=ylo;i<yhi;i++) {
-				l=lr[i];j=i;
-				if (l.maxy<=y) {
-					while (j>ylo) {lr[j]=lr[j-1];j--;}
-					ylo++;
+			while (x>=xnext) {
+				// fx0  fx0+1                          fx1  fx1+1
+				//  +-----+-----+-----+-----+-----+-----+-----+
+				//  |                              .....----  |
+				//  |               .....-----'''''           |
+				//  | ....-----'''''                          |
+				//  +-----+-----+-----+-----+-----+-----+-----+
+				//   first  dyx   dyx   dyx   dyx   dyx  last   tail
+				l=lr[0];
+				if (l.yidx!==y) {
+					l.yidx=y;
+					x0=l.x0;y0=l.y0-y;
+					x1=l.x1;y1=l.y1-y;
+					var dyx=l.dyx,dxy=l.dxy;
+					var y0x=x0-y0*dxy;
+					var y1x=y0x+dxy;
+					if (y0<0) {x0=y0x;y0=0;}
+					if (y0>1) {x0=y1x;y0=1;}
+					if (y1<0) {x1=y0x;y1=0;}
+					if (y1>1) {x1=y1x;y1=1;}
+					var left=xrow+(y0>y1?x0:x1)+(dxy<0?dxy:0);
+					left=Math.max(Math.floor(left),xrow+l.minx);
+					if (left>=l.maxy) {left=Infinity;}
+					if (x1<x0) {tmp=x0;x0=x1;x1=tmp;dyx=-dyx;}
+					var fx0=Math.floor(x0);
+					var fx1=Math.floor(x1);
+					x0-=fx0;
+					x1-=fx1;
+					if (fx0===fx1 || fx1<0) {
+						// Vertical line - avoid divisions.
+						dy=(y0-y1)*amul;
+						tmp=fx1>=0?(x0+x1)*dy*0.5:0;
+						area-=dy-tmp;
+						areadx2-=tmp;
+						l.sort=left;
+					} else {
+						dyx*=amul;
+						var mul=dyx*0.5,n0=x0-1,n1=x1-1;
+						area    +=n0*n0*mul+(fx0<0?-fx0*dyx:0);
+						areadx1 +=dyx;
+						areadx2 -=x0*x0*mul;
+						l.area   =n1*n1*mul;
+						l.areadx1=dyx;
+						l.areadx2=x1*x1*mul;
+						l.next=left;
+						l.sort=fx1<iw?fx1+xrow-iw:left;
+					}
 				} else {
-					l.minr=Math.min(Math.max(Math.floor((l.dxy>0?y:ny)*l.dxy+l.cxy),l.minx),maxx);
-					l.maxr=Math.min(Math.ceil((l.dxy>0?ny:y)*l.dxy+l.cxy),l.maxx);
-					tmp=l.minr;
-					while (j>ylo && tmp<lr[j-1].minr) {lr[j]=lr[j-1];j--;}
+					area   -=l.area;
+					areadx1-=l.areadx1;
+					areadx2+=l.areadx2;
+					l.sort=l.next;
 				}
-				lr[j]=l;
+				// Heap sort down.
+				i=0;
+				while ((j=i+i+1)<lcnt) {
+					if (j+1<lcnt && lr[j+1].sort<lr[j].sort) {j++;}
+					if (lr[j].sort>=l.sort) {break;}
+					lr[i]=lr[j];
+					i=j;
+				}
+				lr[i]=l;
+				xnext=lr[0].sort;
 			}
-			// Skip any gaps of empty rows.
-			if (ylo===yhi) {
-				if (ylo>=ycnt) {break;}
-				y=ynext;
-				pixrow=y*imgwidth;
-				continue;
+			// Shade the pixels based on how much we're covering.
+			// If the area isn't changing much use the same color for multiple pixels.
+			var xdraw=x+1;
+			if (areadx2===0) {
+				tmp=Math.floor(area*255+0.5);
+				tmp=Math.min(Math.max(tmp+(areadx1<0?-0.5:0.5),0.5),254.5);
+				tmp=(tmp/255-area)/areadx1+x;
+				xdraw=(tmp>x && tmp<xnext)?Math.ceil(tmp):xnext;
+				if (xdraw>xrow) {xdraw=xrow;}
 			}
-			var xlo=ylo,xhi=ylo,x=lr[xhi].minr,xnext=x;
-			var area=0.0;
-			var pixcol,pixstop;
-			// Process the lines on this row, column by column.
-			while (x<maxx) {
-				while (xnext<=x) {
-					l=lr[xhi++];
-					l.area=0.0;
-					xnext=xhi<yhi?lr[xhi].minr:maxx;
-				}
-				for (i=xlo;i<xhi;i++) {
-					l=lr[i];
-					if (l.maxr<=x) {
-						j=i;
-						while (j>xlo) {lr[j]=lr[j-1];j--;}
-						lr[j]=l;
-						xlo++;
+			areadx2+=(xdraw-x)*areadx1;
+			if (area>=filllim) {
+				tmp=colrgb|(Math.floor(area*255+0.5)<<ashift);
+				while (x<xdraw) {imgdata[x++]=tmp;}
+			} else if (area>0.001954) {
+				// a = sa + da*(1-sa)
+				// c = (sc*sa + dc*da*(1-sa)) / a
+				var sa1=256-Math.floor(area*256+0.5);
+				while (x<xdraw) {
+					tmp=imgdata[x];
+					da=(tmp&amask)>>>0;
+					if (da===amask) {
+						sa=sa1;
+					} else {
+						da=area+da*imask*(1-area);
+						sa=256-Math.floor((area/da)*256+0.5);
+						da=Math.floor(da*255+0.5)<<ashift;
 					}
-					// Clamp the line segment to the unit square and calculate the area to the right.
-					y0=l.y0-y;
-					y1=l.y1-y;
-					x0=l.x0-x;
-					x1=l.x1-x;
-					var x0y=y0-x0*l.dyx;
-					var x1y=x0y+l.dyx;
-					var y0x=x0-y0*l.dxy;
-					var y1x=y0x+l.dxy;
-					tmp=0.0;
-					if (y0<0.0) {
-						x0=y0x;
-						y0=0.0;
-					} else if (y0>1.0) {
-						x0=y1x;
-						y0=1.0;
-					}
-					if (y1<0.0) {
-						x1=y0x;
-						y1=0.0;
-					} else if (y1>1.0) {
-						x1=y1x;
-						y1=1.0;
-					}
-					if (x0<0.0) {
-						tmp+=x0y-y0;
-						x0=0.0;
-						y0=x0y;
-					} else if (x0>1.0) {
-						x0=1.0;
-						y0=x1y;
-					}
-					if (x1<0.0) {
-						tmp+=y1-x0y;
-						x1=0.0;
-						y1=x0y;
-					} else if (x1>1.0) {
-						x1=1.0;
-						y1=x1y;
-					}
-					tmp+=(y1-y0)*(2-x0-x1)*0.5;
-					area+=tmp-l.area;
-					l.area=tmp;
-				}
-				// Shade the pixels based on how much we're covering.
-				pixcol=pixrow+x;
-				x=xlo===xhi?xnext:(x+1);
-				pixstop=pixrow+x;
-				sa0=area*amul;
-				sa1=Math.floor(sa0*255+0.5);
-				if (sa1>=filllim) {
-					tmp=colrgb|(Math.min(sa1,255)<<ashift);
-					while (pixcol<pixstop) {
-						imgdata[pixcol++]=tmp;
-					}
-				} else if (sa1>=1) {
-					sai=(1-sa0)/amask;
-					sa1=256-Math.floor(sa0*256+0.5);
-					while (pixcol<pixstop) {
-						// a = sa + da*(1-sa)
-						// c = (sc*sa + dc*da*(1-sa)) / a
-						tmp=imgdata[pixcol];
-						da=(tmp&amask)>>>0;
-						if (da===amask) {
-							sa=sa1;
-						} else {
-							da=sa0+da*sai;
-							sa=256-Math.floor((sa0/da)*256+0.5);
-							da=Math.floor(da*255+0.5)<<ashift;
-						}
-						imgdata[pixcol++]=da|
-							(((Math.imul((tmp&0x00ff00ff)-coll,sa)>>>8)+coll)&maskl)|
-							((Math.imul(((tmp>>>8)&0x00ff00ff)-colh8,sa)+colh)&maskh);
-					}
+					imgdata[x++]=da|
+						(((Math.imul((tmp&0x00ff00ff)-coll,sa)>>>8)+coll)&maskl)|
+						((Math.imul(((tmp>>>8)&0x00ff00ff)-colh8,sa)+colh)&maskh);
 				}
 			}
-			pixrow-=imgwidth;
-			y++;
+			x=xdraw;
+			area+=areadx2;
 		}
 	}
 

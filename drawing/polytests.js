@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-polytests.js - v1.03
+polytests.js - v1.06
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -26,6 +26,32 @@ TODO
 /* jshint bitwise: false */
 /* jshint eqeqeq: true   */
 /* jshint curly: true    */
+
+//---------------------------------------------------------------------------------
+// Misc
+
+
+/*
+function demoimage() {
+	var canvas=document.createElement("canvas");
+	document.body.appendChild(canvas);
+	var imgwidth=2048;
+	var imgheight=2048;
+	var imgscale=imgwidth/1000;
+	canvas.width=imgwidth;
+	canvas.height=imgheight;
+	canvas.style.position="absolute";
+	canvas.style.left="0px";
+	canvas.style.top="0px";
+	canvas.style.zIndex=99;
+	var ctx=canvas.getContext("2d");
+	ctx.font=Math.floor(32*imgscale)+"px consolas";
+	ctx.textBaseline="middle";
+	ctx.textAlign="center";
+	ctx.fillStyle="rgba(0,0,0,255)";
+	ctx.fillRect(0,0,imgwidth,imgheight);
+}
+*/
 
 
 //---------------------------------------------------------------------------------
@@ -54,7 +80,7 @@ function areaapprox(x0,y0,x1,y1,samples) {
 }
 
 
-function areacalc(x0,y0,x1,y1) {
+function areacalc1(x0,y0,x1,y1) {
 	// Calculate the area to the right of the line.
 	// If y0<y1, the area is negative.
 	if (Math.abs(y0-y1)<1e-10) {return 0;}
@@ -103,12 +129,67 @@ function areacalc(x0,y0,x1,y1) {
 }
 
 
-function areatest() {
+function areacalc2(x0,y0,x1,y1) {
+	// Calculate the area to the right of the line.
+	// If y0<y1, the area is negative.
+	var tmp;
+	var sign=1;
+	if (x0>x1) {
+		sign=-sign;
+		tmp=x0;x0=x1;x1=tmp;
+		tmp=y0;y0=y1;y1=tmp;
+	}
+	if (y0>y1) {
+		sign=-sign;
+		y0=1-y0;
+		y1=1-y1;
+	}
+	var difx=x1-x0;
+	var dify=y1-y0;
+	if (dify<1e-10 || y0>=1 || y1<=0) {return 0;}
+	var dxy=difx/dify;
+	var dyx=difx>1e-10?dify/difx:0;
+	var x0y=y0-x0*dyx;
+	var x1y=x0y+dyx;
+	// var y0x=x0-y0*dxy;
+	// var y1x=y0x+dxy;
+	tmp=0.0;
+	if (y0<0.0) {
+		x0-=y0*dxy;
+		y0=0.0;
+	}
+	if (y1>1.0) {
+		x1-=y1*dxy-dxy;
+		y1=1.0;
+	}
+	if (x0<0.0) {
+		tmp+=y0-x0y;
+		x0=0.0;
+		y0=x0y;
+	} else if (x0>1.0) {
+		x0=1.0;
+		y0=x1y;
+	}
+	if (x1<0.0) {
+		tmp+=x0y-y1;
+		x1=0.0;
+		y1=x0y;
+	} else if (x1>1.0) {
+		x1=1.0;
+		y1=x1y;
+	}
+	tmp+=(y0-y1)*(2-x0-x1)*0.5;
+	return tmp*sign;
+}
+
+
+function areatest1() {
 	// See if the area approximation matches the exact calculation.
 	var samples=1<<16;
 	var errlim=2/samples;
 	var tests=10000;
-	var maxdif=0;
+	var maxdif1=0,maxdif2=0;
+	var dif,areac;
 	for (var test=0;test<tests;test++) {
 		var x0=Math.random()*10-5;
 		var y0=Math.random()*10-5;
@@ -117,12 +198,208 @@ function areatest() {
 		if (test&256) {x1=x0;}
 		if (test&512) {y1=y0;}
 		var areaa=areaapprox(x0,y0,x1,y1,samples);
-		var areac=areacalc(x0,y0,x1,y1);
-		var dif=Math.abs(areaa-areac);
-		if (maxdif<dif || !(dif===dif)) {maxdif=dif;}
+		areac=areacalc1(x0,y0,x1,y1);
+		dif=Math.abs(areaa-areac);
+		if (maxdif1<dif || !(dif===dif)) {maxdif1=dif;}
+		areac=areacalc2(x0,y0,x1,y1);
+		dif=Math.abs(areaa-areac);
+		if (maxdif2<dif || !(dif===dif)) {maxdif2=dif;}
+	}
+	console.log("max dif 1: "+maxdif1);
+	console.log("max dif 2: "+maxdif2);
+	console.log("exp dif  : "+errlim);
+}
+
+
+//---------------------------------------------------------------------------------
+// Test 2 - Area Segments
+
+
+function getrowlines(x0,y0,x1,y1,rowlines,idx,amul) {
+	//
+	//     fx0  fx0+1                          fx1  fx1+1
+	//      +-----+-----+-----+-----+-----+-----+-----+
+	//      |                              .....----  |
+	//      |               .....-----'''''           |
+	//      | ....-----'''''                          |
+	//      +-----+-----+-----+-----+-----+-----+-----+
+	//       first  dyx   dyx   dyx   dyx   dyx  last   tail
+	//
+	var r,rl=rowlines;
+	/*if (x0>x1) {
+		var tmp;
+		amul=-amul;
+		tmp=x0;x0=x1;x1=tmp;
+		tmp=y0;y0=y1;y1=tmp;
+	}*/
+	var difx=x1-x0;
+	var dify=y1-y0;
+	if (Math.abs(dify)<1e-10 || (y0>=1 && y1>=1) || (y0<=0 && y1<=0)) {return idx;}
+	if (Math.abs(difx)<1e-10) {x1=x0;difx=0;}
+	var dxy=difx/dify;
+	var y0x=x0-y0*dxy;
+	var y1x=y0x+dxy;
+	if (y0<0) {y0=0;x0=y0x;}
+	if (y0>1) {y0=1;x0=y1x;}
+	if (y1<0) {y1=0;x1=y0x;}
+	if (y1>1) {y1=1;x1=y1x;}
+	var fx0=Math.floor(x0);
+	var fx1=Math.floor(x1);
+	x0-=fx0;
+	x1-=fx1;
+	if (fx0===fx1) {
+		// Vertical line - avoid divisions.
+		var dy=(y0-y1)*amul,c=(2-x0-x1)*dy*0.5;
+		r=rl[idx++]; r[0]=fx0  ; r[1]=0; r[2]=c;
+		r=rl[idx++]; r[0]=fx1+1; r[1]=0; r[2]=dy-c;
+	} else {
+		var dyx=(dify/difx)*amul;
+		var mul=dyx*0.5,n0=x0-1,n1=x1-1;
+		r=rl[idx++]; r[0]=fx0  ; r[1]=   0; r[2]=-n0*n0*mul;
+		r=rl[idx++]; r[0]=fx0+1; r[1]=-dyx; r[2]= x0*x0*mul;
+		r=rl[idx++]; r[0]=fx1  ; r[1]=   0; r[2]= n1*n1*mul;
+		r=rl[idx++]; r[0]=fx1+1; r[1]= dyx; r[2]=-x1*x1*mul;
+		//if (fx0+1>fx1) {throw "unsorted";}
+	}
+	return idx;
+}
+
+
+function areatest2() {
+	// See if the area approximation matches the exact calculation.
+	var rnd=new Random(1);
+	var amul=0.7117;
+	var tests=100000;
+	var maxdif=0;
+	var swaps=0;
+	for (var test=0;test<tests;test++) {
+		var minx=Infinity,maxx=-Infinity;
+		var miny=Infinity,maxy=-Infinity;
+		var lines=rnd.modu32(5);
+		var linearr=[];
+		for (var i=0;i<lines;i++) {
+			var x0=rnd.getf64()*200-50;
+			var y0=rnd.getf64()*200-50;
+			var x1=rnd.getf64()*200-50;
+			var y1=rnd.getf64()*200-50;
+			if (rnd.getf64()<0.25) {x0=Math.floor(x0);}
+			if (rnd.getf64()<0.25) {y0=Math.floor(y0);}
+			if (rnd.getf64()<0.25) {x1=x0;}
+			if (rnd.getf64()<0.25) {y1=y0;}
+			minx=Math.floor(Math.min(minx,Math.min(x0,x1)))-2;
+			maxx=Math.ceil( Math.max(maxx,Math.max(x0,x1)))+2;
+			miny=Math.floor(Math.min(miny,Math.min(y0,y1)))-2;
+			maxy=Math.ceil( Math.max(maxy,Math.max(y0,y1)))+2;
+			linearr[i]={x0:x0,y0:y0,x1:x1,y1:y1};
+		}
+		var rowarr=new Array(lines*4);
+		for (var i=0;i<rowarr.length;i++) {rowarr[i]=[0,0,0];}
+		for (var cy=miny;cy<maxy;cy++) {
+			var rowlines=0;
+			for (var i=0;i<lines;i++) {
+				var l=linearr[i];
+				rowlines=getrowlines(l.x0,l.y0-cy,l.x1,l.y1-cy,rowarr,rowlines,amul);
+			}
+			for (var i=1;i<rowlines;i++) {
+				var j=i,r=rowarr[j];
+				while (j>0 && r[0]<rowarr[j-1][0]) {
+					swaps++;
+					rowarr[j]=rowarr[j-1];
+					j--;
+				}
+				rowarr[j]=r;
+			}
+			var area=0,arearate=0;
+			var ridx=0,nextx=ridx<rowlines?rowarr[ridx][0]:Infinity;
+			var cx=minx+Math.floor(rnd.getf64()*(maxx-minx));
+			for (;cx<maxx;cx++) {
+				while (cx>=nextx) {
+					var r=rowarr[ridx++];
+					area+=r[1]*(cx-nextx)+r[2];
+					arearate+=r[1];
+					nextx=ridx<rowlines?rowarr[ridx][0]:Infinity;
+				}
+				area+=arearate;
+				var areac=0.0;
+				for (var i=0;i<lines;i++) {
+					var l=linearr[i];
+					areac+=areacalc1(l.x0-cx,l.y0-cy,l.x1-cx,l.y1-cy)*amul;
+				}
+				var dif=Math.abs(areac-area);
+				if (maxdif<dif || !(dif===dif)) {
+					// console.log(dif);
+					maxdif=dif;
+				}
+			}
+		}
 	}
 	console.log("max dif: "+maxdif);
-	console.log("exp dif: "+errlim);
+	console.log("swap: "+swaps);
+}
+
+
+//---------------------------------------------------------------------------------
+// Stride Test
+// Calculate how many pixels can be filled with the same color.
+
+
+function stridecalc1(x,xnext,area,areadx1,areadx2) {
+	var base=Math.floor(area*255+0.5);
+	base=Math.min(Math.max(base,0),255);
+	while (x<xnext) {
+		x++;
+		area+=areadx1+areadx2;
+		areadx2=0;
+		var tmp=Math.floor(area*255+0.5);
+		tmp=Math.min(Math.max(tmp,0),255);
+		if (base!==tmp) {break;}
+	}
+	return x;
+}
+
+
+function stridecalc2(x,xnext,area,areadx1,areadx2) {
+	var xdraw=x+1,tmp;
+	if (areadx2===0) {
+		tmp=Math.floor(area*255+0.5);
+		tmp=Math.min(Math.max(tmp+(areadx1<0?-0.5:0.5),0.5),254.5);
+		tmp=(tmp/255-area)/areadx1+x;
+		xdraw=(tmp>x && tmp<xnext)?Math.ceil(tmp):xnext;
+	}
+	return xdraw;
+}
+
+
+function stridetest() {
+	console.log("testing stride calculation");
+	var rnd=new Random();
+	var tests=100000;
+	var tmp;
+	for (var test=0;test<tests;test++) {
+		var x=rnd.modu32(200)+100;
+		var xnext=x+rnd.modu32(100);
+		var area=rnd.getf64()*4-2;
+		tmp=rnd.modu32(31);
+		tmp=tmp>16?0:(1/(1<<tmp));
+		var areadx1=(rnd.getf64()*4-2)*tmp;
+		//tmp=rnd.modu32(31);
+		//tmp=tmp>16?0:(1/(1<<tmp));
+		//var areadx2=(rnd.getf64()*4-2)*tmp;
+		var areadx2=0;
+		var stride1=stridecalc1(x,xnext,area,areadx1,areadx2);
+		var stride2=stridecalc2(x,xnext,area,areadx1,areadx2);
+		if (stride1!==stride2) {
+			console.log("bad stride: "+test);
+			console.log(stride1+" != "+stride2);
+			console.log("x    = "+x);
+			console.log("next = "+xnext);
+			console.log("area = "+area);
+			console.log("dx1  = "+areadx1);
+			console.log("dx2  = "+areadx2);
+			return;
+		}
+	}
+	console.log("passed");
 }
 
 
@@ -130,7 +407,7 @@ function areatest() {
 // Test 2 - Fast Pixel Blending
 
 
-function blendtest() {
+function blendtest1() {
 	// expects alpha in [0,256], NOT [0,256).
 	var samples=20000000*2;
 	var arr0=new Uint32Array(samples);
@@ -565,590 +842,282 @@ function beziertest() {
 
 
 //---------------------------------------------------------------------------------
-// Test 3 - Linear Ellipse Approximation
+// Test 3 - Line Sorting
 
 
-function circumtest() {
-	var xrad=3000,yrad=3001;
-	var segs=10000;
-	var distarr=new Float64Array(segs);
-	var arc=2*Math.PI/segs;
-	for (var s=0;s<segs;s++) {
-		var a=s*arc;
-		var b=a+arc;
-		var xdif=(Math.cos(a)-Math.cos(b))*xrad;
-		var ydif=(Math.sin(a)-Math.sin(b))*yrad;
-		distarr[s]=Math.sqrt(xdif*xdif+ydif*ydif);
+function sortfunc0(arr,start,stop,field) {
+	var len=stop-start,i,tmp;
+	if (sortfunc0.sortval===undefined || sortfunc0.sortval.length<stop) {
+		sortfunc0.sortval=new Float64Array(stop*2);
+		sortfunc0.sortobj=new Array(stop*2);
+		sortfunc0.dstval=new Float64Array(stop*2);
 	}
-	var sumlen=segs;
-	while (sumlen>1) {
-		for (var i=0,j=0;i<sumlen;i+=2,j++) {
-			distarr[j]=distarr[i]+(i+1<sumlen?distarr[i+1]:0);
+	var sortval=sortfunc0.sortval;
+	for (i=start;i<stop;i++) {
+		sortval[i]=arr[i][field];
+	}
+	var sortobj=arr;
+	var dstval=sortfunc0.dstval;
+	var dstobj=sortfunc0.sortobj;
+	for (var half=1;half<len;half+=half) {
+		var hstop=stop-half;
+		for (i=start;i<stop;) {
+			var i0=i ,i1=i <hstop?i +half:stop;
+			var j0=i1,j1=i1<hstop?i1+half:stop;
+			while (i0<i1 && j0<j1) {
+				if (sortval[i0]<=sortval[j0]) {
+					dstval[i]=sortval[i0  ];
+					dstobj[i]=sortobj[i0++];
+				} else {
+					dstval[i]=sortval[j0  ];
+					dstobj[i]=sortobj[j0++];
+				}
+				i++;
+			}
+			while (i0<i1) {
+				dstval[i  ]=sortval[i0  ];
+				dstobj[i++]=sortobj[i0++];
+			}
+			while (j0<j1) {
+				dstval[i  ]=sortval[j0  ];
+				dstobj[i++]=sortobj[j0++];
+			}
 		}
-		sumlen=j;
+		tmp=sortval;sortval=dstval;dstval=tmp;
+		tmp=sortobj;sortobj=dstobj;dstobj=tmp;
 	}
-	console.log(distarr[0],Math.sqrt(xrad*xrad+yrad*yrad)*Math.sqrt(2)*Math.PI);
-	var xtmp=xrad+1e-20;// Math.abs(xrad*scalex*viewmul)+1e-10;
-	var ytmp=yrad+1e-20;// Math.abs(yrad*scaley*viewmul)+1e-10;
-	var d=xtmp+ytmp,h=(xtmp-ytmp)/d;h*=h;
-	var mul=Math.PI/256;
-	var circ=(d*(256+h*(64+h*(4+h)))*mul);
-	console.log(circ);
+	if (!Object.is(sortobj,arr)) {
+		for (i=start;i<stop;i++) {arr[i]=sortobj[i];}
+	}
 }
 
 
-function ellipseaccurate(imgdata,imgwidth,imgheight,x,y,xrad,yrad) {
-	//
-	//  x^2      y^2
-	// ------ + ------ = 1
-	// xrad^2   yrad^2
-	//
-	var xrad2=xrad*xrad,yrad2=yrad*yrad,xyrad2=xrad2*yrad2;
-	var imgpos=0;
-	for (var iy=0;iy<imgheight;iy++) {
-		for (var ix=0;ix<imgwidth;ix++) {
-			var cx=x-ix;
-			var cy=y-iy;
-			// If the closest point in the unit square is outside the ellipse, we know the
-			// area=0.
-			var dx=(Math.min(Math.max(cx,0),1)-cx)*yrad;
-			var dy=(Math.min(Math.max(cy,0),1)-cy)*xrad;
-			if (dx*dx+dy*dy>=xyrad2) {
-				imgdata[imgpos++]=0;
-				continue;
-			}
-			// If the farthest point is in the ellipse, area=1.
-			dx=((cx>0.5?0:1)-cx)*yrad;
-			dy=((cy>0.5?0:1)-cy)*xrad;
-			if (dx*dx+dy*dy<=xyrad2) {
-				imgdata[imgpos++]=1;
-				continue;
-			}
-			// The unit square is straddling the edge.
-			// The piecewise integral is a pain, so estimate it.
-			var area=0;
-			var samples=1<<16;
-			var norm=1/(2*samples);
-			var pdif=-1;
-			for (var s=0;s<=samples;s++) {
-				var lx=s/samples-cx;
-				if (lx>-xrad && lx<xrad) {
-					var ly=Math.sqrt(1-lx*lx/xrad2)*yrad;
-					var y0=Math.min(Math.max(cy-ly,0),1);
-					var y1=Math.min(Math.max(cy+ly,0),1);
-					y1-=y0;
-					if (pdif>-1) {area+=(pdif+y1)*norm;}
-					pdif=y1;
+function sortfunc1(arr,start,stop,field) {
+	var len=stop-start,i,tmp;
+	if (sortfunc1.sortobj===undefined || sortfunc1.sortobj.length<len) {
+		sortfunc1.sortobj=new Array(len*2);
+		sortfunc1.dstobj =new Array(len*2);
+	}
+	var sortobj=sortfunc1.sortobj;
+	var dstobj=sortfunc1.dstobj;
+	for (i=0;i<len;i++) {sortobj[i]=arr[i+start];}
+	for (var half=1;half<len;half+=half) {
+		var hlen=len-half;
+		for (i=0;i<len;) {
+			var i0=i ,i1=i <hlen?i +half:len;
+			var j0=i1,j1=i1<hlen?i1+half:len;
+			while (i0<i1 && j0<j1) {
+				if (sortobj[i0][field]<=sortobj[j0][field]) {
+					dstobj[i++]=sortobj[i0++];
+				} else {
+					dstobj[i++]=sortobj[j0++];
 				}
 			}
-			area=Math.min(Math.max(area,0),1);
-			imgdata[imgpos++]=area;
+			while (i0<i1) {dstobj[i++]=sortobj[i0++];}
+			while (j0<j1) {dstobj[i++]=sortobj[j0++];}
 		}
+		tmp=sortobj;sortobj=dstobj;dstobj=tmp;
+	}
+	for (i=0;i<len;i++) {
+		arr[start+i]=sortobj[i];
 	}
 }
 
 
-function ellipselinear(imgdata,imgwidth,imgheight,cx,cy,xrad,yrad,segs) {
-	// fillpoly() modified to write the area to an array.
-	imgdata.fill(0.0);
-	var lr=[];
-	var minx=imgwidth,maxx=0,miny=imgheight,maxy=0,ycnt=0;
-	var x0,y0,x1,y1;
-	var l,i,j,tmp;
-	for (i=0;i<segs;i++) {
-		// Get the line points and transform() them.
-		// If we mirror the image, we need to flip the line direction.
-		var a=(i/segs)*6.283185307;
-		var b=(((i+1)%segs)/segs)*6.283185307;
-		x0=Math.cos(a)*xrad+cx;
-		y0=Math.sin(a)*yrad+cy;
-		x1=Math.cos(b)*xrad+cx;
-		y1=Math.sin(b)*yrad+cy;
-		var dx=x1-x0;
-		var dy=y1-y0;
-		l=lr[ycnt];
-		if (l===undefined) {lr[ycnt]=l={};}
-		l.miny=Math.max(Math.floor(Math.min(y0,y1)),0);
-		l.maxy=Math.min(Math.ceil(Math.max(y0,y1)),imgheight);
-		if (Math.abs(dy)>1e-10 && l.miny<l.maxy && !isNaN(dx)) {
-			l.minx=Math.max(Math.floor(Math.min(x0,x1)),0);
-			l.maxx=Math.min(Math.ceil(Math.max(x0,x1)),imgwidth);
-			if (l.minx<imgwidth) {
-				l.x0=x0;
-				l.y0=y0;
-				l.x1=x1;
-				l.y1=y1;
-				l.dxy=dx/dy;
-				l.cxy=x0-y0*l.dxy;
-				l.dyx=dy/dx;
-				l.cyx=y0-x0*l.dyx;
-				l.minr=0;
-				l.maxr=0;
-				ycnt++;
-				miny=Math.min(miny,l.miny);
-				maxy=Math.max(maxy,l.maxy);
-			}
-			minx=Math.min(minx,l.minx);
-			maxx=Math.max(maxx,l.maxx);
-		}
+function sortfunc2(arr,start,stop,field) {
+	var len=stop-start,i,tmp;
+	if (sortfunc2.sortobj===undefined || sortfunc2.sortobj.length<len) {
+		sortfunc2.sortobj=new Array(len*2);
+		sortfunc2.dstobj =new Array(len*2);
 	}
-	// If all lines are outside the image, abort.
-	if (minx>=maxx || miny>=maxy) {
+	var sortobj=sortfunc2.sortobj;
+	var dstobj=sortfunc2.dstobj;
+	for (i=0;i<len;i++) {sortobj[i]=arr[i+start];}
+	for (var half=1;half<len;half+=half) {
+		var hlen=len-half;
+		for (i=0;i<len;) {
+			var i0=i ,i1=i <hlen?i +half:len;
+			var j0=i1,j1=i1<hlen?i1+half:len;
+			if (i0<i1 && j0<j1) {
+				var iv=sortobj[i0][field];
+				var jv=sortobj[j0][field];
+				while (1) {
+					if (iv<=jv) {
+						dstobj[i++]=sortobj[i0++];
+						if (i0>=i1) {break;}
+						iv=sortobj[i0][field];
+					} else {
+						dstobj[i++]=sortobj[j0++];
+						if (j0>=j1) {break;}
+						jv=sortobj[j0][field];
+					}
+				}
+			}
+			while (i0<i1) {dstobj[i++]=sortobj[i0++];}
+			while (j0<j1) {dstobj[i++]=sortobj[j0++];}
+		}
+		tmp=sortobj;sortobj=dstobj;dstobj=tmp;
+	}
+	for (i=0;i<len;i++) {
+		arr[start+i]=sortobj[i];
+	}
+}
+
+
+function sortfunc3(arr,start,stop,field) {
+	var len=stop-start,arr0=arr,i,tmp;
+	if (sortfunc3.sortobj===undefined || sortfunc3.sortobj.length<stop) {
+		sortfunc3.sortobj=new Array(stop*2);
+	}
+	var dst=sortfunc3.sortobj;
+	for (var half=1;half<len;half+=half) {
+		var hstop=stop-half;
+		for (i=start;i<stop;) {
+			var i0=i ,i1=i <hstop?i +half:stop;
+			var j0=i1,j1=i1<hstop?i1+half:stop;
+			if (i0<i1 && j0<j1) {
+				var iv=arr[i0][field];
+				var jv=arr[j0][field];
+				while (1) {
+					if (iv<=jv) {
+						dst[i++]=arr[i0++];
+						if (i0>=i1) {break;}
+						iv=arr[i0][field];
+					} else {
+						dst[i++]=arr[j0++];
+						if (j0>=j1) {break;}
+						jv=arr[j0][field];
+					}
+				}
+			}
+			while (i0<i1) {dst[i++]=arr[i0++];}
+			while (j0<j1) {dst[i++]=arr[j0++];}
+		}
+		tmp=dst;dst=arr;arr=tmp;
+	}
+	if (!Object.is(arr0,arr)) {
+		for (i=start;i<stop;i++) {arr0[i]=arr[i];}
+	}
+}
+
+
+function sortfunc4(arr,start,stop,field) {
+	var len=stop-start,i;
+	if (len<33) {
+		for (i=start+1;i<stop;i++) {
+			var j=i,obj=arr[i],val=obj[field];
+			while (j>start && val<arr[j-1][field]) {
+				arr[j]=arr[j-1];
+				j--;
+			}
+			arr[j]=obj;
+		}
 		return;
 	}
-	// Sort by min y.
-	for (i=1;i<ycnt;i++) {
-		j=i;l=lr[i];tmp=l.miny;
-		while (j>0 && tmp<lr[j-1].miny) {lr[j]=lr[j-1];j--;}
-		lr[j]=l;
+	if (sortfunc4.sortobj===undefined || sortfunc4.sortobj.length<stop) {
+		sortfunc4.sortobj=new Array(stop*2);
 	}
-	// Process the lines row by row.
-	var ylo=0,yhi=0,y=miny,ynext=y,ny;
-	var pixrow=y*imgwidth;
-	while (y<maxy) {
-		// Add any new lines on this row.
-		ny=y+1;
-		while (ynext<ny) {
-			l=lr[yhi++];
-			ynext=yhi<ycnt?lr[yhi].miny:maxy;
-		}
-		// Sort by min row and remove rows we've passed.
-		for (i=ylo;i<yhi;i++) {
-			l=lr[i];j=i;
-			if (l.maxy<=y) {
-				while (j>ylo) {lr[j]=lr[j-1];j--;}
-				ylo++;
-			} else {
-				l.minr=Math.min(Math.max(Math.floor((l.dxy>0?y:ny)*l.dxy+l.cxy),l.minx),maxx);
-				l.maxr=Math.min(Math.ceil((l.dxy>0?ny:y)*l.dxy+l.cxy),l.maxx);
-				tmp=l.minr;
-				while (j>ylo && tmp<lr[j-1].minr) {lr[j]=lr[j-1];j--;}
-			}
-			lr[j]=l;
-		}
-		// Skip any gaps of empty rows.
-		if (ylo===yhi) {
-			if (ylo>=ycnt) {break;}
-			y=ynext;
-			pixrow=y*imgwidth;
-			continue;
-		}
-		var xlo=ylo,xhi=ylo,x=lr[xhi].minr,xnext=x;
-		var area=0.0;
-		var pixcol,pixstop;
-		// Process the lines on this row, column by column.
-		while (x<maxx) {
-			while (xnext<=x) {
-				l=lr[xhi++];
-				l.area=0.0;
-				xnext=xhi<yhi?lr[xhi].minr:maxx;
-			}
-			for (i=xlo;i<xhi;i++) {
-				l=lr[i];
-				if (l.maxr<=x) {
-					j=i;
-					while (j>xlo) {lr[j]=lr[j-1];j--;}
-					lr[j]=l;
-					xlo++;
-				}
-				// Clamp the line segment to the unit square.
-				y0=l.y0-y;
-				y1=l.y1-y;
-				x0=l.x0-x;
-				x1=l.x1-x;
-				var x0y=y0-x0*l.dyx;
-				var x1y=x0y+l.dyx;
-				var y0x=x0-y0*l.dxy;
-				var y1x=y0x+l.dxy;
-				tmp=0.0;
-				if (y0<0.0) {
-					x0=y0x;
-					y0=0.0;
-				} else if (y0>1.0) {
-					x0=y1x;
-					y0=1.0;
-				}
-				if (y1<0.0) {
-					x1=y0x;
-					y1=0.0;
-				} else if (y1>1.0) {
-					x1=y1x;
-					y1=1.0;
-				}
-				if (x0<0.0) {
-					tmp+=y0-x0y;
-					x0=0.0;
-					y0=x0y;
-				} else if (x0>1.0) {
-					x0=1.0;
-					y0=x1y;
-				}
-				if (x1<0.0) {
-					tmp+=x0y-y1;
-					x1=0.0;
-					y1=x0y;
-				} else if (x1>1.0) {
-					x1=1.0;
-					y1=x1y;
-				}
-				tmp+=(y0-y1)*(2-x0-x1)*0.5;
-				area+=tmp-l.area;
-				l.area=tmp;
-			}
-			// Shade the pixels based on how much we're covering.
-			pixcol=pixrow+x;
-			x=xlo===xhi?xnext:(x+1);
-			pixstop=pixrow+x;
-			if (area>1e-5) {
-				tmp=Math.min(Math.max(area,0),1);
-				while (pixcol<pixstop) {
-					imgdata[pixcol++]=tmp;
+	var dst=sortfunc4.sortobj,arr0=arr,tmp;
+	for (var half=1;half<len;half+=half) {
+		var hstop=stop-half;
+		for (i=start;i<stop;) {
+			var i0=i ,i1=i <hstop?i +half:stop;
+			var j0=i1,j1=i1<hstop?i1+half:stop;
+			if (i0<i1 && j0<j1) {
+				var io=arr[i0],iv=io[field];
+				var jo=arr[j0],jv=jo[field];
+				while (1) {
+					if (iv<=jv) {
+						dst[i++]=io;
+						if (++i0>=i1) {break;}
+						io=arr[i0];iv=io[field];
+					} else {
+						dst[i++]=jo;
+						if (++j0>=j1) {break;}
+						jo=arr[j0];jv=jo[field];
+					}
 				}
 			}
-
+			while (i0<i1) {dst[i++]=arr[i0++];}
+			while (j0<j1) {dst[i++]=arr[j0++];}
 		}
-		pixrow+=imgwidth;
-		y++;
+		tmp=dst;dst=arr;arr=tmp;
+	}
+	if (!Object.is(arr0,arr)) {
+		for (i=start;i<stop;i++) {arr0[i]=arr[i];}
 	}
 }
 
 
-function circumcalc(xrad,yrad) {
-	var d=xrad+yrad,h=(xrad-yrad)/d;
-	h*=h;
-	var circ=d*(256+h*(64+h*(4+h)))*(Math.PI/256);
-	return circ;
-}
-
-
-function ellipsegenerate0() {
-	// Generate data.
-	var imgwidth=1000;
-	var imgheight=1000;
-	var pixels=imgwidth*imgheight;
-	var distacc=new Float64Array(pixels);
-	var distlin=new Float64Array(pixels);
-	var cx=Math.floor(imgwidth/2);
-	var cy=Math.floor(imgheight/2);
-	var radlimit=Math.floor(Math.min(imgwidth/2,imgheight/2)-2);
-	var radbits=Math.log(radlimit)/Math.log(2);
-	var tests=2000;
-	var errlim=0.25;
-	var data="";
-	for (var test=0;test<tests;test++) {
-		var cxrad,cyrad;
-		if (test&1) {cxrad=Math.pow(2,Math.random()*radbits);}
-		else        {cxrad=Math.random()*radlimit;}
-		if (test&2) {cyrad=Math.pow(2,Math.random()*radbits);}
-		else        {cyrad=Math.random()*radlimit;}
-		ellipseaccurate(distacc,imgwidth,imgheight,cx,cy,cxrad,cyrad);
-		var segs=4;
-		var firstseg=Infinity;
-		// Due to lines aligning with pixels, the maximum error can rise even though the
-		// number of segments is going up. Verify the next 8 higher segment counts are
-		// below the error limit to avoid false positives.
-		while (segs<1000 && segs<firstseg+9) {
-			ellipselinear(distlin,imgwidth,imgheight,cx,cy,cxrad,cyrad,segs);
-			var maxdif=0.0;
-			for (var i=0;i<pixels;i++) {
-				var a=distacc[i],b=distlin[i];
-				var dif=Math.abs(a-b);
-				if (maxdif<dif) {
-					maxdif=dif;
-					if (maxdif>=errlim) {break;}
+function sortfunc5(arr,start,stop,field) {
+	var half=16;
+	for (var i=start;i<stop;) {
+		var i0=i,i1=i+half;i1=i1<stop?i1:stop;
+		while (++i<i1) {
+			var j=i,obj=arr[i],val=obj[field];
+			while (j>i0 && val<arr[j-1][field]) {
+				arr[j]=arr[j-1];
+				j--;
+			}
+			arr[j]=obj;
+		}
+	}
+	var len=stop-start;
+	if (len<=16) {return;}
+	if (sortfunc5.sortobj===undefined || sortfunc5.sortobj.length<stop) {
+		sortfunc5.sortobj=new Array(stop*2);
+	}
+	var dst=sortfunc5.sortobj,arr0=arr,tmp;
+	for (;half<len;half+=half) {
+		var hstop=stop-half;
+		for (i=start;i<stop;) {
+			var i0=i ,i1=i <hstop?i +half:stop;
+			var j0=i1,j1=i1<hstop?i1+half:stop;
+			if (i0<i1 && j0<j1) {
+				var io=arr[i0],iv=io[field];
+				var jo=arr[j0],jv=jo[field];
+				while (1) {
+					if (iv<=jv) {
+						dst[i++]=io;
+						if (++i0>=i1) {break;}
+						io=arr[i0];iv=io[field];
+					} else {
+						dst[i++]=jo;
+						if (++j0>=j1) {break;}
+						jo=arr[j0];jv=jo[field];
+					}
 				}
 			}
-			if (maxdif>=errlim) {
-				firstseg=Infinity;
-			} else if (firstseg>segs) {
-				firstseg=segs;
-			}
-			segs+=1;
+			while (i0<i1) {dst[i++]=arr[i0++];}
+			while (j0<j1) {dst[i++]=arr[j0++];}
 		}
-		segs=firstseg;
-		var out="["+cxrad.toFixed(6)+","+cyrad.toFixed(6)+","+segs+"],";
-		data+=out+"<br>";
-		console.log(test+" -- "+out);
+		tmp=dst;dst=arr;arr=tmp;
 	}
-	document.write("<p>var ellipsedata=[<br>"+data+"];</p>");
-	/*var canvas=document.getElementById("polydemo3");
-	var imgwidth=500;
-	var imgheight=500;
-	canvas.width=imgwidth;
-	canvas.height=imgheight;
-	var pixels=imgwidth*imgheight;
-	var distacc=new Float64Array(pixels);
-	var distlin=new Float64Array(pixels);
-	var cx=Math.floor(imgwidth/2);
-	var cy=Math.floor(imgheight/2);
-	var cxrad=100;
-	var cyrad=100;
-	ellipseaccurate(distacc,imgwidth,imgheight,cx,cy,cxrad,cyrad);
-	ellipselinear(distlin,imgwidth,imgheight,cx,cy,cxrad,cyrad,11);
-	var ctx=canvas.getContext("2d");
-	var backbuf=ctx.createImageData(canvas.width,canvas.height);
-	var data8=backbuf.data,pix=0;
-	for (var i=0;i<pixels;i++) {
-		var area=Math.abs(distacc[i]-distlin[i]);
-		area=Math.min(Math.max(Math.floor(area*256),0),255);
-		data8[pix++]=area;
-		data8[pix++]=area;
-		data8[pix++]=area;
-		data8[pix++]=255;
+	if (!Object.is(arr0,arr)) {
+		for (i=start;i<stop;i++) {arr0[i]=arr[i];}
 	}
-	ctx.putImageData(backbuf,0,0);*/
 }
 
 
-function ellipsegraph0() {
-	var canvas=document.createElement("canvas");
-	document.body.appendChild(canvas);
-	var imgwidth=2048;
-	var imgheight=2048;
-	var imgscale=imgwidth/1000;
-	canvas.width=imgwidth;
-	canvas.height=imgheight;
-	canvas.style.position="absolute";
-	canvas.style.left="0px";
-	canvas.style.top="0px";
-	canvas.style.zIndex=99;
-	var ctx=canvas.getContext("2d");
-	ctx.font=Math.floor(32*imgscale)+"px consolas";
-	ctx.textBaseline="middle";
-	ctx.textAlign="center";
-	ctx.fillStyle="rgba(0,0,0,255)";
-	ctx.fillRect(0,0,imgwidth,imgheight);
-	var circles=3;
-	var rad=imgwidth/12;
-	for (var i=0;i<circles;i++) {
-		var cx=imgwidth*((i+1)/(circles+1));
-		var cy=rad*2.0;
-		ctx.fillStyle="rgba(255,255,255,255)";
-		ctx.beginPath();
-		ctx.arc(cx,cy,rad,0,2*Math.PI);
-		ctx.fill();
-		var segs=[4,12,36][i];
-		var txt=""+segs;
-		ctx.fillText(txt,cx,(cy-rad)/1.5);
-		ctx.fillStyle="rgba(0,0,255,255)";
-		ctx.beginPath();
-		for (var s=0;s<segs;s++) {
-			var ang=Math.PI*2*s/segs;
-			ctx.lineTo(Math.cos(ang)*rad+cx,Math.sin(ang)*rad+cy);
-		}
-		ctx.closePath();
-		ctx.fill();
-	}
-	var rect={x:imgwidth/14,y:rad*4,w:imgwidth*12/14,h:rad*5};
-	ctx.strokeStyle="rgba(255,255,255,255)";
-	ctx.lineWidth=2*imgscale;
-	ctx.beginPath();
-	ctx.moveTo(rect.x,rect.y);
-	ctx.lineTo(rect.x,rect.y+rect.h);
-	ctx.lineTo(rect.x+rect.w,rect.y+rect.h);
-	ctx.stroke();
-	var data=ellipsedata;
-	var datalen=data.length;
-	ctx.fillStyle="rgba(255,0,0,255)";
-	var minx=0,maxx=0,miny=0,maxy=0;
-	for (var d=0;d<datalen;d++) {
-		var xr=data[d][0],yr=data[d][1],y=data[d][2];
-		// var h=(xr-yr)/(xr+yr);h*=h;
-		// var x=(xr+yr)*(1+h/4+h*h/64+h*h*h/256+h*h*h*h*25/16384);
-		// var x;
-		// if (xr*3<yr || yr*3<xr) {x=Math.max(xr,yr);}
-		// else {x=Math.sqrt(xr*xr+yr*yr);}
-		var x=Math.sqrt(xr*xr+yr*yr);
-		// var x=Math.sqrt(xr*yr);
-		// var x=Math.max(xr,yr);
-		// var x=xr+yr;
-		// var x=Math.min(xr,yr);
-		data[d][0]=x;
-		minx=Math.min(minx,x);
-		maxx=Math.max(maxx,x);
-		miny=Math.min(miny,y);
-		maxy=Math.max(maxy,y);
-	}
-	var mulx=rect.w/(maxx-minx),muly=rect.h/(maxy-miny);
-	for (var d=0;d<datalen;d++) {
-		var x=data[d][0],y=data[d][2];
-		x=(x-minx)*mulx+rect.x;
-		y=(rect.h-(y-miny)*muly)+rect.y;
-		ctx.beginPath();
-		ctx.arc(x,y,2*imgscale,0,Math.PI*2);
-		ctx.fill();
-	}
-	var amul=0,acon=0.0,aarea=Infinity;
-	for (var testmul=0.1;testmul<20;testmul+=0.01) {
-		var testcon=0;
-		for (var d=0;d<datalen;d++) {
-			var x=data[d][0],y=data[d][2];
-			var y0=Math.sqrt(x)*testmul;
-			if (testcon+y0<y) {
-				testcon=y-y0;
+function sorttest() {
+	var funcs=[sortfunc0,sortfunc1,sortfunc2,sortfunc3,sortfunc4,sortfunc5];
+	for (var b=0;b<14;b++) {
+		var len=1<<b;
+		var arr=new Array(len);
+		for (var i=0;i<len;i++) {arr[i]={val:0,idx:i};}
+		var trials=Math.floor(1000000/len);
+		var line=b+": ",t0;
+		for (var f=0;f<funcs.length;f++) {
+			const sort=funcs[f];
+			t0=performance.now();
+			for (var trial=0;trial<trials;trial++) {
+				for (var i=0;i<len;i++) {arr[i].val=Math.random();}
+				sort(arr,0,len,"val");
 			}
+			line+=Math.floor(performance.now()-t0)+", ";
 		}
-		var testarea=(testcon+testmul*Math.sqrt(maxx)*2/3)*maxx-(testcon+testmul*Math.sqrt(minx)*2/3)*minx;
-		if (aarea>testarea) {
-			aarea=testarea;
-			amul=testmul;
-			acon=testcon;
-			console.log(amul,acon,aarea);
-		}
+		console.log(line);
 	}
-	ctx.fillStyle="rgba(0,0,255,255)";
-	ctx.strokeStyle="rgba(0,0,255,255)";
-	ctx.beginPath();
-	for (var i=0;i<=rect.w;i++) {
-		var x=(maxx-minx)*i/rect.w+minx;
-		var y=Math.sqrt(x)*amul+acon;
-		x=(x-minx)*mulx+rect.x;
-		y=(rect.h-(y-miny)*muly)+rect.y;
-		ctx.lineTo(x,y);
-	}
-	ctx.stroke();
-}
-
-
-function ellipsegenerate() {
-	// Generate data.
-	var imgwidth=1000;
-	var imgheight=1000;
-	var pixels=imgwidth*imgheight;
-	var distacc=new Float64Array(pixels);
-	var distlin=new Float64Array(pixels);
-	var cx=Math.floor(imgwidth/2);
-	var cy=Math.floor(imgheight/2);
-	var radlimit=Math.floor(Math.min(imgwidth/2,imgheight/2)-2);
-	var radbits=Math.log(radlimit)/Math.log(2);
-	var tests=1000;
-	var maxmul=201,mulden=100;
-	var errarr=new Array(maxmul);
-	for (var i=0;i<maxmul;i++) {
-		errarr[i]=[Infinity,-Infinity];
-	}
-	for (var test=0;test<tests;test++) {
-		var cxrad,cyrad;
-		if (test&1) {cxrad=Math.pow(2,Math.random()*radbits);}
-		else        {cxrad=Math.random()*radlimit;}
-		if (test&2) {cyrad=Math.pow(2,Math.random()*radbits);}
-		else        {cyrad=Math.random()*radlimit;}
-		var circ=circumcalc(cxrad,cyrad);
-		ellipseaccurate(distacc,imgwidth,imgheight,cx,cy,cxrad,cyrad);
-		for (var m=0;m<maxmul;m++) {
-			var segs=Math.floor(circ*(m/mulden));
-			if (segs<3) {segs=3;}
-			ellipselinear(distlin,imgwidth,imgheight,cx,cy,cxrad,cyrad,segs);
-			var [minerr,maxerr]=errarr[m];
-			for (var i=0;i<pixels;i++) {
-				var err=distlin[i]-distacc[i];
-				if (maxerr<err) {maxerr=err;}
-				if (minerr>err) {minerr=err;}
-			}
-			errarr[m]=[minerr,maxerr];
-		}
-		console.log(test,errarr[100][0],errarr[100][1]);
-	}
-	var data="";
-	for (var i=0;i<maxmul;i++) {
-		data+="["+(i/mulden).toFixed(6)+","+(errarr[i][1]-errarr[i][0]).toFixed(6)+"],<br>";
-	}
-	document.write("<p>var ellipsedata=[<br>"+data+"];</p>");
-}
-
-
-function ellipsegraph() {
-	var canvas=document.createElement("canvas");
-	document.body.appendChild(canvas);
-	var imgwidth=2048;
-	var imgheight=2048;
-	var imgscale=imgwidth/1000;
-	canvas.width=imgwidth;
-	canvas.height=imgheight;
-	canvas.style.position="absolute";
-	canvas.style.left="0px";
-	canvas.style.top="0px";
-	canvas.style.zIndex=99;
-	var ctx=canvas.getContext("2d");
-	ctx.font=Math.floor(32*imgscale)+"px consolas";
-	ctx.textBaseline="middle";
-	ctx.textAlign="center";
-	ctx.fillStyle="rgba(0,0,0,255)";
-	ctx.fillRect(0,0,imgwidth,imgheight);
-	var rect={x:imgwidth/14,y:imgwidth/14,w:imgwidth*12/14,h:imgwidth*6/14};
-	ctx.strokeStyle="rgba(255,255,255,255)";
-	ctx.lineWidth=2*imgscale;
-	ctx.beginPath();
-	ctx.moveTo(rect.x,rect.y);
-	ctx.lineTo(rect.x,rect.y+rect.h);
-	ctx.lineTo(rect.x+rect.w,rect.y+rect.h);
-	ctx.stroke();
-	var data=ellipsedata;
-	var datalen=data.length;
-	ctx.fillStyle="rgba(255,0,0,255)";
-	var minx=0,maxx=0,miny=0,maxy=0;
-	for (var d=0;d<datalen;d++) {
-		var x=data[d][0],y=data[d][1];
-		y=(1-y)/(x+1e-20);
-		minx=Math.min(minx,x);
-		maxx=Math.max(maxx,x);
-		miny=Math.min(miny,y);
-		maxy=Math.max(maxy,y);
-	}
-	if (miny<0) {miny=0;}
-	var mulx=rect.w/(maxx-minx),muly=rect.h/(maxy-miny);
-	ctx.fillStyle="rgba(255,0,0,255)";
-	ctx.strokeStyle="rgba(255,0,0,255)";
-	ctx.beginPath();
-	var maxmul=0,maxrate=0;
-	for (var d=0;d<datalen;d++) {
-		var x=data[d][0],y=data[d][1];
-		y=(1-y)/(x+1e-20);
-		if (y<0) {y=0;}
-		if (maxrate<y) {
-			maxrate=y;
-			maxmul=x;
-		}
-		x=(x-minx)*mulx+rect.x;
-		y=(rect.h-(y-miny)*muly)+rect.y;
-		console.log(x,y);
-		ctx.lineTo(x,y);
-		// ctx.beginPath();
-		// ctx.arc(x,y,2*imgscale,0,Math.PI*2);
-		// ctx.fill();
-	}
-	ctx.stroke();
-	console.log("best: "+maxmul+", "+maxrate);
-	/*var amul=0,acon=0.0,aarea=Infinity;
-	for (var testmul=0.1;testmul<20;testmul+=0.01) {
-		var testcon=0;
-		for (var d=0;d<datalen;d++) {
-			var x=data[d][0],y=data[d][2];
-			var y0=Math.sqrt(x)*testmul;
-			if (testcon+y0<y) {
-				testcon=y-y0;
-			}
-		}
-		var testarea=(testcon+testmul*Math.sqrt(maxx)*2/3)*maxx-
-		             (testcon+testmul*Math.sqrt(minx)*2/3)*minx;
-		if (aarea>testarea) {
-			aarea=testarea;
-			amul=testmul;
-			acon=testcon;
-			console.log(amul,acon,aarea);
-		}
-	}
-	ctx.fillStyle="rgba(0,0,255,255)";
-	ctx.strokeStyle="rgba(0,0,255,255)";
-	ctx.beginPath();
-	for (var i=0;i<=rect.w;i++) {
-		var x=(maxx-minx)*i/rect.w+minx;
-		var y=Math.sqrt(x)*amul+acon;
-		x=(x-minx)*mulx+rect.x;
-		y=(rect.h-(y-miny)*muly)+rect.y;
-		ctx.lineTo(x,y);
-	}
-	ctx.stroke();*/
 }
 
 
@@ -1158,13 +1127,13 @@ function ellipsegraph() {
 
 function testmain() {
 	console.log("starting polygon tests");
-	// areatest();
-	//blendtest();
+	// areatest1();
+	//areatest2();
+	//stridetest();
+	// blendtest1();
 	// blendtest2();
 	// beziertest();
-	// circumtest();
-	// ellipsegenerate();
-	// ellipsegraph();
+	// sorttest();
 }
 
 

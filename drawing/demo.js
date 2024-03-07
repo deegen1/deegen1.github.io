@@ -805,37 +805,18 @@ class PolyDemo2 {
 
 
 	update() {
-		/*var draw=this.draw;
-		draw.fill(0,0,0);
-		draw.setangle(performance.now()*0.0002);
-		draw.setcolor(255,0,0);
-		var [mx,my]=this.input.getmousepos();
-		mx*=draw.img.width;
-		my=(1-my)*draw.img.height;
-		draw.filloval(this.canvas.width/2,this.canvas.height/2,300,100);
-		this.ctx.putImageData(draw.img.dataim,0,0);*/
 		var draw=this.draw;
 		draw.fill(0,0,0);
 		draw.setangle(0);
 		for (var i=0;i<16;i++) {
 			for (var j=0;j<9;j++) {
-				if ((i^j)&1) {draw.setcolor(200,200,200);}
-				else {draw.setcolor(255,255,255);}
+				draw.setcolor(((i^j)&1)?0xc8c8c8ff:0xffffffff);
 				draw.fillrect(i*50,j*50,50,50);
 			}
 		}
-		/*draw.setcolor(255,0,0);
-		draw.setangle(performance.now()*0.0002);
-		draw.filloval(this.canvas.width/2,this.canvas.height/2,300,100);*/
-		var img=new Draw.Image(800,400);
-		var prev=draw.img;
-		draw.setimage(img);
-		draw.fill(0,0,0,0);
 		draw.setcolor(255,0,0);
 		draw.setangle(performance.now()*0.0002);
 		draw.filloval(this.canvas.width/2,this.canvas.height/2,300,100);
-		draw.setimage(prev);
-		draw.drawimage(img);
 		this.ctx.putImageData(draw.img.dataim,0,0);
 	}
 
@@ -884,7 +865,7 @@ class PolyDemo3 {
 		my=(1-my)*draw.img.height;
 		// draw.fillrect(mx,my,300,100);
 		// draw.filloval(mx,my,300,100);
-		//draw.linewidth=40.0;
+		// draw.linewidth=40.0;
 		draw.line(draw.img.width/2,draw.img.height/2,mx,my);
 		this.ctx.putImageData(draw.img.dataim,0,0);
 	}
@@ -1062,7 +1043,7 @@ class PolyDemo4 {
 
 
 	update() {
-		var rnd=new Random(0);
+		var rnd=new Random(10);
 		var test=this.test++;
 		var imgwidth=this.canvas.width;
 		var imgheight=this.canvas.height;
@@ -1070,6 +1051,7 @@ class PolyDemo4 {
 		var t0=performance.now();
 		if (test===0) {
 			tests=10000;
+			this.draw.setcolor(255,255,255,255);
 			for (var i=0;i<tests;i++) {
 				var x=(rnd.getf64()*3-1)*imgwidth;
 				var y=(rnd.getf64()*3-1)*imgheight;
@@ -1078,6 +1060,7 @@ class PolyDemo4 {
 			}
 		} else if (test===1) {
 			tests=10000;
+			this.draw.setcolor(255,255,255,255);
 			for (var i=0;i<tests;i++) {
 				var x=(rnd.getf64()*3-1)*imgwidth;
 				var y=(rnd.getf64()*3-1)*imgheight;
@@ -1086,7 +1069,9 @@ class PolyDemo4 {
 			}
 		} else if (test===2) {
 			tests=10000;
+			this.draw.setcolor(255,255,255,255);
 			for (var i=0;i<tests;i++) {
+				this.draw.rgba[3]=rnd.modu32(256);
 				var x=(rnd.getf64()*3-1)*imgwidth;
 				var y=(rnd.getf64()*3-1)*imgheight;
 				var rad=1<<rnd.modu32(10);
@@ -1096,6 +1081,7 @@ class PolyDemo4 {
 			tests=10000;
 			var cache=[];
 			var def=this.draw.img;
+			this.draw.setcolor(255,255,255,255);
 			for (var i=0;i<10;i++) {
 				var rad=1<<i;
 				cache[i]=new Draw.Image(2*rad,2*rad);
@@ -1111,11 +1097,23 @@ class PolyDemo4 {
 			}
 		} else if (test==4) {
 			tests=10000;
+			this.draw.setcolor(255,255,255,255);
 			for (var i=0;i<tests;i++) {
+				this.draw.rgba[3]=rnd.modu32(256);
 				var x0=(rnd.getf64()*3-1)*imgwidth;
 				var y0=(rnd.getf64()*3-1)*imgheight;
 				var x1=(rnd.getf64()*3-1)*imgwidth;
 				var y1=(rnd.getf64()*3-1)*imgheight;
+				if (rnd.getf64()<0.25) {
+					var dev=rnd.modu32(30);
+					dev=dev>16?0:(1/(1<<dev));
+					x1=x0+(rnd.getf64()*2-1)*dev;
+				}
+				if (rnd.getf64()<0.5) {
+					var dev=rnd.modu32(30);
+					dev=dev>16?0:(1/(1<<dev));
+					y1=y0+(rnd.getf64()*2-1)*dev;
+				}
 				this.draw.line(x0,y0,x1,y1);
 			}
 		}
