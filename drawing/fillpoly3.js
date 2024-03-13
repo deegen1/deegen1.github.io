@@ -315,7 +315,7 @@
 					}
 					tmp=(tmp/255-area)/arearate+x;
 					pixstop=(tmp>x && tmp<xnext)?Math.ceil(tmp):xnext;
-					//if (pixstop>xstop) {pixstop=xstop;}
+					// if (pixstop>xstop) {pixstop=xstop;}
 				}
 				var adif=(pixstop-x-1)*arearate;
 				area+=arearate;

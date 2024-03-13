@@ -259,7 +259,7 @@ function getrowlines(x0,y0,x1,y1,rowlines,idx,amul) {
 		r=rl[idx++]; r[0]=fx0+1; r[1]=-dyx; r[2]= x0*x0*mul;
 		r=rl[idx++]; r[0]=fx1  ; r[1]=   0; r[2]= n1*n1*mul;
 		r=rl[idx++]; r[0]=fx1+1; r[1]= dyx; r[2]=-x1*x1*mul;
-		//if (fx0+1>fx1) {throw "unsorted";}
+		// if (fx0+1>fx1) {throw "unsorted";}
 	}
 	return idx;
 }
@@ -382,9 +382,9 @@ function stridetest() {
 		tmp=rnd.modu32(31);
 		tmp=tmp>16?0:(1/(1<<tmp));
 		var areadx1=(rnd.getf64()*4-2)*tmp;
-		//tmp=rnd.modu32(31);
-		//tmp=tmp>16?0:(1/(1<<tmp));
-		//var areadx2=(rnd.getf64()*4-2)*tmp;
+		// tmp=rnd.modu32(31);
+		// tmp=tmp>16?0:(1/(1<<tmp));
+		// var areadx2=(rnd.getf64()*4-2)*tmp;
 		var areadx2=0;
 		var stride1=stridecalc1(x,xnext,area,areadx1,areadx2);
 		var stride2=stridecalc2(x,xnext,area,areadx1,areadx2);
@@ -819,7 +819,7 @@ function bezier1(points,u1) {
 }
 
 
-function beziertest() {
+function bezierpolytest() {
 	var tests=10000;
 	var points=new Float64Array(8);
 	var maxerr=0.0;
@@ -838,6 +838,482 @@ function beziertest() {
 		}
 	}
 	console.log("bezier err: "+maxerr);
+}
+
+
+//---------------------------------------------------------------------------------
+// Bezier Segmentation Tests
+
+
+function bezierdistance(curve,linearr) {
+	var p0x=curve[0],p1x=curve[2],p2x=curve[4],p3x=curve[6];
+	var p0y=curve[1],p1y=curve[3],p2y=curve[5],p3y=curve[7];
+	p2x=(p2x-p1x)*3;p1x=(p1x-p0x)*3;p3x-=p0x+p2x;p2x-=p1x;
+	p2y=(p2y-p1y)*3;p1y=(p1y-p0y)*3;p3y-=p0y+p2y;p2y-=p1y;
+	var len=linearr.length;
+	if (len<1 || Math.abs(linearr[len-1].u-1)>1e-8) {
+		throw "invalid points";
+	}
+	var u0,u1=0;
+	var lx0,ly0,lx1=p0x,ly1=p0y,ldx,ldy;
+	var maxdist=0;
+	for (var i=0;i<len;i++) {
+		// Calculate the points of this segment.
+		var l=linearr[i];
+		u0=u1;
+		u1=l.u;
+		if (u0>=u1) {
+			throw "points not sorted";
+		}
+		lx0=lx1;lx1=p0x+u1*(p1x+u1*(p2x+u1*p3x));ldx=lx1-lx0;
+		ly0=ly1;ly1=p0y+u1*(p1y+u1*(p2y+u1*p3y));ldy=ly1-ly0;
+		var mag=ldx*ldx+ldy*ldy;
+		// Make sure the line endpoints match our calculation.
+		var dx0=l.x0-lx0,dy0=l.y0-ly0,err0=dx0*dx0+dy0*dy0;
+		var dx1=l.x1-lx1,dy1=l.y1-ly1,err1=dx1*dx1+dy1*dy1;
+		if (err0>1e-10 || err1>1e-10) {
+			throw "points not on curve: "+i+"/"+len;
+		}
+		// Find the greatest distance from the curve to [p0,p1].
+		var ldist=Math.sqrt(ldx*ldx+ldy*ldy);
+		var steps=Math.floor(ldist+20);
+		var umul=(u1-u0)/(steps-1);
+		for (var s=0;s<steps;s++) {
+			var u=s*umul+u0;
+			var cpx=p0x+u*(p1x+u*(p2x+u*p3x))-lx0;
+			var cpy=p0y+u*(p1y+u*(p2y+u*p3y))-ly0;
+			var u=cpx*ldx+cpy*ldy;
+			if (u<0) {u=0;}
+			else if (u>=mag) {u=1;}
+			else {u/=mag;}
+			cpx-=u*ldx;
+			cpy-=u*ldy;
+			var dist=cpx*cpx+cpy*cpy;
+			if (maxdist<dist) {
+				maxdist=dist;
+			}
+		}
+	}
+	return Math.sqrt(maxdist);
+}
+
+
+function beziersegment1(tv,splitlen) {
+	// Get the control points and check if the curve's on the screen.
+	var p0=0,p0x=tv[p0],p0y=tv[p0+1];
+	var p1=2,p1x=tv[p1],p1y=tv[p1+1];
+	var p2=4,p2x=tv[p2],p2y=tv[p2+1];
+	var p3=6,p3x=tv[p3],p3y=tv[p3+1];
+	/*x0=Math.min(p0x,Math.min(p1x,Math.min(p2x,p3x)));
+	x1=Math.max(p0x,Math.max(p1x,Math.max(p2x,p3x)));
+	y0=Math.min(p0y,Math.min(p1y,Math.min(p2y,p3y)));
+	y1=Math.max(p0y,Math.max(p1y,Math.max(p2y,p3y)));
+	if (x0>=iw || y0>=ih || y1<=0) {continue;}
+	if (x1<=0) {
+		if (lcnt>=lrcnt) {
+			newlen=(lcnt+1)*2;
+			while (lrcnt<newlen) {lr.push({});lrcnt++;}
+			this.tmpline=lr;
+		}
+		l=lr[lcnt++];
+		l.x0=p0x;
+		l.y0=p0y;
+		l.x1=p3x;
+		l.y1=p3y;
+		continue;
+	}*/
+	// Interpolate points.
+	var lr=[],lrcnt=0,lcnt=0;
+	p2x=(p2x-p1x)*3;p1x=(p1x-p0x)*3;p3x-=p0x+p2x;p2x-=p1x;
+	p2y=(p2y-p1y)*3;p1y=(p1y-p0y)*3;p3y-=p0y+p2y;p2y-=p1y;
+	var ppx=p0x,ppy=p0y,u0=0;
+	for (j=0;j<4;j++) {
+		var u1=(j+1)/4;
+		var cpx=p0x+u1*(p1x+u1*(p2x+u1*p3x))-ppx;
+		var cpy=p0y+u1*(p1y+u1*(p2y+u1*p3y))-ppy;
+		var dist=Math.sqrt(cpx*cpx+cpy*cpy);
+		var segs=Math.ceil(dist/splitlen);
+		// Split up the current segment.
+		if (lcnt+segs>=lrcnt) {
+			newlen=(lcnt+segs)*2;
+			while (lrcnt<newlen) {lr.push({});lrcnt++;}
+			//this.tmpline=lr;
+		}
+		u1=(u1-u0)/segs;
+		for (var s=0;s<segs;s++) {
+			u0+=u1;
+			cpx=p0x+u0*(p1x+u0*(p2x+u0*p3x));
+			cpy=p0y+u0*(p1y+u0*(p2y+u0*p3y));
+			l=lr[lcnt++];
+			l.u=u0;
+			l.x0=ppx;
+			l.y0=ppy;
+			l.x1=cpx;
+			l.y1=cpy;
+			ppx=cpx;
+			ppy=cpy;
+		}
+	}
+	return lr.slice(0,lcnt);
+}
+
+
+function beziersegment2(tv,splitlen) {
+	// Get the control points and check if the curve's on the screen.
+	var p0=0,p0x=tv[p0],p0y=tv[p0+1];
+	var p1=2,p1x=tv[p1],p1y=tv[p1+1];
+	var p2=4,p2x=tv[p2],p2y=tv[p2+1];
+	var p3=6,p3x=tv[p3],p3y=tv[p3+1];
+	/*x0=Math.min(p0x,Math.min(p1x,Math.min(p2x,p3x)));
+	x1=Math.max(p0x,Math.max(p1x,Math.max(p2x,p3x)));
+	y0=Math.min(p0y,Math.min(p1y,Math.min(p2y,p3y)));
+	y1=Math.max(p0y,Math.max(p1y,Math.max(p2y,p3y)));
+	if (x0>=iw || y0>=ih || y1<=0) {continue;}*/
+	splitlen*=splitlen;
+	var lr=[],lrcnt=0,lcnt=0;
+	if (lcnt>=lrcnt) {
+		var newlen=(lcnt+1)*2;
+		while (lrcnt<newlen) {lr.push({});lrcnt++;}
+		//this.tmpline=lr;
+	}
+	var l=lr[lcnt++];
+	l.x0=p0x;
+	l.y0=p0y;
+	l.x1=p3x;
+	l.y1=p3y;
+	l.u0=0;
+	l.u =1;
+	// Interpolate points.
+	p2x=(p2x-p1x)*3;p1x=(p1x-p0x)*3;p3x-=p0x+p2x;p2x-=p1x;
+	p2y=(p2y-p1y)*3;p1y=(p1y-p0y)*3;p3y-=p0y+p2y;p2y-=p1y;
+	for (var i=0;i<lcnt;) {
+		l=lr[i];
+		var u=(l.u0+l.u)*0.5;
+		var mpx=p0x+u*(p1x+u*(p2x+u*p3x));
+		var mpy=p0y+u*(p1y+u*(p2y+u*p3y));
+		var dx=mpx-l.x0,dy=mpy-l.y0;
+		var dist=dx*dx+dy*dy;
+		if (dist<splitlen) {
+			dx=mpx-l.x1;dy=mpy-l.y1;
+			dist=dx*dx+dy*dy;
+		}
+		if (dist>=splitlen) {
+			// Split up the current segment.
+			if (lcnt>=lrcnt) {
+				var newlen=(lcnt+1)*2;
+				while (lrcnt<newlen) {lr.push({});lrcnt++;}
+				//this.tmpline=lr;
+			}
+			var n=lr[lcnt++];
+			n.u0=u;
+			n.u =l.u;
+			n.x0=mpx;
+			n.y0=mpy;
+			n.x1=l.x1;
+			n.y1=l.y1;
+			l.x1=mpx;
+			l.y1=mpy;
+			l.u =u;
+		} else {
+			i++;
+		}
+	}
+	for (var i=1;i<lcnt;i++) {
+		var j=i;l=lr[j];
+		while (j>0 && l.u<lr[j-1].u) {
+			lr[j]=lr[j-1];
+			j--;
+		}
+		lr[j]=l;
+	}
+	return lr.slice(0,lcnt);
+}
+
+
+function beziersegment3(tv,splitlen) {
+	// Get the control points and check if the curve's on the screen.
+	var p0=0,p0x=tv[p0],p0y=tv[p0+1];
+	var p1=2,p1x=tv[p1],p1y=tv[p1+1];
+	var p2=4,p2x=tv[p2],p2y=tv[p2+1];
+	var p3=6,p3x=tv[p3],p3y=tv[p3+1];
+	/*x0=Math.min(p0x,Math.min(p1x,Math.min(p2x,p3x)));
+	x1=Math.max(p0x,Math.max(p1x,Math.max(p2x,p3x)));
+	y0=Math.min(p0y,Math.min(p1y,Math.min(p2y,p3y)));
+	y1=Math.max(p0y,Math.max(p1y,Math.max(p2y,p3y)));
+	if (x0>=iw || y0>=ih || y1<=0) {continue;}*/
+	var lr=[],lrcnt=0,lcnt=0;
+	if (lcnt>=lrcnt) {
+		var newlen=(lcnt+1)*2;
+		while (lrcnt<newlen) {lr.push({});lrcnt++;}
+		//this.tmpline=lr;
+	}
+	var l=lr[lcnt++];
+	l.x0=p0x;
+	l.y0=p0y;
+	l.x1=p3x;
+	l.y1=p3y;
+	l.u0=0;
+	l.u =1;
+	// Interpolate points.
+	p2x=(p2x-p1x)*3;p1x=(p1x-p0x)*3;p3x-=p0x+p2x;p2x-=p1x;
+	p2y=(p2y-p1y)*3;p1y=(p1y-p0y)*3;p3y-=p0y+p2y;p2y-=p1y;
+	for (var i=0;i<lcnt;) {
+		l=lr[i];
+		var u2=l.u0*0.75+l.u*0.25,u7=l.u0*0.25+l.u*0.75;
+		var m2x=p0x+u2*(p1x+u2*(p2x+u2*p3x));
+		var m2y=p0y+u2*(p1y+u2*(p2y+u2*p3y));
+		var m7x=p0x+u7*(p1x+u7*(p2x+u7*p3x));
+		var m7y=p0y+u7*(p1y+u7*(p2y+u7*p3y));
+		var dx,dy,dist,dists;
+		/*dx=l.x1-l.x0;dy=l.y1-l.y0;dist  =Math.sqrt(dx*dx+dy*dy);
+		dx=m2x -l.x0;dy=m2y -l.y0;dists =Math.sqrt(dx*dx+dy*dy);
+		dx=m7x -m2x ;dy=m7y -m2y ;dists+=Math.sqrt(dx*dx+dy*dy);
+		dx=l.x1-m7x ;dy=l.y1-m7y ;dists+=Math.sqrt(dx*dx+dy*dy);
+		if (dists>=dist*1.0001 && dists>1) {
+			// Split up the current segment.
+			if (lcnt+3>=lrcnt) {
+				var newlen=(lcnt+3)*2;
+				while (lrcnt<newlen) {lr.push({});lrcnt++;}
+				//this.tmpline=lr;
+			}
+			var n;
+			n=lr[lcnt++];n.u0=u2;n.u=u7 ;n.x0=m2x;n.y0=m2y;n.x1=m7x ;n.y1=m7y ;
+			n=lr[lcnt++];n.u0=u7;n.u=l.u;n.x0=m7x;n.y0=m7y;n.x1=l.x1;n.y1=l.y1;
+			l.x1=m2x;
+			l.y1=m2y;
+			l.u =u2;
+		} else {
+			i++;
+		}*/
+		/*dx=l.x1-l.x0;dy=l.y1-l.y0;dist  =Math.sqrt(dx*dx+dy*dy);
+		dx=m2x -l.x0;dy=m2y -l.y0;dists =Math.sqrt(dx*dx+dy*dy);
+		dx=m7x -m2x ;dy=m7y -m2y ;dists+=Math.sqrt(dx*dx+dy*dy);
+		dx=l.x1-m7x ;dy=l.y1-m7y ;dists+=Math.sqrt(dx*dx+dy*dy);
+		if (dists>=dist+0.05) {
+		//if (dists>=Math.max(dist*1.00001,dist+0.001)) {
+			// Split up the current segment.
+			if (lcnt+3>=lrcnt) {
+				var newlen=(lcnt+3)*2;
+				while (lrcnt<newlen) {lr.push({});lrcnt++;}
+				//this.tmpline=lr;
+			}
+			var n;
+			n=lr[lcnt++];n.u0=u2;n.u=u7 ;n.x0=m2x;n.y0=m2y;n.x1=m7x ;n.y1=m7y ;
+			n=lr[lcnt++];n.u0=u7;n.u=l.u;n.x0=m7x;n.y0=m7y;n.x1=l.x1;n.y1=l.y1;
+			l.x1=m2x;
+			l.y1=m2y;
+			l.u =u2;
+		} else {
+			i++;
+		}*/
+		dist  =Math.abs(l.x1-l.x0)+Math.abs(l.y1-l.y0);
+		dists =Math.abs(m2x -l.x0)+Math.abs(m2y -l.y0);
+		dists+=Math.abs(m7x -m2x )+Math.abs(m7y -m2y );
+		dists+=Math.abs(l.x1-m7x )+Math.abs(l.y1-m7y );
+		if (dists>=dist+0.001) {
+		//if (dists>=Math.max(dist*1.00001,dist+0.001)) {
+			// Split up the current segment.
+			if (lcnt+3>=lrcnt) {
+				var newlen=(lcnt+3)*2;
+				while (lrcnt<newlen) {lr.push({});lrcnt++;}
+				//this.tmpline=lr;
+			}
+			var n;
+			n=lr[lcnt++];n.u0=u2;n.u=u7 ;n.x0=m2x;n.y0=m2y;n.x1=m7x ;n.y1=m7y ;
+			n=lr[lcnt++];n.u0=u7;n.u=l.u;n.x0=m7x;n.y0=m7y;n.x1=l.x1;n.y1=l.y1;
+			l.x1=m2x;
+			l.y1=m2y;
+			l.u =u2;
+		} else {
+			i++;
+		}
+		/*dx=l.x1-l.x0;dy=l.y1-l.y0;dist  =Math.sqrt(dx*dx+dy*dy);
+		dx=m2x -l.x0;dy=m2y -l.y0;dists =Math.sqrt(dx*dx+dy*dy);
+		dx=m7x -m2x ;dy=m7y -m2y ;dists+=Math.sqrt(dx*dx+dy*dy);
+		dx=l.x1-m7x ;dy=l.y1-m7y ;dists+=Math.sqrt(dx*dx+dy*dy);
+		if (dists>=dist*1.0001 && dists>1) {
+			// Split up the current segment.
+			if (lcnt+2>=lrcnt) {
+				var newlen=(lcnt+2)*2;
+				while (lrcnt<newlen) {lr.push({});lrcnt++;}
+				//this.tmpline=lr;
+			}
+			var n;
+			n=lr[lcnt++];n.u0=u2;n.u=l.u;n.x0=m2x;n.y0=m2y;n.x1=l.x1;n.y1=l.y1;
+			l.x1=m2x;
+			l.y1=m2y;
+			l.u =u2;
+		} else {
+			i++;
+		}*/
+		/*dx=l.x1-l.x0;dy=l.y1-l.y0;dist =(dx*dx+dy*dy);
+		dx=m2x -l.x0;dy=m2y -l.y0;dists=(dx*dx+dy*dy);
+		dx=m7x -m2x ;dy=m7y -m2y ;dists=Math.max(dists,dx*dx+dy*dy);
+		dx=l.x1-m7x ;dy=l.y1-m7y ;dists=Math.max(dists,dx*dx+dy*dy);
+		if (dists>=dist*0.22 && dists>1) {
+			// Split up the current segment.
+			if (lcnt+2>=lrcnt) {
+				var newlen=(lcnt+2)*2;
+				while (lrcnt<newlen) {lr.push({});lrcnt++;}
+				//this.tmpline=lr;
+			}
+			var n;
+			n=lr[lcnt++];n.u0=u2;n.u=l.u;n.x0=m2x;n.y0=m2y;n.x1=l.x1;n.y1=l.y1;
+			l.x1=m2x;
+			l.y1=m2y;
+			l.u =u2;
+		} else {
+			i++;
+		}*/
+	}
+	for (var i=1;i<lcnt;i++) {
+		var j=i;l=lr[j];
+		while (j>0 && l.u<lr[j-1].u) {
+			lr[j]=lr[j-1];
+			j--;
+		}
+		lr[j]=l;
+	}
+	return lr.slice(0,lcnt);
+}
+
+
+function beziersegment4(tv,splitlen) {
+	// Get the control points and check if the curve's on the screen.
+	var p0=0,p0x=tv[p0],p0y=tv[p0+1];
+	var p1=2,p1x=tv[p1],p1y=tv[p1+1];
+	var p2=4,p2x=tv[p2],p2y=tv[p2+1];
+	var p3=6,p3x=tv[p3],p3y=tv[p3+1];
+	/*x0=Math.min(p0x,Math.min(p1x,Math.min(p2x,p3x)));
+	x1=Math.max(p0x,Math.max(p1x,Math.max(p2x,p3x)));
+	y0=Math.min(p0y,Math.min(p1y,Math.min(p2y,p3y)));
+	y1=Math.max(p0y,Math.max(p1y,Math.max(p2y,p3y)));
+	if (x0>=iw || y0>=ih || y1<=0) {continue;}*/
+	var lr=[],lrcnt=0,lcnt=0;
+	if (lcnt>=lrcnt) {
+		var newlen=(lcnt+1)*2;
+		while (lrcnt<newlen) {lr.push({});lrcnt++;}
+		//this.tmpline=lr;
+	}
+	var l=lr[lcnt++];
+	l.x0=p0x;
+	l.y0=p0y;
+	l.x1=p3x;
+	l.y1=p3y;
+	l.u0=0;
+	l.u =1;
+	// Interpolate points.
+	p2x=(p2x-p1x)*3;p1x=(p1x-p0x)*3;p3x-=p0x+p2x;p2x-=p1x;
+	p2y=(p2y-p1y)*3;p1y=(p1y-p0y)*3;p3y-=p0y+p2y;p2y-=p1y;
+	for (var i=0;i<lcnt;) {
+		l=lr[i];
+		var u=(l.u0+l.u)*0.5;
+		var mx=p0x+u*(p1x+u*(p2x+u*p3x));
+		var my=p0y+u*(p1y+u*(p2y+u*p3y));
+		var mdx=p1x+u*2*p2x+u*u*3*p3x;
+		var mdy=p1y+u*2*p2y+u*u*3*p3y;
+		var mag=mdx*mdx+mdy*mdy;
+		var dx,dy,dist,dists;
+		dx=mx-l.x0;dy=my-l.y0;var dist0=dx*dx+dy*dy,err0=dx*mdx+dy*mdy;
+		dx=l.x1-mx;dy=l.y1-my;var dist1=dx*dx+dy*dy,err1=dx*mdx+dy*mdy;
+		if ((err0<0 || err1<0 || err0*err0<mag*dist0*0.9992 || err1*err1<mag*dist1*0.9992) && (dist0>1 || dist1>1)) {
+			// Split up the current segment.
+			if (lcnt+3>=lrcnt) {
+				var newlen=(lcnt+3)*2;
+				while (lrcnt<newlen) {lr.push({});lrcnt++;}
+				//this.tmpline=lr;
+			}
+			var n=lr[lcnt++];
+			n.u0=u;
+			n.u =l.u;
+			n.x0=mx;
+			n.y0=my;
+			n.x1=l.x1;
+			n.y1=l.y1;
+			l.x1=mx;
+			l.y1=my;
+			l.u =u;
+		} else {
+			i++;
+		}
+	}
+	for (var i=1;i<lcnt;i++) {
+		var j=i;l=lr[j];
+		while (j>0 && l.u<lr[j-1].u) {
+			lr[j]=lr[j-1];
+			j--;
+		}
+		lr[j]=l;
+	}
+	return lr.slice(0,lcnt);
+}
+
+/*
+function beziersegment4(tv,splitlen) {
+	// Get the control points and check if the curve's on the screen.
+	var p0=0,p0x=tv[p0],p0y=tv[p0+1];
+	var p1=2,p1x=tv[p1],p1y=tv[p1+1];
+	var p2=4,p2x=tv[p2],p2y=tv[p2+1];
+	var p3=6,p3x=tv[p3],p3y=tv[p3+1];
+	//x0=Math.min(p0x,Math.min(p1x,Math.min(p2x,p3x)));
+	//x1=Math.max(p0x,Math.max(p1x,Math.max(p2x,p3x)));
+	//y0=Math.min(p0y,Math.min(p1y,Math.min(p2y,p3y)));
+	//y1=Math.max(p0y,Math.max(p1y,Math.max(p2y,p3y)));
+	//if (x0>=iw || y0>=ih || y1<=0) {continue;}
+	var lr=[],lrcnt=0,lcnt=0;
+	if (lcnt>=lrcnt) {
+		var newlen=(lcnt+1)*2;
+		while (lrcnt<newlen) {lr.push({});lrcnt++;}
+		//this.tmpline=lr;
+	}
+	var l=lr[lcnt++];
+	l.x0=p0x;
+	l.y0=p0y;
+	l.x1=p3x;
+	l.y1=p3y;
+	l.u0=0;
+	l.u =1;
+	l.dx0=p1x-p0x;l.dy0=p1y-p0y;
+	l.dx1=p3x-p2x;l.dy1=p3y-p2y;
+	// Interpolate points.
+	p2x=(p2x-p1x)*3;p1x=(p1x-p0x)*3;p3x-=p0x+p2x;p2x-=p1x;
+	p2y=(p2y-p1y)*3;p1y=(p1y-p0y)*3;p3y-=p0y+p2y;p2y-=p1y;
+	for (var i=0;i<lcnt;) {
+		l=lr[i];
+		var u=(l.u0+l.u)*0.5;
+		var dx=p1x+u*(2*p2x+u*3*p3x);
+		var dy=p1y+u*(2*p2y+u*3*p3y);
+	console.log(3*(),3*(p1y-p0y));
+	console.log(3*(p3x-p2x),3*(p3y-p2y));
+	// Interpolate points.
+	p2x=(p2x-p1x)*3;p1x=(p1x-p0x)*3;p3x-=p0x+p2x;p2x-=p1x;
+	p2y=(p2y-p1y)*3;p1y=(p1y-p0y)*3;p3y-=p0y+p2y;p2y-=p1y;
+	for (var i=0;i<10;i++) {
+		var u=i/9.0;
+
+		console.log(dx,dy);
+	}
+	throw "x";
+}
+*/
+
+function beziersegmenttest() {
+	var rnd=new Random(10);
+	var curve=new Array(8);
+	var distsum=0,segsum=0;
+	var tests=100;
+	for (var test=0;test<tests;test++) {
+		for (var i=0;i<8;i++) {
+			curve[i]=(rnd.getf64()*2-1)*100;
+		}
+		var lr=beziersegment4(curve,3);
+		var dist=bezierdistance(curve,lr);
+		distsum+=dist;
+		segsum+=lr.length;
+		console.log(test,dist,lr.length);
+	}
+	console.log("dist: "+distsum);
+	console.log("segs: "+segsum);
 }
 
 
@@ -1128,11 +1604,12 @@ function sorttest() {
 function testmain() {
 	console.log("starting polygon tests");
 	// areatest1();
-	//areatest2();
-	//stridetest();
+	// areatest2();
+	// stridetest();
 	// blendtest1();
 	// blendtest2();
-	// beziertest();
+	// bezierpolytest();
+	//beziersegmenttest();
 	// sorttest();
 }
 

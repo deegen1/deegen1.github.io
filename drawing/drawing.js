@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v1.14
+drawing.js - v1.16
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -11,44 +11,19 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
-dx=x1-x0
-dy=y1-y0
-(p0+dir*u-p)*dir=0
-(p-p0)*dir-(dir*dir)*u=0
-u=(p-p0)*dir/(dir*dir)
-
-((p-p0)-dir*u)^2
-p-=p0
-
-p*p-2*u*(p*dir)+(dir*dir)*u*u
-
-p*p-2*(p*dir)*(p*dir)/(dir*dir)+(p*dir)*(p*dir)/(dir*dir)
-p*p-(p*dir)*(p*dir)/(dir*dir)
-
-c=px*dx+py*dy
-px*px+py*py-(c*c)/(dx*dx+dy*dy)
-
-c=px*dy-py*dx
-dist=c*c/(dx*dx+dy*dy)
-
-
-Speed up fillpoly()
-	More accurate linearization of curves. Split on curvature, not length.
-add image class
-	save as bmp
+inverse rotation in transform()
 Path string format
 	M Z L C
 	add tostring()
 	change internal representation
-tracing
-	https://gasiulis.name/cubic-curve-offsetting/
-	path inflection points
-	project out based on tangent
 Have article include curve diagrams, like schematics.
 Create font/image fitting
 	average r,g,b values to account for both grayscale and subpixel accuracy
 	color=(r+g+b)/(3*255)
 	assign cost: 80/curve+10/line+1/point
+Image scaling and rotation.
+More accurate linearization of curves. Split on curvature, not length.
+Tracing - project out based on tangent.
 
 
 */
@@ -59,7 +34,7 @@ Create font/image fitting
 
 
 //---------------------------------------------------------------------------------
-// Anti-aliased Image Drawing - v1.09
+// Anti-aliased Image Drawing - v1.15
 
 
 class _DrawTransform {
@@ -117,7 +92,7 @@ class _DrawTransform {
 		ang%=6.283185307;
 		data[ 8]=ang;
 		data[ 9]=Math.cos(ang);
-		data[10]=Math.sin(ang);
+		data[10]=-Math.sin(ang);
 		this.calcmatrix();
 		return this;
 	}
@@ -192,9 +167,10 @@ class _DrawTransform {
 		var data=this.data;
 		x-=data[2];
 		y-=data[5];
-		var x0=(y*data[10]+x*data[ 9])/data[6];
-		var y0=(y*data[ 9]-x*data[10])/data[7];
-		return [x0,y0];
+		var det=data[0]*data[4]-data[1]*data[3],t=x;
+		x=(t*data[4]-y*data[1])/det;
+		y=(y*data[0]-t*data[3])/det;
+		return [x,y];
 	}
 
 }
@@ -379,22 +355,33 @@ class _DrawPoly {
 			dy*=dist;
 		}
 		const a=1.00005519,b=0.55342686,c=0.99873585;
-		var ax=a*dx,ay=a*dy;
-		var bx=b*dx,by=b*dy;
-		var cx=c*dx,cy=c*dy;
+		/*var ax=a*dx,ay=a*dy;
+		var bx=b*dx,cy=c*dy,c0=bx-cy,c3=bx+cy;
+		var cx=c*dx,by=b*dy,c1=cx+by,c2=cx-by;
 		this.moveto(x1-ay,y1+ax);
-		this.curveto(x1+bx-cy,y1+by+cx,x1+cx-by,y1+cy+bx,x1+ax,y1+ay);
-		this.curveto(x1+cx+by,y1+cy-bx,x1+bx+cy,y1+by-cx,x1+ay,y1-ax);
+		this.curveto(x1+c0,y1+c1,x1+c2,y1+c3,x1+ax,y1+ay);
+		this.curveto(x1+c1,y1-c0,x1+c3,y1-c2,x1+ay,y1-ax);
 		this.lineto(x0+ay,y0-ax);
-		this.curveto(x0-bx+cy,y0-by-cx,x0-cx+by,y0-cy-bx,x0-ax,y0-ay);
-		this.curveto(x0-cx-by,y0-cy+bx,x0-bx-cy,y0-by+cx,x0-ay,y0+ax);
+		this.curveto(x0-c0,y0-c1,x0-c2,y0-c3,x0-ax,y0-ay);
+		this.curveto(x0-c1,y0+c0,x0-c3,y0+c2,x0-ay,y0+ax);
+		this.close();*/
+		var ax=a*dx,ay=a*dy;
+		var bx=b*dx,cy=c*dy,c0=bx-cy,c3=bx+cy;
+		var cx=c*dx,by=b*dy,c1=cx+by,c2=cx-by;
+		this.moveto(x1+ay,y1-ax);
+		this.curveto(x1+c3,y1-c2,x1+c1,y1-c0,x1+ax,y1+ay);
+		this.curveto(x1+c2,y1+c3,x1+c0,y1+c1,x1-ay,y1+ax);
+		this.lineto(x0-ay,y0+ax);
+		this.curveto(x0-c3,y0+c2,x0-c1,y0+c0,x0-ax,y0-ay);
+		this.curveto(x0-c2,y0-c3,x0-c0,y0-c1,x0+ay,y0-ax);
 		this.close();
 		return this;
 	}
 
 
 	addrect(x,y,w,h) {
-		this.addstrip([0,0,1,0,1,-1,0,-1]);
+		this.addstrip([0,0,1,0,1,1,0,1]);
+		//this.addstrip([0,0,1,0,1,-1,0,-1]);
 		return this;
 	}
 
@@ -402,9 +389,9 @@ class _DrawPoly {
 	addoval(x,y,xrad,yrad) {
 		// David Ellsworth and Spencer Mortensen constants.
 		const a=1.00005519,b=0.55342686,c=0.99873585;
-		var ax=a*xrad,ay=a*yrad;
-		var bx=b*xrad,by=b*yrad;
-		var cx=c*xrad,cy=c*yrad;
+		var ax=-a*xrad,ay=a*yrad;
+		var bx=-b*xrad,by=b*yrad;
+		var cx=-c*xrad,cy=c*yrad;
 		this.moveto(x,y+ay);
 		this.curveto(x+bx,y+cy,x+cx,y+by,x+ax,y   );
 		this.curveto(x+cx,y-by,x+bx,y-cy,x   ,y-ay);
@@ -448,124 +435,66 @@ class _DrawImage {
 				srcdata=img.data;
 			}
 		}
-		this.width =width;
-		this.height=height;
-		this.dataim=new ImageData(width,height);
-		this.data8 =new Uint8Array(this.dataim.data.buffer);
-		this.datac8=new Uint8ClampedArray(this.data8.buffer);
-		this.data32=new Uint32Array(this.data8.buffer);
+		this.resize(width,height);
 		if (srcdata!==null) {this.data8.set(srcdata);}
 	}
 
 
 	resize(width,height) {
+		this.width =width;
+		this.height=height;
+		width=Math.max(1,Math.floor(width));
+		height=Math.max(1,Math.floor(height));
+		this.dataim=new ImageData(width,height);
+		this.data8 =new Uint8Array(this.dataim.data.buffer);
+		this.datac8=new Uint8ClampedArray(this.data8.buffer);
+		this.data32=new Uint32Array(this.data8.buffer);
 	}
 
 
-	frombmp(arr8) {
-		/*
-		//Load a BMP image from "file".
-		sfrgimgkill(img);
-		FILE* in;
-		if (sffileexists(file)!=0 || (in=fopen(file,"rb"))==0)
-		{
-			return 0;
+	fromtga(src) {
+		// Load a TGA image from an array.
+		var len=src.length;
+		if (len<18) {
+			throw "TGA too short";
 		}
-		//"BM" header.
-		if (sfread16(in)!=0x424d)
-		{
-			fclose(in);
-			return 0;
+		var w=src[12]+(src[13]<<8);
+		var h=src[14]+(src[15]<<8);
+		var bits=src[16],bytes=bits>>>3;
+		if (w*h*bytes+18!==len || src[2]!==2 || (bits!==24 && bits!==32)) {
+			throw "TGA corrupt";
 		}
-		u32 info[7];
-		for (u32 i=0;i<7;i++)
-		{
-			info[i]=((u32)sfread8(in))|(((u32)sfread8(in))<<8)|(((u32)sfread8(in))<<16)|(((u32)sfread8(in))<<24);
-		}
-		//Check additional parameters.
-		if (info[3]!=0x00000028 || ((s32)info[4])<=0 || info[5]==0 || info[6]!=0x00180001)
-		{
-			fclose(in);
-			return 0;
-		}
-		//Load image dimensions.
-		s32 size=img->pixwidth*3;
-		s32 inc=(size+3)&~3;
-		if (((s32)info[5])<0)
-		{
-			info[5]=-info[5];
-		}
-		else
-		{
-			info[2]+=inc*(info[5]-1);
-			inc=-inc;
-		}
-		sfrgimginit(img,info[4],info[5]);
-		//Load image pixels.
-		f64* rgba=img->rgba;
-		while (info[5]--!=0)
-		{
-			sffilegoto(in,info[2]);
-			info[2]+=inc;
-			for (s32 i=0;i<img->pixwidth;i++)
-			{
-				*(rgba+3)=1.0;
-				*(rgba+2)=((f64)sfread8(in))*(1.0/255.0);
-				*(rgba+1)=((f64)sfread8(in))*(1.0/255.0);
-				*(rgba+0)=((f64)sfread8(in))*(1.0/255.0);
-				rgba+=4;
+		// Load the image data.
+		this.resize(w,h);
+		var dst=this.data8,didx=0,sidx=18;
+		for (var y=0;y<h;y++) {
+			for (var x=0;x<w;x++) {
+				dst[didx++]=src[sidx++];
+				dst[didx++]=src[sidx++];
+				dst[didx++]=src[sidx++];
+				if (bytes===3) {dst[didx++]=255}
+				else {dst[didx++]=src[sidx++];}
 			}
 		}
-		fclose(in);
-		return 1;*/
 	}
 
 
-	tobmp() {
-		// Returns a Uint8Array with the BMP data.
-		/*sfwrite8(out,'B');
-		sfwrite8(out,'M');
-		u32 padding=img->pixwidth*-3;
-		u32 bmpsize=((3-padding)&~3)*img->pixheight;
-		padding&=3;
-		u32 info[13];
-		info[ 0]=bmpsize+54;
-		info[ 1]=0x00000000;
-		info[ 2]=0x00000036;
-		info[ 3]=0x00000028;
-		info[ 4]=img->pixwidth;
-		info[ 5]=-img->pixheight;
-		info[ 6]=0x00180001;
-		info[ 7]=0x00000000;
-		info[ 8]=bmpsize;
-		info[ 9]=0x00000000;
-		info[10]=0x00000000;
-		info[11]=0x00000000;
-		info[12]=0x00000000;
-		for (u32 i=0;i<13;i++)
-		{
-			sfwrite8(out,info[i]&255);
-			sfwrite8(out,(info[i]>>8)&255);
-			sfwrite8(out,(info[i]>>16)&255);
-			sfwrite8(out,info[i]>>24);
-		}
-		f64* rgba=img->rgba;
-		for (s32 t=0;t<img->pixheight;t++)
-		{
-			for (s32 i=0;i<img->pixwidth;i++)
-			{
-				f64 mul=rgba[3]*255.0;
-				sfwrite8(out,rgba[2]*mul);
-				sfwrite8(out,rgba[1]*mul);
-				sfwrite8(out,rgba[0]*mul);
-				rgba+=4;
-			}
-			for (u32 i=0;i<padding;i++)
-			{
-				sfwrite8(out,0);
+	totga() {
+		// Returns a Uint8Array with TGA image data.
+		var w=this.width,h=this.height;
+		if (w>0xffff || h>0xffff) {throw "Size too big: "+w+", "+h;}
+		var didx=18,dst=new Uint8Array(w*h*4+didx);
+		var sidx= 0,src=this.data8;
+		dst.set([0,0,2,0,0,0,0,0,0,0,0,0,w&255,w>>>8,h&255,h>>>8,32,0],0,didx);
+		for (var y=0;y<h;y++) {
+			for (var x=0;x<w;x++) {
+				dst[didx++]=src[sidx++];
+				dst[didx++]=src[sidx++];
+				dst[didx++]=src[sidx++];
+				dst[didx++]=src[sidx++];
 			}
 		}
-		fclose(out);*/
+		return dst;
 	}
 
 }
@@ -720,22 +649,11 @@ class Draw {
 
 
 	// ----------------------------------------
-	// Paths
+	// Images
 
 
-	beginpath() {return this.defpoly.begin();}
-	closepath() {return this.defpoly.close();}
-	moveto(x,y) {return this.defpoly.moveto(x,y);}
-	lineto(x,y) {return this.defpoly.lineto(x,y);}
-	curveto(x0,y0,x1,y1,x2,y2) {return this.defpoly.curveto(x0,y0,x1,y1,x2,y2);}
-
-
-	// ----------------------------------------
-	// Basic Drawing
-
-
-	fill(r,g,b,a) {
-		// Fills the current buffer with a solid color.
+	fillimage(r,g,b,a) {
+		// Fills the current image with a solid color.
 		// imgdata.fill(rgba) was ~25% slower during testing.
 		if (r===undefined) {r=g=b=0;}
 		if (a===undefined) {a=255;}
@@ -758,15 +676,91 @@ class Draw {
 	}
 
 
+	drawimage(src,dx,dy,dw,dh) {
+		// Draw an image with alpha blending.
+		var dst=this.img;
+		dx=(dx===undefined)?0:(dx|0);
+		dy=(dy===undefined)?0:(dy|0);
+		dw=(dw===undefined || dw>src.width )?src.width :(dx|0);
+		dh=(dh===undefined || dh>src.height)?src.height:(dh|0);
+		var sx=0,sy=0;
+		dw+=dx;
+		if (dx<0) {sx=-dx;dx=0;}
+		dw=(dw>dst.width?dst.width:dw)-dx;
+		dh+=dy;
+		if (dy<0) {sy=-dy;dy=0;}
+		dh=(dh>dst.height?dst.height:dh)-dy;
+		if (dw<=0 || dh<=0) {return;}
+		var dstdata=dst.data32,drow=dy*dst.width+dx,dinc=dst.width-dw;
+		var srcdata=src.data32,srow=sy*src.width+sx,sinc=src.width-dw;
+		var ystop=drow+dst.width*dh,xstop=drow+dw;
+		var amul=this.rgba[3],amul0=amul/255.0,amul1=amul*(256.0/65025.0);
+		var filllim=amul0>0?255/amul0:Infinity;
+		var ashift=this.rgbashift[3],amask=(255<<ashift)>>>0,namask=(~amask)>>>0;
+		var maskl=0x00ff00ff&namask,maskh=0xff00ff00&namask;
+		var sa,da,l,h,tmp;
+		dw=dst.width;
+		while (drow<ystop) {
+			while (drow<xstop) {
+				// a = sa + da*(1-sa)
+				// c = (sc*sa + dc*da*(1-sa)) / a
+				src=srcdata[srow++];
+				sa=(src>>>ashift)&255;
+				src&=namask;
+				if (sa>=filllim) {
+					dstdata[drow++]=src|(Math.floor(sa*amul0)<<ashift);
+					continue;
+				}
+				if (sa<=0) {drow++;continue;}
+				tmp=dstdata[drow];
+				da=(tmp>>>ashift)&255;
+				if (da===0) {
+					dstdata[drow++]=src|(Math.floor(sa*amul0)<<ashift);
+					continue;
+				}
+				// Approximate blending by expanding sa from [0,255] to [0,256].
+				if (da===255) {
+					sa=Math.floor(sa*amul1);
+					da=amask;
+				} else {
+					sa*=amul;
+					da=sa*255+da*(65025-sa);
+					sa=Math.floor((sa*0xff00+(da>>>1))/da);
+					da=Math.floor((da+32512)/65025)<<ashift;
+				}
+				l=tmp&0x00ff00ff;
+				h=tmp&0xff00ff00;
+				dstdata[drow++]=da|
+					(((Math.imul((src&0x00ff00ff)-l,sa)>>>8)+l)&maskl)|
+					((Math.imul(((src>>>8)&0x00ff00ff)-(h>>>8),sa)+h)&maskh);
+			}
+			xstop+=dw;
+			drow+=dinc;
+			srow+=sinc;
+		}
+	}
+
+
+	// ----------------------------------------
+	// Paths
+
+
+	beginpath() {return this.defpoly.begin();}
+	closepath() {return this.defpoly.close();}
+	moveto(x,y) {return this.defpoly.moveto(x,y);}
+	lineto(x,y) {return this.defpoly.lineto(x,y);}
+	curveto(x0,y0,x1,y1,x2,y2) {return this.defpoly.curveto(x0,y0,x1,y1,x2,y2);}
+
+
 	// ----------------------------------------
 	// Primitives
 
 
-	line(x0,y0,x1,y1) {
+	drawline(x0,y0,x1,y1) {
 		var poly=this.tmppoly,trans=this.deftrans;
 		poly.begin();
 		poly.addline(x0,y0,x1,y1,this.linewidth*0.5);
-		this.fillpoly(poly,trans);
+		this.fill(poly,trans);
 	}
 
 
@@ -775,7 +769,7 @@ class Draw {
 		trans.copy(this.deftrans).addoffset(x,y).mulscale(w,h);
 		poly.begin();
 		poly.addrect(0,0,1,1);
-		this.fillpoly(poly,trans);
+		this.fill(poly,trans);
 	}
 
 
@@ -789,7 +783,7 @@ class Draw {
 		trans.copy(this.deftrans).addoffset(x,y).mulscale(xrad,yrad);
 		poly.begin();
 		poly.addoval(0,0,1,1);
-		this.fillpoly(poly,trans);
+		this.fill(poly,trans);
 	}
 
 
@@ -815,10 +809,11 @@ class Draw {
 	// Polygon Filling
 
 
-	fillpoly(poly,trans) {
-		// Use a binary heap to dynamically sort lines.
+	fill(poly,trans) {
+		// Fills the current path.
+		//
 		// Preprocess the lines and curves. Reject anything with a NaN, too narrow, or
-		// outside the image.
+		// outside the image. Use a binary heap to dynamically sort lines.
 		if (poly ===undefined) {poly =this.defpoly ;}
 		if (trans===undefined) {trans=this.deftrans;}
 		if (poly.lineidx<=0 && poly.curvidx<=0) {return;}
@@ -1010,13 +1005,13 @@ class Draw {
 					var dyx=l.dyx,dxy=l.dxy;
 					var y0x=x0-y0*dxy;
 					var y1x=y0x+dxy;
-					if (y0<0) {x0=y0x;y0=0;}
-					if (y0>1) {x0=y1x;y0=1;}
-					if (y1<0) {x1=y0x;y1=0;}
-					if (y1>1) {x1=y1x;y1=1;}
-					var left=xrow+(y0>y1?x0:x1)+(dxy<0?dxy:0);
-					left=Math.max(Math.floor(left),xrow+l.minx);
-					if (left>=l.maxy) {left=Infinity;}
+					if (y0<0) {y0=0;x0=y0x;}
+					if (y0>1) {y0=1;x0=y1x;}
+					if (y1<0) {y1=0;x1=y0x;}
+					if (y1>1) {y1=1;x1=y1x;}
+					var next=(y0>y1?x0:x1)+(dxy<0?dxy:0);
+					next=xrow+Math.max(Math.floor(next),l.minx);
+					if (next>=l.maxy) {next=Infinity;}
 					if (x1<x0) {tmp=x0;x0=x1;x1=tmp;dyx=-dyx;}
 					var fx0=Math.floor(x0);
 					var fx1=Math.floor(x1);
@@ -1026,26 +1021,26 @@ class Draw {
 						// Vertical line - avoid divisions.
 						dy=(y0-y1)*amul;
 						tmp=fx1>=0?(x0+x1)*dy*0.5:0;
-						area-=dy-tmp;
-						areadx2-=tmp;
-						l.sort=left;
+						area+=dy-tmp;
+						areadx2+=tmp;
+						l.sort=next;
 					} else {
 						dyx*=amul;
 						var mul=dyx*0.5,n0=x0-1,n1=x1-1;
-						area    +=n0*n0*mul+(fx0<0?-fx0*dyx:0);
-						areadx1 +=dyx;
-						areadx2 -=x0*x0*mul;
+						area    -=n0*n0*mul-(fx0<0?fx0*dyx:0);
+						areadx1 -=dyx;
+						areadx2 +=x0*x0*mul;
 						l.area   =n1*n1*mul;
 						l.areadx1=dyx;
 						l.areadx2=x1*x1*mul;
-						l.next=left;
-						l.sort=fx1<iw?fx1+xrow-iw:left;
+						l.next=next;
+						l.sort=fx1<iw?fx1+xrow-iw:next;
 					}
 				} else {
-					area   -=l.area;
-					areadx1-=l.areadx1;
-					areadx2+=l.areadx2;
-					l.sort=l.next;
+					area   +=l.area;
+					areadx1+=l.areadx1;
+					areadx2-=l.areadx2;
+					l.sort  =l.next;
 				}
 				// Heap sort down.
 				i=0;
@@ -1097,68 +1092,8 @@ class Draw {
 	}
 
 
-	drawimage(src,dx,dy,dw,dh) {
-		// Draw an image with alpha blending.
-		var dst=this.img;
-		dx=(dx===undefined)?0:(dx|0);
-		dy=(dy===undefined)?0:(dy|0);
-		dw=(dw===undefined || dw>src.width )?src.width :(dx|0);
-		dh=(dh===undefined || dh>src.height)?src.height:(dh|0);
-		var sx=0,sy=0;
-		dw+=dx;
-		if (dx<0) {sx=-dx;dx=0;}
-		dw=(dw>dst.width?dst.width:dw)-dx;
-		dh+=dy;
-		if (dy<0) {sy=-dy;dy=0;}
-		dh=(dh>dst.height?dst.height:dh)-dy;
-		if (dw<=0 || dh<=0) {return;}
-		var dstdata=dst.data32,drow=dy*dst.width+dx,dinc=dst.width-dw;
-		var srcdata=src.data32,srow=sy*src.width+sx,sinc=src.width-dw;
-		var ystop=drow+dst.width*dh,xstop=drow+dw;
-		var amul=this.rgba[3],amul0=amul/255.0,amul1=amul*(256.0/65025.0);
-		var filllim=amul0>0?255/amul0:Infinity;
-		var ashift=this.rgbashift[3],amask=(255<<ashift)>>>0,namask=(~amask)>>>0;
-		var maskl=0x00ff00ff&namask,maskh=0xff00ff00&namask;
-		var sa,da,l,h,tmp;
-		dw=dst.width;
-		while (drow<ystop) {
-			while (drow<xstop) {
-				// a = sa + da*(1-sa)
-				// c = (sc*sa + dc*da*(1-sa)) / a
-				src=srcdata[srow++];
-				sa=(src>>>ashift)&255;
-				src&=namask;
-				if (sa>=filllim) {
-					dstdata[drow++]=src|(Math.floor(sa*amul0)<<ashift);
-					continue;
-				}
-				if (sa<=0) {drow++;continue;}
-				tmp=dstdata[drow];
-				da=(tmp>>>ashift)&255;
-				if (da===0) {
-					dstdata[drow++]=src|(Math.floor(sa*amul0)<<ashift);
-					continue;
-				}
-				// Approximate blending by expanding sa from [0,255] to [0,256].
-				if (da===255) {
-					sa=Math.floor(sa*amul1);
-					da=amask;
-				} else {
-					sa*=amul;
-					da=sa*255+da*(65025-sa);
-					sa=Math.floor((sa*0xff00+(da>>>1))/da);
-					da=Math.floor((da+32512)/65025)<<ashift;
-				}
-				l=tmp&0x00ff00ff;
-				h=tmp&0xff00ff00;
-				dstdata[drow++]=da|
-					(((Math.imul((src&0x00ff00ff)-l,sa)>>>8)+l)&maskl)|
-					((Math.imul(((src>>>8)&0x00ff00ff)-(h>>>8),sa)+h)&maskh);
-			}
-			xstop+=dw;
-			drow+=dinc;
-			srow+=sinc;
-		}
-	}
+	// trace(poly,trans) {
+	//	// Traces the current path
+	// }
 
 }

@@ -806,7 +806,7 @@ class PolyDemo2 {
 
 	update() {
 		var draw=this.draw;
-		draw.fill(0,0,0);
+		draw.fillimage(0,0,0);
 		draw.setangle(0);
 		for (var i=0;i<16;i++) {
 			for (var j=0;j<9;j++) {
@@ -857,16 +857,16 @@ class PolyDemo3 {
 
 	update() {
 		var draw=this.draw;
-		draw.fill(0,0,0);
+		draw.fillimage(0,0,0);
 		// draw.setangle(performance.now()*0.0002);
 		draw.setcolor(255,0,0);
 		var [mx,my]=this.input.getmousepos();
 		mx*=draw.img.width;
-		my=(1-my)*draw.img.height;
+		my*=draw.img.height;
 		// draw.fillrect(mx,my,300,100);
 		// draw.filloval(mx,my,300,100);
-		// draw.linewidth=40.0;
-		draw.line(draw.img.width/2,draw.img.height/2,mx,my);
+		draw.linewidth=40.0;
+		draw.drawline(draw.img.width/2,draw.img.height/2,mx,my);
 		this.ctx.putImageData(draw.img.dataim,0,0);
 	}
 
