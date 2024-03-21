@@ -338,6 +338,143 @@ function areatest2() {
 }
 
 
+
+//---------------------------------------------------------------------------------
+// Test 3 - Area Clipping
+
+
+function getrowlines2(line,px,py,amul) {
+	//
+	//     fx0  fx0+1                          fx1  fx1+1
+	//      +-----+-----+-----+-----+-----+-----+-----+
+	//      |                              .....----  |
+	//      |               .....-----'''''           |
+	//      | ....-----'''''                          |
+	//      +-----+-----+-----+-----+-----+-----+-----+
+	//       first  dyx   dyx   dyx   dyx   dyx  last   tail
+	//
+	var x0=line.x0,y0=line.y0-py;
+	var x1=line.x1,y1=line.y1-py;
+	var tmp;
+	var difx=x1-x0;
+	var dify=y1-y0;
+	var a0={area:0,areadx1:0,areadx2:0,sort:0};
+	var a1={area:0,areadx1:0,areadx2:0,sort:Infinity};
+	if (Math.abs(dify)<1e-10 || (y0>=1 && y1>=1) || (y0<=0 && y1<=0)) {return [a0,a1];}
+	if (Math.abs(difx)<1e-10) {x1=x0;difx=0;}
+	var dyx=Math.abs(difx)>1e-10?dify/difx:0;
+	var dxy=difx/dify;
+	var y0x=x0-y0*dxy;
+	var y1x=y0x+dxy;
+	if (y0<0) {y0=0;x0=y0x;}
+	if (y0>1) {y0=1;x0=y1x;}
+	if (y1<0) {y1=0;x1=y0x;}
+	if (y1>1) {y1=1;x1=y1x;}
+	//var next=(y0>y1?x0:x1)+(dxy<0?dxy:0);
+	//next=xrow+Math.max(Math.floor(next),l.minx);
+	//if (next>=l.maxy) {next=Infinity;}
+	if (x1<x0) {tmp=x0;x0=x1;x1=tmp;dyx=-dyx;}
+	var fx0=Math.floor(x0);
+	var fx1=Math.floor(x1);
+	x0-=fx0;
+	x1-=fx1;
+	a0.sort=fx0;
+	if (fx0===fx1 || fx1<0) {
+		// Vertical line - avoid divisions.
+		var dy=(y0-y1)*amul;
+		tmp=fx1>=0?(x0+x1)*dy*0.5:0;
+		a0.area+=dy-tmp;
+		a0.areadx2+=tmp;
+	} else {
+		dyx*=amul;
+		var mul=dyx*0.5,n0=x0-1,n1=x1-1;
+		if (fx0<0) {
+			a0.area-=mul-(x0+fx0)*dyx;
+		} else {
+			a0.area-=n0*n0*mul;
+			a0.areadx2+=x0*x0*mul;
+		}
+		a0.areadx1-=dyx;
+		a1.area   +=n1*n1*mul;
+		a1.areadx1+=dyx;
+		a1.areadx2-=x1*x1*mul;
+		a1.sort=fx1;
+	}
+	return [a0,a1];
+}
+
+
+function areacliptest() {
+	// See if the area approximation matches the exact calculation.
+	console.log("testing area clipping");
+	var rnd=new Random(1);
+	var amul=0.7117;
+	var tests=1000;
+	var maxdif=0;
+	for (var test=0;test<tests;test++) {
+		var x0=rnd.getf64()*200-50;
+		var y0=rnd.getf64()*200-50;
+		var x1=rnd.getf64()*200-50;
+		var y1=rnd.getf64()*200-50;
+		if (rnd.getf64()<0.25) {
+			var dev=rnd.modu32(30);
+			dev=dev>16?0:(1/(1<<dev));
+			x1=x0+(rnd.getf64()*2-1)*dev;
+		}
+		if (rnd.getf64()<0.25) {
+			var dev=rnd.modu32(30);
+			dev=dev>16?0:(1/(1<<dev));
+			y1=y0+(rnd.getf64()*2-1)*dev;
+		}
+		var minx=Math.floor(Math.min(x0,x1))-2;
+		var maxx=Math.ceil( Math.max(x0,x1))+2;
+		var miny=Math.floor(Math.min(y0,y1))-2;
+		var maxy=Math.ceil( Math.max(y0,y1))+2;
+		var line={x0:x0,y0:y0,x1:x1,y1:y1};
+		//if (test!==1) {continue;}//////////////////////
+		console.log(test,x0,y0,x1,y1);
+		for (var cy=miny;cy<maxy;cy++) {
+			var aobj=getrowlines2(line,Infinity,cy,amul);
+			var a=aobj[0];
+			var area=a.area,areadx1=a.areadx1,areadx2=a.areadx2,cx=a.sort;
+			if (cx<0) {
+				cx=0;
+				var areac=areacalc1(line.x0-cx,line.y0-cy,line.x1-cx,line.y1-cy);
+				if (Math.abs(areac)<1e-20) {
+					throw "zstart: "+areac;
+				}
+			} else {
+				var areac=areacalc1(line.x0-(cx-1),line.y0-cy,line.x1-(cx-1),line.y1-cy);
+				if (areac!=0) {
+					console.log(line,cx);
+					throw "prev: "+areac;
+				}
+			}
+			a=aobj[1];
+			var stop=Math.min(a.sort,0)+10;
+			for (;cx<stop;cx++) {
+				if (cx>=a.sort) {
+					area+=a.area;
+					areadx1+=a.areadx1;
+					areadx2+=a.areadx2;
+					a.sort=Infinity;
+				}
+				areac=areacalc1(line.x0-cx,line.y0-cy,line.x1-cx,line.y1-cy)*amul;
+				var dif=Math.abs(area-areac);
+				if (maxdif<dif) {
+					maxdif=dif;
+					console.log(maxdif,areac,area,areadx1,areadx2);
+				}
+				area+=areadx1+areadx2;
+				areadx2=0;
+			}
+			//console.log(aobj[0],aobj[1]);
+		}
+	}
+	console.log("max dif: "+maxdif);
+}
+
+
 //---------------------------------------------------------------------------------
 // Stride Test
 // Calculate how many pixels can be filled with the same color.
@@ -927,7 +1064,7 @@ function beziersegment1(tv,splitlen) {
 	p2x=(p2x-p1x)*3;p1x=(p1x-p0x)*3;p3x-=p0x+p2x;p2x-=p1x;
 	p2y=(p2y-p1y)*3;p1y=(p1y-p0y)*3;p3y-=p0y+p2y;p2y-=p1y;
 	var ppx=p0x,ppy=p0y,u0=0;
-	for (j=0;j<4;j++) {
+	for (var j=0;j<4;j++) {
 		var u1=(j+1)/4;
 		var cpx=p0x+u1*(p1x+u1*(p2x+u1*p3x))-ppx;
 		var cpy=p0y+u1*(p1y+u1*(p2y+u1*p3y))-ppy;
@@ -935,16 +1072,16 @@ function beziersegment1(tv,splitlen) {
 		var segs=Math.ceil(dist/splitlen);
 		// Split up the current segment.
 		if (lcnt+segs>=lrcnt) {
-			newlen=(lcnt+segs)*2;
+			var newlen=(lcnt+segs)*2;
 			while (lrcnt<newlen) {lr.push({});lrcnt++;}
-			//this.tmpline=lr;
+			// this.tmpline=lr;
 		}
 		u1=(u1-u0)/segs;
 		for (var s=0;s<segs;s++) {
 			u0+=u1;
 			cpx=p0x+u0*(p1x+u0*(p2x+u0*p3x));
 			cpy=p0y+u0*(p1y+u0*(p2y+u0*p3y));
-			l=lr[lcnt++];
+			var l=lr[lcnt++];
 			l.u=u0;
 			l.x0=ppx;
 			l.y0=ppy;
@@ -974,7 +1111,7 @@ function beziersegment2(tv,splitlen) {
 	if (lcnt>=lrcnt) {
 		var newlen=(lcnt+1)*2;
 		while (lrcnt<newlen) {lr.push({});lrcnt++;}
-		//this.tmpline=lr;
+		// this.tmpline=lr;
 	}
 	var l=lr[lcnt++];
 	l.x0=p0x;
@@ -1002,7 +1139,7 @@ function beziersegment2(tv,splitlen) {
 			if (lcnt>=lrcnt) {
 				var newlen=(lcnt+1)*2;
 				while (lrcnt<newlen) {lr.push({});lrcnt++;}
-				//this.tmpline=lr;
+				// this.tmpline=lr;
 			}
 			var n=lr[lcnt++];
 			n.u0=u;
@@ -1045,7 +1182,7 @@ function beziersegment3(tv,splitlen) {
 	if (lcnt>=lrcnt) {
 		var newlen=(lcnt+1)*2;
 		while (lrcnt<newlen) {lr.push({});lrcnt++;}
-		//this.tmpline=lr;
+		// this.tmpline=lr;
 	}
 	var l=lr[lcnt++];
 	l.x0=p0x;
@@ -1111,12 +1248,12 @@ function beziersegment3(tv,splitlen) {
 		dists+=Math.abs(m7x -m2x )+Math.abs(m7y -m2y );
 		dists+=Math.abs(l.x1-m7x )+Math.abs(l.y1-m7y );
 		if (dists>=dist+0.001) {
-		//if (dists>=Math.max(dist*1.00001,dist+0.001)) {
+		// if (dists>=Math.max(dist*1.00001,dist+0.001)) {
 			// Split up the current segment.
 			if (lcnt+3>=lrcnt) {
 				var newlen=(lcnt+3)*2;
 				while (lrcnt<newlen) {lr.push({});lrcnt++;}
-				//this.tmpline=lr;
+				// this.tmpline=lr;
 			}
 			var n;
 			n=lr[lcnt++];n.u0=u2;n.u=u7 ;n.x0=m2x;n.y0=m2y;n.x1=m7x ;n.y1=m7y ;
@@ -1193,7 +1330,7 @@ function beziersegment4(tv,splitlen) {
 	if (lcnt>=lrcnt) {
 		var newlen=(lcnt+1)*2;
 		while (lrcnt<newlen) {lr.push({});lrcnt++;}
-		//this.tmpline=lr;
+		// this.tmpline=lr;
 	}
 	var l=lr[lcnt++];
 	l.x0=p0x;
@@ -1221,7 +1358,7 @@ function beziersegment4(tv,splitlen) {
 			if (lcnt+3>=lrcnt) {
 				var newlen=(lcnt+3)*2;
 				while (lrcnt<newlen) {lr.push({});lrcnt++;}
-				//this.tmpline=lr;
+				// this.tmpline=lr;
 			}
 			var n=lr[lcnt++];
 			n.u0=u;
@@ -1576,6 +1713,7 @@ function sortfunc5(arr,start,stop,field) {
 
 
 function sorttest() {
+	console.log("Testing sorting speed");
 	var funcs=[sortfunc0,sortfunc1,sortfunc2,sortfunc3,sortfunc4,sortfunc5];
 	for (var b=0;b<14;b++) {
 		var len=1<<b;
@@ -1598,6 +1736,74 @@ function sorttest() {
 
 
 //---------------------------------------------------------------------------------
+// Heap sorting
+
+
+function heaptest() {
+	console.log("Testing heap");
+	var rnd=new Random();
+	for (var test=0;test<100;test++) {
+		var alloc=rnd.modu32(2000);
+		// Build heap.
+		var maxval=100000;
+		var idused=new Uint32Array(alloc);
+		var lr=new Array(alloc),lcnt=0;
+		for (var i=0;i<alloc;i++) {
+			var l={};
+			l.id=i;
+			lr[i]=l;
+			l.sort=-Infinity;
+			if (rnd.modu32(4)===0) {continue;}
+			l.sort=rnd.modu32(maxval*2);
+			var j=lcnt++;
+			lr[i]=lr[j];
+			var p,lp;
+			while (j>0 && l.sort<(lp=lr[p=(j-1)>>1]).sort) {
+				lr[j]=lp;
+				j=p;
+			}
+			lr[j]=l;
+		}
+		while (true) {
+			// Test heap properties.
+			idused.fill(1);
+			var cnt=0;
+			for (var i=0;i<alloc;i++) {
+				var l=lr[i],id=l.id;
+				cnt+=idused[id];
+				idused[id]=0;
+				if (i>0 && i<lcnt) {
+					var p=(i-1)>>1,lp=lr[p];
+					if (lp.sort>l.sort) {
+						throw "not sorted: "+lp.sort+", "+l.sort;
+					}
+				}
+			}
+			if (cnt!==alloc) {
+				throw "object missing: "+cnt+" / "+alloc;
+			}
+			if (lcnt===0 || lr[0].sort>=maxval) {break;}
+			// Modify top value.
+			var l=lr[0];
+			var type=rnd.modu32(4);
+			var mod=[1,2,100,maxval-l.sort+10][type];
+			l.sort+=rnd.modu32(mod);
+			// Heap sort down.
+			var i=0,j;
+			while ((j=i+i+1)<lcnt) {
+				if (j+1<lcnt && lr[j+1].sort<lr[j].sort) {j++;}
+				if (lr[j].sort>=l.sort) {break;}
+				lr[i]=lr[j];
+				i=j;
+			}
+			lr[i]=l;
+		}
+	}
+	console.log("passed");
+}
+
+
+//---------------------------------------------------------------------------------
 // Main
 
 
@@ -1605,12 +1811,14 @@ function testmain() {
 	console.log("starting polygon tests");
 	// areatest1();
 	// areatest2();
+	// areacliptest();
 	// stridetest();
 	// blendtest1();
 	// blendtest2();
 	// bezierpolytest();
-	//beziersegmenttest();
+	// beziersegmenttest();
 	// sorttest();
+	// heaptest();
 }
 
 

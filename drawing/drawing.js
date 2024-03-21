@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v1.16
+drawing.js - v1.17
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -11,18 +11,15 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
-inverse rotation in transform()
-Path string format
-	M Z L C
-	add tostring()
-	change internal representation
-Have article include curve diagrams, like schematics.
 Create font/image fitting
 	average r,g,b values to account for both grayscale and subpixel accuracy
 	color=(r+g+b)/(3*255)
 	assign cost: 80/curve+10/line+1/point
 Image scaling and rotation.
+Better clipping when polygon sections off screen.
 More accurate linearization of curves. Split on curvature, not length.
+Simply area calculation in fill().
+Linear time heap construction in fill().
 Tracing - project out based on tangent.
 
 
@@ -34,7 +31,7 @@ Tracing - project out based on tangent.
 
 
 //---------------------------------------------------------------------------------
-// Anti-aliased Image Drawing - v1.15
+// Anti-aliased Image Drawing - v1.17
 
 
 class _DrawTransform {
@@ -79,9 +76,9 @@ class _DrawTransform {
 		// point -> scale -> rotate -> offset
 		var data=this.data;
 		data[0]= data[ 9]*data[6];
-		data[1]= data[10]*data[7];
+		data[1]=-data[10]*data[7];
 		data[2]= data[11];
-		data[3]=-data[10]*data[6];
+		data[3]= data[10]*data[6];
 		data[4]= data[ 9]*data[7];
 		data[5]= data[12];
 	}
@@ -92,7 +89,7 @@ class _DrawTransform {
 		ang%=6.283185307;
 		data[ 8]=ang;
 		data[ 9]=Math.cos(ang);
-		data[10]=-Math.sin(ang);
+		data[10]=Math.sin(ang);
 		this.calcmatrix();
 		return this;
 	}
@@ -154,9 +151,9 @@ class _DrawTransform {
 	apply(x,y) {
 		// Applies all transformations to a point.
 		if (y===undefined) {y=x[1];x=x[0];}
-		var data=this.data,t=x;
-		x=t*data[0]+y*data[1]+data[2];
-		y=t*data[3]+y*data[4]+data[5];
+		var data=this.data,w=x;
+		x=w*data[0]+y*data[1]+data[2];
+		y=w*data[3]+y*data[4]+data[5];
 		return [x,y];
 	}
 
@@ -164,12 +161,12 @@ class _DrawTransform {
 	undo(x,y) {
 		// Applies the inverse transform to [x,y].
 		if (y===undefined) {y=x[1];x=x[0];}
-		var data=this.data;
-		x-=data[2];
+		var data=this.data,w=x;
+		var det=data[0]*data[4]-data[1]*data[3];
+		w-=data[2];
 		y-=data[5];
-		var det=data[0]*data[4]-data[1]*data[3],t=x;
-		x=(t*data[4]-y*data[1])/det;
-		y=(y*data[0]-t*data[3])/det;
+		x=(w*data[4]-y*data[1])/det;
+		y=(y*data[0]-w*data[3])/det;
 		return [x,y];
 	}
 
@@ -178,71 +175,55 @@ class _DrawTransform {
 
 class _DrawPoly {
 
-	constructor() {
-		this.vertarr=new Float64Array();
+	static MOVE =0;
+	static CLOSE=1;
+	static LINE =2;
+	static CURVE=3;
+
+
+	constructor(str) {
+		this.vertarr=new Array();
 		this.vertidx=0;
-		this.linearr=new Uint32Array();
-		this.lineidx=0;
-		this.curvarr=new Uint32Array();
-		this.curvidx=0;
-		this.moved=0;
-		this.moveidx=-1;
+		this.moveidx=-2;
+		this.MOVE =0;
+		this.CLOSE=1;
+		this.LINE =2;
+		this.CURVE=3;
+		if (str) {this.fromstring(str);}
 	}
 
 
 	begin() {
 		this.vertidx=0;
-		this.lineidx=0;
-		this.curvidx=0;
-		this.moved=0;
+		this.moveidx=-2;
 		return this;
 	}
 
 
-	resize(verts,lines,curvs) {
-		// Resizes internal memory to fit additional vertices and lines.
-		var idx,len,arr;
-		if (verts>0) {
-			idx=this.vertidx+verts*2;
-			len=this.vertarr.length||1;
-			if (idx>=len) {
-				do {len+=len;} while (idx>=len);
-				arr=new Float64Array(len);
-				arr.set(this.vertarr);
-				this.vertarr=arr;
-			}
-		}
-		if (lines>0) {
-			idx=this.lineidx+lines*2;
-			len=this.linearr.length||1;
-			if (idx>=len) {
-				do {len+=len;} while (idx>=len);
-				arr=new Uint32Array(len);
-				arr.set(this.linearr);
-				this.linearr=arr;
-			}
-		}
-		if (curvs>0) {
-			idx=this.curvidx+curvs*4;
-			len=this.curvarr.length||1;
-			if (idx>=len) {
-				do {len+=len;} while (idx>=len);
-				arr=new Uint32Array(len);
-				arr.set(this.curvarr);
-				this.curvarr=arr;
-			}
+	resize(verts) {
+		// Resizes internal memory to fit additional vertices.
+		if (verts<=0) {return;}
+		var idx=this.vertidx+verts;
+		var arr=this.vertarr;
+		var len=arr.length;
+		if (idx>=len) {
+			for (len=1;len<=idx;len+=len) {}
+			while (arr.length<len) {arr.push({type:-1,x:0,y:0});}
 		}
 	}
 
 
 	moveto(x,y) {
 		// Move the pen to [x,y].
-		this.resize(1,0,0);
-		this.moved=1;
-		var idx=this.vertidx;
+		var idx=this.vertidx,arr=this.vertarr;
+		if (idx>=arr.length) {this.resize(1);}
+		if (this.moveidx===idx-1) {idx--;}
+		var v=arr[idx];
+		v.type=this.MOVE;
+		v.x=x;
+		v.y=y;
 		this.moveidx=idx;
-		this.vertarr[idx  ]=x;
-		this.vertarr[idx+1]=y;
+		this.vertidx=idx+1;
 		return this;
 	}
 
@@ -250,64 +231,92 @@ class _DrawPoly {
 	lineto(x,y) {
 		// Draw a line from the last vertex to [x,y].
 		// If no moveto() was ever called, behave as moveto().
-		if (this.moved===0) {
-			return this.moveto(x,y);
-		}
-		var vidx=this.vertidx;
-		var lidx=this.lineidx;
-		if (this.moved===1) {
-			this.moved=2;
-			vidx+=2;
-		}
-		this.resize(2,1,0);
-		this.linearr[lidx++]=vidx-2;
-		this.linearr[lidx++]=vidx;
-		this.lineidx=lidx;
-		this.vertarr[vidx++]=x;
-		this.vertarr[vidx++]=y;
-		this.vertidx=vidx;
+		if (this.moveidx<0) {return this.moveto(x,y);}
+		var arr=this.vertarr;
+		if (this.vertidx>=arr.length) {this.resize(1);}
+		var v=arr[this.vertidx++];
+		v.type=this.LINE;
+		v.x=x;
+		v.y=y;
 		return this;
 	}
 
 
 	curveto(x0,y0,x1,y1,x2,y2) {
 		// Draw a cubic bezier curve.
-		if (this.moved===0) {
-			return this.moveto(x0,y0);
-		}
-		var vidx=this.vertidx;
-		var cidx=this.curvidx;
-		if (this.moved===1) {
-			this.moved=2;
-			vidx+=2;
-		}
-		this.resize(4,0,1);
-		this.curvarr[cidx++]=vidx-2;
-		this.curvarr[cidx++]=vidx;
-		this.vertarr[vidx++]=x0;
-		this.vertarr[vidx++]=y0;
-		this.curvarr[cidx++]=vidx;
-		this.vertarr[vidx++]=x1;
-		this.vertarr[vidx++]=y1;
-		this.curvarr[cidx++]=vidx;
-		this.vertarr[vidx++]=x2;
-		this.vertarr[vidx++]=y2;
-		this.curvidx=cidx;
-		this.vertidx=vidx;
+		if (this.moveidx<0) {this.moveto(x0,y0);}
+		var idx=this.vertidx,arr=this.vertarr;
+		if (idx+3>=arr.length) {this.resize(3);}
+		var v,t=this.CURVE;
+		v=arr[idx++]; v.type=t; v.x=x0; v.y=y0;
+		v=arr[idx++]; v.type=t; v.x=x1; v.y=y1;
+		v=arr[idx++]; v.type=t; v.x=x2; v.y=y2;
+		this.vertidx=idx;
 		return this;
 	}
 
 
 	close() {
 		// Draw a line from the current vertex to our last moveto() call.
-		if (this.moved!==2) {return this;}
-		this.resize(0,1,0);
-		var lidx=this.lineidx;
-		this.linearr[lidx++]=this.vertidx-2;
-		this.linearr[lidx++]=this.moveidx;
-		this.lineidx=lidx;
-		this.moved=0;
+		if (this.moveidx<0) {return this;}
+		if (this.moveidx===this.vertidx-1) {
+			this.vertidx--;
+			return this;
+		}
+		this.resize(1);
+		var v=this.vertarr[this.vertidx++];
+		v.type=this.CLOSE;
+		v.x=this.moveidx;
+		this.moveidx=-2;
 		return this;
+	}
+
+
+	tostring(precision) {
+		// Converts the path to an SVG string.
+		var p=precision===undefined?10:precision;
+		var name=["M ","Z","L ","C "];
+		var ret="";
+		for (var i=0;i<this.vertidx;i++) {
+			var v=this.vertarr[i],t=v.type;
+			ret+=(i?" ":"")+name[t];
+			if (t!==this.CLOSE) {
+				ret+=v.x.toFixed(p)+" "+v.y.toFixed(p);
+			}
+			if (t===this.CURVE) {
+				v=this.vertarr[++i];
+				ret+=", "+v.x.toFixed(p)+" "+v.y.toFixed(p);
+				v=this.vertarr[++i];
+				ret+=", "+v.x.toFixed(p)+" "+v.y.toFixed(p);
+			}
+		}
+		ret=ret.replace(/\.?0*(\s|,|$)/g,"$1");
+		return ret;
+	}
+
+
+	fromstring(str) {
+		// Parses an SVG path. Supports M, Z, L, C.
+		this.begin();
+		var type,j,len=str.length;
+		var params=[2,0,2,6],v=[0,0,0,0,0,0];
+		for (var i=0;i<len;) {
+			var c=str[i++];
+			if (c==="M" || c==="m") {type=0;}
+			else if (c==="Z" || c==="z") {type=1;}
+			else if (c==="L" || c==="l") {type=2;}
+			else if (c==="C" || c==="c") {type=3;}
+			else {continue;}
+			for (var t=0;t<params[type];t++) {
+				for (j=i;j<len && ((c=str.charCodeAt(j))<=32 || c===44);j++) {}
+				for (i=j;i<len && ((c=str.charCodeAt(i))> 32 && c!==44);i++) {}
+				v[t]=parseFloat(str.substring(j,i));
+			}
+			if (type===0) {this.moveto(v[0],v[1]);}
+			else if (type===1) {this.close();}
+			else if (type===2) {this.lineto(v[0],v[1]);}
+			else {this.curveto(v[0],v[1],v[2],v[3],v[4],v[5]);}
+		}
 	}
 
 
@@ -355,16 +364,16 @@ class _DrawPoly {
 			dy*=dist;
 		}
 		const a=1.00005519,b=0.55342686,c=0.99873585;
-		/*var ax=a*dx,ay=a*dy;
-		var bx=b*dx,cy=c*dy,c0=bx-cy,c3=bx+cy;
-		var cx=c*dx,by=b*dy,c1=cx+by,c2=cx-by;
-		this.moveto(x1-ay,y1+ax);
-		this.curveto(x1+c0,y1+c1,x1+c2,y1+c3,x1+ax,y1+ay);
-		this.curveto(x1+c1,y1-c0,x1+c3,y1-c2,x1+ay,y1-ax);
-		this.lineto(x0+ay,y0-ax);
-		this.curveto(x0-c0,y0-c1,x0-c2,y0-c3,x0-ax,y0-ay);
-		this.curveto(x0-c1,y0+c0,x0-c3,y0+c2,x0-ay,y0+ax);
-		this.close();*/
+		//var ax=a*dx,ay=a*dy;
+		//var bx=b*dx,cy=c*dy,c0=bx-cy,c3=bx+cy;
+		//var cx=c*dx,by=b*dy,c1=cx+by,c2=cx-by;
+		//this.moveto(x1-ay,y1+ax);
+		//this.curveto(x1+c0,y1+c1,x1+c2,y1+c3,x1+ax,y1+ay);
+		//this.curveto(x1+c1,y1-c0,x1+c3,y1-c2,x1+ay,y1-ax);
+		//this.lineto(x0+ay,y0-ax);
+		//this.curveto(x0-c0,y0-c1,x0-c2,y0-c3,x0-ax,y0-ay);
+		//this.curveto(x0-c1,y0+c0,x0-c3,y0+c2,x0-ay,y0+ax);
+		//this.close();
 		var ax=a*dx,ay=a*dy;
 		var bx=b*dx,cy=c*dy,c0=bx-cy,c3=bx+cy;
 		var cx=c*dx,by=b*dy,c1=cx+by,c2=cx-by;
@@ -381,7 +390,6 @@ class _DrawPoly {
 
 	addrect(x,y,w,h) {
 		this.addstrip([0,0,1,0,1,1,0,1]);
-		//this.addstrip([0,0,1,0,1,-1,0,-1]);
 		return this;
 	}
 
@@ -472,7 +480,7 @@ class _DrawImage {
 				dst[didx++]=src[sidx++];
 				dst[didx++]=src[sidx++];
 				dst[didx++]=src[sidx++];
-				if (bytes===3) {dst[didx++]=255}
+				if (bytes===3) {dst[didx++]=255;}
 				else {dst[didx++]=src[sidx++];}
 			}
 		}
@@ -512,7 +520,7 @@ class Draw {
 	constructor() {
 		var con=this.constructor;
 		// Image info
-		this.img      =new con.Image(1,1);
+		this.img      =new con.Image(0,0);
 		this.rgba     =new Uint8ClampedArray([0,1,2,3]);
 		this.rgba32   =new Uint32Array(this.rgba.buffer);
 		this.rgbashift=[0,0,0,0];
@@ -534,7 +542,6 @@ class Draw {
 		this.linewidth=1.0;
 		this.tmptrans =new con.Transform();
 		this.tmppoly  =new con.Poly();
-		this.tmpvert  =[];
 		this.tmpline  =[];
 	}
 
@@ -816,104 +823,87 @@ class Draw {
 		// outside the image. Use a binary heap to dynamically sort lines.
 		if (poly ===undefined) {poly =this.defpoly ;}
 		if (trans===undefined) {trans=this.deftrans;}
-		if (poly.lineidx<=0 && poly.curvidx<=0) {return;}
+		if (poly.vertidx<2) {return;}
 		var l,i,j,tmp;
 		var iw=this.img.width,ih=this.img.height,imgdata=this.img.data32;
-		// Convert all points to screenspace.
+		// Screenspace transformation.
 		var vmulx=this.viewmulx,voffx=this.viewoffx;
 		var vmuly=this.viewmuly,voffy=this.viewoffy;
 		var matxx=trans.data[0]*vmulx,matxy=trans.data[1]*vmulx,matx=(trans.data[2]-voffx)*vmulx;
 		var matyx=trans.data[3]*vmuly,matyy=trans.data[4]*vmuly,maty=(trans.data[5]-voffy)*vmuly;
-		var x0,y0,x1,y1;
-		var tv=this.tmpvert;
-		if (tv.length<poly.vertidx) {
-			tv=new Float64Array(poly.vertidx*2);
-			this.tmpvert=tv;
-		}
-		for (i=poly.vertidx-2;i>=0;i-=2) {
-			x0=poly.vertarr[i  ];
-			y0=poly.vertarr[i+1];
-			tv[i  ]=x0*matxx+y0*matxy+matx;
-			tv[i+1]=x0*matyx+y0*matyy+maty;
-		}
-		// Add regular lines.
-		var lr=this.tmpline,lrcnt=lr.length,lcnt=0,newlen;
-		if (lcnt+(poly.lineidx>>1)>=lrcnt) {
-			newlen=(lcnt+(poly.lineidx>>1))*2;
-			while (lrcnt<newlen) {lr.push({});lrcnt++;}
-			this.tmpline=lr;
-		}
-		for (i=poly.lineidx-2;i>=0;i-=2) {
-			var a=poly.linearr[i],b=poly.linearr[i+1];
-			l=lr[lcnt++];
-			l.x0=tv[a  ];
-			l.y0=tv[a+1];
-			l.x1=tv[b  ];
-			l.y1=tv[b+1];
-		}
-		// Linear decomposition of curves.
-		// 1: split into 4 segments
-		// 2: subdivide if the segments are too big
+		// Loop through the path nodes.
+		var lr=this.tmpline,lrcnt=lr.length,lcnt=0;
 		var splitlen=3;
-		var cv=poly.curvarr;
-		for (i=poly.curvidx-4;i>=0;i-=4) {
-			// Get the control points and check if the curve's on the screen.
-			var p0=cv[i  ],p0x=tv[p0],p0y=tv[p0+1];
-			var p1=cv[i+1],p1x=tv[p1],p1y=tv[p1+1];
-			var p2=cv[i+2],p2x=tv[p2],p2y=tv[p2+1];
-			var p3=cv[i+3],p3x=tv[p3],p3y=tv[p3+1];
-			x0=Math.min(p0x,Math.min(p1x,Math.min(p2x,p3x)));
-			x1=Math.max(p0x,Math.max(p1x,Math.max(p2x,p3x)));
-			y0=Math.min(p0y,Math.min(p1y,Math.min(p2y,p3y)));
-			y1=Math.max(p0y,Math.max(p1y,Math.max(p2y,p3y)));
-			if (x0>=iw || y0>=ih || y1<=0) {continue;}
-			if (x1<=0) {
-				if (lcnt>=lrcnt) {
-					newlen=(lcnt+1)*2;
-					while (lrcnt<newlen) {lr.push({});lrcnt++;}
-					this.tmpline=lr;
-				}
-				l=lr[lcnt++];
-				l.x0=p0x;
-				l.y0=p0y;
-				l.x1=p3x;
-				l.y1=p3y;
-				continue;
+		var x0,y0,x1,y1;
+		var p0x,p0y,p1x,p1y;
+		var varr=poly.vertarr;
+		for (i=0;i<poly.vertidx;i++) {
+			var v=varr[i]; j=i;
+			if (v.type===_DrawPoly.CLOSE) {j=v.x;}
+			if (v.type===_DrawPoly.CURVE) {j=i+2;}
+			x0=varr[j].x; y0=varr[j].y;
+			p0x=p1x; p1x=x0*matxx+y0*matxy+matx;
+			p0y=p1y; p1y=x0*matyx+y0*matyy+maty;
+			if (v.type===_DrawPoly.MOVE) {continue;}
+			// Add a basic line.
+			if (lrcnt<=lcnt) {
+				while (lrcnt<=lcnt) {lrcnt+=lrcnt+1;}
+				while (lr.length<lrcnt) {lr.push({});}
 			}
-			// Interpolate points.
-			p2x=(p2x-p1x)*3;p1x=(p1x-p0x)*3;p3x-=p0x+p2x;p2x-=p1x;
-			p2y=(p2y-p1y)*3;p1y=(p1y-p0y)*3;p3y-=p0y+p2y;p2y-=p1y;
-			var ppx=p0x,ppy=p0y,u0=0;
-			for (j=0;j<4;j++) {
-				var u1=(j+1)/4;
-				var cpx=p0x+u1*(p1x+u1*(p2x+u1*p3x))-ppx;
-				var cpy=p0y+u1*(p1y+u1*(p2y+u1*p3y))-ppy;
-				var dist=Math.sqrt(cpx*cpx+cpy*cpy);
-				var segs=Math.ceil(dist/splitlen);
-				// Split up the current segment.
-				if (lcnt+segs>=lrcnt) {
-					newlen=(lcnt+segs)*2;
-					while (lrcnt<newlen) {lr.push({});lrcnt++;}
-					this.tmpline=lr;
-				}
-				u1=(u1-u0)/segs;
-				for (var s=0;s<segs;s++) {
-					u0+=u1;
-					cpx=p0x+u0*(p1x+u0*(p2x+u0*p3x));
-					cpy=p0y+u0*(p1y+u0*(p2y+u0*p3y));
-					l=lr[lcnt++];
-					l.x0=ppx;
-					l.y0=ppy;
-					l.x1=cpx;
-					l.y1=cpy;
-					ppx=cpx;
-					ppy=cpy;
+			l=lr[lcnt++];
+			l.x0=p0x;
+			l.y0=p0y;
+			l.x1=p1x;
+			l.y1=p1y;
+			if (v.type===_DrawPoly.CURVE) {
+				// Linear decomposition of curves.
+				// 1: split into 4 segments
+				// 2: subdivide if the segments are too big
+				// Get the control points and check if the curve's on the screen.
+				v=varr[i++]; var c1x=v.x*matxx+v.y*matxy+matx,c1y=v.x*matyx+v.y*matyy+maty;
+				v=varr[i++]; var c2x=v.x*matxx+v.y*matxy+matx,c2y=v.x*matyx+v.y*matyy+maty;
+				var c3x=p1x,c3y=p1y;
+				x0=Math.min(p0x,Math.min(c1x,Math.min(c2x,c3x)));
+				x1=Math.max(p0x,Math.max(c1x,Math.max(c2x,c3x)));
+				y0=Math.min(p0y,Math.min(c1y,Math.min(c2y,c3y)));
+				y1=Math.max(p0y,Math.max(c1y,Math.max(c2y,c3y)));
+				lcnt--;
+				if (x0>=iw || y0>=ih || y1<=0) {continue;}
+				if (x1<=0) {lcnt++;continue;}
+				// Interpolate points.
+				c2x=(c2x-c1x)*3;c1x=(c1x-p0x)*3;c3x-=p0x+c2x;c2x-=c1x;
+				c2y=(c2y-c1y)*3;c1y=(c1y-p0y)*3;c3y-=p0y+c2y;c2y-=c1y;
+				var ppx=p0x,ppy=p0y,u0=0;
+				for (j=0;j<4;j++) {
+					var u1=(j+1)/4;
+					var cpx=p0x+u1*(c1x+u1*(c2x+u1*c3x))-ppx;
+					var cpy=p0y+u1*(c1y+u1*(c2y+u1*c3y))-ppy;
+					var dist=Math.sqrt(cpx*cpx+cpy*cpy);
+					var segs=Math.ceil(dist/splitlen);
+					// Split up the current segment.
+					if (lrcnt<=lcnt+segs) {
+						while (lrcnt<=lcnt+segs) {lrcnt+=lrcnt+1;}
+						while (lr.length<lrcnt) {lr.push({});}
+					}
+					u1=(u1-u0)/segs;
+					for (var s=0;s<segs;s++) {
+						u0+=u1;
+						cpx=p0x+u0*(c1x+u0*(c2x+u0*c3x));
+						cpy=p0y+u0*(c1y+u0*(c2y+u0*c3y));
+						l=lr[lcnt++];
+						l.x0=ppx;
+						l.y0=ppy;
+						l.x1=cpx;
+						l.y1=cpy;
+						ppx=cpx;
+						ppy=cpy;
+					}
 				}
 			}
 		}
 		// Prune lines.
 		var minx=iw,maxx=0,miny=ih,maxy=0,maxcnt=lcnt;
-		var amul=this.rgba[3]/255.0;
+		var amul=this.rgba[3]*(256.0/255.0);
 		var y0x,y1x,dy,dx;
 		if ((matxx<0)!==(matyy<0)) {amul=-amul;}
 		lcnt=0;
@@ -973,7 +963,7 @@ class Draw {
 		var sa,da;
 		var colrgb=(this.rgba32[0]&~amask)>>>0;
 		var coll=(colrgb&0x00ff00ff)>>>0,colh=(colrgb&0xff00ff00)>>>0,colh8=colh>>>8;
-		var filllim=(255-0.5)/255;
+		var filllim=255;
 		// Process the lines row by row.
 		var x=lr[0].sort,y;
 		var xnext=x,xrow=-1;
@@ -1003,8 +993,8 @@ class Draw {
 					x0=l.x0;y0=l.y0-y;
 					x1=l.x1;y1=l.y1-y;
 					var dyx=l.dyx,dxy=l.dxy;
-					var y0x=x0-y0*dxy;
-					var y1x=y0x+dxy;
+					y0x=x0-y0*dxy;
+					y1x=y0x+dxy;
 					if (y0<0) {y0=0;x0=y0x;}
 					if (y0>1) {y0=1;x0=y1x;}
 					if (y1<0) {y1=0;x1=y0x;}
@@ -1027,9 +1017,13 @@ class Draw {
 					} else {
 						dyx*=amul;
 						var mul=dyx*0.5,n0=x0-1,n1=x1-1;
-						area    -=n0*n0*mul-(fx0<0?fx0*dyx:0);
-						areadx1 -=dyx;
-						areadx2 +=x0*x0*mul;
+						if (fx0<0) {
+							area-=(0.5-x0-fx0)*dyx;
+						} else {
+							area-=n0*n0*mul;
+							areadx2+=x0*x0*mul;
+						}
+						areadx1-=dyx;
 						l.area   =n1*n1*mul;
 						l.areadx1=dyx;
 						l.areadx2=x1*x1*mul;
@@ -1054,31 +1048,32 @@ class Draw {
 				xnext=lr[0].sort;
 			}
 			// Shade the pixels based on how much we're covering.
-			// If the area isn't changing much use the same color for multiple pixels.
+			// If the area isn't changing much use the same area for multiple pixels.
 			var xdraw=x+1;
+			var sa1=Math.floor(area+0.5);
 			if (areadx2===0) {
-				tmp=Math.floor(area*255+0.5);
-				tmp=Math.min(Math.max(tmp+(areadx1<0?-0.5:0.5),0.5),254.5);
-				tmp=(tmp/255-area)/areadx1+x;
+				tmp=Math.min(Math.max(sa1+(areadx1<0?-0.5:0.5),0.5),255.5);
+				tmp=(tmp-area)/areadx1+x;
 				xdraw=(tmp>x && tmp<xnext)?Math.ceil(tmp):xnext;
 				if (xdraw>xrow) {xdraw=xrow;}
 			}
 			areadx2+=(xdraw-x)*areadx1;
-			if (area>=filllim) {
-				tmp=colrgb|(Math.floor(area*255+0.5)<<ashift);
+			if (sa1>=filllim) {
+				tmp=colrgb|(Math.min(sa1,255)<<ashift);
 				while (x<xdraw) {imgdata[x++]=tmp;}
-			} else if (area>0.001954) {
+			} else if (sa1>0) {
 				// a = sa + da*(1-sa)
 				// c = (sc*sa + dc*da*(1-sa)) / a
-				var sa1=256-Math.floor(area*256+0.5);
+				sa1=256-sa1;
+				var sab=area/256,sai=(1-sab)*imask;
 				while (x<xdraw) {
 					tmp=imgdata[x];
 					da=(tmp&amask)>>>0;
 					if (da===amask) {
 						sa=sa1;
 					} else {
-						da=area+da*imask*(1-area);
-						sa=256-Math.floor((area/da)*256+0.5);
+						da=sab+da*sai;
+						sa=256-Math.floor(area/da+0.5);
 						da=Math.floor(da*255+0.5)<<ashift;
 					}
 					imgdata[x++]=da|
@@ -1093,7 +1088,7 @@ class Draw {
 
 
 	// trace(poly,trans) {
-	//	// Traces the current path
+	// 	// Traces the current path
 	// }
 
 }

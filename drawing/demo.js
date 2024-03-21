@@ -811,7 +811,7 @@ class PolyDemo2 {
 		for (var i=0;i<16;i++) {
 			for (var j=0;j<9;j++) {
 				draw.setcolor(((i^j)&1)?0xc8c8c8ff:0xffffffff);
-				draw.fillrect(i*50,j*50,50,50);
+				//draw.fillrect(i*50,j*50,50,50);
 			}
 		}
 		draw.setcolor(255,0,0);
@@ -861,11 +861,12 @@ class PolyDemo3 {
 		// draw.setangle(performance.now()*0.0002);
 		draw.setcolor(255,0,0);
 		var [mx,my]=this.input.getmousepos();
+		if (isNaN(mx) || Math.abs(mx)>=Infinity) {mx=0;my=0;}
 		mx*=draw.img.width;
 		my*=draw.img.height;
 		// draw.fillrect(mx,my,300,100);
 		// draw.filloval(mx,my,300,100);
-		draw.linewidth=40.0;
+		//draw.linewidth=40.0;
 		draw.drawline(draw.img.width/2,draw.img.height/2,mx,my);
 		this.ctx.putImageData(draw.img.dataim,0,0);
 	}
@@ -1048,36 +1049,42 @@ class PolyDemo4 {
 		var imgwidth=this.canvas.width;
 		var imgheight=this.canvas.height;
 		var tests=0;
+		// Fill the background with static.
+		var data32=this.draw.img.data32,datalen=data32.length;
+		for (var i=0;i<datalen;i++) {data32[i]=rnd.getu32();}
 		var t0=performance.now();
 		if (test===0) {
+			// Aliased circles.
 			tests=10000;
-			this.draw.setcolor(255,255,255,255);
 			for (var i=0;i<tests;i++) {
+				this.draw.setcolor(rnd.getu32());
 				var x=(rnd.getf64()*3-1)*imgwidth;
 				var y=(rnd.getf64()*3-1)*imgheight;
 				var rad=1<<rnd.modu32(10);
 				this.drawcircle1(x,y,rad);
 			}
 		} else if (test===1) {
+			// Anti-aliased circles.
 			tests=10000;
-			this.draw.setcolor(255,255,255,255);
 			for (var i=0;i<tests;i++) {
+				this.draw.setcolor(rnd.getu32());
 				var x=(rnd.getf64()*3-1)*imgwidth;
 				var y=(rnd.getf64()*3-1)*imgheight;
 				var rad=1<<rnd.modu32(10);
 				this.drawcircle2(x,y,rad);
 			}
 		} else if (test===2) {
+			// Bezier circles.
 			tests=10000;
-			this.draw.setcolor(255,255,255,255);
 			for (var i=0;i<tests;i++) {
-				this.draw.rgba[3]=rnd.modu32(256);
+				this.draw.setcolor(rnd.getu32());
 				var x=(rnd.getf64()*3-1)*imgwidth;
 				var y=(rnd.getf64()*3-1)*imgheight;
 				var rad=1<<rnd.modu32(10);
 				this.draw.filloval(x,y,rad,rad);
 			}
 		} else if (test==3) {
+			// Cached image circles.
 			tests=10000;
 			var cache=[];
 			var def=this.draw.img;
@@ -1090,16 +1097,17 @@ class PolyDemo4 {
 			}
 			this.draw.setimage(def);
 			for (var i=0;i<tests;i++) {
+				this.draw.setcolor(rnd.getu32());
 				var x=(rnd.getf64()*3-1)*imgwidth;
 				var y=(rnd.getf64()*3-1)*imgheight;
 				var rad=rnd.modu32(10);
 				this.draw.drawimage(cache[rad],x,y);
 			}
 		} else if (test==4) {
+			// Lines.
 			tests=10000;
-			this.draw.setcolor(255,255,255,255);
 			for (var i=0;i<tests;i++) {
-				this.draw.rgba[3]=rnd.modu32(256);
+				this.draw.setcolor(rnd.getu32());
 				var x0=(rnd.getf64()*3-1)*imgwidth;
 				var y0=(rnd.getf64()*3-1)*imgheight;
 				var x1=(rnd.getf64()*3-1)*imgwidth;
@@ -1114,13 +1122,13 @@ class PolyDemo4 {
 					dev=dev>16?0:(1/(1<<dev));
 					y1=y0+(rnd.getf64()*2-1)*dev;
 				}
-				this.draw.line(x0,y0,x1,y1);
+				this.draw.drawline(x0,y0,x1,y1);
 			}
 		}
 		if (tests>0) {
-			var names=["Circle alias","Circle smooth","Circle curve","Image cache","Lines"];
+			var names=["Circle alias ","Circle smooth","Circle bezier","Image cache  ","Lines        "];
 			t0=(performance.now()-t0)/tests;
-			this.log(names[test]+": "+t0);
+			this.log(names[test]+": "+t0.toFixed(6));
 			return 1;
 		}
 		return 0;
@@ -1128,3 +1136,4 @@ class PolyDemo4 {
 
 }
 
+//window.addEventListener("load",function(){new PolyDemo4();});
