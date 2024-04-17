@@ -223,7 +223,7 @@ sub {
 	display:inline-block;
 	padding-left:1pt;
 	padding-right:1pt;
-	/*background-color:var(--code-back);*/
+	background-color:var(--code-back);
 	font-style:normal;
 	color:var(--code-text);
 }
