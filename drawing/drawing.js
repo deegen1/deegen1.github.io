@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v1.19
+drawing.js - v1.20
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -19,10 +19,11 @@ TODO
 
 
 SVG call close() if last point != moveto().
-Minify font definition.
+Allow for relative m, z, l, c.
 Tracing - project out based on tangent.
 Image scaling and rotation.
 Polygon filling
+	Precompute AABB for each path. Use to quickly test if on screen.
 	Better clipping when polygon sections off screen.
 	More accurate linearization of curves. Split on curvature, not length.
 	Simplify area dx1/dx2 calculation.
@@ -37,7 +38,7 @@ Polygon filling
 
 
 //---------------------------------------------------------------------------------
-// Anti-aliased Image Drawing - v1.19
+// Anti-aliased Image Drawing - v1.20
 
 
 class _DrawTransform {
@@ -724,10 +725,12 @@ class Draw {
 	static Image    =_DrawImage;
 
 
-	constructor() {
+	constructor(width,height) {
 		var con=this.constructor;
 		// Image info
-		this.img      =new con.Image(0,0);
+		width=width||0;
+		height=height||0;
+		this.img      =new con.Image(width,height);
 		this.rgba     =new Uint8ClampedArray([0,1,2,3]);
 		this.rgba32   =new Uint32Array(this.rgba.buffer);
 		this.rgbashift=[0,0,0,0];
