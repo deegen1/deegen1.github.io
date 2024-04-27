@@ -11,6 +11,7 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
+firefox on windows setTimeout() isn't running at 60fps.
 LinkedList add array
 Collision cells
 	store in uint64 array
@@ -28,7 +29,6 @@ groups
 	scale
 	move
 	copy
-firefox on windows setTimeout() isn't running at 60fps.
 
 glow effect
 starfish
@@ -559,7 +559,7 @@ class Random {
 
 
 //---------------------------------------------------------------------------------
-// Anti-aliased Image Drawing - v1.20
+// Anti-aliased Image Drawing - v1.21
 
 
 class _DrawTransform {
@@ -1571,6 +1571,32 @@ class Draw {
 	// Polygon Filling
 
 
+	fillresize(size) {
+		// Declaring line objects this way allows engines to optimize their structs.
+		var len=this.tmpline.length;
+		while (len<size) {len+=len+1;}
+		while (this.tmpline.length<len) {
+			this.tmpline.push({
+				x0:0,
+				y0:0,
+				x1:0,
+				y1:0,
+				dxy:0,
+				dyx:0,
+				sort:0,
+				next:0,
+				area:0,
+				areadx1:0,
+				areadx2:0,
+				maxy:0,
+				minx:0,
+				yidx:0
+			});
+		}
+		return this.tmpline;
+	}
+
+
 	fillpoly(poly,trans) {
 		// Fills the current path.
 		//
@@ -1602,8 +1628,8 @@ class Draw {
 			if (v.type===_DrawPoly.MOVE) {continue;}
 			// Add a basic line.
 			if (lrcnt<=lcnt) {
-				while (lrcnt<=lcnt) {lrcnt+=lrcnt+1;}
-				while (lr.length<lrcnt) {lr.push({});}
+				lr=this.fillresize(lcnt+1);
+				lrcnt=lr.length;
 			}
 			l=lr[lcnt++];
 			l.x0=p0x;
@@ -1637,8 +1663,8 @@ class Draw {
 					var segs=Math.ceil(dist/splitlen);
 					// Split up the current segment.
 					if (lrcnt<=lcnt+segs) {
-						while (lrcnt<=lcnt+segs) {lrcnt+=lrcnt+1;}
-						while (lr.length<lrcnt) {lr.push({});}
+						lr=this.fillresize(lcnt+segs+1);
+						lrcnt=lr.length;
 					}
 					u1=(u1-u0)/segs;
 					for (var s=0;s<segs;s++) {
@@ -2062,11 +2088,12 @@ class PhyVec {
 
 class PhyLink {
 
-	constructor() {
+	constructor(obj) {
 		this.prev=null;
 		this.next=null;
 		this.list=null;
-		this.obj=null;
+		this.obj=obj||null;
+		this.idx=null;
 	}
 
 
@@ -2089,22 +2116,22 @@ class PhyLink {
 
 class PhyList {
 
-	constructor() {
+	constructor(ptr) {
 		this.head=null;
 		this.tail=null;
-		this.ptr=null;
+		this.ptr=ptr||null;
 		this.count=0;
 	}
 
 
-	release() {
+	release(clear) {
 		var link=this.head,next;
 		while (link!==null) {
 			next=link.next;
 			link.prev=null;
 			link.next=null;
 			link.list=null;
-			link.obj=null;
+			if (clear) {link.obj=null;}
 			link=next;
 		}
 		this.count=0;
@@ -2185,9 +2212,9 @@ class PhyList {
 		this.count--;
 		// PhyAssert((this.count===0)===(this.head===null));
 		// PhyAssert((this.head===null)===(this.tail===null));
-		link.prev=0;
-		link.next=0;
-		link.list=0;
+		link.prev=null;
+		link.next=null;
+		link.list=null;
 		if (clear) {link.obj=null;}
 	}
 
@@ -2234,8 +2261,7 @@ class PhyAtomType {
 
 	constructor(world,id,damp,density,elasticity) {
 		this.world=world;
-		this.worldlink=new PhyLink();
-		this.worldlink.obj=this;
+		this.worldlink=new PhyLink(this);
 		this.atomlist=new PhyList();
 		this.id=id;
 		this.damp=damp;
@@ -2378,8 +2404,7 @@ class PhyAtomType {
 class PhyAtom {
 
 	constructor(pos,rad,type) {
-		this.worldlink=new PhyLink();
-		this.worldlink.obj=this;
+		this.worldlink=new PhyLink(this);
 		this.world=type.world;
 		this.world.atomlist.add(this.worldlink);
 		pos=new PhyVec(pos);
@@ -2388,8 +2413,7 @@ class PhyAtom {
 		this.acc=new PhyVec(pos.length());
 		this.rad=rad;
 		this.bondlist=new PhyList();
-		this.typelink=new PhyLink();
-		this.typelink.obj=this;
+		this.typelink=new PhyLink(this);
 		this.type=type;
 		type.atomlist.add(this.typelink);
 		this.userdata=null;
@@ -2549,20 +2573,17 @@ class PhyBond {
 	constructor(world,a,b,dist,tension) {
 		// PhyAssert(!Object.is(a,b));
 		this.world=world;
-		this.worldlink=new PhyLink();
+		this.worldlink=new PhyLink(this);
 		this.world.bondlist.add(this.worldlink);
-		this.worldlink.obj=this;
 		this.a=a;
 		this.b=b;
 		this.dist=dist;
 		this.tension=tension;
 		this.dttension=0.0;
-		this.alink=new PhyLink();
-		this.blink=new PhyLink();
+		this.alink=new PhyLink(this);
+		this.blink=new PhyLink(this);
 		this.a.bondlist.add(this.alink);
 		this.b.bondlist.add(this.blink);
-		this.alink.obj=this;
-		this.blink.obj=this;
 		this.userdata=null;
 		this.updateconstants();
 	}
@@ -3088,17 +3109,6 @@ class PhyWorld {
 		var rnd=this.rnd;
 		var i,j;
 		var dbgtime=this.dbgtime;
-		/*var atomarr=this.atomarr;
-		if (atomarr===undefined || atomarr.length<this.atomlist.count) {
-			atomarr=new Array(this.atomlist.count);
-			i=0;
-			next=this.atomlist.head;
-			while ((link=next)!==null) {
-				next=next.next;
-				atomarr[i++]=link.obj;
-			}
-			this.atomarr=atomarr;
-		}*/
 		for (var step=0;step<steps;step++) {
 			if (this.updateflag) {
 				this.updateconstants();
@@ -3110,10 +3120,6 @@ class PhyWorld {
 				next=next.next;
 				link.obj.update();
 			}
-			/*var cnt=this.atomlist.count;
-			for (i=0;i<cnt;i++) {
-				atomarr[i].update();
-			}*/
 			// Integrate bonds. Randomizing the order minimizes oscillations.
 			var t1=performance.now();
 			bondcount=this.bondlist.count;
@@ -3255,6 +3261,25 @@ class PhyScene {
 			state.update();
 		}
 		update();
+		/*var state=this;
+		var statetime=0;
+		var stateden=-1;
+		function update(time) {
+			requestAnimationFrame(update);
+			if (++stateden>0) {
+				var dif=time-statetime;
+				if (dif+dif/stateden>=16) {
+					statetime=time;
+					stateden=0;
+					console.log(dif);
+					state.update(dif);
+				}
+			} else {
+				statetime=time;
+				state.update(1/60);
+			}
+		}
+		requestAnimationFrame(update);*/
 	}
 
 
@@ -3346,6 +3371,7 @@ class PhyScene {
 			}
 			draw.setcolor(r,g,b,255);
 			fastcircle(draw,pos[0]*scale,pos[1]*scale,rad);
+			//draw.filloval(pos[0]*scale,pos[1]*scale,rad,rad);
 			var next=link.next;
 			if (atom.delete!==undefined) {
 				atom.release();

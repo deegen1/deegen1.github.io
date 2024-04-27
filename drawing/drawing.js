@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v1.20
+drawing.js - v1.21
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -38,7 +38,7 @@ Polygon filling
 
 
 //---------------------------------------------------------------------------------
-// Anti-aliased Image Drawing - v1.20
+// Anti-aliased Image Drawing - v1.21
 
 
 class _DrawTransform {
@@ -728,8 +728,6 @@ class Draw {
 	constructor(width,height) {
 		var con=this.constructor;
 		// Image info
-		width=width||0;
-		height=height||0;
 		this.img      =new con.Image(width,height);
 		this.rgba     =new Uint8ClampedArray([0,1,2,3]);
 		this.rgba32   =new Uint32Array(this.rgba.buffer);
@@ -1052,6 +1050,32 @@ class Draw {
 	// Polygon Filling
 
 
+	fillresize(size) {
+		// Declaring line objects this way allows engines to optimize their structs.
+		var len=this.tmpline.length;
+		while (len<size) {len+=len+1;}
+		while (this.tmpline.length<len) {
+			this.tmpline.push({
+				x0:0,
+				y0:0,
+				x1:0,
+				y1:0,
+				dxy:0,
+				dyx:0,
+				sort:0,
+				next:0,
+				area:0,
+				areadx1:0,
+				areadx2:0,
+				maxy:0,
+				minx:0,
+				yidx:0
+			});
+		}
+		return this.tmpline;
+	}
+
+
 	fillpoly(poly,trans) {
 		// Fills the current path.
 		//
@@ -1083,8 +1107,8 @@ class Draw {
 			if (v.type===_DrawPoly.MOVE) {continue;}
 			// Add a basic line.
 			if (lrcnt<=lcnt) {
-				while (lrcnt<=lcnt) {lrcnt+=lrcnt+1;}
-				while (lr.length<lrcnt) {lr.push({});}
+				lr=this.fillresize(lcnt+1);
+				lrcnt=lr.length;
 			}
 			l=lr[lcnt++];
 			l.x0=p0x;
@@ -1118,8 +1142,8 @@ class Draw {
 					var segs=Math.ceil(dist/splitlen);
 					// Split up the current segment.
 					if (lrcnt<=lcnt+segs) {
-						while (lrcnt<=lcnt+segs) {lrcnt+=lrcnt+1;}
-						while (lr.length<lrcnt) {lr.push({});}
+						lr=this.fillresize(lcnt+segs+1);
+						lrcnt=lr.length;
 					}
 					u1=(u1-u0)/segs;
 					for (var s=0;s<segs;s++) {
