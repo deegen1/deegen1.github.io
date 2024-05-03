@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v1.24
+physics.js - v1.25
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -559,7 +559,7 @@ class Random {
 
 
 //---------------------------------------------------------------------------------
-// Anti-aliased Image Drawing - v1.21
+// Anti-aliased Image Drawing - v1.23
 
 
 class _DrawTransform {
@@ -722,13 +722,10 @@ class _DrawPoly {
 
 
 	constructor(str) {
+		// Copy static variables.
+		Object.assign(this,this.constructor);
 		this.vertarr=new Array();
-		this.vertidx=0;
-		this.moveidx=-2;
-		this.MOVE =0;
-		this.CLOSE=1;
-		this.LINE =2;
-		this.CURVE=3;
+		this.begin();
 		if (str) {this.fromstring(str);}
 	}
 
@@ -736,34 +733,54 @@ class _DrawPoly {
 	begin() {
 		this.vertidx=0;
 		this.moveidx=-2;
+		this.aabb={minx:Infinity,maxx:-Infinity,dx:0,
+		           miny:Infinity,maxy:-Infinity,dy:0};
 		return this;
 	}
 
 
-	resize(verts) {
-		// Resizes internal memory to fit additional vertices.
-		if (verts<=0) {return;}
-		var idx=this.vertidx+verts;
-		var arr=this.vertarr;
-		var len=arr.length;
-		if (idx>=len) {
-			for (len=1;len<=idx;len+=len) {}
-			while (arr.length<len) {arr.push({type:-1,x:0,y:0});}
+	aabbupdate() {
+		// Recompute the bounding box.
+		var minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
+		var varr=this.vertarr,vidx=this.vertidx;
+		for (var i=0;i<vidx;i++) {
+			var x=varr[i].x,y=varr[i].y;
+			if (minx>x) {minx=x;}
+			if (miny>y) {miny=y;}
+			if (maxx<x) {maxx=x;}
+			if (maxy<y) {maxy=y;}
 		}
+		this.aabb={minx:minx,maxx:maxx,dx:maxx-minx,
+		           miny:miny,maxy:maxy,dy:maxy-miny};
+	}
+
+
+	addvert(type,x,y) {
+		var idx=this.vertidx++;
+		var arr=this.vertarr;
+		if (idx>=arr.length) {
+			for (var len=8;len<=idx;len+=len) {}
+			while (arr.length<len) {arr.push({type:-1,x:0,y:0,i:-1});}
+		}
+		var v=arr[idx];
+		v.type=type;
+		v.x=x;
+		v.y=y;
+		v.i=this.moveidx;
+		var aabb=this.aabb;
+		if (aabb.minx>x) {aabb.minx=x;aabb.dx=aabb.maxx-x;}
+		if (aabb.miny>y) {aabb.miny=y;aabb.dy=aabb.maxy-y;}
+		if (aabb.maxx<x) {aabb.maxx=x;aabb.dx=x-aabb.minx;}
+		if (aabb.maxy<y) {aabb.maxy=y;aabb.dy=y-aabb.miny;}
+		return v;
 	}
 
 
 	moveto(x,y) {
 		// Move the pen to [x,y].
-		var idx=this.vertidx,arr=this.vertarr;
-		if (idx>=arr.length) {this.resize(1);}
-		if (this.moveidx===idx-1) {idx--;}
-		var v=arr[idx];
-		v.type=this.MOVE;
-		v.x=x;
-		v.y=y;
-		this.moveidx=idx;
-		this.vertidx=idx+1;
+		if (this.moveidx===this.vertidx-1) {this.vertidx--;}
+		else {this.moveidx=this.vertidx;}
+		this.addvert(this.MOVE,x,y);
 		return this;
 	}
 
@@ -772,41 +789,32 @@ class _DrawPoly {
 		// Draw a line from the last vertex to [x,y].
 		// If no moveto() was ever called, behave as moveto().
 		if (this.moveidx<0) {return this.moveto(x,y);}
-		var arr=this.vertarr;
-		if (this.vertidx>=arr.length) {this.resize(1);}
-		var v=arr[this.vertidx++];
-		v.type=this.LINE;
-		v.x=x;
-		v.y=y;
+		this.addvert(this.LINE,x,y);
 		return this;
 	}
 
 
 	curveto(x0,y0,x1,y1,x2,y2) {
 		// Draw a cubic bezier curve.
-		if (this.moveidx<0) {this.moveto(x0,y0);}
-		var idx=this.vertidx,arr=this.vertarr;
-		if (idx+3>=arr.length) {this.resize(3);}
-		var v,t=this.CURVE;
-		v=arr[idx++]; v.type=t; v.x=x0; v.y=y0;
-		v=arr[idx++]; v.type=t; v.x=x1; v.y=y1;
-		v=arr[idx++]; v.type=t; v.x=x2; v.y=y2;
-		this.vertidx=idx;
+		if (this.moveidx<0) {this.moveto(0,0);}
+		this.addvert(this.CURVE,x0,y0);
+		this.addvert(this.CURVE,x1,y1);
+		this.addvert(this.CURVE,x2,y2);
 		return this;
 	}
 
 
 	close() {
 		// Draw a line from the current vertex to our last moveto() call.
-		if (this.moveidx<0) {return this;}
-		if (this.moveidx===this.vertidx-1) {
+		var move=this.moveidx;
+		if (move<0) {return this;}
+		if (move===this.vertidx-1) {
 			this.vertidx--;
 			return this;
 		}
-		this.resize(1);
-		var v=this.vertarr[this.vertidx++];
-		v.type=this.CLOSE;
-		v.x=this.moveidx;
+		var m=this.vertarr[move];
+		m.i=this.vertidx;
+		this.addvert(this.CLOSE,m.x,m.y);
 		this.moveidx=-2;
 		return this;
 	}
@@ -874,18 +882,6 @@ class _DrawPoly {
 	}
 
 
-	addarray(points) {
-		// Assumes an array of [x0,y0,x1,y1,...] where every 2 pairs is a separate line.
-		var len=points.length;
-		if (len<=0 || (len%4)!==0) {return;}
-		for (var i=0;i<len;i+=4) {
-			this.moveto(points[i  ],points[i+1]);
-			this.lineto(points[i+2],points[i+3]);
-		}
-		return this;
-	}
-
-
 	addstrip(points) {
 		// Assumes a loop of [x0,y0,x1,y1,...] where every pair is a separate line.
 		var len=points.length;
@@ -933,7 +929,7 @@ class _DrawPoly {
 
 
 	addrect(x,y,w,h) {
-		this.addstrip([0,0,1,0,1,1,0,1]);
+		this.addstrip([x,y,x+w,y,x+w,y+h,x,y+h]);
 		return this;
 	}
 
@@ -986,12 +982,12 @@ class _DrawImage {
 	resize(width,height) {
 		this.width =width;
 		this.height=height;
-		width=Math.max(1,Math.floor(width));
+		width =Math.max(1,Math.floor(width));
 		height=Math.max(1,Math.floor(height));
-		this.dataim=new ImageData(width,height);
-		this.data8 =new Uint8Array(this.dataim.data.buffer);
-		this.datac8=new Uint8ClampedArray(this.data8.buffer);
-		this.data32=new Uint32Array(this.data8.buffer);
+		this.data8  =new Uint8Array(width*height*4);
+		this.datac8 =new Uint8ClampedArray(this.data8.buffer);
+		this.data32 =new Uint32Array(this.data8.buffer);
+		this.imgdata=new ImageData(this.datac8,width,height);
 	}
 
 
@@ -1183,15 +1179,14 @@ class _DrawFont {
 			chr=chr==="SPC"?32:chr.charCodeAt(0);
 			var g={};
 			g.width=parseInt(token(32))/scale;
-			g.poly=new _DrawPoly(token(10));
+			g.poly=new Draw.Poly(token(10));
 			var varr=g.poly.vertarr,vidx=g.poly.vertidx;
 			for (var i=0;i<vidx;i++) {
 				var v=varr[i];
-				if (v.type!==_DrawPoly.CLOSE) {
-					v.x/=scale;
-					v.y/=scale;
-				}
+				v.x/=scale;
+				v.y/=scale;
 			}
+			g.poly.aabbupdate();
 			this.glyphs[chr]=g;
 			if (this.unknown===undefined || chr===63) {
 				this.unknown=g;
@@ -1248,6 +1243,7 @@ class Draw {
 
 	constructor(width,height) {
 		var con=this.constructor;
+		Object.assign(this,con);
 		// Image info
 		this.img      =new con.Image(width,height);
 		this.rgba     =new Uint8ClampedArray([0,1,2,3]);
@@ -1290,10 +1286,10 @@ class Draw {
 	setcolor(r,g,b,a) {
 		if (g===undefined) {a=(r>>>0)&255;b=(r>>>8)&255;g=(r>>>16)&255;r>>>=24;}
 		if (a===undefined) {a=255;}
-		this.rgba[0]=Math.max(Math.min(Math.floor(r?r:0),255),0);
-		this.rgba[1]=Math.max(Math.min(Math.floor(g?g:0),255),0);
-		this.rgba[2]=Math.max(Math.min(Math.floor(b?b:0),255),0);
-		this.rgba[3]=Math.max(Math.min(Math.floor(a?a:0),255),0);
+		this.rgba[0]=r?Math.max(Math.min(Math.floor(r),255),0):0;
+		this.rgba[1]=g?Math.max(Math.min(Math.floor(g),255),0):0;
+		this.rgba[2]=b?Math.max(Math.min(Math.floor(b),255),0):0;
+		this.rgba[3]=a?Math.max(Math.min(Math.floor(a),255),0):0;
 	}
 
 
@@ -1353,7 +1349,7 @@ class Draw {
 	}
 
 
-	transform(x,y) {
+	transformpoint(x,y) {
 		var [ox,oy]=this.deftrans.apply(x,y);
 		ox=(ox-this.viewoffx)*this.viewmulx;
 		oy=(oy-this.viewoffy)*this.viewmuly;
@@ -1373,6 +1369,7 @@ class Draw {
 	}
 
 
+	settransform(trans) {return this.deftrans.copy(trans);}
 	setangle(ang)  {return this.deftrans.setangle(ang);}
 	addangle(ang)  {return this.deftrans.addangle(ang);}
 	getangle()     {return this.deftrans.getangle();}
@@ -1604,28 +1601,54 @@ class Draw {
 		// outside the image. Use a binary heap to dynamically sort lines.
 		if (poly ===undefined) {poly =this.defpoly ;}
 		if (trans===undefined) {trans=this.deftrans;}
-		if (poly.vertidx<2) {return;}
-		var l,i,j,tmp;
 		var iw=this.img.width,ih=this.img.height,imgdata=this.img.data32;
+		if (poly.vertidx<3 || iw<1 || ih<1) {return;}
 		// Screenspace transformation.
 		var vmulx=this.viewmulx,voffx=this.viewoffx;
 		var vmuly=this.viewmuly,voffy=this.viewoffy;
 		var matxx=trans.data[0]*vmulx,matxy=trans.data[1]*vmulx,matx=(trans.data[2]-voffx)*vmulx;
 		var matyx=trans.data[3]*vmuly,matyy=trans.data[4]*vmuly,maty=(trans.data[5]-voffy)*vmuly;
+		// Perform a quick AABB-OBB overlap test.
+		// Define the transformed bounding box.
+		var aabb=poly.aabb;
+		var bndx=aabb.minx*matxx+aabb.miny*matxy+matx;
+		var bndy=aabb.minx*matyx+aabb.miny*matyy+maty;
+		var bnddx0=aabb.dx*matxx,bnddy0=aabb.dx*matyx;
+		var bnddx1=aabb.dy*matxy,bnddy1=aabb.dy*matyy;
+		// Test if the image AABB has a separating axis.
+		var minx=bndx,maxx=bndx,miny=bndy,maxy=bndy;
+		if (bnddx0<0) {minx+=bnddx0;} else {maxx+=bnddx0;}
+		if (bnddy0<0) {miny+=bnddy0;} else {maxy+=bnddy0;}
+		if (bnddx1<0) {minx+=bnddx1;} else {maxx+=bnddx1;}
+		if (bnddy1<0) {miny+=bnddy1;} else {maxy+=bnddy1;}
+		if (maxx<=0 || iw<=minx || maxy<=0 || ih<=miny) {
+			return;
+		}
+		// Test if the poly OBB has a separating axis.
+		var cross=bnddx0*bnddy1-bnddy0*bnddx1;
+		minx=cross<0?cross:0; maxx=cross-minx; maxy=-minx; miny=-maxx;
+		if (bnddx0<0) {maxx-=ih*bnddx0;} else {minx-=ih*bnddx0;}
+		if (bnddy0<0) {minx+=iw*bnddy0;} else {maxx+=iw*bnddy0;}
+		if (bnddx1<0) {maxy-=ih*bnddx1;} else {miny-=ih*bnddx1;}
+		if (bnddy1<0) {miny+=iw*bnddy1;} else {maxy+=iw*bnddy1;}
+		var proj0=bndx*bnddy0-bndy*bnddx0;
+		var proj1=bndx*bnddy1-bndy*bnddx1;
+		if (maxx<=proj0 || proj0<=minx || maxy<=proj1 || proj1<=miny) {
+			return;
+		}
 		// Loop through the path nodes.
+		var l,i,j,tmp;
 		var lr=this.tmpline,lrcnt=lr.length,lcnt=0;
 		var splitlen=3;
 		var x0,y0,x1,y1;
 		var p0x,p0y,p1x,p1y;
 		var varr=poly.vertarr;
 		for (i=0;i<poly.vertidx;i++) {
-			var v=varr[i]; j=i;
-			if (v.type===_DrawPoly.CLOSE) {j=v.x;}
-			if (v.type===_DrawPoly.CURVE) {j=i+2;}
-			x0=varr[j].x; y0=varr[j].y;
-			p0x=p1x; p1x=x0*matxx+y0*matxy+matx;
-			p0y=p1y; p1y=x0*matyx+y0*matyy+maty;
-			if (v.type===_DrawPoly.MOVE) {continue;}
+			var v=varr[i];
+			if (v.type===poly.CURVE) {v=varr[i+2];}
+			p0x=p1x; p1x=v.x*matxx+v.y*matxy+matx;
+			p0y=p1y; p1y=v.x*matyx+v.y*matyy+maty;
+			if (v.type===poly.MOVE) {continue;}
 			// Add a basic line.
 			if (lrcnt<=lcnt) {
 				lr=this.fillresize(lcnt+1);
@@ -1636,7 +1659,7 @@ class Draw {
 			l.y0=p0y;
 			l.x1=p1x;
 			l.y1=p1y;
-			if (v.type===_DrawPoly.CURVE) {
+			if (v.type===poly.CURVE) {
 				// Linear decomposition of curves.
 				// 1: split into 4 segments
 				// 2: subdivide if the segments are too big
@@ -1683,10 +1706,10 @@ class Draw {
 			}
 		}
 		// Prune lines.
-		var minx=iw,maxx=0,miny=ih,maxy=0,maxcnt=lcnt;
+		minx=iw; maxx=0; miny=ih; maxy=0;
 		var amul=this.rgba[3]*(256.0/255.0);
-		var y0x,y1x,dy,dx;
 		if ((matxx<0)!==(matyy<0)) {amul=-amul;}
+		var y0x,y1x,dy,dx,maxcnt=lcnt;
 		lcnt=0;
 		for (i=0;i<maxcnt;i++) {
 			l=lr[i];
@@ -3371,7 +3394,7 @@ class PhyScene {
 			}
 			draw.setcolor(r,g,b,255);
 			fastcircle(draw,pos[0]*scale,pos[1]*scale,rad);
-			//draw.filloval(pos[0]*scale,pos[1]*scale,rad,rad);
+			// draw.filloval(pos[0]*scale,pos[1]*scale,rad,rad);
 			var next=link.next;
 			if (atom.delete!==undefined) {
 				atom.release();
@@ -3407,7 +3430,7 @@ class PhyScene {
 			}
 			world.dbgtime=[0,0,0,0,0];
 		}
-		this.ctx.putImageData(draw.img.dataim,0,0);
+		this.ctx.putImageData(draw.img.imgdata,0,0);
 	}
 
 }

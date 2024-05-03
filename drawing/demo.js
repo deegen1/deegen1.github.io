@@ -1238,7 +1238,7 @@ class PolyDemo2 {
 			}
 			draw.loadstate();
 			var winx=((test-1)%4)*(dim+pad),winy=Math.floor((test-1)/4)*(dim+pad);
-			this.ctx.putImageData(img.dataim,winx,winy);
+			this.ctx.putImageData(img.imgdata,winx,winy);
 		}
 		return true;
 	}
