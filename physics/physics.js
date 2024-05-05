@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v1.25
+physics.js - v1.26
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -12,7 +12,6 @@ TODO
 
 
 firefox on windows setTimeout() isn't running at 60fps.
-LinkedList add array
 Collision cells
 	store in uint64 array
 	top 32 bits = cell hash
@@ -559,7 +558,7 @@ class Random {
 
 
 //---------------------------------------------------------------------------------
-// Anti-aliased Image Drawing - v1.23
+// Anti-aliased Image Drawing - v1.24
 
 
 class _DrawTransform {
@@ -1574,20 +1573,20 @@ class Draw {
 		while (len<size) {len+=len+1;}
 		while (this.tmpline.length<len) {
 			this.tmpline.push({
+				sort:0,
 				x0:0,
 				y0:0,
 				x1:0,
 				y1:0,
 				dxy:0,
 				dyx:0,
-				sort:0,
 				next:0,
-				area:0,
-				areadx1:0,
-				areadx2:0,
 				maxy:0,
 				minx:0,
-				yidx:0
+				yidx:0,
+				area:0,
+				areadx1:0,
+				areadx2:0
 			});
 		}
 		return this.tmpline;
@@ -1626,7 +1625,7 @@ class Draw {
 		}
 		// Test if the poly OBB has a separating axis.
 		var cross=bnddx0*bnddy1-bnddy0*bnddx1;
-		minx=cross<0?cross:0; maxx=cross-minx; maxy=-minx; miny=-maxx;
+		minx=cross<0?cross:0;maxx=cross-minx;maxy=-minx;miny=-maxx;
 		if (bnddx0<0) {maxx-=ih*bnddx0;} else {minx-=ih*bnddx0;}
 		if (bnddy0<0) {minx+=iw*bnddy0;} else {maxx+=iw*bnddy0;}
 		if (bnddx1<0) {maxy-=ih*bnddx1;} else {miny-=ih*bnddx1;}
@@ -1636,6 +1635,7 @@ class Draw {
 		if (maxx<=proj0 || proj0<=minx || maxy<=proj1 || proj1<=miny) {
 			return;
 		}
+		// [WASM ENTRY]. WASM will inject itself here if it's loaded.
 		// Loop through the path nodes.
 		var l,i,j,tmp;
 		var lr=this.tmpline,lrcnt=lr.length,lcnt=0;
@@ -1706,7 +1706,7 @@ class Draw {
 			}
 		}
 		// Prune lines.
-		minx=iw; maxx=0; miny=ih; maxy=0;
+		minx=iw;maxx=0;miny=ih;maxy=0;
 		var amul=this.rgba[3]*(256.0/255.0);
 		if ((matxx<0)!==(matyy<0)) {amul=-amul;}
 		var y0x,y1x,dy,dx,maxcnt=lcnt;
@@ -1744,22 +1744,27 @@ class Draw {
 			miny=Math.min(miny,fy);
 			maxy=Math.max(maxy,l.maxy);
 			l.maxy*=iw;
-			// Heap sort based on miny and x.
 			l.yidx=-1;
 			fx=Math.min(fx,(fy+1-l.y0)*l.dxy+l.x0);
 			l.sort=fy*iw+Math.max(Math.floor(fx),l.minx);
-			j=lcnt++;
-			lr[i]=lr[j];
-			var p,lp;
-			while (j>0 && l.sort<(lp=lr[p=(j-1)>>1]).sort) {
-				lr[j]=lp;
-				j=p;
-			}
-			lr[j]=l;
+			lr[i]=lr[lcnt];
+			lr[lcnt++]=l;
 		}
 		// If all lines are outside the image, abort.
 		if (minx>=iw || maxx<=0 || minx>=maxx || miny>=maxy || lcnt<=0) {
 			return;
+		}
+		// Linear time heap construction.
+		for (var p=(lcnt>>1)-1;p>=0;p--) {
+			i=p;
+			l=lr[p];
+			while ((j=i+i+1)<lcnt) {
+				if (j+1<lcnt && lr[j+1].sort<lr[j].sort) {j++;}
+				if (lr[j].sort>=l.sort) {break;}
+				lr[i]=lr[j];
+				i=j;
+			}
+			lr[i]=l;
 		}
 		// Init blending.
 		var ashift=this.rgbashift[3],amask=(255<<ashift)>>>0,imask=1.0/amask;
@@ -1804,8 +1809,8 @@ class Draw {
 					if (y1<0) {y1=0;x1=y0x;}
 					if (y1>1) {y1=1;x1=y1x;}
 					var next=(y0>y1?x0:x1)+(dxy<0?dxy:0);
-					next=xrow+Math.max(Math.floor(next),l.minx);
-					if (next>=l.maxy) {next=Infinity;}
+					next=xrow+(next>l.minx?Math.floor(next):l.minx);
+					if (next>=l.maxy) {next=pixels;}
 					if (x1<x0) {tmp=x0;x0=x1;x1=tmp;dyx=-dyx;}
 					var fx0=Math.floor(x0);
 					var fx1=Math.floor(x1);
@@ -1828,7 +1833,7 @@ class Draw {
 							areadx2+=x0*x0*mul;
 						}
 						areadx1-=dyx;
-						l.area   =n1*n1*mul;
+						l.area=n1*n1*mul;
 						l.areadx1=dyx;
 						l.areadx2=x1*x1*mul;
 						l.next=next;
@@ -1864,13 +1869,13 @@ class Draw {
 			areadx2+=(xdraw-x)*areadx1;
 			if (sa1>=filllim) {
 				tmp=colrgb|(Math.min(sa1,255)<<ashift);
-				while (x<xdraw) {imgdata[x++]=tmp;}
+				do {imgdata[x++]=tmp;} while (x<xdraw);
 			} else if (sa1>0) {
 				// a = sa + da*(1-sa)
 				// c = (sc*sa + dc*da*(1-sa)) / a
 				sa1=256-sa1;
 				var sab=area/256,sai=(1-sab)*imask;
-				while (x<xdraw) {
+				do {
 					tmp=imgdata[x];
 					da=(tmp&amask)>>>0;
 					if (da===amask) {
@@ -1883,7 +1888,7 @@ class Draw {
 					imgdata[x++]=da|
 						(((Math.imul((tmp&0x00ff00ff)-coll,sa)>>>8)+coll)&maskl)|
 						((Math.imul(((tmp>>>8)&0x00ff00ff)-colh8,sa)+colh)&maskh);
-				}
+				} while (x<xdraw);
 			}
 			x=xdraw;
 			area+=areadx2;
@@ -3183,6 +3188,7 @@ function fastcircle(draw,x,y,rad) {
 	var imgdata32=draw.img.data32;
 	var imgwidth=draw.img.width;
 	var imgheight=draw.img.height;
+	rad-=0.5;
 	if (rad<=0 || x-rad>imgwidth || x+rad<0 || y-rad>imgheight || y+rad<0) {
 		return;
 	}
@@ -3379,7 +3385,7 @@ class PhyScene {
 				data.velcolor=vel;
 			}
 			var pos=atom.pos.elem;
-			var rad=atom.rad*scale;
+			var rad=atom.rad*scale+0.25;
 			var r,g,b;
 			if (type.id===2) {
 				r=64;
@@ -3394,7 +3400,7 @@ class PhyScene {
 			}
 			draw.setcolor(r,g,b,255);
 			fastcircle(draw,pos[0]*scale,pos[1]*scale,rad);
-			// draw.filloval(pos[0]*scale,pos[1]*scale,rad,rad);
+			//draw.filloval(pos[0]*scale,pos[1]*scale,rad,rad);
 			var next=link.next;
 			if (atom.delete!==undefined) {
 				atom.release();
@@ -3406,10 +3412,11 @@ class PhyScene {
 			this.promptframe=pframe;
 			var px=player.pos.get(0)*scale;
 			var py=player.pos.get(1)*scale;
-			var rad=player.rad*scale;
+			var rad=player.rad*scale+0.25;
 			var u=Math.floor((Math.sin((pframe/119.0)*Math.PI*2)+1.0)*0.5*255.0);
 			draw.setcolor(u,u,255,255);
 			fastcircle(draw,px,py,rad);
+			//draw.filloval(px,py,rad,rad);
 		}
 		// Draw the HUD
 		draw.setcolor(255,255,255,255);
