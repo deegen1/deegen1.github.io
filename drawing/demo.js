@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.05
+demo.js - v1.06
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -1182,7 +1182,7 @@ class PolyDemo2 {
 		}
 		var units=["call","px","px","px","px","px","px","px"];
 		var names=["Baseline","Circle alias","Circle smooth","Circle poly","Image cache","Line alias","Line poly","Text"];
-		this.log(names[test].padEnd(13)+": "+t0.toFixed(3).padStart(7," ")+" ns/"+units[test]);
+		this.log(names[test].padEnd(13)+": "+t0.toFixed(3).padStart(6," ")+" ns/"+units[test]);
 		// Draw preview.
 		if (test>0) {
 			var dim=this.clipdim,pad=this.clippad;

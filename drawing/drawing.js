@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v1.24
+drawing.js - v1.25
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -18,7 +18,6 @@ For editing use: https://yqnn.github.io/svg-path-editor
 TODO
 
 
-Add a wasm module.
 SVG call close() if last point != moveto().
 Allow for relative m, z, l, c.
 Tracing - project out based on tangent.
@@ -30,14 +29,14 @@ Polygon filling
 
 
 */
-/* jshint esversion: 6   */
+/* jshint esversion: 11  */
 /* jshint bitwise: false */
 /* jshint eqeqeq: true   */
 /* jshint curly: true    */
 
 
 //---------------------------------------------------------------------------------
-// Anti-aliased Image Drawing - v1.24
+// Anti-aliased Image Drawing - v1.25
 
 
 class _DrawTransform {
@@ -458,10 +457,12 @@ class _DrawImage {
 
 
 	resize(width,height) {
-		this.width =width;
+		this.width=width;
 		this.height=height;
-		width =Math.max(1,Math.floor(width));
-		height=Math.max(1,Math.floor(height));
+		if (width<1 || height<1) {
+			width=1;
+			height=1;
+		}
 		this.data8  =new Uint8Array(width*height*4);
 		this.datac8 =new Uint8ClampedArray(this.data8.buffer);
 		this.data32 =new Uint32Array(this.data8.buffer);
@@ -1053,16 +1054,15 @@ class Draw {
 		while (this.tmpline.length<len) {
 			this.tmpline.push({
 				sort:0,
+				next:0,
 				x0:0,
 				y0:0,
 				x1:0,
 				y1:0,
 				dxy:0,
 				dyx:0,
-				next:0,
 				maxy:0,
 				minx:0,
-				yidx:0,
 				area:0,
 				areadx1:0,
 				areadx2:0
@@ -1114,13 +1114,13 @@ class Draw {
 		if (maxx<=proj0 || proj0<=minx || maxy<=proj1 || proj1<=miny) {
 			return;
 		}
-		// [WASM ENTRY]. WASM will inject itself here if it's loaded.
 		// Loop through the path nodes.
 		var l,i,j,tmp;
 		var lr=this.tmpline,lrcnt=lr.length,lcnt=0;
 		var splitlen=3;
 		var x0,y0,x1,y1;
 		var p0x,p0y,p1x,p1y;
+		var dx,dy;
 		var varr=poly.vertarr;
 		for (i=0;i<poly.vertidx;i++) {
 			var v=varr[i];
@@ -1140,8 +1140,6 @@ class Draw {
 			l.y1=p1y;
 			if (v.type===poly.CURVE) {
 				// Linear decomposition of curves.
-				// 1: split into 4 segments
-				// 2: subdivide if the segments are too big
 				// Get the control points and check if the curve's on the screen.
 				v=varr[i++]; var c1x=v.x*matxx+v.y*matxy+matx,c1y=v.x*matyx+v.y*matyy+maty;
 				v=varr[i++]; var c2x=v.x*matxx+v.y*matxy+matx,c2y=v.x*matyx+v.y*matyy+maty;
@@ -1150,37 +1148,36 @@ class Draw {
 				x1=Math.max(p0x,Math.max(c1x,Math.max(c2x,c3x)));
 				y0=Math.min(p0y,Math.min(c1y,Math.min(c2y,c3y)));
 				y1=Math.max(p0y,Math.max(c1y,Math.max(c2y,c3y)));
+				if (x0>=iw || y0>=ih || y1<=0) {lcnt--;continue;}
+				if (x1<=0) {continue;}
+				// Estimate bezier length.
+				var dist;
+				dx=c1x-p0x;dy=c1y-p0y;dist =Math.sqrt(dx*dx+dy*dy);
+				dx=c2x-c1x;dy=c2y-c1y;dist+=Math.sqrt(dx*dx+dy*dy);
+				dx=c3x-c2x;dy=c3y-c2y;dist+=Math.sqrt(dx*dx+dy*dy);
+				dx=p0x-c3x;dy=p0y-c3y;dist+=Math.sqrt(dx*dx+dy*dy);
+				var segs=Math.ceil(dist*0.5/splitlen);
+				if (segs<=1) {continue;}
 				lcnt--;
-				if (x0>=iw || y0>=ih || y1<=0) {continue;}
-				if (x1<=0) {lcnt++;continue;}
-				// Interpolate points.
+				if (lrcnt<=lcnt+segs) {
+					lr=this.fillresize(lcnt+segs+1);
+					lrcnt=lr.length;
+				}
+				// Segment the curve.
 				c2x=(c2x-c1x)*3;c1x=(c1x-p0x)*3;c3x-=p0x+c2x;c2x-=c1x;
 				c2y=(c2y-c1y)*3;c1y=(c1y-p0y)*3;c3y-=p0y+c2y;c2y-=c1y;
-				var ppx=p0x,ppy=p0y,u0=0;
-				for (j=0;j<4;j++) {
-					var u1=(j+1)/4;
-					var cpx=p0x+u1*(c1x+u1*(c2x+u1*c3x))-ppx;
-					var cpy=p0y+u1*(c1y+u1*(c2y+u1*c3y))-ppy;
-					var dist=Math.sqrt(cpx*cpx+cpy*cpy);
-					var segs=Math.ceil(dist/splitlen);
-					// Split up the current segment.
-					if (lrcnt<=lcnt+segs) {
-						lr=this.fillresize(lcnt+segs+1);
-						lrcnt=lr.length;
-					}
-					u1=(u1-u0)/segs;
-					for (var s=0;s<segs;s++) {
-						u0+=u1;
-						cpx=p0x+u0*(c1x+u0*(c2x+u0*c3x));
-						cpy=p0y+u0*(c1y+u0*(c2y+u0*c3y));
-						l=lr[lcnt++];
-						l.x0=ppx;
-						l.y0=ppy;
-						l.x1=cpx;
-						l.y1=cpy;
-						ppx=cpx;
-						ppy=cpy;
-					}
+				var ppx=p0x,ppy=p0y,unorm=1.0/segs;
+				for (var s=0;s<segs;s++) {
+					var u=(s+1)*unorm;
+					var cpx=p0x+u*(c1x+u*(c2x+u*c3x));
+					var cpy=p0y+u*(c1y+u*(c2y+u*c3y));
+					l=lr[lcnt++];
+					l.x0=ppx;
+					l.y0=ppy;
+					l.x1=cpx;
+					l.y1=cpy;
+					ppx=cpx;
+					ppy=cpy;
 				}
 			}
 		}
@@ -1188,7 +1185,8 @@ class Draw {
 		minx=iw;maxx=0;miny=ih;maxy=0;
 		var amul=this.rgba[3]*(256.0/255.0);
 		if ((matxx<0)!==(matyy<0)) {amul=-amul;}
-		var y0x,y1x,dy,dx,maxcnt=lcnt;
+		var y0x,y1x;
+		var maxcnt=lcnt;
 		lcnt=0;
 		for (i=0;i<maxcnt;i++) {
 			l=lr[i];
@@ -1223,7 +1221,7 @@ class Draw {
 			miny=Math.min(miny,fy);
 			maxy=Math.max(maxy,l.maxy);
 			l.maxy*=iw;
-			l.yidx=-1;
+			l.area=NaN;
 			fx=Math.min(fx,(fy+1-l.y0)*l.dxy+l.x0);
 			l.sort=fy*iw+Math.max(Math.floor(fx),l.minx);
 			lr[i]=lr[lcnt];
@@ -1276,8 +1274,7 @@ class Draw {
 				//  +-----+-----+-----+-----+-----+-----+-----+
 				//   first  dyx   dyx   dyx   dyx   dyx  last   tail
 				l=lr[0];
-				if (l.yidx!==y) {
-					l.yidx=y;
+				if (isNaN(l.area)) {
 					x0=l.x0;y0=l.y0-y;
 					x1=l.x1;y1=l.y1-y;
 					var dyx=l.dyx,dxy=l.dxy;
@@ -1287,8 +1284,8 @@ class Draw {
 					if (y0>1) {y0=1;x0=y1x;}
 					if (y1<0) {y1=0;x1=y0x;}
 					if (y1>1) {y1=1;x1=y1x;}
-					var next=(y0>y1?x0:x1)+(dxy<0?dxy:0);
-					next=xrow+(next>l.minx?Math.floor(next):l.minx);
+					var next=Math.floor((y0>y1?x0:x1)+(dxy<0?dxy:0));
+					next=(next>l.minx?next:l.minx)+xrow;
 					if (next>=l.maxy) {next=pixels;}
 					if (x1<x0) {tmp=x0;x0=x1;x1=tmp;dyx=-dyx;}
 					var fx0=Math.floor(x0);
@@ -1322,6 +1319,7 @@ class Draw {
 					area   +=l.area;
 					areadx1+=l.areadx1;
 					areadx2-=l.areadx2;
+					l.area  =NaN;
 					l.sort  =l.next;
 				}
 				// Heap sort down.
@@ -1355,18 +1353,18 @@ class Draw {
 				sa1=256-sa1;
 				var sab=area/256,sai=(1-sab)*imask;
 				do {
-					tmp=imgdata[x];
-					da=(tmp&amask)>>>0;
+					var dst=imgdata[x];
+					da=(dst&amask)>>>0;
 					if (da===amask) {
 						sa=sa1;
 					} else {
-						da=sab+da*sai;
-						sa=256-Math.floor(area/da+0.5);
-						da=Math.floor(da*255+0.5)<<ashift;
+						tmp=sab+da*sai;
+						sa=256-Math.floor(area/tmp+0.5);
+						da=Math.floor(tmp*255+0.5)<<ashift;
 					}
 					imgdata[x++]=da|
-						(((Math.imul((tmp&0x00ff00ff)-coll,sa)>>>8)+coll)&maskl)|
-						((Math.imul(((tmp>>>8)&0x00ff00ff)-colh8,sa)+colh)&maskh);
+						(((Math.imul((dst&0x00ff00ff)-coll,sa)>>>8)+coll)&maskl)|
+						((Math.imul(((dst>>>8)&0x00ff00ff)-colh8,sa)+colh)&maskh);
 				} while (x<xdraw);
 			}
 			x=xdraw;
@@ -1382,6 +1380,252 @@ class Draw {
 }
 
 
-function DrawWASMSetup() {
+async function DrawWASMSetup() {
+	// Attempt to load the WebAssembly program.
+	// fill_wasm.c -> compile -> gzip -> base64
+	if (Draw.wasmloading) {return;}
+	Draw.wasmloading=1;
+	var wasmstr=`
+		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
+	`;
+	var gzipbytes=Uint8Array.from(atob(wasmstr),(c)=>c.codePointAt(0));
+	var gzipstream=new Blob([gzipbytes]).stream();
+	var decstream=gzipstream.pipeThrough(new DecompressionStream("gzip"));
+	var decblob=await new Response(decstream).blob();
+	var wasmbytes=new Uint8Array(await decblob.arrayBuffer());
+	// Compile module.
+	var module=new WebAssembly.Module(wasmbytes);
+	if (!module) {
+		console.log("could not load module");
+		Draw.wasmloading=2;
+		return;
+	}
+	// console.log("loading module");
+	Draw.wasmmodule=module;
+	// Set up class functions.
+	Draw.prototype.wasmprinti64=function(h,l) {
+		var s="Debug: "+((BigInt(h>>>0)<<32n)+BigInt(l>>>0))+"\n";
+		console.log(s);
+	};
+	Draw.prototype.wasmprintf64=function(x) {
+		var s="Debug: "+x;
+		console.log(s);
+	};
+	Draw.prototype.wasmimage=function(img) {
+		// console.log("setting image");
+		var wasm=this.wasm,old=wasm.img;
+		if (old!==null && !Object.is(old,img)) {
+			// Generate a new copy for the old image.
+			var width=old.width,height=old.height,copy=true;
+			if (width<1 || height<1) {
+				width=1;
+				height=1;
+				copy=false;
+			}
+			old.data8  =new Uint8Array(width*height*4);
+			old.datac8 =new Uint8ClampedArray(old.data8.buffer);
+			old.data32 =new Uint32Array(old.data8.buffer);
+			old.imgdata=new ImageData(old.datac8,width,height);
+			if (copy) {old.data32.set(wasm.imgdata);}
+		}
+		wasm.img=img||null;
+		this.wasmresize(0);
+	};
+	Draw.prototype.wasmresize=function(bytes) {
+		// console.log("resizing to: "+bytes);
+		if (!bytes) {bytes=0;}
+		var wasm=this.wasm;
+		var img=wasm.img;
+		if (img!==null) {
+			wasm.width=img.width;
+			wasm.height=img.height;
+		} else {
+			wasm.width=0;
+			wasm.height=0;
+		}
+		var align=15;
+		var imglen=(12+wasm.width*wasm.height*4+align)&~align;
+		var pathlen=(6*8+4+4+24*wasm.vertmax+align)&~align;
+		var heaplen=(wasm.heaplen+align)&~align;
+		var sumlen=heaplen+imglen+pathlen;
+		if (bytes && sumlen<bytes) {sumlen=bytes;}
+		var newlen=1;
+		while (newlen<sumlen) {newlen+=newlen;}
+		var pagebytes=65536;
+		var wasmmem=wasm.instance.exports.memory;
+		var pages=Math.ceil((newlen-wasmmem.buffer.byteLength)/pagebytes);
+		if (pages>0) {wasmmem.grow(pages);}
+		var memu32=new Uint32Array(wasmmem.buffer,heaplen);
+		wasm.memu32=memu32;
+		memu32[0]=wasmmem.buffer.byteLength;
+		memu32[1]=wasm.width;
+		memu32[2]=wasm.height;
+		wasm.imgdata=null;
+		if (img!==null) {
+			// Rebind the image pixel buffer.
+			var width=img.width;
+			var height=img.height;
+			if (width<1 || height<1) {
+				width=1;
+				height=1;
+			}
+			var pixels=width*height;
+			var buf=wasmmem.buffer,off=heaplen+12;
+			wasm.imgdata=new Uint32Array(buf,off,pixels);
+			if (img.data32.buffer.byteLength>0) {
+				wasm.imgdata.set(img.data32);
+			}
+			img.data8  =new Uint8Array(buf,off,pixels*4);
+			img.datac8 =new Uint8ClampedArray(buf,off,pixels*4);
+			img.data32 =wasm.imgdata;
+			img.imgdata=new ImageData(img.datac8,width,height);
+		}
+		wasm.tmpu32=new Uint32Array(wasmmem.buffer,heaplen+imglen);
+		wasm.tmpf64=new Float64Array(wasmmem.buffer,heaplen+imglen);
+		var dif=wasmmem.buffer.byteLength-wasm.tmpu32.byteOffset;
+		wasm.vertmax=Math.floor((dif-(6*8+4+4))/24);
+	};
+	Draw.prototype.wasminit=function() {
+		var con=this.constructor;
+		var state=this;
+		function wasmprinti64(h,l) {state.wasmprinti64(h,l);}
+		function wasmprintf64(x)   {state.wasmprintf64(x);}
+		function wasmresize(bytes) {state.wasmresize(bytes);}
+		var imports={env:{wasmprinti64,wasmprintf64,wasmresize}};
+		var inst=new WebAssembly.Instance(con.wasmmodule,imports);
+		this.wasm={
+			instance:inst,
+			exports :inst.exports,
+			heaplen :inst.exports.getheapbase(),
+			memu32  :null,
+			img     :null,
+			imgdata :null,
+			width   :0,
+			height  :0,
+			tmpu32  :null,
+			tmpf64  :null,
+			vertmax :0,
+			fill    :inst.exports.fillpoly
+		};
+		this.wasmresize(0);
+		return this.wasm;
+	};
+	Draw.prototype.fillpoly=function(poly,trans) {
+		// Fills the current path.
+		//
+		// Preprocess the lines and curves. Reject anything with a NaN, too narrow, or
+		// outside the image. Use a binary heap to dynamically sort lines.
+		if (poly ===undefined) {poly =this.defpoly ;}
+		if (trans===undefined) {trans=this.deftrans;}
+		var iw=this.img.width,ih=this.img.height,imgdata=this.img.data32;
+		if (poly.vertidx<3 || iw<1 || ih<1) {return;}
+		// Screenspace transformation.
+		var vmulx=this.viewmulx,voffx=this.viewoffx;
+		var vmuly=this.viewmuly,voffy=this.viewoffy;
+		var matxx=trans.data[0]*vmulx,matxy=trans.data[1]*vmulx,matx=(trans.data[2]-voffx)*vmulx;
+		var matyx=trans.data[3]*vmuly,matyy=trans.data[4]*vmuly,maty=(trans.data[5]-voffy)*vmuly;
+		// Perform a quick AABB-OBB overlap test.
+		// Define the transformed bounding box.
+		var aabb=poly.aabb;
+		var bndx=aabb.minx*matxx+aabb.miny*matxy+matx;
+		var bndy=aabb.minx*matyx+aabb.miny*matyy+maty;
+		var bnddx0=aabb.dx*matxx,bnddy0=aabb.dx*matyx;
+		var bnddx1=aabb.dy*matxy,bnddy1=aabb.dy*matyy;
+		// Test if the image AABB has a separating axis.
+		var minx=bndx,maxx=bndx,miny=bndy,maxy=bndy;
+		if (bnddx0<0) {minx+=bnddx0;} else {maxx+=bnddx0;}
+		if (bnddy0<0) {miny+=bnddy0;} else {maxy+=bnddy0;}
+		if (bnddx1<0) {minx+=bnddx1;} else {maxx+=bnddx1;}
+		if (bnddy1<0) {miny+=bnddy1;} else {maxy+=bnddy1;}
+		if (maxx<=0 || iw<=minx || maxy<=0 || ih<=miny) {
+			return;
+		}
+		// Test if the poly OBB has a separating axis.
+		var cross=bnddx0*bnddy1-bnddy0*bnddx1;
+		minx=cross<0?cross:0;maxx=cross-minx;maxy=-minx;miny=-maxx;
+		if (bnddx0<0) {maxx-=ih*bnddx0;} else {minx-=ih*bnddx0;}
+		if (bnddy0<0) {minx+=iw*bnddy0;} else {maxx+=iw*bnddy0;}
+		if (bnddx1<0) {maxy-=ih*bnddx1;} else {miny-=ih*bnddx1;}
+		if (bnddy1<0) {miny+=iw*bnddy1;} else {maxy+=iw*bnddy1;}
+		var proj0=bndx*bnddy0-bndy*bnddx0;
+		var proj1=bndx*bnddy1-bndy*bnddx1;
+		if (maxx<=proj0 || proj0<=minx || maxy<=proj1 || proj1<=miny) {
+			return;
+		}
+		var wasm=this.wasm;
+		if (wasm===undefined) {
+			wasm=this.wasminit();
+		}
+		if (!Object.is(imgdata,wasm.imgdata) || iw!==wasm.width || ih!==wasm.height) {
+			this.wasmimage(this.img);
+		}
+		var vidx=poly.vertidx,varr=poly.vertarr;
+		if (vidx>wasm.vertmax) {
+			wasm.vertmax=vidx;
+			this.wasmresize(0);
+		}
+		var tmpf64=wasm.tmpf64;
+		var tmpu32=wasm.tmpu32;
+		// transform [0-48]
+		tmpf64[0]=matxx;
+		tmpf64[1]=matxy;
+		tmpf64[2]=matx;
+		tmpf64[3]=matyx;
+		tmpf64[4]=matyy;
+		tmpf64[5]=maty;
+		// color [48-52]
+		tmpu32[12]=this.rgba32[0];
+		// path [52-...]
+		tmpu32[13]=vidx;
+		var idx=7;
+		for (var i=0;i<vidx;i++) {
+			var v=varr[i];
+			tmpu32[(idx++)<<1]=v.type;
+			tmpf64[idx++]=v.x;
+			tmpf64[idx++]=v.y;
+		}
+		wasm.fill();
+	};
+	Draw.wasmloading=3;
+	// console.log("wasm done");
 }
 DrawWASMSetup();
