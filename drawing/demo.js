@@ -1181,8 +1181,8 @@ class PolyDemo2 {
 			t0=(t0-this.baseline*tests)/pixels;
 		}
 		var units=["call","px","px","px","px","px","px","px"];
-		var names=["Baseline","Circle alias","Circle smooth","Circle poly","Image cache","Line alias","Line poly","Text"];
-		this.log(names[test].padEnd(13)+": "+t0.toFixed(3).padStart(6," ")+" ns/"+units[test]);
+		var names=["Baseline","Circle alias","Circle smooth","Circle poly","Image cache","Line alias","Line poly","Text poly"];
+		this.log(names[test].padEnd(13)+": "+t0.toFixed(3).padStart(7," ")+" ns/"+units[test]);
 		// Draw preview.
 		if (test>0) {
 			var dim=this.clipdim,pad=this.clippad;

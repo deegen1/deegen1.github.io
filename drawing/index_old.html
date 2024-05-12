@@ -7,7 +7,282 @@
 	<script src="../style/style.js"></script>
 	<script src="./drawing.js"></script>
 	<script src="./demo.js"></script>
-	<!--<script src="./extra/polytests.js"></script>-->
+	<script>
+	function fillpoly_old(poly,trans) {
+		// Fills the current path.
+		//
+		// Preprocess the lines and curves. Reject anything with a NaN, too narrow, or
+		// outside the image. Use a binary heap to dynamically sort lines.
+		if (poly ===undefined) {poly =this.defpoly ;}
+		if (trans===undefined) {trans=this.deftrans;}
+		if (poly.vertidx<2) {return;}
+		var l,i,j,tmp;
+		var iw=this.img.width,ih=this.img.height,imgdata=this.img.data32;
+		// Screenspace transformation.
+		var vmulx=this.viewmulx,voffx=this.viewoffx;
+		var vmuly=this.viewmuly,voffy=this.viewoffy;
+		var matxx=trans.data[0]*vmulx,matxy=trans.data[1]*vmulx,matx=(trans.data[2]-voffx)*vmulx;
+		var matyx=trans.data[3]*vmuly,matyy=trans.data[4]*vmuly,maty=(trans.data[5]-voffy)*vmuly;
+		// Loop through the path nodes.
+		var lr=this.tmpline,lrcnt=lr.length,lcnt=0;
+		var splitlen=3;
+		var x0,y0,x1,y1;
+		var p0x,p0y,p1x,p1y;
+		var varr=poly.vertarr;
+		for (i=0;i<poly.vertidx;i++) {
+			var v=varr[i];
+			if (v.type===poly.CURVE) {v=varr[i+2];}
+			p0x=p1x; p1x=v.x*matxx+v.y*matxy+matx;
+			p0y=p1y; p1y=v.x*matyx+v.y*matyy+maty;
+			if (v.type===_DrawPoly.MOVE) {continue;}
+			// Add a basic line.
+			if (lrcnt<=lcnt) {
+				while (lrcnt<=lcnt) {lrcnt+=lrcnt+1;}
+				while (lr.length<lrcnt) {lr.push({});}
+			}
+			l=lr[lcnt++];
+			l.x0=p0x;
+			l.y0=p0y;
+			l.x1=p1x;
+			l.y1=p1y;
+			if (v.type===_DrawPoly.CURVE) {
+				// Linear decomposition of curves.
+				// 1: split into 4 segments
+				// 2: subdivide if the segments are too big
+				// Get the control points and check if the curve's on the screen.
+				v=varr[i++]; var c1x=v.x*matxx+v.y*matxy+matx,c1y=v.x*matyx+v.y*matyy+maty;
+				v=varr[i++]; var c2x=v.x*matxx+v.y*matxy+matx,c2y=v.x*matyx+v.y*matyy+maty;
+				var c3x=p1x,c3y=p1y;
+				x0=Math.min(p0x,Math.min(c1x,Math.min(c2x,c3x)));
+				x1=Math.max(p0x,Math.max(c1x,Math.max(c2x,c3x)));
+				y0=Math.min(p0y,Math.min(c1y,Math.min(c2y,c3y)));
+				y1=Math.max(p0y,Math.max(c1y,Math.max(c2y,c3y)));
+				lcnt--;
+				if (x0>=iw || y0>=ih || y1<=0) {continue;}
+				if (x1<=0) {lcnt++;continue;}
+				// Interpolate points.
+				c2x=(c2x-c1x)*3;c1x=(c1x-p0x)*3;c3x-=p0x+c2x;c2x-=c1x;
+				c2y=(c2y-c1y)*3;c1y=(c1y-p0y)*3;c3y-=p0y+c2y;c2y-=c1y;
+				var ppx=p0x,ppy=p0y,u0=0;
+				for (j=0;j<4;j++) {
+					var u1=(j+1)/4;
+					var cpx=p0x+u1*(c1x+u1*(c2x+u1*c3x))-ppx;
+					var cpy=p0y+u1*(c1y+u1*(c2y+u1*c3y))-ppy;
+					var dist=Math.sqrt(cpx*cpx+cpy*cpy);
+					var segs=Math.ceil(dist/splitlen);
+					// Split up the current segment.
+					if (lrcnt<=lcnt+segs) {
+						while (lrcnt<=lcnt+segs) {lrcnt+=lrcnt+1;}
+						while (lr.length<lrcnt) {lr.push({});}
+					}
+					u1=(u1-u0)/segs;
+					for (var s=0;s<segs;s++) {
+						u0+=u1;
+						cpx=p0x+u0*(c1x+u0*(c2x+u0*c3x));
+						cpy=p0y+u0*(c1y+u0*(c2y+u0*c3y));
+						l=lr[lcnt++];
+						l.x0=ppx;
+						l.y0=ppy;
+						l.x1=cpx;
+						l.y1=cpy;
+						ppx=cpx;
+						ppy=cpy;
+					}
+				}
+			}
+		}
+		// Prune lines.
+		var minx=iw,maxx=0,miny=ih,maxy=0,maxcnt=lcnt;
+		var amul=this.rgba[3]*(256.0/255.0);
+		var y0x,y1x,dy,dx;
+		if ((matxx<0)!==(matyy<0)) {amul=-amul;}
+		lcnt=0;
+		for (i=0;i<maxcnt;i++) {
+			l=lr[i];
+			// If we mirror the image, we need to flip the line direction.
+			x0=l.x0;y0=l.y0;
+			x1=l.x1;y1=l.y1;
+			dx=x1-x0;
+			dy=y1-y0;
+			// Too thin or NaN.
+			if (!(dx===dx) || !(Math.abs(dy)>1e-10)) {continue;}
+			// Clamp y to [0,imgheight), then clamp x so x<imgwidth.
+			l.dxy=dx/dy;
+			l.dyx=Math.abs(dx)>1e-10?dy/dx:0;
+			y0x=x0-y0*l.dxy;
+			var yhx=x0+(ih-y0)*l.dxy;
+			var xwy=y0+(iw-x0)*l.dyx;
+			if (y0<0 ) {y0=0 ;x0=y0x;}
+			if (y0>ih) {y0=ih;x0=yhx;}
+			if (y1<0 ) {y1=0 ;x1=y0x;}
+			if (y1>ih) {y1=ih;x1=yhx;}
+			if (Math.abs(y1-y0)<1e-20) {continue;}
+			if (x0>=iw && x1>=iw) {maxx=iw;continue;}
+			var fx=y0<y1?x0:x1;
+			if (x0>=iw) {x0=iw;y0=xwy;}
+			if (x1>=iw) {x1=iw;y1=xwy;}
+			// Calculate the bounding box.
+			l.minx=Math.max(Math.floor(Math.min(x0,x1)),0);
+			var fy=Math.floor(Math.min(y0,y1));
+			l.maxy=Math.ceil(Math.max(y0,y1));
+			minx=Math.min(minx,l.minx);
+			maxx=Math.max(maxx,Math.max(x0,x1));
+			miny=Math.min(miny,fy);
+			maxy=Math.max(maxy,l.maxy);
+			l.maxy*=iw;
+			// Heap sort based on miny and x.
+			l.yidx=-1;
+			fx=Math.min(fx,(fy+1-l.y0)*l.dxy+l.x0);
+			l.sort=fy*iw+Math.max(Math.floor(fx),l.minx);
+			j=lcnt++;
+			lr[i]=lr[j];
+			var p,lp;
+			while (j>0 && l.sort<(lp=lr[p=(j-1)>>1]).sort) {
+				lr[j]=lp;
+				j=p;
+			}
+			lr[j]=l;
+		}
+		// If all lines are outside the image, abort.
+		if (minx>=iw || maxx<=0 || minx>=maxx || miny>=maxy || lcnt<=0) {
+			return;
+		}
+		// Init blending.
+		var ashift=this.rgbashift[3],amask=(255<<ashift)>>>0,imask=1.0/amask;
+		var maskl=(0x00ff00ff&~amask)>>>0,maskh=(0xff00ff00&~amask)>>>0;
+		var sa,da;
+		var colrgb=(this.rgba32[0]&~amask)>>>0;
+		var coll=(colrgb&0x00ff00ff)>>>0,colh=(colrgb&0xff00ff00)>>>0,colh8=colh>>>8;
+		var filllim=255;
+		// Process the lines row by row.
+		var x=lr[0].sort,y;
+		var xnext=x,xrow=-1;
+		var area,areadx1,areadx2;
+		var pixels=iw*ih;
+		while (true) {
+			areadx2=0;
+			if (x>=xrow) {
+				if (xnext<x || xnext>=pixels) {break;}
+				x=xnext;
+				y=Math.floor(x/iw);
+				xrow=(y+1)*iw;
+				area=0;
+				areadx1=0;
+			}
+			while (x>=xnext) {
+				// fx0  fx0+1                          fx1  fx1+1
+				//  +-----+-----+-----+-----+-----+-----+-----+
+				//  |                              .....----  |
+				//  |               .....-----'''''           |
+				//  | ....-----'''''                          |
+				//  +-----+-----+-----+-----+-----+-----+-----+
+				//   first  dyx   dyx   dyx   dyx   dyx  last   tail
+				l=lr[0];
+				if (l.yidx!==y) {
+					l.yidx=y;
+					x0=l.x0;y0=l.y0-y;
+					x1=l.x1;y1=l.y1-y;
+					var dyx=l.dyx,dxy=l.dxy;
+					y0x=x0-y0*dxy;
+					y1x=y0x+dxy;
+					if (y0<0) {y0=0;x0=y0x;}
+					if (y0>1) {y0=1;x0=y1x;}
+					if (y1<0) {y1=0;x1=y0x;}
+					if (y1>1) {y1=1;x1=y1x;}
+					var next=(y0>y1?x0:x1)+(dxy<0?dxy:0);
+					next=xrow+Math.max(Math.floor(next),l.minx);
+					if (next>=l.maxy) {next=Infinity;}
+					if (x1<x0) {tmp=x0;x0=x1;x1=tmp;dyx=-dyx;}
+					var fx0=Math.floor(x0);
+					var fx1=Math.floor(x1);
+					x0-=fx0;
+					x1-=fx1;
+					if (fx0===fx1 || fx1<0) {
+						// Vertical line - avoid divisions.
+						dy=(y0-y1)*amul;
+						tmp=fx1>=0?(x0+x1)*dy*0.5:0;
+						area+=dy-tmp;
+						areadx2+=tmp;
+						l.sort=next;
+					} else {
+						dyx*=amul;
+						var mul=dyx*0.5,n0=x0-1,n1=x1-1;
+						if (fx0<0) {
+							area-=mul-(x0+fx0)*dyx;
+						} else {
+							area-=n0*n0*mul;
+							areadx2+=x0*x0*mul;
+						}
+						areadx1-=dyx;
+						l.area   =n1*n1*mul;
+						l.areadx1=dyx;
+						l.areadx2=x1*x1*mul;
+						l.next=next;
+						l.sort=fx1<iw?fx1+xrow-iw:next;
+					}
+				} else {
+					area   +=l.area;
+					areadx1+=l.areadx1;
+					areadx2-=l.areadx2;
+					l.sort  =l.next;
+				}
+				// Heap sort down.
+				i=0;
+				while ((j=i+i+1)<lcnt) {
+					if (j+1<lcnt && lr[j+1].sort<lr[j].sort) {j++;}
+					if (lr[j].sort>=l.sort) {break;}
+					lr[i]=lr[j];
+					i=j;
+				}
+				lr[i]=l;
+				xnext=lr[0].sort;
+			}
+			// Shade the pixels based on how much we're covering.
+			// If the area isn't changing much use the same area for multiple pixels.
+			var xdraw=x+1;
+			var sa1=Math.floor(area+0.5);
+			if (areadx2===0) {
+				tmp=Math.min(Math.max(sa1+(areadx1<0?-0.5:0.5),0.5),255.5);
+				tmp=(tmp-area)/areadx1+x;
+				xdraw=(tmp>x && tmp<xnext)?Math.ceil(tmp):xnext;
+				if (xdraw>xrow) {xdraw=xrow;}
+			}
+			areadx2+=(xdraw-x)*areadx1;
+			if (sa1>=filllim) {
+				tmp=colrgb|(Math.min(sa1,255)<<ashift);
+				while (x<xdraw) {imgdata[x++]=tmp;}
+			} else if (sa1>0) {
+				// a = sa + da*(1-sa)
+				// c = (sc*sa + dc*da*(1-sa)) / a
+				sa1=256-sa1;
+				var sab=area/256,sai=(1-sab)*imask;
+				while (x<xdraw) {
+					tmp=imgdata[x];
+					da=(tmp&amask)>>>0;
+					if (da===amask) {
+						sa=sa1;
+					} else {
+						da=sab+da*sai;
+						sa=256-Math.floor(area/da+0.5);
+						da=Math.floor(da*255+0.5)<<ashift;
+					}
+					imgdata[x++]=da|
+						(((Math.imul((tmp&0x00ff00ff)-coll,sa)>>>8)+coll)&maskl)|
+						((Math.imul(((tmp>>>8)&0x00ff00ff)-colh8,sa)+colh)&maskh);
+				}
+			}
+			x=xdraw;
+			area+=areadx2;
+		}
+	}
+	function fillpoly_overload() {
+		Draw.prototype.fillpoly=fillpoly_old;
+		if (!Draw.wasmloading || Draw.wasmloading<2) {
+			setTimeout(fillpoly_overload,10);
+		}
+	}
+	fillpoly_overload();
+	</script>
 </head>
 <body>
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
