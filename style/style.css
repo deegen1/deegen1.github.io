@@ -129,10 +129,10 @@ body {
 	font-size:clamp( 0.9rem , 0.25vw + 0.85rem , 1.15rem );
 	/*line-height:140%;*/
 	/* Prevent weird font resizing on mobile. */
-	/*-webkit-text-size-adjust:none;
+	-webkit-text-size-adjust:none;
 	-moz-text-size-adjust:none;
 	-ms-text-size-adjust:none;
-	text-size-adjust:none;*/
+	text-size-adjust:none;
 }
 a, a:hover {
 	color:var(--main-link);
