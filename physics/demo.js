@@ -1,42 +1,507 @@
-/*------------------------------------------------------------------------------
+//---------------------------------------------------------------------------------
+// Input - v1.11
 
 
-drawing.js - v1.27
+class Input {
 
-Copyright 2024 Alec Dee - MIT license - SPDX: MIT
-deegen1.github.io - akdee144@gmail.com
-
-
---------------------------------------------------------------------------------
-Notes
-
-
-For editing use: https://yqnn.github.io/svg-path-editor
-
-
---------------------------------------------------------------------------------
-TODO
+	static KEY={
+		A: 65, B: 66, C: 67, D: 68, E: 69, F: 70, G: 71, H: 72, I: 73, J: 74,
+		K: 75, L: 76, M: 77, N: 78, O: 79, P: 80, Q: 81, R: 82, S: 83, T: 84,
+		U: 85, V: 86, W: 87, X: 88, Y: 89, Z: 90,
+		0: 48, 1: 49, 2: 50, 3: 51, 4: 52, 5: 53, 6: 54, 7: 55, 8: 56, 9: 57,
+		SPACE: 32,
+		LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40
+	};
 
 
-Tracing - project out based on tangent.
-Image scaling and rotation.
-Polygon filling
-	SVG call close() if last point or calling moveto() without close.
-	Use left-most bottom-most line to judge inside/outside.
-	Line precalc and overlap tests take ~80% of runtime.
-	Simplify area dx1/dx2 calculation.
-	More accurate linearization of curves. Split on curvature, not length.
+	static MOUSE={
+		LEFT: 256, MID: 257, RIGHT: 258
+	};
 
 
-*/
-/* jshint esversion: 11  */
-/* jshint bitwise: false */
-/* jshint eqeqeq: true   */
-/* jshint curly: true    */
+	constructor(focus) {
+		this.focus=null;
+		this.focustab=null;
+		this.focustouch=null;
+		if (focus!==undefined && focus!==null) {
+			this.focus=focus;
+			// An element needs to have a tabIndex to be focusable.
+			this.focustab=focus.tabIndex;
+			this.focustouch=focus.style.touchAction;
+			if (focus.tabIndex<0) {
+				focus.tabIndex=1;
+			}
+		}
+		this.active=null;
+		this.scrollupdate=false;
+		this.scroll=[window.scrollX,window.scrollY];
+		this.mousepos=[-Infinity,-Infinity];
+		this.mouseraw=[-Infinity,-Infinity];
+		this.mousez=0;
+		this.touchfocus=0;
+		this.clickpos=[0,0];
+		this.repeatdelay=0.5;
+		this.repeatrate=0.05;
+		this.navkeys={32:1,37:1,38:1,39:1,40:1};
+		this.stopnav=0;
+		this.stopnavfocus=0;
+		this.keystate={};
+		this.listeners=[];
+		this.initmouse();
+		this.initkeyboard();
+		this.reset();
+		for (var i=0;i<this.listeners.length;i++) {
+			var list=this.listeners[i];
+			document.addEventListener(list[0],list[1],list[2]);
+		}
+	}
+
+
+	release() {
+		if (this.focus!==null) {
+			this.focus.tabIndex=this.focustab;
+		}
+		this.enablenav();
+		for (var i=0;i<this.listeners.length;i++) {
+			var list=this.listeners[i];
+			document.removeEventListener(list[0],list[1],list[2]);
+		}
+		this.listeners=[];
+		this.reset();
+	}
+
+
+	reset() {
+		this.mousez=0;
+		var statearr=Object.values(this.keystate);
+		var statelen=statearr.length;
+		for (var i=0;i<statelen;i++) {
+			var state=statearr[i];
+			state.down=0;
+			state.hit=0;
+			state.repeat=0;
+			state.time=null;
+			state.active=null;
+			state.isactive=0;
+		}
+		this.active=null;
+	}
+
+
+	update() {
+		// Process keys that are active.
+		var focus=this.focus===null?document.hasFocus():Object.is(document.activeElement,this.focus);
+		if (this.touchfocus!==0) {focus=true;}
+		this.stopnavfocus=focus?this.stopnav:0;
+		var time=performance.now()/1000.0;
+		var delay=time-this.repeatdelay;
+		var rate=1.0/this.repeatrate;
+		var state=this.active;
+		var active=null;
+		var down,next;
+		while (state!==null) {
+			next=state.active;
+			down=focus?state.down:0;
+			state.down=down;
+			if (down>0) {
+				var repeat=Math.floor((delay-state.time)*rate);
+				state.repeat=(repeat>0 && (repeat&1)===0)?state.repeat+1:0;
+			} else {
+				state.repeat=0;
+				state.hit=0;
+			}
+			state.isactive=down?1:0;
+			if (state.isactive!==0) {
+				state.active=active;
+				active=state;
+			}
+			state=next;
+		}
+		this.active=active;
+	}
+
+
+	disablenav() {
+		this.stopnav=1;
+		if (this.focus!==null) {
+			this.focus.style.touchAction="pinch-zoom";
+		}
+	}
+
+
+	enablenav() {
+		this.stopnav=0;
+		if (this.focus!==null) {
+			this.focus.style.touchAction=this.focustouch;
+		}
+	}
+
+
+	makeactive(code) {
+		var state=this.keystate[code];
+		if (state===null || state===undefined) {
+			state=null;
+		} else if (state.isactive===0) {
+			state.isactive=1;
+			state.active=this.active;
+			this.active=state;
+		}
+		return state;
+	}
+
+
+	// ----------------------------------------
+	// Mouse
+
+
+	initmouse() {
+		var state=this;
+		this.MOUSE=this.constructor.MOUSE;
+		var keys=Object.keys(this.MOUSE);
+		for (var i=0;i<keys.length;i++) {
+			var code=this.MOUSE[keys[i]];
+			this.keystate[code]={
+				name: "MOUSE."+keys[i],
+				code: code
+			};
+		}
+		// Mouse controls.
+		function mousemove(evt) {
+			state.setmousepos(evt.pageX,evt.pageY);
+		}
+		function mousewheel(evt) {
+			state.addmousez(evt.deltaY<0?-1:1);
+		}
+		function mousedown(evt) {
+			if (evt.button===0) {
+				state.setkeydown(state.MOUSE.LEFT);
+				state.clickpos=state.mousepos.slice();
+			}
+		}
+		function mouseup(evt) {
+			if (evt.button===0) {
+				state.setkeyup(state.MOUSE.LEFT);
+			}
+		}
+		function onscroll(evt) {
+			// Update relative position on scroll.
+			if (state.scrollupdate) {
+				var difx=window.scrollX-state.scroll[0];
+				var dify=window.scrollY-state.scroll[1];
+				state.setmousepos(state.mouseraw[0]+difx,state.mouseraw[1]+dify);
+			}
+		}
+		// Touch controls.
+		function touchmove(evt) {
+			var touch=evt.touches;
+			if (touch.length===1) {
+				touch=touch.item(0);
+				state.setkeydown(state.MOUSE.LEFT);
+				state.setmousepos(touch.pageX,touch.pageY);
+			} else {
+				// This is probably a gesture.
+				state.setkeyup(state.MOUSE.LEFT);
+			}
+		}
+		function touchstart(evt) {
+			// We need to manually determine if the user has touched our focused object.
+			state.touchfocus=1;
+			var focus=state.focus;
+			if (focus!==null) {
+				var touch=evt.touches.item(0);
+				var rect=state.getrect(focus);
+				var x=touch.pageX-rect.x;
+				var y=touch.pageY-rect.y;
+				if (x<0 || x>=rect.w || y<0 || y>=rect.h) {
+					state.touchfocus=0;
+				}
+			}
+			// touchstart doesn't generate a separate mousemove event.
+			touchmove(evt);
+			state.clickpos=state.mousepos.slice();
+		}
+		function touchend(evt) {
+			state.touchfocus=0;
+			state.setkeyup(state.MOUSE.LEFT);
+		}
+		function touchcancel(evt) {
+			state.touchfocus=0;
+			state.setkeyup(state.MOUSE.LEFT);
+		}
+		this.listeners=this.listeners.concat([
+			["mousemove"  ,mousemove  ,false],
+			["mousewheel" ,mousewheel ,false],
+			["mousedown"  ,mousedown  ,false],
+			["mouseup"    ,mouseup    ,false],
+			["scroll"     ,onscroll   ,false],
+			["touchstart" ,touchstart ,false],
+			["touchmove"  ,touchmove  ,false],
+			["touchend"   ,touchend   ,false],
+			["touchcancel",touchcancel,false]
+		]);
+	}
+
+
+	getrect(elem) {
+		var width  =elem.clientWidth;
+		var height =elem.clientHeight;
+		var offleft=elem.clientLeft;
+		var offtop =elem.clientTop;
+		while (elem!==null) {
+			offleft+=elem.offsetLeft;
+			offtop +=elem.offsetTop;
+			elem=elem.offsetParent;
+		}
+		return {x:offleft,y:offtop,w:width,h:height};
+	}
+
+
+	setmousepos(x,y) {
+		this.mouseraw[0]=x;
+		this.mouseraw[1]=y;
+		this.scroll[0]=window.scrollX;
+		this.scroll[1]=window.scrollY;
+		var focus=this.focus;
+		if (focus!==null) {
+			var rect=this.getrect(focus);
+			x=(x-rect.x)/rect.w;
+			y=(y-rect.y)/rect.h;
+		}
+		this.mousepos[0]=x;
+		this.mousepos[1]=y;
+	}
+
+
+	getmousepos() {
+		return this.mousepos.slice();
+	}
+
+
+	getclickpos() {
+		return this.clickpos.slice();
+	}
+
+
+	addmousez(dif) {
+		this.mousez+=dif;
+	}
+
+
+	getmousez() {
+		var z=this.mousez;
+		this.mousez=0;
+		return z;
+	}
+
+
+	// ----------------------------------------
+	// Keyboard
+
+
+	initkeyboard() {
+		var state=this;
+		this.KEY=this.constructor.KEY;
+		var keys=Object.keys(this.KEY);
+		for (var i=0;i<keys.length;i++) {
+			var code=this.KEY[keys[i]];
+			this.keystate[code]={
+				name: "KEY."+keys[i],
+				code: code
+			};
+		}
+		function keydown(evt) {
+			state.setkeydown(evt.keyCode);
+			if (state.stopnavfocus!==0 && state.navkeys[evt.keyCode]) {evt.preventDefault();}
+		}
+		function keyup(evt) {
+			state.setkeyup(evt.keyCode);
+		}
+		this.listeners=this.listeners.concat([
+			["keydown",keydown,false],
+			["keyup"  ,keyup  ,false]
+		]);
+	}
+
+
+	setkeydown(code) {
+		var state=this.makeactive(code);
+		if (state!==null) {
+			if (state.down===0) {
+				state.down=1;
+				state.hit=1;
+				state.repeat=0;
+				state.time=performance.now()/1000.0;
+			}
+		}
+	}
+
+
+	setkeyup(code) {
+		var state=this.makeactive(code);
+		if (state!==null) {
+			state.down=0;
+			state.hit=0;
+			state.repeat=0;
+			state.time=null;
+		}
+	}
+
+
+	getkeydown(code) {
+		// code can be an array of key codes.
+		if (code===null || code===undefined) {return 0;}
+		if (code.length===undefined) {code=[code];}
+		var keystate=this.keystate;
+		for (var i=0;i<code.length;i++) {
+			var state=keystate[code[i]];
+			if (state!==null && state!==undefined && state.down>0) {
+				return 1;
+			}
+		}
+		return 0;
+	}
+
+
+	getkeyhit(code) {
+		// code can be an array of key codes.
+		if (code===null || code===undefined) {return 0;}
+		if (code.length===undefined) {code=[code];}
+		var keystate=this.keystate;
+		for (var i=0;i<code.length;i++) {
+			var state=keystate[code[i]];
+			if (state!==null && state!==undefined && state.hit>0) {
+				state.hit=0;
+				return 1;
+			}
+		}
+		return 0;
+	}
+
+
+	getkeyrepeat(code) {
+		// code can be an array of key codes.
+		if (code===null || code===undefined) {return 0;}
+		if (code.length===undefined) {code=[code];}
+		var keystate=this.keystate;
+		for (var i=0;i<code.length;i++) {
+			var state=keystate[code[i]];
+			if (state!==null && state!==undefined && state.repeat===1) {
+				return 1;
+			}
+		}
+		return 0;
+	}
+
+}
 
 
 //---------------------------------------------------------------------------------
-// Anti-aliased Image Drawing - v1.27
+// PRNG - v1.04
+
+
+class Random {
+
+	constructor(seed) {
+		this.acc=0;
+		this.inc=1;
+		this.xmbarr=this.constructor.xmbarr;
+		this.seed(seed);
+	}
+
+
+	seed(seed) {
+		if (seed===undefined || seed===null) {
+			seed=performance.timeOrigin+performance.now();
+		}
+		this.acc=(seed/4294967296)>>>0;
+		this.inc=seed>>>0;
+		this.acc=this.getu32();
+		this.inc=(this.getu32()|1)>>>0;
+	}
+
+
+	getstate() {
+		return [this.acc,this.inc];
+	}
+
+
+	setstate(state) {
+		this.acc=state[0]>>>0;
+		this.inc=state[1]>>>0;
+	}
+
+
+	static hashu32(val) {
+		val+=0x66daacfd;
+		val=Math.imul(val^(val>>>16),0xf8b7629f);
+		val=Math.imul(val^(val>>> 8),0xcbc5c2b5);
+		val=Math.imul(val^(val>>>24),0xf5a5bda5);
+		return val>>>0;
+	}
+
+
+	getu32() {
+		var val=(this.acc+this.inc)>>>0;
+		this.acc=val;
+		val=Math.imul(val^(val>>>16),0xf8b7629f);
+		val=Math.imul(val^(val>>> 8),0xcbc5c2b5);
+		val=Math.imul(val^(val>>>24),0xf5a5bda5);
+		return val>>>0;
+	}
+
+
+	modu32(mod) {
+		// rand%mod is not converted to a signed int.
+		var rand,rem,nmod=(-mod)>>>0;
+		do {
+			rand=this.getu32();
+			rem=rand%mod;
+		} while (rand-rem>nmod);
+		return rem;
+	}
+
+
+	getf64() {
+		return this.getu32()*(1.0/4294967296.0);
+	}
+
+
+	static xmbarr=[
+		0.0000000000,2.1105791e+05,-5.4199832e+00,0.0000056568,6.9695708e+03,-4.2654963e+00,
+		0.0000920071,7.7912181e+02,-3.6959312e+00,0.0007516877,1.6937928e+02,-3.2375953e+00,
+		0.0032102442,6.1190088e+01,-2.8902816e+00,0.0088150936,2.8470915e+01,-2.6018590e+00,
+		0.0176252084,1.8800444e+01,-2.4314149e+00,0.0283040851,1.2373531e+01,-2.2495070e+00,
+		0.0466319112,8.6534303e+00,-2.0760316e+00,0.0672857680,6.8979540e+00,-1.9579131e+00,
+		0.0910495504,5.3823501e+00,-1.8199180e+00,0.1221801449,4.5224728e+00,-1.7148581e+00,
+		0.1540346442,3.9141567e+00,-1.6211563e+00,0.1900229058,3.4575317e+00,-1.5343871e+00,
+		0.2564543024,2.8079448e+00,-1.3677978e+00,0.3543675790,2.6047685e+00,-1.2957987e+00,
+		0.4178358886,2.5233767e+00,-1.2617903e+00,0.5881852711,2.6379475e+00,-1.3291791e+00,
+		0.6397157999,2.7530438e+00,-1.4028080e+00,0.7303095074,3.3480131e+00,-1.8373198e+00,
+		0.7977016349,3.7812818e+00,-2.1829389e+00,0.8484734402,4.7872429e+00,-3.0364702e+00,
+		0.8939255135,6.2138677e+00,-4.3117665e+00,0.9239453541,7.8175201e+00,-5.7934537e+00,
+		0.9452687641,1.0404724e+01,-8.2390571e+00,0.9628624602,1.4564418e+01,-1.2244270e+01,
+		0.9772883839,2.3567788e+01,-2.1043159e+01,0.9881715750,4.4573121e+01,-4.1800032e+01,
+		0.9948144543,1.0046744e+02,-9.7404506e+01,0.9980488575,2.5934959e+02,-2.5597666e+02,
+		0.9994697975,1.0783868e+03,-1.0745796e+03,0.9999882905,1.3881171e+05,-1.3880629e+05
+	];
+	getnorm() {
+		// Returns a normally distributed random variable. This function uses a linear
+		// piecewise approximation of sqrt(2)*erfinv((x+1)*0.5) to quickly compute values.
+		// Find the greatest y[i]<=x, then return x*m[i]+b[i].
+		var x=this.getf64(),xmb=this.xmbarr,i=48;
+		i+=x<xmb[i]?-24:24;
+		i+=x<xmb[i]?-12:12;
+		i+=x<xmb[i]?-6:6;
+		i+=x<xmb[i]?-3:3;
+		i+=x<xmb[i]?-3:0;
+		return x*xmb[i+1]+xmb[i+2];
+	}
+
+}
+
+
+//---------------------------------------------------------------------------------
+// Anti-aliased Image Drawing - v1.26
 
 
 class _DrawTransform {
@@ -237,13 +702,13 @@ class _DrawPoly {
 		var arr=this.vertarr;
 		if (idx>=arr.length) {
 			for (var len=8;len<=idx;len+=len) {}
-			while (arr.length<len) {arr.push({type:-1,i:-1,x:0,y:0});}
+			while (arr.length<len) {arr.push({type:-1,x:0,y:0,i:-1});}
 		}
 		var v=arr[idx];
 		v.type=type;
-		v.i=this.moveidx;
 		v.x=x;
 		v.y=y;
+		v.i=this.moveidx;
 		var aabb=this.aabb;
 		if (aabb.minx>x) {aabb.minx=x;aabb.dx=aabb.maxx-x;}
 		if (aabb.miny>y) {aabb.miny=y;aabb.dy=aabb.maxy-y;}
@@ -299,7 +764,7 @@ class _DrawPoly {
 
 	tostring(precision) {
 		// Converts the path to an SVG string.
-		var p=precision===undefined?6:precision;
+		var p=precision===undefined?10:precision;
 		function tostring(x) {
 			var s=x.toFixed(p);
 			if (p>0) {
@@ -334,38 +799,26 @@ class _DrawPoly {
 		this.begin();
 		var type,j,len=str.length;
 		var params=[2,0,2,6],v=[0,0,0,0,0,0];
-		var off=[0,0];
 		function isnum(c) {
 			c=c.length!==undefined?c.charCodeAt(0):c;
 			return c>42 && c<58 && c!==44 && c!==47;
 		}
 		for (var i=0;i<len;) {
 			var c=str[i++];
-			if      (c==="M")  {type=0;}
-			else if (c==="m")  {type=1;}
-			else if (c==="Z")  {type=2;}
-			else if (c==="z")  {type=3;}
-			else if (c==="L")  {type=4;}
-			else if (c==="l")  {type=5;}
-			else if (c==="C")  {type=6;}
-			else if (c==="c")  {type=7;}
+			if (c==="M") {type=0;}
+			else if (c==="Z") {type=1;}
+			else if (c==="L") {type=2;}
+			else if (c==="C") {type=3;}
 			else if (isnum(c)) {type=2;i--;}
 			else {continue;}
-			if ((type&1) && this.vertidx) {
-				var l=this.vertarr[this.vertidx-1];
-				off=[l.x,l.y];
-			} else {
-				off=[0,0];
-			}
-			var p=params[type>>1];
-			for (var t=0;t<p;t++) {
+			for (var t=0;t<params[type];t++) {
 				for (j=i;j<len && !isnum(str.charCodeAt(j));j++) {}
 				for (i=j;i<len && isnum(str.charCodeAt(i));i++) {}
-				v[t]=parseFloat(str.substring(j,i))+off[t&1];
+				v[t]=parseFloat(str.substring(j,i));
 			}
-			if      (type<2) {this.moveto(v[0],v[1]);}
-			else if (type<4) {this.close();}
-			else if (type<6) {this.lineto(v[0],v[1]);}
+			if (type===0) {this.moveto(v[0],v[1]);}
+			else if (type===1) {this.close();}
+			else if (type===2) {this.lineto(v[0],v[1]);}
 			else {this.curveto(v[0],v[1],v[2],v[3],v[4],v[5]);}
 		}
 	}
@@ -1106,28 +1559,26 @@ class Draw {
 		var bnddx0=aabb.dx*matxx,bnddy0=aabb.dx*matyx;
 		var bnddx1=aabb.dy*matxy,bnddy1=aabb.dy*matyy;
 		// Test if the image AABB has a separating axis.
-		var minx=bndx-iw,maxx=bndx;
+		var minx=bndx,maxx=bndx,miny=bndy,maxy=bndy;
 		if (bnddx0<0) {minx+=bnddx0;} else {maxx+=bnddx0;}
-		if (bnddx1<0) {minx+=bnddx1;} else {maxx+=bnddx1;}
-		if (maxx<=0 || 0<=minx) {return;}
-		var miny=bndy-ih,maxy=bndy;
 		if (bnddy0<0) {miny+=bnddy0;} else {maxy+=bnddy0;}
+		if (bnddx1<0) {minx+=bnddx1;} else {maxx+=bnddx1;}
 		if (bnddy1<0) {miny+=bnddy1;} else {maxy+=bnddy1;}
-		if (maxy<=0 || 0<=miny) {return;}
+		if (maxx<=0 || iw<=minx || maxy<=0 || ih<=miny) {
+			return;
+		}
 		// Test if the poly OBB has a separating axis.
 		var cross=bnddx0*bnddy1-bnddy0*bnddx1;
-		minx=bndy*bnddx0-bndx*bnddy0; maxx=minx;
-		bnddx0*=ih; bnddy0*=iw;
-		if (cross <0) {minx+=cross ;} else {maxx+=cross ;}
-		if (bnddx0<0) {maxx-=bnddx0;} else {minx-=bnddx0;}
-		if (bnddy0<0) {minx+=bnddy0;} else {maxx+=bnddy0;}
-		if (maxx<=0 || 0<=minx) {return;}
-		miny=bndy*bnddx1-bndx*bnddy1; maxy=miny;
-		bnddx1*=ih; bnddy1*=iw;
-		if (cross <0) {maxy-=cross ;} else {miny-=cross ;}
-		if (bnddx1<0) {maxy-=bnddx1;} else {miny-=bnddx1;}
-		if (bnddy1<0) {miny+=bnddy1;} else {maxy+=bnddy1;}
-		if (maxy<=0 || 0<=miny) {return;}
+		minx=cross<0?cross:0;maxx=cross-minx;maxy=-minx;miny=-maxx;
+		if (bnddx0<0) {maxx-=ih*bnddx0;} else {minx-=ih*bnddx0;}
+		if (bnddy0<0) {minx+=iw*bnddy0;} else {maxx+=iw*bnddy0;}
+		if (bnddx1<0) {maxy-=ih*bnddx1;} else {miny-=ih*bnddx1;}
+		if (bnddy1<0) {miny+=iw*bnddy1;} else {maxy+=iw*bnddy1;}
+		var proj0=bndx*bnddy0-bndy*bnddx0;
+		var proj1=bndx*bnddy1-bndy*bnddx1;
+		if (maxx<=proj0 || proj0<=minx || maxy<=proj1 || proj1<=miny) {
+			return;
+		}
 		// Loop through the path nodes.
 		var l,i,j,tmp;
 		var lr=this.tmpline,lrcnt=lr.length,lcnt=0;
@@ -1400,7 +1851,7 @@ async function DrawWASMSetup() {
 	if (Draw.wasmloading) {return;}
 	Draw.wasmloading=1;
 	var wasmstr=`
-		H4sIAI+bRGYC/71YW28bxxWevfAmXkRaCW8rkmdGki3ZiGEDhiuhCKx17VZO0DRA0Yc+0RRF2VpRN4p2
+		H4sIAJvMQGYC/71YW28bxxWevfAmXkRaCW8rkmdGki3ZiGEDhiuhCKx17VZO0DRA0Yc+0RRF2VpRN4p2
 		7EIIldYogj72zXGAkpQEAwkC9KkyUBTpW/oP2qIPzU/wDwjqfmeWIle2m6YvpS575szMN2fOnStquxuG
 		EMIohG+bnY64bezhD0+BX6Nz2/hQmPOW1di8n/gAS7dba5vttatXhDjNWgXLYNYYs1qN3bVfNIRphUOW
 		ZYcM/G4bhhGyDGGEL0Y6hru/b8c74lsfgv8Z8chfjGR4o7Gx1Xpoiky1yvjVeq3ZrNbbW61dYcVXlu8M
@@ -1564,7 +2015,10 @@ async function DrawWASMSetup() {
 		return this.wasm;
 	};
 	Draw.prototype.fillpoly=function(poly,trans) {
-		// Copy the path and image to webassembly memory for faster rendering.
+		// Fills the current path.
+		//
+		// Preprocess the lines and curves. Reject anything with a NaN, too narrow, or
+		// outside the image. Use a binary heap to dynamically sort lines.
 		if (poly ===undefined) {poly =this.defpoly ;}
 		if (trans===undefined) {trans=this.deftrans;}
 		var iw=this.img.width,ih=this.img.height,imgdata=this.img.data32;
@@ -1582,29 +2036,26 @@ async function DrawWASMSetup() {
 		var bnddx0=aabb.dx*matxx,bnddy0=aabb.dx*matyx;
 		var bnddx1=aabb.dy*matxy,bnddy1=aabb.dy*matyy;
 		// Test if the image AABB has a separating axis.
-		var minx=bndx-iw,maxx=bndx;
+		var minx=bndx,maxx=bndx,miny=bndy,maxy=bndy;
 		if (bnddx0<0) {minx+=bnddx0;} else {maxx+=bnddx0;}
-		if (bnddx1<0) {minx+=bnddx1;} else {maxx+=bnddx1;}
-		if (maxx<=0 || 0<=minx) {return;}
-		var miny=bndy-ih,maxy=bndy;
 		if (bnddy0<0) {miny+=bnddy0;} else {maxy+=bnddy0;}
+		if (bnddx1<0) {minx+=bnddx1;} else {maxx+=bnddx1;}
 		if (bnddy1<0) {miny+=bnddy1;} else {maxy+=bnddy1;}
-		if (maxy<=0 || 0<=miny) {return;}
+		if (maxx<=0 || iw<=minx || maxy<=0 || ih<=miny) {
+			return;
+		}
 		// Test if the poly OBB has a separating axis.
 		var cross=bnddx0*bnddy1-bnddy0*bnddx1;
-		minx=bndy*bnddx0-bndx*bnddy0; maxx=minx;
-		bnddx0*=ih; bnddy0*=iw;
-		if (cross <0) {minx+=cross ;} else {maxx+=cross ;}
-		if (bnddx0<0) {maxx-=bnddx0;} else {minx-=bnddx0;}
-		if (bnddy0<0) {minx+=bnddy0;} else {maxx+=bnddy0;}
-		if (maxx<=0 || 0<=minx) {return;}
-		miny=bndy*bnddx1-bndx*bnddy1; maxy=miny;
-		bnddx1*=ih; bnddy1*=iw;
-		if (cross <0) {maxy-=cross ;} else {miny-=cross ;}
-		if (bnddx1<0) {maxy-=bnddx1;} else {miny-=bnddx1;}
-		if (bnddy1<0) {miny+=bnddy1;} else {maxy+=bnddy1;}
-		if (maxy<=0 || 0<=miny) {return;}
-		// Copy to webassembly.
+		minx=cross<0?cross:0;maxx=cross-minx;maxy=-minx;miny=-maxx;
+		if (bnddx0<0) {maxx-=ih*bnddx0;} else {minx-=ih*bnddx0;}
+		if (bnddy0<0) {minx+=iw*bnddy0;} else {maxx+=iw*bnddy0;}
+		if (bnddx1<0) {maxy-=ih*bnddx1;} else {miny-=ih*bnddx1;}
+		if (bnddy1<0) {miny+=iw*bnddy1;} else {maxy+=iw*bnddy1;}
+		var proj0=bndx*bnddy0-bndy*bnddx0;
+		var proj1=bndx*bnddy1-bndy*bnddx1;
+		if (maxx<=proj0 || proj0<=minx || maxy<=proj1 || proj1<=miny) {
+			return;
+		}
 		var wasm=this.wasm;
 		if (wasm===undefined) {
 			wasm=this.wasminit();
@@ -1643,3 +2094,451 @@ async function DrawWASMSetup() {
 	// console.log("wasm done");
 }
 DrawWASMSetup();
+
+
+//---------------------------------------------------------------------------------
+
+
+function fastcircle(draw,x,y,rad) {
+	// Manually draw a circle pixel by pixel.
+	// This is ugly, but it's faster than canvas.arc and drawimage.
+	var imgdata32=draw.img.data32;
+	var imgwidth=draw.img.width;
+	var imgheight=draw.img.height;
+	rad-=0.5;
+	if (rad<=0 || x-rad>imgwidth || x+rad<0 || y-rad>imgheight || y+rad<0) {
+		return;
+	}
+	var colrgba=draw.rgba32[0];
+	var coll=(colrgba&0x00ff00ff)>>>0;
+	var colh=(colrgba&0xff00ff00)>>>0;
+	var colh2=colh>>>8;
+	var minx=Math.floor(x-rad-0.5);
+	if (minx<0) {minx=0;}
+	var maxx=Math.ceil(x+rad+0.5);
+	if (maxx>imgwidth) {maxx=imgwidth;}
+	var xs=Math.floor(x);
+	if (xs< minx) {xs=minx;}
+	if (xs>=maxx) {xs=maxx-1;}
+	var miny=Math.floor(y-rad-0.5);
+	if (miny<0) {miny=0;}
+	var maxy=Math.ceil(y+rad+0.5);
+	if (maxy>imgheight) {maxy=imgheight;}
+	var pixrow=miny*imgwidth;
+	var d,d2,dst;
+	var pixmin,pixmax,pix;
+	var dx,dy=miny-y+0.5;
+	var rad20=rad*rad;
+	var rad21=(rad+1)*(rad+1);
+	var imul=Math.imul,sqrt=Math.sqrt;
+	// var rnorm=256.0/(rad21-rad20);
+	for (var y0=miny;y0<maxy;y0++) {
+		dx=xs-x+0.5;
+		d2=dy*dy+dx*dx;
+		pixmax=pixrow+maxx;
+		pix=pixrow+xs;
+		while (d2<rad20 && pix<pixmax) {
+			imgdata32[pix++]=colrgba;
+			d2+=dx+dx+1;
+			dx++;
+		}
+		while (d2<rad21 && pix<pixmax) {
+			d=((sqrt(d2)-rad)*256)|0;
+			// d=(d2-rad20)*rnorm|0;
+			dst=imgdata32[pix];
+			imgdata32[pix]=(((imul((dst&0x00ff00ff)-coll,d)>>>8)+coll)&0x00ff00ff)+
+			               ((imul(((dst&0xff00ff00)>>>8)-colh2,d)+colh)&0xff00ff00);
+			pix++;
+			d2+=dx+dx+1;
+			dx++;
+		}
+		dx=xs-x-0.5;
+		d2=dy*dy+dx*dx;
+		pixmin=pixrow+minx;
+		pix=pixrow+(xs-1);
+		while (d2<rad20 && pix>=pixmin) {
+			imgdata32[pix--]=colrgba;
+			d2-=dx+dx-1;
+			dx--;
+		}
+		while (d2<rad21 && pix>=pixmin) {
+			d=((sqrt(d2)-rad)*256)|0;
+			// d=(d2-rad20)*rnorm|0;
+			dst=imgdata32[pix];
+			imgdata32[pix]=(((imul((dst&0x00ff00ff)-coll,d)>>>8)+coll)&0x00ff00ff)+
+			               ((imul(((dst&0xff00ff00)>>>8)-colh2,d)+colh)&0xff00ff00);
+			pix--;
+			d2-=dx+dx-1;
+			dx--;
+		}
+		pixrow+=imgwidth;
+		dy++;
+	}
+}
+
+
+class PhyScene {
+
+	constructor(divid) {
+		// Setup the canvas
+		var drawwidth=600;
+		var drawheight=1066;
+		var canvas=document.getElementById(divid);
+		canvas.width=drawwidth;
+		canvas.height=drawheight;
+		this.input=new Input(canvas);
+		this.input.disablenav();
+		this.mouse=new PhyVec(2);
+		this.frames=0;
+		this.frametime=0;
+		this.fps=0;
+		this.fpsstr="0 ms";
+		this.promptshow=1;
+		this.promptframe=0;
+		// Setup the UI.
+		this.canvas=canvas;
+		this.ctx=this.canvas.getContext("2d");
+		this.draw=new Draw(drawwidth,drawheight);
+		// Reassigning the buffer data is faster for some reason.
+		this.initworld();
+		var state=this;
+		function update() {
+			setTimeout(update,1000/60);
+			state.update();
+		}
+		update();
+		/*var state=this;
+		var statetime=0;
+		var stateden=-1;
+		function update(time) {
+			requestAnimationFrame(update);
+			if (++stateden>0) {
+				var dif=time-statetime;
+				if (dif+dif/stateden>=16) {
+					statetime=time;
+					stateden=0;
+					console.log(dif);
+					state.update(dif);
+				}
+			} else {
+				statetime=time;
+				state.update(1/60);
+			}
+		}
+		requestAnimationFrame(update);*/
+	}
+
+
+	initworld() {
+		this.world=new PhyWorld(2);
+		var canvas=this.canvas;
+		var world=this.world;
+		world.steps=3;
+		world.gravity.set([0,0.1]);
+		var viewheight=1.0,viewwidth=canvas.width/canvas.height;
+		var walltype=world.createatomtype(1.0,Infinity,1.0);
+		var normtype=world.createatomtype(0.01,1.0,0.98);
+		var boxtype=world.createatomtype(0.0,2.0,1.0);
+		var rnd=new Random(2);
+		var pos=new PhyVec(world.dim);
+		for (var p=0;p<3000;p++) {
+			pos.set(0,rnd.getf64()*viewwidth);
+			pos.set(1,rnd.getf64()*viewheight);
+			world.createatom(pos,0.004,normtype);
+		}
+		world.createbox([0.3*viewwidth,0.3],5,0.007,boxtype);
+		world.createbox([0.5*viewwidth,0.5],5,0.007,boxtype);
+		world.createbox([0.7*viewwidth,0.3],5,0.007,boxtype);
+		world.bndmin=new PhyVec([0,0]);
+		world.bndmax=new PhyVec([viewwidth,1]);
+		var playertype=world.createatomtype(0.0,Infinity,0.1);
+		playertype.bound=false;
+		playertype.gravity=new PhyVec([0,0]);
+		pos.set([viewwidth*0.5,viewheight*0.33]);
+		this.playeratom=world.createatom(pos,0.035,playertype);
+		this.mouse.set(pos);
+		this.frametime=performance.now();
+	}
+
+
+	update() {
+		var frametime=performance.now();
+		var input=this.input;
+		input.update();
+		var draw=this.draw;
+		var scale=this.draw.img.height;
+		var world=this.world;
+		world.update();
+		draw.fill(0,0,0,255);
+		// Convert mouse to world space.
+		var mpos=input.getmousepos();
+		var maxx=draw.img.width/draw.img.height;
+		this.mouse.set(0,mpos[0]*maxx);
+		this.mouse.set(1,mpos[1]);
+		// Move the player.
+		var player=this.playeratom;
+		var dir=this.mouse.sub(player.pos);
+		var mag=dir.sqr();
+		if (mag<Infinity) {
+			this.promptshow=0;
+			if (mag>1e-6) {
+				player.vel=dir.mul(0.2/world.deltatime);
+			} else {
+				player.vel.set(0);
+			}
+		}
+		var link=world.atomlist.head;
+		while (link!==null) {
+			var atom=link.obj;
+			var type=atom.type;
+			var data=atom.userdata;
+			if (data===undefined || data===null) {
+				data={velcolor:0};
+				atom.userdata=data;
+			}
+			var vel=atom.vel.mag();
+			data.velcolor*=0.99;
+			if (data.velcolor<vel) {
+				data.velcolor=vel;
+			}
+			var pos=atom.pos.elem;
+			var rad=atom.rad*scale+0.25;
+			var r,g,b;
+			if (type.id===2) {
+				r=64;
+				g=200;
+				b=0;
+			} else {
+				var u=data.velcolor*(256*4);
+				u=Math.floor(u<255?u:255);
+				r=u;
+				g=0;
+				b=255-u;
+			}
+			draw.setcolor(r,g,b,255);
+			fastcircle(draw,pos[0]*scale,pos[1]*scale,rad);
+			//draw.filloval(pos[0]*scale,pos[1]*scale,rad,rad);
+			var next=link.next;
+			if (atom.delete!==undefined) {
+				atom.release();
+			}
+			link=next;
+		}
+		if (this.promptshow!==0) {
+			var pframe=(this.promptframe+1)%120;
+			this.promptframe=pframe;
+			var px=player.pos.get(0)*scale;
+			var py=player.pos.get(1)*scale;
+			var rad=player.rad*scale+0.25;
+			var u=Math.floor((Math.sin((pframe/119.0)*Math.PI*2)+1.0)*0.5*255.0);
+			draw.setcolor(u,u,255,255);
+			draw.filloval(px,py,rad,rad);
+		}
+		// Draw the HUD
+		draw.setcolor(255,255,255,255);
+		draw.filltext(5,20,"FPS: "+this.fpsstr,20);
+		draw.filltext(5,44,"Cnt: "+world.atomlist.count,20);
+		// Calculate the frame time.
+		this.frametime+=performance.now()-frametime;
+		this.frames++;
+		if (this.frames>=60) {
+			this.fps=this.frametime/this.frames;
+			this.frames=0;
+			this.frametime=0;
+			this.fpsstr=this.fps.toFixed(1)+" ms";
+			var den=world.dbgtime[4];
+			den=den>0?1/den:0;
+			for (var i=0;i<4;i++) {
+				this.fpsstr+=", "+(world.dbgtime[i]*den).toFixed(3);
+			}
+			world.dbgtime=[0,0,0,0,0];
+		}
+		this.ctx.putImageData(draw.img.imgdata,0,0);
+	}
+
+}
+
+
+class PhyScene0 {
+
+	constructor(divid) {
+		// Swap the <div> with <canvas>
+		var drawwidth=603;
+		var drawheight=1072;
+		var canvas=document.getElementById(divid);
+		canvas.width=drawwidth;
+		canvas.height=drawheight;
+		this.input=new Input(canvas);
+		this.input.disablenav();
+		this.mouse=new PhyVec(2);
+		this.frames=0;
+		this.frametime=0;
+		this.fps=0;
+		this.promptshow=1;
+		this.promptframe=0;
+		// Setup the UI.
+		this.canvas=canvas;
+		this.ctx=this.canvas.getContext("2d");
+		this.backbuf=this.ctx.createImageData(canvas.width,canvas.height);
+		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
+		this.initworld();
+		var state=this;
+		function update() {
+			setTimeout(update,1000/60);
+			state.update();
+		}
+		update();
+	}
+
+
+	initworld() {
+		this.world=new PhyWorld(2);
+		var canvas=this.canvas;
+		var world=this.world;
+		world.steps=3;
+		world.gravity.set(0);
+		var viewheight=1.0,viewwidth=canvas.width/canvas.height;
+		var walltype=world.createatomtype(1.0,Infinity,1.0);
+		var normtype=world.createatomtype(0.01,1.0,0.98);
+		var boxtype1=world.createatomtype(0.0,50.0,1.0);
+		var boxtype2=world.createatomtype(0.0,Infinity,1.0);
+		var portaltype=world.createatomtype(0.0,Infinity,0.0);
+		portaltype.pmul=0;
+		var rnd=new Random(2);
+		var pos=new PhyVec(world.dim);
+		for (var p=0;p<3000;p++) {
+			pos.set(0,rnd.getf64()*viewwidth);
+			pos.set(1,rnd.getf64()*viewheight);
+			world.createatom(pos,0.004,normtype);
+		}
+		world.createatom([viewwidth*0.5,0.1],0.1,portaltype);
+		world.createbox([0.3*viewwidth,0.3],5,0.007,boxtype2);
+		world.createbox([0.5*viewwidth,0.5],5,0.007,boxtype1);
+		world.createbox([0.7*viewwidth,0.3],5,0.007,boxtype2);
+		function reset(a,b) {
+			if (a.type.id===1) {var tmp=a;a=b;b=tmp;}
+			// a is the box
+			b.pos.set([world.bndmax.elem[0]*0.5,world.bndmax.elem[1]*0.9]);
+			b.vel.set(0);
+			return 1;
+		}
+		function eat(a,b) {
+			if (a.type.id===1) {var tmp=a;a=b;b=tmp;}
+			// a is the box
+			b.delete=true;
+		}
+		var intr=PhyAtomInteraction.get(boxtype1,normtype);
+		intr.callback=reset;
+		intr=PhyAtomInteraction.get(boxtype2,normtype);
+		intr.callback=reset;
+		intr=PhyAtomInteraction.get(portaltype,normtype);
+		intr.callback=eat;
+		world.bndmin=new PhyVec([0,0]);
+		world.bndmax=new PhyVec([viewwidth,1]);
+		var playertype=world.createatomtype(0.0,Infinity,0.1);
+		playertype.bound=false;
+		playertype.gravity=new PhyVec([0,0]);
+		pos.set([viewwidth*0.5,viewheight*0.33]);
+		this.playeratom=world.createatom(pos,0.035,playertype);
+		this.mouse.set(pos);
+		this.frametime=performance.now();
+		console.log(world.atomlist.count);
+	}
+
+
+	update() {
+		var frametime=performance.now();
+		var input=this.input;
+		input.update();
+		var ctx=this.ctx;
+		var canvas=this.canvas;
+		var scale=canvas.height;
+		var world=this.world;
+		world.update();
+		drawfill(this,0,0,0);
+		// Convert mouse to world space.
+		var mpos=input.getmousepos();
+		var maxx=canvas.width/canvas.height;
+		this.mouse.set(0,mpos[0]*maxx);
+		this.mouse.set(1,mpos[1]);
+		// Move the player.
+		var player=this.playeratom;
+		var dir=this.mouse.sub(player.pos);
+		var mag=dir.sqr();
+		if (mag<Infinity) {
+			this.promptshow=0;
+			if (mag>1e-6) {
+				player.vel=dir.mul(0.2/world.deltatime);
+			} else {
+				player.vel.set(0);
+			}
+		}
+		var link=world.atomlist.head;
+		var count=0;
+		while (link!==null) {
+			var atom=link.obj;
+			var type=atom.type;
+			var data=atom.userdata;
+			if (data===undefined || data===null) {
+				data={velcolor:0};
+				atom.userdata=data;
+			}
+			var vel=atom.vel.mag();
+			data.velcolor*=0.99;
+			if (data.velcolor<vel) {
+				data.velcolor=vel;
+			}
+			var pos=atom.pos.elem;
+			var rad=atom.rad*scale;
+			var r,g,b;
+			if (type.id===1) {
+				count+=1;
+			}
+			if (type.id===2 || type.id===3) {
+				r=64;
+				g=200;
+				b=0;
+			} else {
+				var u=data.velcolor*(256*4);
+				u=Math.floor(u<255?u:255);
+				r=u;
+				g=0;
+				b=255-u;
+			}
+			drawcircle(this,pos[0]*scale,pos[1]*scale,rad,r,g,b);
+			var next=link.next;
+			if (atom.delete!==undefined) {
+				atom.release();
+			}
+			link=next;
+		}
+		if (this.promptshow!==0) {
+			var pframe=(this.promptframe+1)%120;
+			this.promptframe=pframe;
+			var px=player.pos.get(0)*scale;
+			var py=player.pos.get(1)*scale;
+			var rad=player.rad*scale;
+			var u=Math.floor((Math.sin((pframe/119.0)*Math.PI*2)+1.0)*0.5*255.0);
+			drawcircle(this,px,py,rad,u,u,255);
+		}
+		ctx.putImageData(this.backbuf,0,0);
+		// Draw the HUD
+		ctx.font="16px monospace";
+		ctx.fillStyle="rgba(255,255,255,255)";
+		ctx.fillText("FPS: "+this.fps.toFixed(1)+" ms",5,20);
+		ctx.fillText("Cnt: "+count,5,44);
+		ctx.fillText("Win: "+window.innerWidth+" , "+window.innerHeight+" , "+window.devicePixelRatio,5,68);
+		ctx.fillText("Scr: "+screen.width+" , "+screen.height,5,92);
+		// Calculate the frame time.
+		this.frametime+=performance.now()-frametime;
+		this.frametime+=frametime;
+		this.frames++;
+		if (this.frames>=60) {
+			this.fps=this.frametime/this.frames;
+			this.frames=0;
+			this.frametime=0;
+		}
+	}
+
+}
+
