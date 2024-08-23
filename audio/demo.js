@@ -455,17 +455,18 @@ class StringSim {
 		let canv=document.getElementById(canvid);
 		let thick=50;
 		let strings=[
-			{name:"E",freq:82.41},
-			{name:"A",freq:110.00},
-			{name:"D",freq:146.83},
-			{name:"G",freq:196.00},
+			{name:"E",freq:329.63},
 			{name:"B",freq:246.94},
-			{name:"E",freq:329.63}
+			{name:"G",freq:196.00},
+			{name:"D",freq:146.83},
+			{name:"A",freq:110.00},
+			{name:"E",freq:82.41}
 		];
 		let width=canv.width;
 		let height=thick*strings.length+thick*0.5;
 		canv.height=height;
 		let ctx=canv.getContext("2d");
+		this.ctx=ctx;
 		ctx.textAlign="center";
 		ctx.textBaseline="middle";
 		ctx.font=(thick/2)+"px serif";
@@ -494,6 +495,10 @@ class StringSim {
 		let st=this;
 		canv.onclick=function (evt){return st.click(evt);}
 		if (!Audio.def) {new Audio();}
+		function update() {
+			setTimeout(update,16);
+		}
+		//update();
 	}
 
 
@@ -509,6 +514,9 @@ class StringSim {
 		let x=evt.x-offleft;
 		let y=evt.y-offtop;
 		let strings=this.strings;
+		let ctx=this.ctx;
+		ctx.fillStyle="#ffffff";
+		ctx.fillRect(x-10,y-10,20,20);
 		for (let i=0;i<strings.length;i++) {
 			let str=strings[i];
 			let sx=x-str.x,sy=y-str.y;
@@ -516,10 +524,20 @@ class StringSim {
 				let p=sx/str.w;
 				p=p>0.00001?p:0.00001;
 				p=p<0.99999?p:0.99999;
-				Audio.createstring(44100,str.freq,1.0,p,0.0092,1.0,1.7).play();
+				//Audio.createstring(44100,str.freq,1.0,p,0.0092,1.0,1.7).play();
 				break;
 			}
 		}
+	}
+
+
+	update() {
+		let canv=this.canv;
+		let ctx=canv.getContext("2d");
+		let width=canv.width;
+		let height=canv.height;
+		ctx.fillStyle="#000000";
+		ctx.fillRect(0,0,width,height);
 	}
 
 }

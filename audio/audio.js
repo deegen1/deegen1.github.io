@@ -559,7 +559,7 @@ class Audio {
 
 
 	constructor() {
-		var con=this.constructor;
+		let con=this.constructor;
 		Object.assign(this,con);
 		if (con.def===null) {con.def=this;}
 		this.freq=44100;
