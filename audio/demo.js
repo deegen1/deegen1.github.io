@@ -932,6 +932,162 @@ class StringSim {
 }
 
 
+class StringSim2 {
+
+	constructor(canvid) {
+		// Lengths are in cm.
+		Audio.initdef();
+		let can=document.getElementById(canvid);
+		this.stringlen=65.00;
+		this.stringmin=20.47;
+		this.pluckpos=10.62;
+		let strings=[
+			{name:"E",freq:329.63},
+			{name:"B",freq:246.94},
+			{name:"G",freq:196.00},
+			{name:"D",freq:146.83},
+			{name:"A",freq:110.00},
+			{name:"E",freq:82.41}
+		];
+		let fretdots=[
+			{x:55.90,y:0},
+			{x:49.83,y:0},
+			{x:44.42,y:0},
+			{x:39.65,y:0},
+			{x:33.36,y:1.5},
+			{x:33.36,y:-1.5},
+			{x:28.06,y:0}
+		];
+		let width=can.width;
+		let pad=Math.round(width/20);
+		can.height=pad*strings.length+pad*0.5;
+		let minx=pad*0.75,maxx=width-pad*0.75;
+		for (let i=0;i<strings.length;i++) {
+			let str=strings[i];
+			let y=i*pad+pad*0.25;
+			str.clickx0=minx;
+			str.clickx1=maxx;
+			str.clicky0=y+pad*0.1;
+			str.clicky1=y+pad*0.9;
+			str.liney=y+pad*0.5;
+			str.linex0=pad;
+			str.linex1=width-pad;
+			let u=i/(strings.length-1),v=1-u,n=255.99/Math.sqrt(u*u+v*v);
+			str.color="rgb("+Math.floor(v*n)+",0,"+Math.floor(u*n)+",";
+		}
+		for (let i=0;i<fretdots.length;i++) {
+			let dot=fretdots[i];
+			dot.x=minx+(1-(dot.x-this.stringmin)/(this.stringlen-this.stringmin))*(maxx-minx);
+			dot.y=can.height*0.5+dot.y*pad;
+		}
+		this.fretdots=fretdots;
+		let ctx=can.getContext("2d");
+		ctx.textAlign="center";
+		ctx.textBaseline="middle";
+		ctx.font=(pad/2)+"px monospace";
+		ctx.strokeStyle="#ffffff";
+		this.input=new Input(can);
+		this.input.disablenav();
+		this.pad=pad;
+		this.strings=strings;
+		this.canvas=can;
+		this.ctx=ctx;
+		this.wait=200;
+		this.pluckarr=[{life:0}];
+		this.plucks=1;
+		this.laststring=-1;
+		let st=this;
+		function update() {
+			setTimeout(update,st.update());
+		}
+		update();
+	}
+
+
+	update() {
+		let can=this.canvas;
+		let ctx=this.ctx;
+		let width=can.width;
+		let height=can.height;
+		let input=this.input;
+		let [mx,my]=input.getmousepos();
+		if (mx>=0 && my>=0 && mx<width && my<height) {
+			this.wait=0;
+		}
+		// See if we've clicked on a string.
+		let click=-1;
+		let plucks=this.plucks;
+		let pluckarr=this.pluckarr;
+		if (input.getkeydown(input.MOUSE.LEFT)) {
+			let strings=this.strings;
+			for (let i=0;i<strings.length;i++) {
+				let str=strings[i];
+				if (mx>=str.clickx0 && my>=str.clicky0 && mx<str.clickx1 && my<str.clicky1) {
+					click=i;
+					break;
+				}
+			}
+			if (this.laststring!==click && click>=0) {
+				let str=strings[click];
+				let len=this.stringlen,min=this.stringmin;
+				let fret=(mx-str.clickx0)/(str.clickx1-str.clickx0);
+				fret=(1-fret)*(len-min)+min;
+				let pluck=1-this.pluckpos/fret;
+				Audio.createstring(44100,str.freq*len/fret,0.5,pluck,0.0092,1.0,1.7).play();
+				pluckarr[plucks++]={life:1,x:mx,str:str};
+			}
+		}
+		this.laststring=click;
+		// Redraw strings and plucks.
+		if (plucks>0) {
+			this.wait=0;
+			ctx.fillStyle="#000000";
+			ctx.fillRect(0,0,width,height);
+			for (let i=plucks-1;i>=0;i--) {
+				let p=pluckarr[i];
+				if (p.life>=0.01) {
+					ctx.fillStyle=p.str.color+p.life.toFixed(6)+")";
+					ctx.beginPath();
+					ctx.arc(p.x,p.str.liney,this.pad*0.45,0,Math.PI*2);
+					ctx.fill();
+					p.life*=0.98;
+					//p.life-=0.01;
+				} else {
+					pluckarr[i]=pluckarr[--plucks];
+					pluckarr[plucks]=p;
+				}
+			}
+			this.plucks=plucks;
+			ctx.fillStyle="#ffffff";
+			let pad=this.pad;
+			let fretdots=this.fretdots;
+			for (let i=0;i<fretdots.length;i++) {
+				let dot=fretdots[i];
+				ctx.beginPath();
+				ctx.arc(dot.x,dot.y,this.pad*0.15,0,Math.PI*2);
+				ctx.fill();
+			}
+			let strings=this.strings;
+			for (let i=0;i<strings.length;i++) {
+				let str=strings[i];
+				ctx.fillText(str.name,pad*0.5,str.liney);
+				ctx.beginPath();
+				ctx.moveTo(str.linex0,str.liney);
+				ctx.lineTo(str.linex1,str.liney);
+				ctx.stroke();
+			}
+		}
+		let wait=this.wait;
+		wait=wait>16?wait:16;
+		let next=wait*1.03;
+		next=next<200?next:200;
+		this.wait=next;
+		return wait;
+	}
+
+}
+
+
 //---------------------------------------------------------------------------------
 // Biquad Filters
 

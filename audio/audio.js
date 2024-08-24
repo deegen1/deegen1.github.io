@@ -11,8 +11,11 @@ deegen1.github.io - akdee144@gmail.com
 Notes
 
 
-For examples use https://freewavesamples.com or NSynth (magenta) library.
-https://msp.ucsd.edu/software.html
+References
+	https://freewavesamples.com
+	NSynth (magenta) library
+	https://csounds.com/manual/html/MiscModalFreq.html
+	https://www.youtube.com/watch?v=wYlOw8YXoBs
 Most sound effects have exponential decay.
 Different frequencies have different decay rates based on material properties.
 
@@ -24,32 +27,22 @@ TODO
 check max volume of guitar
 Maraca probability of collision vs wall, vs beads + intensity.
 Based on number of beads vs relative size.
-bead hit = small sine wave + fast decay
 sliding guassian, middle is < 0
 guitar add fret position, freq*length/(1-fret)
 drums: https://www.youtube.com/watch?v=wYlOw8YXoBs
-https://euphonics.org/3-3-marimbas-and-xylophones/
 https://csounds.com/manual/html/MiscModalFreq.html
-http://supermediocre.org/wp-content/uploads/2017/05/Lily_xylophone_paper_2017.pdf
+https://en.wikipedia.org/wiki/Banded_waveguide_synthesis
 phaser
 flanger
-https://www.youtube.com/watch?v=YnQoBLL0TxM
-http://aspress.co.uk/ds/sound_examples.html
-https://webaudioapi.com/book/Web_Audio_API_Boris_Smus_html/ch06.html#s06_3
-https://webaudioapi.com/book/Web_Audio_API_Boris_Smus_html/ch06.html
-guitar string diagram
-quad filter diagrams
 sound effects
 	explosion
 	hi hat
 	drum kick
-	sax
 	thud
-	marbles
+	marbles = small sine wave + fast decay
 	laser
 	electricity
 	button press
-reverb only low pass notes
 out of phase reverb
 	look up annihilation movie ost
 	play one sine wave out of sync
