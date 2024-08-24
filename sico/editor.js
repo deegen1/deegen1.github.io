@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-editor.js - v1.07
+editor.js - v1.08
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -19,24 +19,24 @@ TODO
 
 
 function SicoInitEditor() {
-	var runbutton  =document.getElementById("sico_run");
-	var resetbutton=document.getElementById("sico_reset");
-	var savebutton =document.getElementById("sico_save");
-	var loadbutton =document.getElementById("sico_load");
-	var input=document.getElementById("sico_editor");
-	var output=document.getElementById("sico_output");
-	var graphics=document.getElementById("sico_canvas");
-	var select=document.getElementById("sico_demo");
-	var advanced=document.getElementById("sico_advanced");
-	var menu=document.getElementById("sico_menu");
-	var keygrab=document.getElementById("sico_keyboard");
-	var sico=new SICO(output,graphics);
-	var running=0;
+	let runbutton  =document.getElementById("sico_run");
+	let resetbutton=document.getElementById("sico_reset");
+	let savebutton =document.getElementById("sico_save");
+	let loadbutton =document.getElementById("sico_load");
+	let input=document.getElementById("sico_editor");
+	let output=document.getElementById("sico_output");
+	let graphics=document.getElementById("sico_canvas");
+	let select=document.getElementById("sico_demo");
+	let advanced=document.getElementById("sico_advanced");
+	let menu=document.getElementById("sico_menu");
+	let keygrab=document.getElementById("sico_keyboard");
+	let sico=new SICO(output,graphics);
+	let running=0;
 	function update() {
 		// Our main event loop. Run the main SICO loop for 15ms and queue the next
 		// update for 12ms in the future. This will give the browser time to handle events
 		// and spend most of our time executing SICO instructions.
-		var runtext;
+		let runtext;
 		if (sico.state!==sico.RUNNING && sico.state!==sico.SLEEPING) {
 			running=0;
 			runtext="&#9654;&nbsp;&nbsp;&nbsp;Run";
@@ -87,9 +87,9 @@ function SicoInitEditor() {
 	// Setup the save button.
 	if (savebutton!==null) {
 		savebutton.onclick=function() {
-			var file=new Blob([input.value],{type:"text/plain"});
-			var a=document.createElement("a");
-			var url=window.URL.createObjectURL(file);
+			let file=new Blob([input.value],{type:"text/plain"});
+			let a=document.createElement("a");
+			let url=window.URL.createObjectURL(file);
 			a.href=url;
 			a.download="sico_source.txt";
 			document.body.appendChild(a);
@@ -101,12 +101,12 @@ function SicoInitEditor() {
 	// Setup the load button.
 	if (loadbutton!==null) {
 		loadbutton.onclick=function() {
-			var prompt=document.createElement("input");
+			let prompt=document.createElement("input");
 			prompt.type="file";
 			prompt.onchange=function() {
 				if (prompt.files.length>0) {
-					var file=prompt.files[0];
-					var reader=new FileReader();
+					let file=prompt.files[0];
+					let reader=new FileReader();
 					reader.onload=function(event) {
 						sico.clear();
 						running=0;
@@ -130,8 +130,8 @@ function SicoInitEditor() {
 			menu.style.display="none";
 		}
 	};
-	var inputgrab=function(e) {
-		var code=e.keyCode;
+	let inputgrab=function(e) {
+		let code=e.keyCode;
 		if (code===9 || (code>=120 && code<=122)) {
 			e.preventDefault();
 			if (code===9) {
@@ -160,14 +160,14 @@ function SicoInitEditor() {
 	keygrab.onchange();
 	// Helper function to load files.
 	function loadfile(path) {
-		var xhr=new XMLHttpRequest();
+		let xhr=new XMLHttpRequest();
 		xhr.onreadystatechange=function(){
 			if (xhr.readyState===4) {
 				sico.clear();
 				running=0;
 				setTimeout(update,0);
 				if (xhr.status===200) {
-					var name=path.split("/");
+					let name=path.split("/");
 					input.value=xhr.response;
 					updatetext();
 					sico.print("Loaded "+name[name.length-1]+"\n");
@@ -192,16 +192,16 @@ function SicoInitEditor() {
 		};
 	}
 	// Parse URL arguments.
-	var regex=new RegExp(".*?\\?(file|demo|source)=(.*)","g");
-	var match=regex.exec(decodeURI(window.location.href));
+	let regex=new RegExp(".*?\\?(file|demo|source)=(.*)","g");
+	let match=regex.exec(decodeURI(window.location.href));
 	if (match!==null) {
-		var type=match[1];
-		var arg=match[2];
+		let type=match[1];
+		let arg=match[2];
 		if (type==="file") {
 			loadfile(arg);
 		} else if (type==="demo") {
-			for (var i=0;i<select.length;i++) {
-				var option=select[i];
+			for (let i=0;i<select.length;i++) {
+				let option=select[i];
 				if (option.innerText===arg) {
 					select.value=option.value;
 					loadfile(option.value);
@@ -219,17 +219,17 @@ function SicoInitEditor() {
 	}
 	// Setup editor highlighting. We do this by creating a textarea and then displaying
 	// a colored div directly under it.
-	var container=document.createElement("div");
-	var highlight=document.createElement("div");
+	let container=document.createElement("div");
+	let highlight=document.createElement("div");
 	input.parentNode.replaceChild(container,input);
 	container.appendChild(highlight);
 	container.appendChild(input);
 	// Copy the textarea attributes to the container div. We need to do this before
 	// changing the input attributes.
-	var inputstyle=window.getComputedStyle(input);
-	var allow=new RegExp("(background|border|margin)","i");
-	for (var i=0;i<inputstyle.length;i++) {
-		var key=inputstyle[i];
+	let inputstyle=window.getComputedStyle(input);
+	let allow=new RegExp("(background|border|margin)","i");
+	for (let i=0;i<inputstyle.length;i++) {
+		let key=inputstyle[i];
 		if (key.match(allow)) {
 			container.style[key]=inputstyle[key];
 		}
@@ -238,7 +238,7 @@ function SicoInitEditor() {
 	container.style.overflow="hidden";
 	// Set the textarea to absolute positioning within the container and remove all
 	// decorations.
-	var caretcolor=inputstyle["caret-color"];
+	let caretcolor=inputstyle["caret-color"];
 	input.style.position="absolute";
 	input.style.left="0";
 	input.style.top="0";
@@ -247,9 +247,9 @@ function SicoInitEditor() {
 	input.style.background="none";
 	// Copy the textarea attributes to the highlight div.
 	inputstyle=window.getComputedStyle(input);
-	var block=new RegExp("color","i");
-	for (var i=0;i<inputstyle.length;i++) {
-		var key=inputstyle[i];
+	let block=new RegExp("color","i");
+	for (let i=0;i<inputstyle.length;i++) {
+		let key=inputstyle[i];
 		if (key.match(allow) || !key.match(block)) {
 			highlight.style[key]=inputstyle[key];
 		}
@@ -259,7 +259,7 @@ function SicoInitEditor() {
 	// Make the textarea text invisible, except for the caret.
 	input.style.color="rgba(0,0,0,0)";
 	input.style["caret-color"]=caretcolor;
-	var updateposition=function() {
+	let updateposition=function() {
 		container.style.width=input.style.width;
 		container.style.height=input.style.height;
 		highlight.style.left=(-input.scrollLeft)+"px";
@@ -267,7 +267,7 @@ function SicoInitEditor() {
 		highlight.style.width=(input.clientWidth+input.scrollLeft)+"px";
 		highlight.style.height=(input.clientHeight+input.scrollTop)+"px";
 	};
-	var updatetext=function() {
+	let updatetext=function() {
 		updateposition();
 		highlight.innerHTML=SicoHighlightScroll(input);
 	};
@@ -280,18 +280,18 @@ function SicoInitEditor() {
 function SicoHighlightScroll(input) {
 	// Highlighting the whole source code can be slow, so highlight only the portion
 	// that we can see.
-	var str=input.value;
+	let str=input.value;
 	// Determine what lines are visible.
-	var len=str.length,lines=1;
-	for (var i=0;i<len;i++) {
+	let len=str.length,lines=1;
+	for (let i=0;i<len;i++) {
 		lines+=str.charCodeAt(i)===10;
 	}
-	var vismin=(input.scrollTop/input.scrollHeight)*lines-1;
-	var vismax=vismin+(input.clientHeight/input.scrollHeight)*lines+2;
+	let vismin=(input.scrollTop/input.scrollHeight)*lines-1;
+	let vismax=vismin+(input.clientHeight/input.scrollHeight)*lines+2;
 	// console.log(vismin,vismax);
-	var comment=0;
+	let comment=0;
 	// Find where the first visible line starts, and if it's a block comment.
-	var i=0,line=0,c;
+	let i=0,line=0,c;
 	while (i<len && line<vismin) {
 		c=str.charCodeAt(i++);
 		if (c===10) {
@@ -320,9 +320,9 @@ function SicoHighlightScroll(input) {
 		i=0;
 		comment=0;
 	}
-	var pre="<br>".repeat(line-comment*2);
+	let pre="<br>".repeat(line-comment*2);
 	// Find where the visible lines end.
-	var j=i;
+	let j=i;
 	while (j<len && line<=vismax) {
 		if (str.charCodeAt(j++)===10) {
 			line++;
@@ -330,7 +330,7 @@ function SicoHighlightScroll(input) {
 	}
 	// Get the visible substring. If we're in a block comment, manually add a #| for
 	// the highlighter.
-	var sub=str.substring(i,j);
+	let sub=str.substring(i,j);
 	if (comment===1) {sub="#|\n\n"+sub;}
 	return pre+HighlightSico(sub);
 }

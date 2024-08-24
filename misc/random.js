@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-random.js - v1.04
+random.js - v1.06
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -15,6 +15,10 @@ Notes
 TODO
 
 
+Are all of the >>>0's needed.
+modu32(0) = any 32 bit int.
+
+
 */
 /* jshint esversion: 11  */
 /* jshint bitwise: false */
@@ -23,15 +27,15 @@ TODO
 
 
 //---------------------------------------------------------------------------------
-// Random - v1.04
+// PRNG - v1.06
 
 
 class Random {
 
 	constructor(seed) {
+		this.xmbarr=this.constructor.xmbarr;
 		this.acc=0;
 		this.inc=1;
-		this.xmbarr=this.constructor.xmbarr;
 		this.seed(seed);
 	}
 
@@ -40,21 +44,23 @@ class Random {
 		if (seed===undefined || seed===null) {
 			seed=performance.timeOrigin+performance.now();
 		}
-		this.acc=(seed/4294967296)>>>0;
-		this.inc=seed>>>0;
-		this.acc=this.getu32();
-		this.inc=(this.getu32()|1)>>>0;
+		if (seed.length===2) {
+			this.acc=seed[0];
+			this.inc=seed[1];
+		} else if (seed.acc!==undefined) {
+			this.acc=seed.acc;
+			this.inc=seed.inc;
+		} else {
+			this.acc=(seed/4294967296)>>>0;
+			this.inc=seed>>>0;
+			this.acc=this.getu32();
+			this.inc=(this.getu32()|1)>>>0;
+		}
 	}
 
 
 	getstate() {
 		return [this.acc,this.inc];
-	}
-
-
-	setstate(state) {
-		this.acc=state[0]>>>0;
-		this.inc=state[1]>>>0;
 	}
 
 
@@ -68,7 +74,7 @@ class Random {
 
 
 	getu32() {
-		var val=(this.acc+this.inc)>>>0;
+		let val=(this.acc+this.inc)>>>0;
 		this.acc=val;
 		val=Math.imul(val^(val>>>16),0xf8b7629f);
 		val=Math.imul(val^(val>>> 8),0xcbc5c2b5);
@@ -79,7 +85,7 @@ class Random {
 
 	modu32(mod) {
 		// rand%mod is not converted to a signed int.
-		var rand,rem,nmod=(-mod)>>>0;
+		let rand,rem,nmod=(-mod)>>>0;
 		do {
 			rand=this.getu32();
 			rem=rand%mod;
@@ -115,7 +121,7 @@ class Random {
 		// Returns a normally distributed random variable. This function uses a linear
 		// piecewise approximation of sqrt(2)*erfinv((x+1)*0.5) to quickly compute values.
 		// Find the greatest y[i]<=x, then return x*m[i]+b[i].
-		var x=this.getf64(),xmb=this.xmbarr,i=48;
+		let x=this.getf64(),xmb=this.xmbarr,i=48;
 		i+=x<xmb[i]?-24:24;
 		i+=x<xmb[i]?-12:12;
 		i+=x<xmb[i]?-6:6;

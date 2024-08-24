@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-sico.js - v2.09
+sico.js - v2.10
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -124,7 +124,7 @@ class SICO {
 
 	constructor(textout,canvas) {
 		// Default state values.
-		for (var st in SICO) {this[st]=SICO[st];}
+		Object.assign(this,this.constructor);
 		this.state   =0;
 		this.statestr="";
 		this.ip      =0n;
@@ -171,13 +171,13 @@ class SICO {
 
 	print(str) {
 		// Print to console and autoscroll to bottom.
-		var textout=this.textout;
+		let textout=this.textout;
 		if (textout!==null) {
-			var val=textout.value;
+			let val=textout.value;
 			if (val===undefined) {val=textout.innerText;}
-			var pos=Math.max(this.textpos,0);
-			for (var i=0;i<str.length;i++) {
-				var c=str[i];
+			let pos=Math.max(this.textpos,0);
+			for (let i=0;i<str.length;i++) {
+				let c=str[i];
 				if (c==="\r") {
 					pos=val.lastIndexOf("\n",pos)+1;
 				} else if (c==="\b") {
@@ -211,10 +211,10 @@ class SICO {
 	drawimage(imgaddr) {
 		// Draw an image to the canvas.
 		// Image structure is [width, height, pixel ptr].
-		var canvas=this.canvas;
-		var imgwidth =Number(this.getmem(imgaddr   ));
-		var imgheight=Number(this.getmem(imgaddr+1n));
-		var imgdata  =Number(this.getmem(imgaddr+2n));
+		let canvas=this.canvas;
+		let imgwidth =Number(this.getmem(imgaddr   ));
+		let imgheight=Number(this.getmem(imgaddr+1n));
+		let imgdata  =Number(this.getmem(imgaddr+2n));
 		if (imgwidth>65536 || imgheight>65536 || canvas===null) {
 			return;
 		}
@@ -229,13 +229,13 @@ class SICO {
 			}
 		}
 		// Map the ARGB bytes to their memory positions.
-		var s=new Uint8Array((new BigUint64Array([0x03ff02ff01ff00ffn])).buffer);
-		var d=(new Uint32Array((new Uint8Array([2,1,0,3])).buffer))[0];
-		var buf=this.mem.buffer,off=this.mem.byteOffset+imgdata*8;
-		var [src0,src1,src2,src3]=Array.from([0,1,2,3],(i)=>new Uint8Array(buf,off+s.indexOf((d>>>(i*8))&255)));
-		var imgpixels=imgwidth*imgheight;
-		var dst=new Uint32Array(this.canvdata.data.buffer);
-		for (var i=0,j=0;i<imgpixels;i++,j+=8) {
+		let s=new Uint8Array((new BigUint64Array([0x03ff02ff01ff00ffn])).buffer);
+		let d=(new Uint32Array((new Uint8Array([2,1,0,3])).buffer))[0];
+		let buf=this.mem.buffer,off=this.mem.byteOffset+imgdata*8;
+		let [src0,src1,src2,src3]=Array.from([0,1,2,3],(i)=>new Uint8Array(buf,off+s.indexOf((d>>>(i*8))&255)));
+		let imgpixels=imgwidth*imgheight;
+		let dst=new Uint32Array(this.canvdata.data.buffer);
+		for (let i=0,j=0;i<imgpixels;i++,j+=8) {
 			dst[i]=(src3[j]<<24)|(src2[j]<<16)|(src1[j]<<8)|src0[j];
 		}
 		this.canvctx.putImageData(this.canvdata,0,0);
@@ -257,9 +257,9 @@ class SICO {
 	addlabel(scope,data,start,end) {
 		// Add a label if it's new.
 		// If the label starts with a '.', make it a child of the last non '.' label.
-		var lbl=data[start]==='.'?scope:this.lblroot;
-		var prv,c;
-		for (var i=start;i<end;i++) {
+		let lbl=data[start]==='.'?scope:this.lblroot;
+		let prv,c;
+		for (let i=start;i<end;i++) {
 			c=data.charCodeAt(i);
 			prv=lbl;
 			lbl=lbl.child[c];
@@ -274,9 +274,9 @@ class SICO {
 
 	findlabel(label) {
 		// Returns the given label's address. Returns null if no label was found.
-		var lbl=this.lblroot,len=label.length,c;
+		let lbl=this.lblroot,len=label.length,c;
 		if (lbl===null) {return -1n;}
-		for (var i=0;i<len;i++) {
+		for (let i=0;i<len;i++) {
 			c=label.charCodeAt(i);
 			lbl=lbl.child[c];
 			if (lbl===undefined) {return -1n;}
@@ -289,10 +289,10 @@ class SICO {
 		// Convert SICO assembly language into a SICO program.
 		// This can be sped up by using ASCII codes instead of strings.
 		this.clear();
-		var i=0,j=0,l=asmstr.length,c;
-		var err="";
+		let i=0,j=0,l=asmstr.length,c;
+		let err="";
 		function tonum(c) {
-			var x=c.charCodeAt(0);
+			let x=c.charCodeAt(0);
 			if (x>=65) {return x>=97?x-87:x-55;}
 			return (x>=48 && x<=57)?x-48:99;
 		}
@@ -300,10 +300,10 @@ class SICO {
 		function islbl(c) {return tonum(c)<36 || c==="_" || c==="." || c>="\x7f";}
 		function s(i) {return i<l?asmstr[i]:"\x00";}
 		// Process the string in 2 passes. The first pass is needed to find label values.
-		for (var pass=0;pass<2 && !err;pass++) {
-			var scope=this.lblroot,lbl=null;
-			var val=0n,acc=0n,addr=0n,op=0,token=0;
-			var base,n,set;
+		for (let pass=0;pass<2 && !err;pass++) {
+			let scope=this.lblroot,lbl=null;
+			let val=0n,acc=0n,addr=0n,op=0,token=0;
+			let base,n,set;
 			for (i=0;i<l && !err;) {
 				j=i;
 				c=s(i);
@@ -396,7 +396,7 @@ class SICO {
 		if (err) {
 			// Highlight any error we've encountered.
 			this.state=this.ERROR_PARSER;
-			var line=1,lo=0,hi=i,k;
+			let line=1,lo=0,hi=i,k;
 			for (k=0;k<j;k++) {
 				if (s(k)==="\n") {
 					lo=k+1;
@@ -409,7 +409,7 @@ class SICO {
 				if (s(k)==="\n") {break;}
 				if (!isspc(s(k))) {hi=k+1;}
 			}
-			var win="",und="";
+			let win="",und="";
 			for (k=lo;k<hi;k++) {
 				c=s(k);
 				win+=c>" "?c:" ";
@@ -426,7 +426,7 @@ class SICO {
 
 	uint(x) {
 		// Convert x to an integer in [0,mod).
-		var mod=this.mod;
+		let mod=this.mod;
 		try {x%=mod;}
 		catch {x=BigInt(x)%mod;}
 		return x<0n?x+mod:x;
@@ -448,7 +448,7 @@ class SICO {
 				return 0x100000000n;
 			} else if (addr===-5n) {
 				// Read time. time = (seconds since 1 Jan 1970) * 2^32.
-				var date=performance.timeOrigin+performance.now();
+				let date=performance.timeOrigin+performance.now();
 				return this.uint(date*4294967.296);
 			}
 		}
@@ -471,7 +471,7 @@ class SICO {
 				this.print(String.fromCharCode(Number(val&255n)));
 			} else if (addr===-6n) {
 				// Sleep.
-				var sleep=Number(val)/4294967.296;
+				let sleep=Number(val)/4294967.296;
 				this.sleep=performance.now()+sleep;
 				if (this.sleep>=this.timelimit) {
 					this.state=this.SLEEPING;
@@ -485,11 +485,11 @@ class SICO {
 			return;
 		}
 		val=this.uint(val);
-		var mem=this.mem;
+		let mem=this.mem;
 		if (addr>=this.memlen) {
 			// If we're writing to an address outside of our memory, attempt to resize it.
 			if (!val) {return;}
-			var memlen=this.io;
+			let memlen=this.io;
 			while ((memlen>>1n)>addr) {memlen>>=1n;}
 			// Attempt to allocate.
 			try {
@@ -518,8 +518,8 @@ class SICO {
 			this.state=this.RUNNING;
 		}
 		if ((typeof SICOFastRun)!=="undefined") {return SICOFastRun(this,insts,time);}
-		var ip=this.ip;
-		var a,b,c,ma,mb;
+		let ip=this.ip;
+		let a,b,c,ma,mb;
 		for (;this.state===this.RUNNING && insts>0 && performance.now()<time;insts--) {
 			// Main instruction.
 			a =this.getmem(ip++);

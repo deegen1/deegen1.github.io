@@ -12,7 +12,7 @@ TODO
 
 
 */
-/* jshint esversion: 6   */
+/* jshint esversion: 11  */
 /* jshint bitwise: false */
 /* jshint eqeqeq: true   */
 /* jshint curly: true    */

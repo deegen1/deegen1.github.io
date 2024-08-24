@@ -34,21 +34,21 @@
 <!-- Properly resize the canvas -->
 <script>
 (function() {
-	var phy=new PhyScene("physmain");
+	let phy=new PhyScene("physmain");
 	function resize() {
-		var canvas =phy.canvas;
-		var ratio  =canvas.height/canvas.width;
-		var elem   =canvas;
-		var offleft=elem.clientLeft;
-		var offtop =elem.clientTop;
+		let canvas =phy.canvas;
+		let ratio  =canvas.height/canvas.width;
+		let elem   =canvas;
+		let offleft=elem.clientLeft;
+		let offtop =elem.clientTop;
 		while (elem!==null) {
 			offleft+=elem.offsetLeft;
 			offtop +=elem.offsetTop;
 			elem=elem.offsetParent;
 		}
-		var pscale =1;//window.devicePixelRatio;
-		var width  =Math.floor(pscale*(window.innerWidth));//-offleft));
-		var height =Math.floor(pscale*(window.innerHeight-offtop));
+		let pscale =1;//window.devicePixelRatio;
+		let width  =Math.floor(pscale*(window.innerWidth));//-offleft));
+		let height =Math.floor(pscale*(window.innerHeight-offtop));
 		if (width*ratio<height) {
 			height=Math.floor(width*ratio);
 		} else {

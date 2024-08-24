@@ -10,25 +10,6 @@ deegen1.github.io - akdee144@gmail.com
 --------------------------------------------------------------------------------
 TODO
 
-Acoustic Guitar
-E2 82.41
-A2 110.00
-D3 146.83
-G3 196.00
-B3 246.94
-E4 329.63
-
-Bass Guitar
-E1 41.00
-A1 55.00
-D2 73.00
-G2 98.00
-
-Patch notes
-Added quality of life features for musican'ts
-Users can now strum strings
-Fixed mouse positioning
-
 
 */
 /* jshint esversion: 11  */
@@ -436,7 +417,7 @@ class Input {
 
 
 function playsound() {
-	var audio=Audio.def||(new Audio());
+	Audio.initdef();
 	// kick
 	// let tones=[1000,800,600,400,200,100,50];
 /*
@@ -470,35 +451,6 @@ function playsound() {
 			data[i]+=Math.sin(f[j]*Math.PI*2)*mul*norm;
 		}
 	}*/
-// ringing
-/*
-	let voldecay=Math.log(1e-4)/3;
-	let len=snd.len,data=snd.data,freq=snd.freq;
-	let filter=new Audio.Biquad("highpass",100/freq,0.7071);
-	let filterl=new Audio.Biquad("lowpass",4000/freq,0.7071);
-	let f=0;
-	let delay=Math.floor(0.5*freq),delaygain=0.00;
-	for (let i=0;i<len;i++) {
-		let t=i/freq;
-		let mul=Math.exp(voldecay*t);
-		let x=(Audio.tri(t*400)+Audio.tri(t*250)+Audio.tri(t*200))/3;
-		data[i]+=filterl.process(filter.process(x))*mul*2;
-		if (i>=delay) {data[i]+=data[i-delay]*delaygain;}
-		// if (inc<1.0) {inc=1.0;}
-		// if (Math.random()<0.5) {inc=-inc;}
-		// f+=(tone/freq)*(0.1/(t+0.1));
-		// let s0=(Math.sin(f*Math.PI*2));
-		// data[i]+=s0*inc1*mul;
-	}
-*/
-	/*var inst=snd.play();
-	function update() {
-		if (inst.done) {return;}
-		setTimeout(update,16);
-		var t=1-4*Math.abs(((performance.now()/1000.0)%1)-0.5);
-		inst.setpan(t);
-	}
-	update();*/
 }
 
 
@@ -878,6 +830,8 @@ class StringSim {
 			str.liney=y+pad*0.5;
 			str.linex0=pad;
 			str.linex1=width-pad;
+			let u=i/(strings.length-1),v=1-u,n=255.99/Math.sqrt(u*u+v*v);
+			str.color="rgb("+Math.floor(v*n)+",0,"+Math.floor(u*n)+",";
 		}
 		let ctx=can.getContext("2d");
 		ctx.textAlign="center";
@@ -891,7 +845,7 @@ class StringSim {
 		this.canvas=can;
 		this.ctx=ctx;
 		this.wait=200;
-		this.pluckarr=[{life:0,x:0,y:0}];
+		this.pluckarr=[{life:0}];
 		this.plucks=1;
 		this.laststring=-1;
 		let st=this;
@@ -914,6 +868,8 @@ class StringSim {
 		}
 		// See if we've clicked on a string.
 		let click=-1;
+		let plucks=this.plucks;
+		let pluckarr=this.pluckarr;
 		if (input.getkeydown(input.MOUSE.LEFT)) {
 			let strings=this.strings;
 			for (let i=0;i<strings.length;i++) {
@@ -929,37 +885,30 @@ class StringSim {
 				p=p>0.00001?p:0.00001;
 				p=p<0.99999?p:0.99999;
 				Audio.createstring(44100,str.freq,0.5,p,0.0092,1.0,1.7).play();
-				this.pluckarr[this.plucks]={life:1,x:mx,y:str.liney};
-				this.plucks++;
+				pluckarr[plucks++]={life:1,x:mx,str:str};
 			}
 		}
 		this.laststring=click;
-		// See if we have a pluck history to draw.
-		let redraw=false;
-		let plucks=this.plucks;
-		let pluckarr=this.pluckarr;
-		for (let i=plucks-1;i>=0;i--) {
-			redraw=true;
-			let p=pluckarr[i];
-			p.life*=0.99;
-			if (p.life<0.01) {
-				p.life=0;
-				pluckarr[i]=pluckarr[--plucks];
-				pluckarr[plucks]=p;
-			}
-		}
 		// Redraw strings and plucks.
-		if (redraw) {
+		if (plucks>0) {
 			this.wait=0;
 			ctx.fillStyle="#000000";
 			ctx.fillRect(0,0,width,height);
-			for (let i=0;i<plucks;i++) {
+			for (let i=plucks-1;i>=0;i--) {
 				let p=pluckarr[i];
-				ctx.fillStyle=`rgb(0,0,255,${p.life})`;
-				ctx.beginPath();
-				ctx.arc(p.x,p.y,this.pad*0.5,0,Math.PI*2);
-				ctx.fill();
+				if (p.life>=0.01) {
+					ctx.fillStyle=p.str.color+p.life.toFixed(6)+")";
+					ctx.beginPath();
+					ctx.arc(p.x,p.str.liney,this.pad*0.45,0,Math.PI*2);
+					ctx.fill();
+					p.life*=0.98;
+					//p.life-=0.01;
+				} else {
+					pluckarr[i]=pluckarr[--plucks];
+					pluckarr[plucks]=p;
+				}
 			}
+			this.plucks=plucks;
 			ctx.fillStyle="#ffffff";
 			let pad=this.pad;
 			let strings=this.strings;
@@ -972,7 +921,6 @@ class StringSim {
 				ctx.stroke();
 			}
 		}
-		this.plucks=plucks;
 		let wait=this.wait;
 		wait=wait>16?wait:16;
 		let next=wait*1.03;

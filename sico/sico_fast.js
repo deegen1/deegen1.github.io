@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-sico_fast.js - v1.05
+sico_fast.js - v1.06
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -64,17 +64,17 @@ function SICOFastJSRun(sico,insts,time) {
 	// This version of run() unrolls several operations to speed things up.
 	// It's 53 times faster than using bigint functions, but slower than wasm.
 	if (sico.state!==sico.RUNNING) {return;}
-	var fast=sico.fast;
+	let fast=sico.fast;
 	if (fast===undefined) {sico.fast=fast={};}
-	var big=Object.is(fast.mem,sico.mem)-1;
-	var iphi=Number(sico.ip>>32n),iplo=Number(sico.ip&0xffffffffn);
-	var modhi=Number(sico.mod>>32n),modlo=Number(sico.mod&0xffffffffn);
-	var memh=fast.memh,meml=fast.meml;
-	var memlen=Number(sico.memlen),memlen2=memlen-2;
-	var ahi,alo,chi,clo;
-	var bhi,blo,mbhi,mblo;
-	var ip,a,b,ma,mb,mem;
-	var i,timeiters=0;
+	let big=Object.is(fast.mem,sico.mem)-1;
+	let iphi=Number(sico.ip>>32n),iplo=Number(sico.ip&0xffffffffn);
+	let modhi=Number(sico.mod>>32n),modlo=Number(sico.mod&0xffffffffn);
+	let memh=fast.memh,meml=fast.meml;
+	let memlen=Number(sico.memlen),memlen2=memlen-2;
+	let ahi,alo,chi,clo;
+	let bhi,blo,mbhi,mblo;
+	let ip,a,b,ma,mb,mem;
+	let i,timeiters=0;
 	while (insts>0) {
 		// Periodically check if we've run for too long.
 		if (--timeiters<=0) {
@@ -94,7 +94,7 @@ function SICOFastJSRun(sico,insts,time) {
 			mem=sico.mem;
 			if (!Object.is(fast.mem,mem)) {
 				fast.mem=mem;
-				var endian=(new Uint32Array((new BigUint64Array([4n])).buffer))[0];
+				let endian=(new Uint32Array((new BigUint64Array([4n])).buffer))[0];
 				fast.memh=memh=new Uint32Array(mem.buffer,mem.byteOffset+  endian);
 				fast.meml=meml=new Uint32Array(mem.buffer,mem.byteOffset+4-endian);
 				memlen=Number(sico.memlen);
@@ -175,7 +175,7 @@ function SICOFastInit(st) {
 
 function SICOFastLoadHLI(st) {
 	// Find high-level intercepts.
-	var hlitable=[
+	let hlitable=[
 		// 00xx - none
 		// 01xx - uint
 		// 02xx - int
@@ -202,19 +202,19 @@ function SICOFastLoadHLI(st) {
 		["uint.xor",0x010f],
 		["image.setpixel",0x060a]
 	];
-	var memlen=st.memlen;
-	var hlilen=0;
-	for (var i=hlitable.length-1;i>=0;i--) {
-		var hliobj=hlitable[i];
-		var addr=Number(st.findlabel(hliobj[0]));
+	let memlen=st.memlen;
+	let hlilen=0;
+	for (let i=hlitable.length-1;i>=0;i--) {
+		let hliobj=hlitable[i];
+		let addr=Number(st.findlabel(hliobj[0]));
 		if (addr<memlen && hlilen<=addr) {
 			hlilen=addr+1;
 		}
 	}
-	var hlimap=new Uint16Array(hlilen);
-	for (var i=hlitable.length-1;i>=0;i--) {
-		var hliobj=hlitable[i];
-		var addr=Number(st.findlabel(hliobj[0]));
+	let hlimap=new Uint16Array(hlilen);
+	for (let i=hlitable.length-1;i>=0;i--) {
+		let hliobj=hlitable[i];
+		let addr=Number(st.findlabel(hliobj[0]));
 		if (addr>=0 && addr<hlilen) {
 			hlimap[addr]=hliobj[1];
 		}
@@ -227,7 +227,7 @@ function SICOFastLoadHLI(st) {
 async function SICOFastLoadWASM(st) {
 	// Attempt to load the WebAssembly program.
 	// sico_wasm.c -> compile -> gzip -> base64
-	var wasmstr=`
+	let wasmstr=`
 		H4sIAJ7vmmUC/+1bX28bNxInl+L+EVfelZVKEfTC3Ra45oDmEqC49NFa4Hp9NAI3D33ZyLaa2JVlnyTf
 		XVH9ceIk5/ba5mMEOKDf4R7v4R76eB/hvkU6JFfSSta6G1kWakOypSVX3JnhzI8z5FBEtfYBRgjhD4zH
 		2mCAHiP4x4PHuI/gjfuPtX4fqnQw6Pf7SAsypN78a3Z3+8lRa6/Z2W8jJG6YT+qdg/oBVLGstieqrLN3
@@ -266,19 +266,19 @@ async function SICOFastLoadWASM(st) {
 		fBUeHcKj9Rb6xDpqHe4e79RbbWxDcafebtd3P9r+Gtufbx83O8d8p1FrPsnf//juvbv3Prp/LG/ev3v/
 		F+eG4IZeNgAA
 	`;
-	var gzipbytes=Uint8Array.from(atob(wasmstr),(c)=>c.codePointAt(0));
-	var gzipstream=new Blob([gzipbytes]).stream();
-	var decstream=gzipstream.pipeThrough(new DecompressionStream("gzip"));
-	var decblob=await new Response(decstream).blob();
-	var wasmbytes=new Uint8Array(await decblob.arrayBuffer());
+	let gzipbytes=Uint8Array.from(atob(wasmstr),(c)=>c.codePointAt(0));
+	let gzipstream=new Blob([gzipbytes]).stream();
+	let decstream=gzipstream.pipeThrough(new DecompressionStream("gzip"));
+	let decblob=await new Response(decstream).blob();
+	let wasmbytes=new Uint8Array(await decblob.arrayBuffer());
 	// Set up IO functions.
 	function dbgprintjs(h,l) {
-		var s="Debug: "+((BigInt(h>>>0)<<32n)+BigInt(l>>>0))+"\n";
+		let s="Debug: "+((BigInt(h>>>0)<<32n)+BigInt(l>>>0))+"\n";
 		console.log(s);
 		st.print(s);
 	}
 	function getmemjs() {
-		var env64=st.wasm.env64;
+		let env64=st.wasm.env64;
 		env64[8]=st.getmem(env64[7]);
 	}
 	function setmemjs() {
@@ -292,7 +292,7 @@ async function SICOFastLoadWASM(st) {
 	function timelimitjs() {
 		return Number(performance.now()>=st.timelimit);
 	}
-	var imports={dbgprintjs,getmemjs,setmemjs,timelimitjs};
+	let imports={dbgprintjs,getmemjs,setmemjs,timelimitjs};
 	WebAssembly.instantiate(wasmbytes,{env:imports}).then(
 		(mod)=>st.wasm.module=mod,
 	);
@@ -303,16 +303,16 @@ function SICOFastResize(st) {
 	// wasm has its own sandboxed memory, so allocate memory in wasm and remap our
 	// IO buffer and SICO memory into it. If mem.byteOffset=0, SICO's memory has been
 	// reallocated.
-	var module=st.wasm.module;
-	var off=module.instance.exports.getheapbase();
-	var wasmmem=module.instance.exports.memory;
-	var envlen=9,hlilen=st.wasm.hli16.length,memlen=st.mem.length;
-	var pagebytes=65536;
-	var pages=Math.ceil((off+envlen*8+memlen*8+hlilen*2)/pagebytes);
+	let module=st.wasm.module;
+	let off=module.instance.exports.getheapbase();
+	let wasmmem=module.instance.exports.memory;
+	let envlen=9,hlilen=st.wasm.hli16.length,memlen=st.mem.length;
+	let pagebytes=65536;
+	let pages=Math.ceil((off+envlen*8+memlen*8+hlilen*2)/pagebytes);
 	pages-=Math.floor(wasmmem.buffer.byteLength/pagebytes);
 	if (pages>0) {wasmmem.grow(pages);}
-	var endian=(new Uint32Array((new BigUint64Array([4n])).buffer))[0];
-	var newhli,newmem,env64,envh32,envl32;
+	let endian=(new Uint32Array((new BigUint64Array([4n])).buffer))[0];
+	let newhli,newmem,env64,envh32,envl32;
 	env64 =new BigUint64Array(wasmmem.buffer,off,envlen); off+= env64.byteLength;
 	newmem=new BigUint64Array(wasmmem.buffer,off,memlen); off+=newmem.byteLength;
 	newhli=new    Uint16Array(wasmmem.buffer,off,hlilen); off+=newhli.byteLength;
@@ -338,7 +338,7 @@ function SICOFastRun(st,insts,time) {
 	if (st.wasm===undefined || !Object.is(st.wasm.oldlbl,st.lblroot)) {
 		SICOFastInit(st);
 	}
-	var module=st.wasm.module;
+	let module=st.wasm.module;
 	if (module===null) {
 		// Use a backup until the module loads.
 		return SICOFastJSRun(st,insts,time);
@@ -349,7 +349,7 @@ function SICOFastRun(st,insts,time) {
 	if (!Object.is(st.wasm.oldmem,st.mem)) {
 		SICOFastResize(st);
 	}
-	var env64=st.wasm.env64;
+	let env64=st.wasm.env64;
 	env64[5]=st.ip;
 	env64[6]=(insts<0 || insts>0x80000000)?0xffffffffffffffffn:BigInt(insts);
 	module.instance.exports.run();

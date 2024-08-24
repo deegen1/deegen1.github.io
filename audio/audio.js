@@ -21,10 +21,12 @@ Different frequencies have different decay rates based on material properties.
 TODO
 
 
+check max volume of guitar
 Maraca probability of collision vs wall, vs beads + intensity.
 Based on number of beads vs relative size.
 bead hit = small sine wave + fast decay
 sliding guassian, middle is < 0
+guitar add fret position, freq*length/(1-fret)
 drums: https://www.youtube.com/watch?v=wYlOw8YXoBs
 https://euphonics.org/3-3-marimbas-and-xylophones/
 https://csounds.com/manual/html/MiscModalFreq.html

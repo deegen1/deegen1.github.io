@@ -1,6 +1,6 @@
 """
 
-Matrix.py - v1.09
+Matrix.py - v1.10
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -901,6 +901,7 @@ class Vector(object):
 			return math.sqrt(s)
 		except TypeError:
 			return s**0.5
+
 
 	def norm(u): return Vector(u).normalize()
 

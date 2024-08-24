@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-tetris.js - v2.06
+tetris.js - v2.07
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -118,7 +118,7 @@ class Tetris {
 		this.width=width;
 		this.height=height;
 		this.grid=new Array(height);
-		for (var i=0;i<height;i++) {
+		for (let i=0;i<height;i++) {
 			this.grid[i]=new Array(width);
 		}
 		this.linecount=new Array(height);
@@ -149,18 +149,18 @@ class Tetris {
 		// Reset to an empty grid with level=0. Set the first piece to not be S or Z.
 		this.state=(this.state&(Tetris.STATE_EASY|Tetris.STATE_MEDIUM|Tetris.STATE_HARD))|Tetris.STATE_SPAWNING;
 		this.stateframe=0;
-		for (var y=0;y<this.height;y++) {
-			var row=this.grid[y];
-			for (var x=0;x<this.width;x++) {row[x]=0;}
+		for (let y=0;y<this.height;y++) {
+			let row=this.grid[y];
+			for (let x=0;x<this.width;x++) {row[x]=0;}
 			this.linecount[y]=0;
 		}
 		this.level=0;
 		this.cleared=0;
 		this.levelconstants();
 		// Don't let S or Z be the first spawn.
-		for (var i=0;i<7;i++) {this.bagcnt[i]=0;}
+		for (let i=0;i<7;i++) {this.bagcnt[i]=0;}
 		this.bagsum=0;
-		var next=Tetris.PIECE_S*4;
+		let next=Tetris.PIECE_S*4;
 		while (next===Tetris.PIECE_S*4 || next===Tetris.PIECE_Z*4) {
 			next=this.gennext();
 		}
@@ -176,15 +176,15 @@ class Tetris {
 		// Set the state frames and gravity based on the level and difficulty of the game.
 		// As the level increases, scale the state frames to their minimum values and scale
 		// the gravity to its maximum value. All numerators are over 256.
-		var num=[128,128,256,480];
+		let num=[128,128,256,480];
 		if (this.state&Tetris.STATE_MEDIUM) {num=[85,85,128,640];}
 		if (this.state&Tetris.STATE_HARD) {num=[64,64,85,960];}
-		var max=999;
-		var unit=this.frameunit;
-		var level=this.level;
+		let max=999;
+		let unit=this.frameunit;
+		let level=this.level;
 		if (level>max) {level=max;}
-		var den=256*max;
-		var inv=max-level;
+		let den=256*max;
+		let inv=max-level;
 		this.level=level;
 		this.spawnframes=Math.floor((unit*(128*inv+num[0]*level))/den);
 		this.lockframes=Math.floor((unit*(128*inv+num[1]*level))/den);
@@ -197,17 +197,17 @@ class Tetris {
 		// Pick the next tetris piece from a bag of pieces. The bag has a count of how many
 		// of each piece are in the bag. When a piece is picked, decrease its count.
 		// bagcnt=-1=infinity.
-		var bagsum=this.bagsum;
-		var bagcnt=this.bagcnt;
+		let bagsum=this.bagsum;
+		let bagcnt=this.bagcnt;
 		// If we have emptied the bag, refill it.
 		if (bagsum===0) {
-			for (var i=0;i<7;i++) {
+			for (let i=0;i<7;i++) {
 				bagcnt[i]=3;
 				bagsum+=bagcnt[i];
 			}
 		}
-		var rand=Math.floor(Math.random()*bagsum);
-		var next=0;
+		let rand=Math.floor(Math.random()*bagsum);
+		let next=0;
 		while (bagcnt[next]<=rand) {
 			rand-=bagcnt[next];
 			next+=1;
@@ -228,8 +228,8 @@ class Tetris {
 	advance(frames) {
 		if (frames===undefined) {frames=1;}
 		// Advance the state of the game by the number of frames given.
-		var state=this.state;
-		var stateframe=this.stateframe;
+		let state=this.state;
+		let stateframe=this.stateframe;
 		while ((state&Tetris.STATE_GAMEOVER)===0) {
 			if ((state&Tetris.STATE_SPAWNING)!==0) {
 				// If this is the beginning of the spawn state, initialize a new piece.
@@ -239,7 +239,7 @@ class Tetris {
 					this.droprem=0;
 					// If the grid is too small, the piece may need to be rotated and shifted to be
 					// spawnable.
-					var piece=Tetris.PIECE_LAYOUT[this.drop];
+					let piece=Tetris.PIECE_LAYOUT[this.drop];
 					this.drop+=this.width<=piece[4]-piece[6];
 					piece=Tetris.PIECE_LAYOUT[this.drop];
 					this.dropx=Math.floor((this.width-1-piece[4]-piece[6])/2);
@@ -268,7 +268,7 @@ class Tetris {
 				}
 			} else if ((state&Tetris.STATE_DROPPING)!==0) {
 				// Check if we can lock immediately. Specifically, if lockframes=0.
-				var shift=this.canmove(Tetris.MOVE_DOWN);
+				let shift=this.canmove(Tetris.MOVE_DOWN);
 				if (shift===0 && stateframe>=this.lockframes) {
 					state^=Tetris.STATE_DROPPING^Tetris.STATE_CLEARING^Tetris.STATE_MOVING;
 					stateframe=0;
@@ -283,7 +283,7 @@ class Tetris {
 					// Add gravity to the fractional remainder we are falling by. If we have fallen,
 					// move the piece down. Also, reset stateframe to prevent the piece from locking.
 					this.droprem+=this.gravity;
-					var fall=Math.floor(this.droprem/this.gravityden);
+					let fall=Math.floor(this.droprem/this.gravityden);
 					this.droprem%=this.gravityden;
 					while (fall>=1 && this.move(Tetris.MOVE_DOWN)!==0) {fall-=1;}
 					stateframe=0;
@@ -293,25 +293,25 @@ class Tetris {
 			} else if ((state&Tetris.STATE_CLEARING)!==0) {
 				// Set the piece and check for cleared lines. If any lines were cleared, set the
 				// cleared flag.
-				var width=this.width;
-				var grid=this.grid;
-				var linecount=this.linecount;
+				let width=this.width;
+				let grid=this.grid;
+				let linecount=this.linecount;
 				if ((state&Tetris.STATE_SCANNED)===0) {
 					state|=Tetris.STATE_SCANNED;
-					var piece=Tetris.PIECE_LAYOUT[this.drop];
-					var color=Math.floor(this.drop/4)+1;
-					var dropx=this.dropx;
-					var dropy=this.dropy;
-					for (var i=0;i<8;i+=2) {
+					let piece=Tetris.PIECE_LAYOUT[this.drop];
+					let color=Math.floor(this.drop/4)+1;
+					let dropx=this.dropx;
+					let dropy=this.dropy;
+					for (let i=0;i<8;i+=2) {
 						// Set the blocks of the piece.
-						var y=piece[i+1]+dropy;
-						var line=grid[y];
+						let y=piece[i+1]+dropy;
+						let line=grid[y];
 						line[piece[i]+dropx]=color;
 						linecount[y]+=1;
 						// If we have cleared a line, clear it, but don't shift the lines above it yet.
 						if (linecount[y]===width) {
 							state|=Tetris.STATE_CLEARED;
-							for (var x=0;x<width;x++) {line[x]=0;}
+							for (let x=0;x<width;x++) {line[x]=0;}
 						}
 					}
 				}
@@ -321,15 +321,15 @@ class Tetris {
 					stateframe=0;
 					// If we have cleared lines, shift all non-empty lines down. Cleared lines are
 					// marked by linecount=width.
-					var cleared=0;
+					let cleared=0;
 					if ((state&Tetris.STATE_CLEARED)!==0) {
 						state^=Tetris.STATE_CLEARED;
-						var height=this.height;
-						for (var y=0;y<height;y++) {
-							var count=linecount[y];
+						let height=this.height;
+						for (let y=0;y<height;y++) {
+							let count=linecount[y];
 							if (count!==width) {
-								var dst=y-cleared;
-								var line=grid[y];
+								let dst=y-cleared;
+								let line=grid[y];
 								grid[y]=grid[dst];
 								grid[dst]=line;
 								linecount[y]=linecount[dst];
@@ -375,28 +375,28 @@ class Tetris {
 		if (testing===undefined) {testing=false;}
 		// Unified move command. Returns 1 if the move was successful, otherwise returns 0.
 		// If testing=true, then only test if the move is possible.
-		var state=this.state;
+		let state=this.state;
 		if ((state&Tetris.STATE_MOVING)===0) {
 			return 0;
 		}
-		var overlap=function() {
-			for (var j=0;j<8;j+=2) {
-				var x=piece[j+0]+dropx;
-				var y=piece[j+1]+dropy;
+		let overlap=function() {
+			for (let j=0;j<8;j+=2) {
+				let x=piece[j+0]+dropx;
+				let y=piece[j+1]+dropy;
 				if (x<0 || x>=width || y<0 || y>=height || grid[y][x]!==0) {
 					return 1;
 				}
 			}
 			return 0;
 		};
-		var i;
-		var width=this.width;
-		var height=this.height;
-		var grid=this.grid;
-		var drop=this.drop;
-		var dropx=this.dropx;
-		var dropy=this.dropy;
-		var piece=Tetris.PIECE_LAYOUT[drop];
+		let i;
+		let width=this.width;
+		let height=this.height;
+		let grid=this.grid;
+		let drop=this.drop;
+		let dropx=this.dropx;
+		let dropy=this.dropy;
+		let piece=Tetris.PIECE_LAYOUT[drop];
 		if (move<=Tetris.MOVE_DOWN) {
 			// Test if the piece can shift in a specific direction.
 			dropx+=[0,-1,1,0][move];
@@ -404,11 +404,11 @@ class Tetris {
 			if (overlap()!==0) {return 0;}
 		} else if (move<=Tetris.MOVE_ROTR) {
 			// Rotate the piece.
-			var dir=(move===Tetris.MOVE_ROTR)*2-1;
+			let dir=(move===Tetris.MOVE_ROTR)*2-1;
 			drop=(drop&0x1c)|((drop+dir)&0x3);
 			piece=Tetris.PIECE_LAYOUT[drop];
 			// If we are kicking the I piece, pull the kick values from the block coordinates.
-			var kick=[0,0,-1,0,1,0,0,-1,0,1];
+			let kick=[0,0,-1,0,1,0,0,-1,0,1];
 			if (drop<4) {
 				for (i=0;i<8;i++) {
 					kick[i+2]=-piece[i];
@@ -463,7 +463,7 @@ class Tetris {
 
 
 	makecell(pos,width) {
-		var cell={};
+		let cell={};
 		cell.drop=(pos>>1)&3;
 		cell.dropx=(pos>>3)%width;
 		cell.dropy=Math.floor((pos>>3)/width);
@@ -479,7 +479,7 @@ class Tetris {
 
 
 	makelink() {
-		var link={};
+		let link={};
 		link.link=null;
 		link.prev=null;
 		link.move=Tetris.MOVE_NONE;
@@ -489,10 +489,10 @@ class Tetris {
 
 	// A binary heap to sort potential moves.
 	aiheappush(val) {
-		var heap=this.aitmp;
-		var i=this.aiheap;
+		let heap=this.aitmp;
+		let i=this.aiheap;
 		this.aiheap+=1;
-		var j,next;
+		let j,next;
 		// Heap up
 		while (i!==0) {
 			j=(i-1)>>1;
@@ -507,12 +507,12 @@ class Tetris {
 
 	aiheappop() {
 		this.aiheap-=1;
-		var heap=this.aitmp;
-		var count=this.aiheap;
-		var ret=heap[0];
-		var bot=heap[count];
+		let heap=this.aitmp;
+		let count=this.aiheap;
+		let ret=heap[0];
+		let bot=heap[count];
 		// Heap down.
-		var i=0,j;
+		let i=0,j;
 		while (true) {
 			// Find the smallest child.
 			j=i*2+1;
@@ -534,57 +534,57 @@ class Tetris {
 	aimakecopy() {
 		// Allocate the AI and determine if any changes have been made that require
 		// remapping the optimal move path.
-		var width=this.width;
-		var aicopy=this.aicopy;
+		let width=this.width;
+		let aicopy=this.aicopy;
 		if (aicopy===null || aicopy.width!==width || aicopy.height!==this.height) {
 			aicopy=new Tetris(width,this.height);
-			var aicells=width*this.height*8;
-			var aigrid=new Array(aicells);
-			for (var i=0;i<aicells;i++) {aigrid[i]=aicopy.makecell(i,width);}
+			let aicells=width*this.height*8;
+			let aigrid=new Array(aicells);
+			for (let i=0;i<aicells;i++) {aigrid[i]=aicopy.makecell(i,width);}
 			aicopy.aigrid=aigrid;
 			aicopy.aitmp=new Array(aicells);
 			aicopy.aiheap=0;
-			var ailinks=aicells*Tetris.MOVE_COUNT;
-			var ailink=new Array(ailinks);
-			for (var i=0;i<ailinks;i++) {ailink[i]=aicopy.makelink();}
+			let ailinks=aicells*Tetris.MOVE_COUNT;
+			let ailink=new Array(ailinks);
+			for (let i=0;i<ailinks;i++) {ailink[i]=aicopy.makelink();}
 			aicopy.ailink=ailink;
 		}
 		this.aicopy=aicopy;
 		// Check state value changes.
-		var vallist=[
+		let vallist=[
 			["state",0],["stateframe",0],["frameunit",1],["spawnframes",1],["lockframes",1],
 			["clearframes",1],["gravityden",1],["gravity",1],["level",0],["cleared",0],
 			["width",1],["height",1],["bagsum",0],["next",1],["drop",0],["dropx",0],
 			["dropy",0],["droprem",0],["ailagframes",1]
 		];
-		var remap=0;
+		let remap=0;
 		if ((aicopy.drop^this.drop)&0x1c) {remap=1;}
-		var len=vallist.length;
-		for (var i=0;i<len;i++) {
-			var name=vallist[i][0];
+		let len=vallist.length;
+		for (let i=0;i<len;i++) {
+			let name=vallist[i][0];
 			if (aicopy[name]!==this[name]) {
 				aicopy[name]=this[name];
 				remap|=vallist[i][1];
 			}
 		}
 		// Check grid changes.
-		var aicount=aicopy.linecount;
-		var scount=this.linecount;
-		var height=this.height;
-		for (var y=0;y<height;y++) {
-			var cnt=scount[y];
+		let aicount=aicopy.linecount;
+		let scount=this.linecount;
+		let height=this.height;
+		for (let y=0;y<height;y++) {
+			let cnt=scount[y];
 			if (aicount[y]===cnt && (cnt===0 || cnt===width)) {continue;}
 			aicount[y]=cnt;
-			var airow=aicopy.grid[y];
-			var srow=this.grid[y];
-			for (var x=0;x<width;x++) {
+			let airow=aicopy.grid[y];
+			let srow=this.grid[y];
+			for (let x=0;x<width;x++) {
 				if (airow[x]!==srow[x]) {
 					airow[x]=srow[x];
 					remap=1;
 				}
 			}
 		}
-		for (var i=0;i<7;i++) {
+		for (let i=0;i<7;i++) {
 			aicopy.bagcnt[i]=this.bagcnt[i];
 		}
 		return remap;
@@ -607,19 +607,19 @@ class Tetris {
 		// Determine if we can use the current cached moves or if we need to remap them.
 		if (remap===undefined) {remap=0;}
 		remap|=this.aimakecopy();
-		var aicopy=this.aicopy;
-		var aigrid=aicopy.aigrid;
-		var width=aicopy.width;
-		var pos=((aicopy.dropy*width+aicopy.dropx)<<3)+((aicopy.drop&3)<<1)+((aicopy.state&Tetris.STATE_MOVING)===0);
-		var startcell=aigrid[pos];
+		let aicopy=this.aicopy;
+		let aigrid=aicopy.aigrid;
+		let width=aicopy.width;
+		let pos=((aicopy.dropy*width+aicopy.dropx)<<3)+((aicopy.drop&3)<<1)+((aicopy.state&Tetris.STATE_MOVING)===0);
+		let startcell=aigrid[pos];
 		if (remap===0 && startcell.state!==0) {
 			return startcell;
 		}
-		var aicells=width*aicopy.height*8;
+		let aicells=width*aicopy.height*8;
 		// Mark all of the states as unused.
-		var drop=(aicopy.drop^aigrid[0].drop)&0x1c;
-		for (var i=0;i<aicells;i++) {
-			var cell=aigrid[i];
+		let drop=(aicopy.drop^aigrid[0].drop)&0x1c;
+		for (let i=0;i<aicells;i++) {
+			let cell=aigrid[i];
 			cell.state=0;
 			cell.next=null;
 			cell.link=null;
@@ -629,21 +629,21 @@ class Tetris {
 		startcell.state=aicopy.state;
 		startcell.stateframe=aicopy.stateframe;
 		startcell.droprem=aicopy.droprem;
-		var ailink=aicopy.ailink;
-		var ailinkpos=0;
-		var aitmppos=0;
-		var aitmplen=1;
-		var aitmp=aicopy.aitmp;
+		let ailink=aicopy.ailink;
+		let ailinkpos=0;
+		let aitmppos=0;
+		let aitmplen=1;
+		let aitmp=aicopy.aitmp;
 		aitmp[0]=startcell;
 		// Process all potential states.
 		while (aitmppos<aitmplen) {
-			var cell=aitmp[aitmppos];
+			let cell=aitmp[aitmppos];
 			aitmppos+=1;
 			if ((cell.state&Tetris.STATE_MOVING)===0) {
 				continue;
 			}
 			// Loop over all allowed moves.
-			for (var move=0;move<Tetris.MOVE_COUNT;move++) {
+			for (let move=0;move<Tetris.MOVE_COUNT;move++) {
 				// Reset the tetris and piece state to the currently processing state, and shift,
 				// rotate, or drop the piece.
 				aicopy.state=cell.state;
@@ -657,10 +657,10 @@ class Tetris {
 				}
 				// Because the AI has to wait in between movements, simulate how the main
 				// loop will modify the tetris state and piece state while the AI is waiting.
-				var state=aicopy.state;
-				var stateframe=aicopy.stateframe;
-				var droprem=aicopy.droprem;
-				var frames=aicopy.ailagframes;
+				let state=aicopy.state;
+				let stateframe=aicopy.stateframe;
+				let droprem=aicopy.droprem;
+				let frames=aicopy.ailagframes;
 				while (true) {
 					if ((state&Tetris.STATE_SPAWNING)!==0) {
 						if (stateframe>=aicopy.spawnframes) {
@@ -673,7 +673,7 @@ class Tetris {
 							break;
 						}
 					} else if ((state&Tetris.STATE_DROPPING)!==0) {
-						var shift=aicopy.canmove(Tetris.MOVE_NONE);
+						let shift=aicopy.canmove(Tetris.MOVE_NONE);
 						if (shift===0 && stateframe>=aicopy.lockframes) {
 							state^=Tetris.STATE_DROPPING^Tetris.STATE_CLEARING^Tetris.STATE_MOVING;
 							stateframe=0;
@@ -686,7 +686,7 @@ class Tetris {
 						stateframe+=1;
 						if (shift!==0) {
 							droprem+=aicopy.gravity;
-							var fall=Math.floor(droprem/aicopy.gravityden);
+							let fall=Math.floor(droprem/aicopy.gravityden);
 							droprem%=aicopy.gravityden;
 							while (fall>=1 && aicopy.move(Tetris.MOVE_DOWN)!==0) {fall-=1;}
 							stateframe=0;
@@ -698,9 +698,9 @@ class Tetris {
 				}
 				// Quantify the new state. If it is unused, add it as a potential state.
 				pos=((aicopy.dropy*width+aicopy.dropx)<<3)+((aicopy.drop&3)<<1)+((state&Tetris.STATE_MOVING)===0);
-				var next=aigrid[pos];
+				let next=aigrid[pos];
 				// if next is not cell or stateframe>cell.stateframe or droprem>cell.droprem:
-				var link=ailink[ailinkpos];
+				let link=ailink[ailinkpos];
 				ailinkpos+=1;
 				link.link=next.link;
 				next.link=link;
@@ -716,8 +716,8 @@ class Tetris {
 			}
 		}
 		// Sort all locked positions by their fitness.
-		for (var i=0;i<aitmplen;i++) {
-			var cell=aitmp[i];
+		for (let i=0;i<aitmplen;i++) {
+			let cell=aitmp[i];
 			if ((cell.state&Tetris.STATE_MOVING)===0) {
 				aicopy.drop=cell.drop;
 				aicopy.dropx=cell.dropx;
@@ -726,7 +726,7 @@ class Tetris {
 				aicopy.aiheappush(cell);
 			}
 		}
-		var fit=aicells;
+		let fit=aicells;
 		while (aicopy.aiheap) {
 			fit-=1;
 			aitmp[fit]=aicopy.aiheappop();
@@ -734,12 +734,12 @@ class Tetris {
 		// Map duplicate floating point fitness values to ordinal values. Processing all
 		// positions at once prevents a particular orientation from overwriting equivalent
 		// orientations.
-		var height=aicopy.height;
-		var maxdist=(width+height)*2;
-		var sort=Infinity;
-		var level=0;
-		for (var f=fit;f<aicells;f++) {
-			var cell=aitmp[f];
+		let height=aicopy.height;
+		let maxdist=(width+height)*2;
+		let sort=Infinity;
+		let level=0;
+		for (let f=fit;f<aicells;f++) {
+			let cell=aitmp[f];
 			if (sort-cell.sort>1e-6) {
 				sort=cell.sort;
 				level+=1;
@@ -749,12 +749,12 @@ class Tetris {
 		}
 		// Process positions by their estimated sorting value.
 		while (aicopy.aiheap) {
-			var cell=aicopy.aiheappop();
+			let cell=aicopy.aiheappop();
 			sort=cell.sort+cell.dropy;
 			// Process all predecessors. Add them to the heap if they haven't been added yet.
-			var link=cell.link;
+			let link=cell.link;
 			while (link!==null) {
-				var prev=link.prev;
+				let prev=link.prev;
 				if (prev.next===null) {
 					// prev.sort=(cell.ordinal*maxdist+prev.dist)*height-prev.dropy
 					prev.sort=sort+height-prev.dropy;
@@ -790,16 +790,16 @@ class Tetris {
 		//
 		// sumwell2: The sum of squared well heights. A well is an opening 1 cell wide,
 		// which happens to function as a chokepoint. Needs to be scaled by width.
-		var width=this.width;
-		var height=this.height;
-		var grid=this.grid;
-		var linecount=this.linecount;
+		let width=this.width;
+		let height=this.height;
+		let grid=this.grid;
+		let linecount=this.linecount;
 		// First lock in the piece.
-		var dropx=this.dropx;
-		var dropy=this.dropy;
-		var piece=Tetris.PIECE_LAYOUT[this.drop];
-		var pieceheight=0;
-		var i,y;
+		let dropx=this.dropx;
+		let dropy=this.dropy;
+		let piece=Tetris.PIECE_LAYOUT[this.drop];
+		let pieceheight=0;
+		let i,y;
 		for (i=0;i<8;i+=2) {
 			y=piece[i+1]+dropy;
 			grid[y][piece[i]+dropx]+=1;
@@ -810,8 +810,8 @@ class Tetris {
 		pieceheight+=1;
 		// We can limit ourselves to only rows with filled cells, so find the highest
 		// position with a filled cell.
-		var cleared=0;
-		var ymax=0;
+		let cleared=0;
+		let ymax=0;
 		for (y=0;y<height;y++) {
 			if (linecount[y]===width) {cleared+=1;}
 			else if (linecount[y]!==0) {ymax=y+1;}
@@ -820,24 +820,24 @@ class Tetris {
 		// Since the left and right walls are considered filled cells, any empty lines will
 		// have a row flip when the left-most and right-most cells are compared against
 		// their respective walls.
-		var sumholes=0;
-		var sumheight=0;
-		var rowflip=(height-ymax)*2;
-		var colflip=0;
-		var sumwell2=0;
-		for (var x=0;x<width;x++) {
-			var colheight=0;
-			var wellheight=0;
-			var covered=0;
+		let sumholes=0;
+		let sumheight=0;
+		let rowflip=(height-ymax)*2;
+		let colflip=0;
+		let sumwell2=0;
+		for (let x=0;x<width;x++) {
+			let colheight=0;
+			let wellheight=0;
+			let covered=0;
 			// When determining column flips, we compare the current row with the row above it.
 			// If the grid is filled, but a line is going to be cleared, we know that the top
 			// row should be 0 instead of whatever is there currently.
-			var topcell=cleared===0?grid[height-1][x]!==0:0;
+			let topcell=cleared===0?grid[height-1][x]!==0:0;
 			for (y=ymax-1;y>=0;y--) {
 				// If the line is filled, ignore it.
-				var c=0;
+				let c=0;
 				if (linecount[y]!==width) {
-					var line=grid[y];
+					let line=grid[y];
 					c=line[x]!==0;
 					// If the cell is empty and there is a filled cell above, we have a hole.
 					sumholes+=(c^1)&covered;
@@ -880,7 +880,7 @@ class Tetris {
 		// Given coefficients, determine the fitness of the grid. Normalize by the absolute
 		// sum of the coefficients and the width of the grid. This will allow the fitnesses
 		// of different grids to be compared. Do not scale by height.
-		var w=width>1?1.0/width:1.0,fitness;
+		let w=width>1?1.0/width:1.0,fitness;
 		fitness =-0.2585706097*sumholes*w-0.0160887591*sumheight*w-0.1365051577*rowflip*w;
 		fitness+=-0.4461359486*colflip*w -0.0232974547*pieceheight-0.1194020699*sumwell2*w;
 		return fitness;
@@ -889,14 +889,14 @@ class Tetris {
 
 	suggestmove() {
 		// Return the optimal move to make.
-		var cell=this.aimapmoves();
+		let cell=this.aimapmoves();
 		return cell.nextmove;
 	}
 
 
 	suggestposition() {
 		// Return the optimal position to place the piece.
-		var cell=this.aimapmoves();
+		let cell=this.aimapmoves();
 		while (cell.next!==null) {
 			cell=cell.next;
 		}
@@ -907,7 +907,7 @@ class Tetris {
 
 
 //---------------------------------------------------------------------------------
-// Input - v1.08
+// Input - v1.13
 
 
 class Input {
@@ -941,7 +941,10 @@ class Input {
 			}
 		}
 		this.active=null;
+		this.scrollupdate=false;
+		this.scroll=[window.scrollX,window.scrollY];
 		this.mousepos=[-Infinity,-Infinity];
+		this.mouseraw=[-Infinity,-Infinity];
 		this.mousez=0;
 		this.touchfocus=0;
 		this.clickpos=[0,0];
@@ -955,8 +958,8 @@ class Input {
 		this.initmouse();
 		this.initkeyboard();
 		this.reset();
-		for (var i=0;i<this.listeners.length;i++) {
-			var list=this.listeners[i];
+		for (let i=0;i<this.listeners.length;i++) {
+			let list=this.listeners[i];
 			document.addEventListener(list[0],list[1],list[2]);
 		}
 	}
@@ -967,8 +970,8 @@ class Input {
 			this.focus.tabIndex=this.focustab;
 		}
 		this.enablenav();
-		for (var i=0;i<this.listeners.length;i++) {
-			var list=this.listeners[i];
+		for (let i=0;i<this.listeners.length;i++) {
+			let list=this.listeners[i];
 			document.removeEventListener(list[0],list[1],list[2]);
 		}
 		this.listeners=[];
@@ -978,10 +981,10 @@ class Input {
 
 	reset() {
 		this.mousez=0;
-		var statearr=Object.values(this.keystate);
-		var statelen=statearr.length;
-		for (var i=0;i<statelen;i++) {
-			var state=statearr[i];
+		let statearr=Object.values(this.keystate);
+		let statelen=statearr.length;
+		for (let i=0;i<statelen;i++) {
+			let state=statearr[i];
 			state.down=0;
 			state.hit=0;
 			state.repeat=0;
@@ -995,21 +998,21 @@ class Input {
 
 	update() {
 		// Process keys that are active.
-		var focus=this.focus===null?document.hasFocus():Object.is(document.activeElement,this.focus);
+		let focus=this.focus===null?document.hasFocus():Object.is(document.activeElement,this.focus);
 		if (this.touchfocus!==0) {focus=true;}
 		this.stopnavfocus=focus?this.stopnav:0;
-		var time=performance.now()/1000.0;
-		var delay=time-this.repeatdelay;
-		var rate=1.0/this.repeatrate;
-		var state=this.active;
-		var active=null;
-		var down,next;
+		let time=performance.now()/1000.0;
+		let delay=time-this.repeatdelay;
+		let rate=1.0/this.repeatrate;
+		let state=this.active;
+		let active=null;
+		let down,next;
 		while (state!==null) {
 			next=state.active;
 			down=focus?state.down:0;
 			state.down=down;
 			if (down>0) {
-				var repeat=Math.floor((delay-state.time)*rate);
+				let repeat=Math.floor((delay-state.time)*rate);
 				state.repeat=(repeat>0 && (repeat&1)===0)?state.repeat+1:0;
 			} else {
 				state.repeat=0;
@@ -1043,7 +1046,7 @@ class Input {
 
 
 	makeactive(code) {
-		var state=this.keystate[code];
+		let state=this.keystate[code];
 		if (state===null || state===undefined) {
 			state=null;
 		} else if (state.isactive===0) {
@@ -1060,11 +1063,11 @@ class Input {
 
 
 	initmouse() {
-		var state=this;
-		this.MOUSE=Input.MOUSE;
-		var keys=Object.keys(this.MOUSE);
-		for (var i=0;i<keys.length;i++) {
-			var code=this.MOUSE[keys[i]];
+		let state=this;
+		this.MOUSE=this.constructor.MOUSE;
+		let keys=Object.keys(this.MOUSE);
+		for (let i=0;i<keys.length;i++) {
+			let code=this.MOUSE[keys[i]];
 			this.keystate[code]={
 				name: "MOUSE."+keys[i],
 				code: code
@@ -1088,9 +1091,17 @@ class Input {
 				state.setkeyup(state.MOUSE.LEFT);
 			}
 		}
+		function onscroll(evt) {
+			// Update relative position on scroll.
+			if (state.scrollupdate) {
+				let difx=window.scrollX-state.scroll[0];
+				let dify=window.scrollY-state.scroll[1];
+				state.setmousepos(state.mouseraw[0]+difx,state.mouseraw[1]+dify);
+			}
+		}
 		// Touch controls.
 		function touchmove(evt) {
-			var touch=evt.touches;
+			let touch=evt.touches;
 			if (touch.length===1) {
 				touch=touch.item(0);
 				state.setkeydown(state.MOUSE.LEFT);
@@ -1103,12 +1114,13 @@ class Input {
 		function touchstart(evt) {
 			// We need to manually determine if the user has touched our focused object.
 			state.touchfocus=1;
-			var focus=state.focus;
+			let focus=state.focus;
 			if (focus!==null) {
-				var touch=evt.touches.item(0);
-				var x=touch.pageX-focus.offsetLeft-focus.clientLeft;
-				var y=touch.pageY-focus.offsetTop -focus.clientTop;
-				if (x<0 || x>=focus.clientWidth || y<0 || y>=focus.clientHeight) {
+				let touch=evt.touches.item(0);
+				let rect=state.getrect(focus);
+				let x=touch.pageX-rect.x;
+				let y=touch.pageY-rect.y;
+				if (x<0 || x>=rect.w || y<0 || y>=rect.h) {
 					state.touchfocus=0;
 				}
 			}
@@ -1129,6 +1141,7 @@ class Input {
 			["mousewheel" ,mousewheel ,false],
 			["mousedown"  ,mousedown  ,false],
 			["mouseup"    ,mouseup    ,false],
+			["scroll"     ,onscroll   ,false],
 			["touchstart" ,touchstart ,false],
 			["touchmove"  ,touchmove  ,false],
 			["touchend"   ,touchend   ,false],
@@ -1137,11 +1150,31 @@ class Input {
 	}
 
 
+	getrect(elem) {
+		let width  =elem.scrollWidth;
+		let height =elem.scrollHeight;
+		let offleft=elem.clientLeft;
+		let offtop =elem.clientTop;
+		while (elem) {
+			offleft+=elem.offsetLeft;
+			offtop +=elem.offsetTop;
+			elem=elem.offsetParent;
+		}
+		return {x:offleft,y:offtop,w:width,h:height};
+	}
+
+
 	setmousepos(x,y) {
-		var focus=this.focus;
+		this.mouseraw[0]=x;
+		this.mouseraw[1]=y;
+		this.scroll[0]=window.scrollX;
+		this.scroll[1]=window.scrollY;
+		let focus=this.focus;
 		if (focus!==null) {
-			x=(x-focus.offsetLeft-focus.clientLeft)/focus.clientWidth;
-			y=(y-focus.offsetTop -focus.clientTop )/focus.clientHeight;
+			let rect=this.getrect(focus);
+			// If the focus is a canvas, scroll size can differ from pixel size.
+			x=(x-rect.x)*((focus.width||focus.scrollWidth)/rect.w);
+			y=(y-rect.y)*((focus.height||focus.scrollHeight)/rect.h);
 		}
 		this.mousepos[0]=x;
 		this.mousepos[1]=y;
@@ -1164,7 +1197,7 @@ class Input {
 
 
 	getmousez() {
-		var z=this.mousez;
+		let z=this.mousez;
 		this.mousez=0;
 		return z;
 	}
@@ -1175,11 +1208,11 @@ class Input {
 
 
 	initkeyboard() {
-		var state=this;
-		this.KEY=Input.KEY;
-		var keys=Object.keys(this.KEY);
-		for (var i=0;i<keys.length;i++) {
-			var code=this.KEY[keys[i]];
+		let state=this;
+		this.KEY=this.constructor.KEY;
+		let keys=Object.keys(this.KEY);
+		for (let i=0;i<keys.length;i++) {
+			let code=this.KEY[keys[i]];
 			this.keystate[code]={
 				name: "KEY."+keys[i],
 				code: code
@@ -1200,7 +1233,7 @@ class Input {
 
 
 	setkeydown(code) {
-		var state=this.makeactive(code);
+		let state=this.makeactive(code);
 		if (state!==null) {
 			if (state.down===0) {
 				state.down=1;
@@ -1213,7 +1246,7 @@ class Input {
 
 
 	setkeyup(code) {
-		var state=this.makeactive(code);
+		let state=this.makeactive(code);
 		if (state!==null) {
 			state.down=0;
 			state.hit=0;
@@ -1227,9 +1260,9 @@ class Input {
 		// code can be an array of key codes.
 		if (code===null || code===undefined) {return 0;}
 		if (code.length===undefined) {code=[code];}
-		var keystate=this.keystate;
-		for (var i=0;i<code.length;i++) {
-			var state=keystate[code[i]];
+		let keystate=this.keystate;
+		for (let i=0;i<code.length;i++) {
+			let state=keystate[code[i]];
 			if (state!==null && state!==undefined && state.down>0) {
 				return 1;
 			}
@@ -1242,9 +1275,9 @@ class Input {
 		// code can be an array of key codes.
 		if (code===null || code===undefined) {return 0;}
 		if (code.length===undefined) {code=[code];}
-		var keystate=this.keystate;
-		for (var i=0;i<code.length;i++) {
-			var state=keystate[code[i]];
+		let keystate=this.keystate;
+		for (let i=0;i<code.length;i++) {
+			let state=keystate[code[i]];
 			if (state!==null && state!==undefined && state.hit>0) {
 				state.hit=0;
 				return 1;
@@ -1258,9 +1291,9 @@ class Input {
 		// code can be an array of key codes.
 		if (code===null || code===undefined) {return 0;}
 		if (code.length===undefined) {code=[code];}
-		var keystate=this.keystate;
-		for (var i=0;i<code.length;i++) {
-			var state=keystate[code[i]];
+		let keystate=this.keystate;
+		for (let i=0;i<code.length;i++) {
+			let state=keystate[code[i]];
 			if (state!==null && state!==undefined && state.repeat===1) {
 				return 1;
 			}
@@ -1279,9 +1312,9 @@ class TetrisGUI {
 
 	constructor(divid) {
 		// Swap the <div> with <canvas>
-		var elem=document.getElementById(divid);
+		let elem=document.getElementById(divid);
 		this.parentelem=elem.parentNode;
-		var canvas=document.createElement("canvas");
+		let canvas=document.createElement("canvas");
 		canvas.style.width="60%";
 		elem.replaceWith(canvas);
 		// Setup the UI.
@@ -1299,7 +1332,7 @@ class TetrisGUI {
 		];
 		this.input=new Input(canvas);
 		this.input.disablenav();
-		var state=this;
+		let state=this;
 		function updategame() {
 			setTimeout(updategame,1000/60);
 			state.update();
@@ -1311,23 +1344,22 @@ class TetrisGUI {
 
 
 	update() {
-		var time=performance.now()/1000.0;
-		var input=this.input;
+		let time=performance.now()/1000.0;
+		let input=this.input;
 		input.update();
-		var canvas=this.canvas;
-		var mpos=input.getmousepos();
-		var mx=mpos[0]*canvas.clientWidth;
-		var my=mpos[1]*canvas.clientHeight;
-		for (var i=0;i<this.buttons.length;i++) {
-			var button=this.buttons[i];
-			var x=mx-button.x;
-			var y=my-button.y;
+		let canvas=this.canvas;
+		let mpos=input.getmousepos();
+		let mx=mpos[0],my=mpos[1];
+		for (let i=0;i<this.buttons.length;i++) {
+			let button=this.buttons[i];
+			let x=mx-button.x;
+			let y=my-button.y;
 			if (x>=0 && y>=0 && x<button.w && y<button.h) {
 				button.state=1;
 			} else {
 				button.state=0;
 			}
-			var move=Tetris.MOVE_NONE;
+			let move=Tetris.MOVE_NONE;
 			if (button.state && (input.getkeyhit(input.MOUSE.LEFT) || input.getkeyrepeat(input.MOUSE.LEFT))) {
 				move=button.move;
 			}
@@ -1345,7 +1377,7 @@ class TetrisGUI {
 		}
 		if (this.playertime<time && this.aimovetime<time) {
 			this.aimovetime=time+this.aimoverate;
-			var move=this.game.suggestmove();
+			let move=this.game.suggestmove();
 			if (move===Tetris.MOVE_HARDDROP || move===Tetris.MOVE_SOFTDROP) {
 				move=Tetris.MOVE_DOWN;
 			}
@@ -1398,25 +1430,25 @@ class TetrisGUI {
 		//     |                                         |
 		//     +-----------------------------------------+
 		//
-		var canvas=this.canvas;
-		var floor=Math.floor;
-		var drawwidth=floor(this.parentelem.clientWidth*0.6);
+		let canvas=this.canvas;
+		let floor=Math.floor;
+		let drawwidth=floor(this.parentelem.clientWidth*0.6);
 		drawwidth=drawwidth>300?drawwidth:300;
-		var t1=floor((drawwidth+399)/400);
-		var t2=floor((drawwidth+ 59)/ 60);
-		var blocksize=floor(drawwidth*0.60/this.game.width);
+		let t1=floor((drawwidth+399)/400);
+		let t2=floor((drawwidth+ 59)/ 60);
+		let blocksize=floor(drawwidth*0.60/this.game.width);
 		if (canvas.width!==drawwidth || this.imgback===undefined) {
 			// Calculate game and panel sizes. We want the game area to be 60% of the
 			// drawable area.
-			var t3=t1*2+t2;
-			var areagame={title:"",x:t3,y:t3,w:blocksize*this.game.width+t1-(t1&1),h:blocksize*this.game.height+t1-(t1&1)};
-			var panelx=areagame.x+areagame.w+t3;
-			var panelw=drawwidth-panelx-t3;
+			let t3=t1*2+t2;
+			let areagame={title:"",x:t3,y:t3,w:blocksize*this.game.width+t1-(t1&1),h:blocksize*this.game.height+t1-(t1&1)};
+			let panelx=areagame.x+areagame.w+t3;
+			let panelw=drawwidth-panelx-t3;
 			// Calculate font sizes
-			var ctx=canvas.getContext("2d");
-			var titlefont="bold 10px Monospace";
-			var textfont="10px Monospace";
-			for (var i=1;;i++) {
+			let ctx=canvas.getContext("2d");
+			let titlefont="bold 10px Monospace";
+			let textfont="10px Monospace";
+			for (let i=1;;i++) {
 				ctx.font=i.toString()+"px Monospace";
 				if (ctx.measureText("M").width*20<panelw) {textfont=ctx.font;}
 				ctx.font="bold "+i.toString()+"px Monospace";
@@ -1425,14 +1457,14 @@ class TetrisGUI {
 			}
 			// Recalculate panel sizes based on font.
 			ctx.font=textfont;
-			var textRect=ctx.measureText("MMMMM: ");
-			var textheight=Math.ceil((textRect.actualBoundingBoxAscent+textRect.actualBoundingBoxDescent)*1.1);
+			let textRect=ctx.measureText("MMMMM: ");
+			let textheight=Math.ceil((textRect.actualBoundingBoxAscent+textRect.actualBoundingBoxDescent)*1.1);
 			ctx.font=titlefont;
-			var rect=ctx.measureText("M");
-			var titleheight=Math.ceil((rect.actualBoundingBoxAscent+rect.actualBoundingBoxDescent)*1.1);
-			var areanext ={title:"NEXT"    ,x:panelx,y: areagame.y               ,w:panelw,h:floor((titleheight+blocksize*2)*1.5+t1*3)};
-			var areastate={title:"STATE"   ,x:panelx,y: areanext.y+ areanext.h+t3,w:panelw,h:floor(titleheight*5+t1*3)};
-			var areacont ={title:"CONTROLS",x:panelx,y:areastate.y+areastate.h+t3,w:panelw,h:null};
+			let rect=ctx.measureText("M");
+			let titleheight=Math.ceil((rect.actualBoundingBoxAscent+rect.actualBoundingBoxDescent)*1.1);
+			let areanext ={title:"NEXT"    ,x:panelx,y: areagame.y               ,w:panelw,h:floor((titleheight+blocksize*2)*1.5+t1*3)};
+			let areastate={title:"STATE"   ,x:panelx,y: areanext.y+ areanext.h+t3,w:panelw,h:floor(titleheight*5+t1*3)};
+			let areacont ={title:"CONTROLS",x:panelx,y:areastate.y+areastate.h+t3,w:panelw,h:null};
 			areanext.drawx=areanext.x+areanext.w*0.5+t1;
 			areanext.drawy=areanext.y+titleheight*1.5+blocksize*1.5+t1;
 			areagame.drawx=floor(areagame.x+t1*1.5);
@@ -1444,13 +1476,13 @@ class TetrisGUI {
 			this.areanext=areanext;
 			this.textFont=textfont;
 			// Calculate button positions.
-			var buttonsize=floor((panelw-t1*3)*0.40);
-			var space=floor((panelw-buttonsize*2)/3);
-			var lx=panelx+space;
-			var rx=lx+buttonsize+space;
-			var mx=panelx+floor((panelw-buttonsize)/2);
-			var by=areacont.y+titleheight+t1*10+space+textheight;
-			var buttons=[
+			let buttonsize=floor((panelw-t1*3)*0.40);
+			let space=floor((panelw-buttonsize*2)/3);
+			let lx=panelx+space;
+			let rx=lx+buttonsize+space;
+			let mx=panelx+floor((panelw-buttonsize)/2);
+			let by=areacont.y+titleheight+t1*10+space+textheight;
+			let buttons=[
 				{name:"rotl" ,img:[null,null,null],x:lx,y:by,w:buttonsize,h:buttonsize,move:Tetris.MOVE_ROTL,keys:[]},
 				{name:"rotr" ,img:[null,null,null],x:rx,y:by,w:buttonsize,h:buttonsize,move:Tetris.MOVE_ROTR,keys:[Input.KEY.W,Input.KEY.UP]},
 				{name:"left" ,img:[null,null,null],x:lx,y:by+(space+buttonsize)*1,w:buttonsize,h:buttonsize,move:Tetris.MOVE_LEFT,keys:[Input.KEY.A,Input.KEY.LEFT]},
@@ -1460,28 +1492,28 @@ class TetrisGUI {
 			this.buttons=buttons;
 			areacont.h=buttons[4].y+buttons[4].h+space-areacont.y;
 			// Resize the canvas.
-			var drawheight=Math.max(areagame.y+areagame.h,areacont.y+areacont.h)+t3;
+			let drawheight=Math.max(areagame.y+areagame.h,areacont.y+areacont.h)+t3;
 			canvas.width=drawwidth;
 			canvas.height=drawheight;
 			// Draw the main background, game area, and panels.
-			var imgback=new OffscreenCanvas(drawwidth,drawheight);
+			let imgback=new OffscreenCanvas(drawwidth,drawheight);
 			this.imgback=imgback;
 			ctx=imgback.getContext("2d");
 			ctx.fillStyle="#4040aa";
 			ctx.fillRect(0,0,drawwidth,drawheight);
 			ctx.fillStyle="#6060ff";
 			ctx.fillRect(t1,t1,drawwidth-t1*2,drawheight-t1*2);
-			var areas=[areagame,areanext,areastate,areacont];
-			for (var i=0;i<areas.length;i++) {
-				var area=areas[i];
+			let areas=[areagame,areanext,areastate,areacont];
+			for (let i=0;i<areas.length;i++) {
+				let area=areas[i];
 				ctx.fillStyle="#4040aa";
 				ctx.fillRect(area.x-t1,area.y-t1,area.w+t1*2,area.h+t1*2);
 				ctx.fillStyle="#000000";
 				ctx.fillRect(area.x,area.y,area.w,area.h);
 				ctx.font=titlefont;
 				rect=ctx.measureText(area.title);
-				var x=area.x+(area.w-rect.width)/2;
-				var y=area.y+titleheight+t1*3;
+				let x=area.x+(area.w-rect.width)/2;
+				let y=area.y+titleheight+t1*3;
 				ctx.fillStyle="#ffffff";
 				ctx.fillText(area.title,x,y);
 			}
@@ -1491,12 +1523,12 @@ class TetrisGUI {
 			rect=ctx.measureText("Use at any time");
 			ctx.fillText("Use at any time",areacont.x+floor((panelw-rect.width)/2),areacont.y+titleheight+textheight+t1*9);
 			// Draw the buttons.
-			for (var b=0;b<buttons.length;b++) {
-				var button=buttons[b];
-				var rad=buttonsize*0.25;
-				var half=buttonsize*0.5;
-				for (var c=0;c<3;c++) {
-					var img=new OffscreenCanvas(button.w,button.h);
+			for (let b=0;b<buttons.length;b++) {
+				let button=buttons[b];
+				let rad=buttonsize*0.25;
+				let half=buttonsize*0.5;
+				for (let c=0;c<3;c++) {
+					let img=new OffscreenCanvas(button.w,button.h);
 					button.img[c]=img;
 					ctx=img.getContext("2d");
 					ctx.fillStyle=["#a0a0ff","#c0c0ff","#606080"][c];
@@ -1506,18 +1538,18 @@ class TetrisGUI {
 					ctx.strokeStyle=["#a0a0ff","#c0c0ff","#606080"][c];
 					ctx.fillStyle=ctx.strokeStyle;
 					ctx.lineWidth=t1*2;
-					var ang=Math.PI*[-0.75,-0.25,1.0,0.0,0.5][b];
+					let ang=Math.PI*[-0.75,-0.25,1.0,0.0,0.5][b];
 					ctx.beginPath();
 					if (b===0) {ctx.arc(half,half,rad, ang,-Math.PI*1.3);}
 					if (b===1) {ctx.arc(half,half,rad,-ang,-Math.PI*0.3);}
 					ctx.stroke();
-					var rad0=rad*[1.0,1.0,0.75,0.75,0.75][b];
-					var ax=half+Math.cos(ang)*rad0;
-					var ay=half+Math.sin(ang)*rad0;
-					var rad1=rad*[0.65,0.65,1.50,1.50,1.50][b];
+					let rad0=rad*[1.0,1.0,0.75,0.75,0.75][b];
+					let ax=half+Math.cos(ang)*rad0;
+					let ay=half+Math.sin(ang)*rad0;
+					let rad1=rad*[0.65,0.65,1.50,1.50,1.50][b];
 					ang+=Math.PI*[0.33,1.17,0.75,0.75,0.75][b];
-					var ox=Math.cos(ang)*rad1;
-					var oy=Math.sin(ang)*rad1;
+					let ox=Math.cos(ang)*rad1;
+					let oy=Math.sin(ang)*rad1;
 					ctx.beginPath();
 					ctx.moveTo(ax+ox,ay+oy);
 					ctx.lineTo(ax,ay);
@@ -1529,17 +1561,17 @@ class TetrisGUI {
 				imgback.getContext("2d").drawImage(button.img[0],button.x,button.y);
 			}
 		}
-		var colormap=this.colormap;
-		var game=this.game;
-		var ctx=this.ctx;
+		let colormap=this.colormap;
+		let game=this.game;
+		let ctx=this.ctx;
 		ctx.drawImage(this.imgback,0,0);
 		// Draw the next piece.
 		ctx.fillStyle=colormap[floor(game.next/4)];
-		var piece=Tetris.PIECE_LAYOUT[game.next];
-		var drawx=floor(this.areanext.drawx+(game.next<8?-1.0:-0.5)*blocksize);
-		var drawy=floor(this.areanext.drawy+(game.next<4?-0.5:-1.0)*blocksize);
-		var cellx,celly;
-		for (var i=0;i<8;i+=2) {
+		let piece=Tetris.PIECE_LAYOUT[game.next];
+		let drawx=floor(this.areanext.drawx+(game.next<8?-1.0:-0.5)*blocksize);
+		let drawy=floor(this.areanext.drawy+(game.next<4?-0.5:-1.0)*blocksize);
+		let cellx,celly;
+		for (let i=0;i<8;i+=2) {
 			cellx=drawx+blocksize*piece[i+0];
 			celly=drawy-blocksize*piece[i+1];
 			ctx.fillRect(cellx,celly,blocksize-t1*2,blocksize-t1*2);
@@ -1550,19 +1582,19 @@ class TetrisGUI {
 			piece=Tetris.PIECE_LAYOUT[game.drop];
 			drawx=this.areagame.drawx+blocksize*game.dropx;
 			drawy=this.areagame.drawy-blocksize*game.dropy;
-			for (var i=0;i<8;i+=2) {
+			for (let i=0;i<8;i+=2) {
 				cellx=drawx+blocksize*piece[i+0];
 				celly=drawy-blocksize*piece[i+1];
 				ctx.fillRect(cellx,celly,blocksize-t1*2,blocksize-t1*2);
 			}
 		}
 		// Draw the grid.
-		for (var y=0;y<game.height;y++) {
-			var row=game.grid[y];
+		for (let y=0;y<game.height;y++) {
+			let row=game.grid[y];
 			celly=this.areagame.drawy-blocksize*y;
 			cellx=this.areagame.drawx;
-			for (var x=0;x<game.width;x++) {
-				var cell=row[x];
+			for (let x=0;x<game.width;x++) {
+				let cell=row[x];
 				if (cell>0) {
 					ctx.fillStyle=colormap[cell-1];
 					ctx.fillRect(cellx,celly,blocksize-t1*2,blocksize-t1*2);
@@ -1571,8 +1603,8 @@ class TetrisGUI {
 			}
 		}
 		// Draw the controls.
-		for (var i=0;i<this.buttons.length;i++) {
-			var button=this.buttons[i];
+		for (let i=0;i<this.buttons.length;i++) {
+			let button=this.buttons[i];
 			if (button.state) {
 				ctx.drawImage(button.img[button.state],button.x,button.y);
 			}
@@ -1580,9 +1612,9 @@ class TetrisGUI {
 		// Draw the state text.
 		ctx.fillStyle="#ffffff";
 		ctx.font=this.textFont;
-		var time=floor(((this.playertime-performance.now()/1000.0)*10+this.playermax-1)/this.playermax);
+		let time=floor(((this.playertime-performance.now()/1000.0)*10+this.playermax-1)/this.playermax);
 		if (time>0) {
-			var str="";
+			let str="";
 			while (time-->0) {str+="=";}
 			ctx.fillText(str,this.areastate.drawx[0],this.areastate.drawy[0]);
 		}

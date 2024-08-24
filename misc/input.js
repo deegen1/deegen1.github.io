@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-input.js - v1.11
+input.js - v1.13
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -15,9 +15,6 @@ Notes
 TODO
 
 
-Make it easier to get relative and absolute mouse coordinates.
-
-
 */
 /* jshint esversion: 11  */
 /* jshint bitwise: false */
@@ -26,7 +23,7 @@ Make it easier to get relative and absolute mouse coordinates.
 
 
 //---------------------------------------------------------------------------------
-// Input - v1.11
+// Input - v1.13
 
 
 class Input {
@@ -77,8 +74,8 @@ class Input {
 		this.initmouse();
 		this.initkeyboard();
 		this.reset();
-		for (var i=0;i<this.listeners.length;i++) {
-			var list=this.listeners[i];
+		for (let i=0;i<this.listeners.length;i++) {
+			let list=this.listeners[i];
 			document.addEventListener(list[0],list[1],list[2]);
 		}
 	}
@@ -89,8 +86,8 @@ class Input {
 			this.focus.tabIndex=this.focustab;
 		}
 		this.enablenav();
-		for (var i=0;i<this.listeners.length;i++) {
-			var list=this.listeners[i];
+		for (let i=0;i<this.listeners.length;i++) {
+			let list=this.listeners[i];
 			document.removeEventListener(list[0],list[1],list[2]);
 		}
 		this.listeners=[];
@@ -100,10 +97,10 @@ class Input {
 
 	reset() {
 		this.mousez=0;
-		var statearr=Object.values(this.keystate);
-		var statelen=statearr.length;
-		for (var i=0;i<statelen;i++) {
-			var state=statearr[i];
+		let statearr=Object.values(this.keystate);
+		let statelen=statearr.length;
+		for (let i=0;i<statelen;i++) {
+			let state=statearr[i];
 			state.down=0;
 			state.hit=0;
 			state.repeat=0;
@@ -117,21 +114,21 @@ class Input {
 
 	update() {
 		// Process keys that are active.
-		var focus=this.focus===null?document.hasFocus():Object.is(document.activeElement,this.focus);
+		let focus=this.focus===null?document.hasFocus():Object.is(document.activeElement,this.focus);
 		if (this.touchfocus!==0) {focus=true;}
 		this.stopnavfocus=focus?this.stopnav:0;
-		var time=performance.now()/1000.0;
-		var delay=time-this.repeatdelay;
-		var rate=1.0/this.repeatrate;
-		var state=this.active;
-		var active=null;
-		var down,next;
+		let time=performance.now()/1000.0;
+		let delay=time-this.repeatdelay;
+		let rate=1.0/this.repeatrate;
+		let state=this.active;
+		let active=null;
+		let down,next;
 		while (state!==null) {
 			next=state.active;
 			down=focus?state.down:0;
 			state.down=down;
 			if (down>0) {
-				var repeat=Math.floor((delay-state.time)*rate);
+				let repeat=Math.floor((delay-state.time)*rate);
 				state.repeat=(repeat>0 && (repeat&1)===0)?state.repeat+1:0;
 			} else {
 				state.repeat=0;
@@ -165,7 +162,7 @@ class Input {
 
 
 	makeactive(code) {
-		var state=this.keystate[code];
+		let state=this.keystate[code];
 		if (state===null || state===undefined) {
 			state=null;
 		} else if (state.isactive===0) {
@@ -182,11 +179,11 @@ class Input {
 
 
 	initmouse() {
-		var state=this;
+		let state=this;
 		this.MOUSE=this.constructor.MOUSE;
-		var keys=Object.keys(this.MOUSE);
-		for (var i=0;i<keys.length;i++) {
-			var code=this.MOUSE[keys[i]];
+		let keys=Object.keys(this.MOUSE);
+		for (let i=0;i<keys.length;i++) {
+			let code=this.MOUSE[keys[i]];
 			this.keystate[code]={
 				name: "MOUSE."+keys[i],
 				code: code
@@ -213,14 +210,14 @@ class Input {
 		function onscroll(evt) {
 			// Update relative position on scroll.
 			if (state.scrollupdate) {
-				var difx=window.scrollX-state.scroll[0];
-				var dify=window.scrollY-state.scroll[1];
+				let difx=window.scrollX-state.scroll[0];
+				let dify=window.scrollY-state.scroll[1];
 				state.setmousepos(state.mouseraw[0]+difx,state.mouseraw[1]+dify);
 			}
 		}
 		// Touch controls.
 		function touchmove(evt) {
-			var touch=evt.touches;
+			let touch=evt.touches;
 			if (touch.length===1) {
 				touch=touch.item(0);
 				state.setkeydown(state.MOUSE.LEFT);
@@ -233,12 +230,12 @@ class Input {
 		function touchstart(evt) {
 			// We need to manually determine if the user has touched our focused object.
 			state.touchfocus=1;
-			var focus=state.focus;
+			let focus=state.focus;
 			if (focus!==null) {
-				var touch=evt.touches.item(0);
-				var rect=state.getrect(focus);
-				var x=touch.pageX-rect.x;
-				var y=touch.pageY-rect.y;
+				let touch=evt.touches.item(0);
+				let rect=state.getrect(focus);
+				let x=touch.pageX-rect.x;
+				let y=touch.pageY-rect.y;
 				if (x<0 || x>=rect.w || y<0 || y>=rect.h) {
 					state.touchfocus=0;
 				}
@@ -270,11 +267,11 @@ class Input {
 
 
 	getrect(elem) {
-		var width  =elem.clientWidth;
-		var height =elem.clientHeight;
-		var offleft=elem.clientLeft;
-		var offtop =elem.clientTop;
-		while (elem!==null) {
+		let width  =elem.scrollWidth;
+		let height =elem.scrollHeight;
+		let offleft=elem.clientLeft;
+		let offtop =elem.clientTop;
+		while (elem) {
 			offleft+=elem.offsetLeft;
 			offtop +=elem.offsetTop;
 			elem=elem.offsetParent;
@@ -288,11 +285,12 @@ class Input {
 		this.mouseraw[1]=y;
 		this.scroll[0]=window.scrollX;
 		this.scroll[1]=window.scrollY;
-		var focus=this.focus;
+		let focus=this.focus;
 		if (focus!==null) {
-			var rect=this.getrect(focus);
-			x=(x-rect.x)/rect.w;
-			y=(y-rect.y)/rect.h;
+			let rect=this.getrect(focus);
+			// If the focus is a canvas, scroll size can differ from pixel size.
+			x=(x-rect.x)*((focus.width||focus.scrollWidth)/rect.w);
+			y=(y-rect.y)*((focus.height||focus.scrollHeight)/rect.h);
 		}
 		this.mousepos[0]=x;
 		this.mousepos[1]=y;
@@ -315,7 +313,7 @@ class Input {
 
 
 	getmousez() {
-		var z=this.mousez;
+		let z=this.mousez;
 		this.mousez=0;
 		return z;
 	}
@@ -326,11 +324,11 @@ class Input {
 
 
 	initkeyboard() {
-		var state=this;
+		let state=this;
 		this.KEY=this.constructor.KEY;
-		var keys=Object.keys(this.KEY);
-		for (var i=0;i<keys.length;i++) {
-			var code=this.KEY[keys[i]];
+		let keys=Object.keys(this.KEY);
+		for (let i=0;i<keys.length;i++) {
+			let code=this.KEY[keys[i]];
 			this.keystate[code]={
 				name: "KEY."+keys[i],
 				code: code
@@ -351,7 +349,7 @@ class Input {
 
 
 	setkeydown(code) {
-		var state=this.makeactive(code);
+		let state=this.makeactive(code);
 		if (state!==null) {
 			if (state.down===0) {
 				state.down=1;
@@ -364,7 +362,7 @@ class Input {
 
 
 	setkeyup(code) {
-		var state=this.makeactive(code);
+		let state=this.makeactive(code);
 		if (state!==null) {
 			state.down=0;
 			state.hit=0;
@@ -378,9 +376,9 @@ class Input {
 		// code can be an array of key codes.
 		if (code===null || code===undefined) {return 0;}
 		if (code.length===undefined) {code=[code];}
-		var keystate=this.keystate;
-		for (var i=0;i<code.length;i++) {
-			var state=keystate[code[i]];
+		let keystate=this.keystate;
+		for (let i=0;i<code.length;i++) {
+			let state=keystate[code[i]];
 			if (state!==null && state!==undefined && state.down>0) {
 				return 1;
 			}
@@ -393,9 +391,9 @@ class Input {
 		// code can be an array of key codes.
 		if (code===null || code===undefined) {return 0;}
 		if (code.length===undefined) {code=[code];}
-		var keystate=this.keystate;
-		for (var i=0;i<code.length;i++) {
-			var state=keystate[code[i]];
+		let keystate=this.keystate;
+		for (let i=0;i<code.length;i++) {
+			let state=keystate[code[i]];
 			if (state!==null && state!==undefined && state.hit>0) {
 				state.hit=0;
 				return 1;
@@ -409,9 +407,9 @@ class Input {
 		// code can be an array of key codes.
 		if (code===null || code===undefined) {return 0;}
 		if (code.length===undefined) {code=[code];}
-		var keystate=this.keystate;
-		for (var i=0;i<code.length;i++) {
-			var state=keystate[code[i]];
+		let keystate=this.keystate;
+		for (let i=0;i<code.length;i++) {
+			let state=keystate[code[i]];
 			if (state!==null && state!==undefined && state.repeat===1) {
 				return 1;
 			}

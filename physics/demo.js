@@ -1,5 +1,21 @@
+/*------------------------------------------------------------------------------
+
+
+demo.js - v1.01
+
+Copyright 2024 Alec Dee - MIT license - SPDX: MIT
+deegen1.github.io - akdee144@gmail.com
+
+
+*/
+/* jshint esversion: 11  */
+/* jshint bitwise: false */
+/* jshint eqeqeq: true   */
+/* jshint curly: true    */
+
+
 //---------------------------------------------------------------------------------
-// Input - v1.11
+// Input - v1.13
 
 
 class Input {
@@ -50,8 +66,8 @@ class Input {
 		this.initmouse();
 		this.initkeyboard();
 		this.reset();
-		for (var i=0;i<this.listeners.length;i++) {
-			var list=this.listeners[i];
+		for (let i=0;i<this.listeners.length;i++) {
+			let list=this.listeners[i];
 			document.addEventListener(list[0],list[1],list[2]);
 		}
 	}
@@ -62,8 +78,8 @@ class Input {
 			this.focus.tabIndex=this.focustab;
 		}
 		this.enablenav();
-		for (var i=0;i<this.listeners.length;i++) {
-			var list=this.listeners[i];
+		for (let i=0;i<this.listeners.length;i++) {
+			let list=this.listeners[i];
 			document.removeEventListener(list[0],list[1],list[2]);
 		}
 		this.listeners=[];
@@ -73,10 +89,10 @@ class Input {
 
 	reset() {
 		this.mousez=0;
-		var statearr=Object.values(this.keystate);
-		var statelen=statearr.length;
-		for (var i=0;i<statelen;i++) {
-			var state=statearr[i];
+		let statearr=Object.values(this.keystate);
+		let statelen=statearr.length;
+		for (let i=0;i<statelen;i++) {
+			let state=statearr[i];
 			state.down=0;
 			state.hit=0;
 			state.repeat=0;
@@ -90,21 +106,21 @@ class Input {
 
 	update() {
 		// Process keys that are active.
-		var focus=this.focus===null?document.hasFocus():Object.is(document.activeElement,this.focus);
+		let focus=this.focus===null?document.hasFocus():Object.is(document.activeElement,this.focus);
 		if (this.touchfocus!==0) {focus=true;}
 		this.stopnavfocus=focus?this.stopnav:0;
-		var time=performance.now()/1000.0;
-		var delay=time-this.repeatdelay;
-		var rate=1.0/this.repeatrate;
-		var state=this.active;
-		var active=null;
-		var down,next;
+		let time=performance.now()/1000.0;
+		let delay=time-this.repeatdelay;
+		let rate=1.0/this.repeatrate;
+		let state=this.active;
+		let active=null;
+		let down,next;
 		while (state!==null) {
 			next=state.active;
 			down=focus?state.down:0;
 			state.down=down;
 			if (down>0) {
-				var repeat=Math.floor((delay-state.time)*rate);
+				let repeat=Math.floor((delay-state.time)*rate);
 				state.repeat=(repeat>0 && (repeat&1)===0)?state.repeat+1:0;
 			} else {
 				state.repeat=0;
@@ -138,7 +154,7 @@ class Input {
 
 
 	makeactive(code) {
-		var state=this.keystate[code];
+		let state=this.keystate[code];
 		if (state===null || state===undefined) {
 			state=null;
 		} else if (state.isactive===0) {
@@ -155,11 +171,11 @@ class Input {
 
 
 	initmouse() {
-		var state=this;
+		let state=this;
 		this.MOUSE=this.constructor.MOUSE;
-		var keys=Object.keys(this.MOUSE);
-		for (var i=0;i<keys.length;i++) {
-			var code=this.MOUSE[keys[i]];
+		let keys=Object.keys(this.MOUSE);
+		for (let i=0;i<keys.length;i++) {
+			let code=this.MOUSE[keys[i]];
 			this.keystate[code]={
 				name: "MOUSE."+keys[i],
 				code: code
@@ -186,14 +202,14 @@ class Input {
 		function onscroll(evt) {
 			// Update relative position on scroll.
 			if (state.scrollupdate) {
-				var difx=window.scrollX-state.scroll[0];
-				var dify=window.scrollY-state.scroll[1];
+				let difx=window.scrollX-state.scroll[0];
+				let dify=window.scrollY-state.scroll[1];
 				state.setmousepos(state.mouseraw[0]+difx,state.mouseraw[1]+dify);
 			}
 		}
 		// Touch controls.
 		function touchmove(evt) {
-			var touch=evt.touches;
+			let touch=evt.touches;
 			if (touch.length===1) {
 				touch=touch.item(0);
 				state.setkeydown(state.MOUSE.LEFT);
@@ -206,12 +222,12 @@ class Input {
 		function touchstart(evt) {
 			// We need to manually determine if the user has touched our focused object.
 			state.touchfocus=1;
-			var focus=state.focus;
+			let focus=state.focus;
 			if (focus!==null) {
-				var touch=evt.touches.item(0);
-				var rect=state.getrect(focus);
-				var x=touch.pageX-rect.x;
-				var y=touch.pageY-rect.y;
+				let touch=evt.touches.item(0);
+				let rect=state.getrect(focus);
+				let x=touch.pageX-rect.x;
+				let y=touch.pageY-rect.y;
 				if (x<0 || x>=rect.w || y<0 || y>=rect.h) {
 					state.touchfocus=0;
 				}
@@ -243,11 +259,11 @@ class Input {
 
 
 	getrect(elem) {
-		var width  =elem.clientWidth;
-		var height =elem.clientHeight;
-		var offleft=elem.clientLeft;
-		var offtop =elem.clientTop;
-		while (elem!==null) {
+		let width  =elem.scrollWidth;
+		let height =elem.scrollHeight;
+		let offleft=elem.clientLeft;
+		let offtop =elem.clientTop;
+		while (elem) {
 			offleft+=elem.offsetLeft;
 			offtop +=elem.offsetTop;
 			elem=elem.offsetParent;
@@ -261,11 +277,12 @@ class Input {
 		this.mouseraw[1]=y;
 		this.scroll[0]=window.scrollX;
 		this.scroll[1]=window.scrollY;
-		var focus=this.focus;
+		let focus=this.focus;
 		if (focus!==null) {
-			var rect=this.getrect(focus);
-			x=(x-rect.x)/rect.w;
-			y=(y-rect.y)/rect.h;
+			let rect=this.getrect(focus);
+			// If the focus is a canvas, scroll size can differ from pixel size.
+			x=(x-rect.x)*((focus.width||focus.scrollWidth)/rect.w);
+			y=(y-rect.y)*((focus.height||focus.scrollHeight)/rect.h);
 		}
 		this.mousepos[0]=x;
 		this.mousepos[1]=y;
@@ -288,7 +305,7 @@ class Input {
 
 
 	getmousez() {
-		var z=this.mousez;
+		let z=this.mousez;
 		this.mousez=0;
 		return z;
 	}
@@ -299,11 +316,11 @@ class Input {
 
 
 	initkeyboard() {
-		var state=this;
+		let state=this;
 		this.KEY=this.constructor.KEY;
-		var keys=Object.keys(this.KEY);
-		for (var i=0;i<keys.length;i++) {
-			var code=this.KEY[keys[i]];
+		let keys=Object.keys(this.KEY);
+		for (let i=0;i<keys.length;i++) {
+			let code=this.KEY[keys[i]];
 			this.keystate[code]={
 				name: "KEY."+keys[i],
 				code: code
@@ -324,7 +341,7 @@ class Input {
 
 
 	setkeydown(code) {
-		var state=this.makeactive(code);
+		let state=this.makeactive(code);
 		if (state!==null) {
 			if (state.down===0) {
 				state.down=1;
@@ -337,7 +354,7 @@ class Input {
 
 
 	setkeyup(code) {
-		var state=this.makeactive(code);
+		let state=this.makeactive(code);
 		if (state!==null) {
 			state.down=0;
 			state.hit=0;
@@ -351,9 +368,9 @@ class Input {
 		// code can be an array of key codes.
 		if (code===null || code===undefined) {return 0;}
 		if (code.length===undefined) {code=[code];}
-		var keystate=this.keystate;
-		for (var i=0;i<code.length;i++) {
-			var state=keystate[code[i]];
+		let keystate=this.keystate;
+		for (let i=0;i<code.length;i++) {
+			let state=keystate[code[i]];
 			if (state!==null && state!==undefined && state.down>0) {
 				return 1;
 			}
@@ -366,9 +383,9 @@ class Input {
 		// code can be an array of key codes.
 		if (code===null || code===undefined) {return 0;}
 		if (code.length===undefined) {code=[code];}
-		var keystate=this.keystate;
-		for (var i=0;i<code.length;i++) {
-			var state=keystate[code[i]];
+		let keystate=this.keystate;
+		for (let i=0;i<code.length;i++) {
+			let state=keystate[code[i]];
 			if (state!==null && state!==undefined && state.hit>0) {
 				state.hit=0;
 				return 1;
@@ -382,9 +399,9 @@ class Input {
 		// code can be an array of key codes.
 		if (code===null || code===undefined) {return 0;}
 		if (code.length===undefined) {code=[code];}
-		var keystate=this.keystate;
-		for (var i=0;i<code.length;i++) {
-			var state=keystate[code[i]];
+		let keystate=this.keystate;
+		for (let i=0;i<code.length;i++) {
+			let state=keystate[code[i]];
 			if (state!==null && state!==undefined && state.repeat===1) {
 				return 1;
 			}
@@ -396,15 +413,15 @@ class Input {
 
 
 //---------------------------------------------------------------------------------
-// PRNG - v1.04
+// PRNG - v1.06
 
 
 class Random {
 
 	constructor(seed) {
+		this.xmbarr=this.constructor.xmbarr;
 		this.acc=0;
 		this.inc=1;
-		this.xmbarr=this.constructor.xmbarr;
 		this.seed(seed);
 	}
 
@@ -413,21 +430,23 @@ class Random {
 		if (seed===undefined || seed===null) {
 			seed=performance.timeOrigin+performance.now();
 		}
-		this.acc=(seed/4294967296)>>>0;
-		this.inc=seed>>>0;
-		this.acc=this.getu32();
-		this.inc=(this.getu32()|1)>>>0;
+		if (seed.length===2) {
+			this.acc=seed[0];
+			this.inc=seed[1];
+		} else if (seed.acc!==undefined) {
+			this.acc=seed.acc;
+			this.inc=seed.inc;
+		} else {
+			this.acc=(seed/4294967296)>>>0;
+			this.inc=seed>>>0;
+			this.acc=this.getu32();
+			this.inc=(this.getu32()|1)>>>0;
+		}
 	}
 
 
 	getstate() {
 		return [this.acc,this.inc];
-	}
-
-
-	setstate(state) {
-		this.acc=state[0]>>>0;
-		this.inc=state[1]>>>0;
 	}
 
 
@@ -441,7 +460,7 @@ class Random {
 
 
 	getu32() {
-		var val=(this.acc+this.inc)>>>0;
+		let val=(this.acc+this.inc)>>>0;
 		this.acc=val;
 		val=Math.imul(val^(val>>>16),0xf8b7629f);
 		val=Math.imul(val^(val>>> 8),0xcbc5c2b5);
@@ -452,7 +471,7 @@ class Random {
 
 	modu32(mod) {
 		// rand%mod is not converted to a signed int.
-		var rand,rem,nmod=(-mod)>>>0;
+		let rand,rem,nmod=(-mod)>>>0;
 		do {
 			rand=this.getu32();
 			rem=rand%mod;
@@ -488,7 +507,7 @@ class Random {
 		// Returns a normally distributed random variable. This function uses a linear
 		// piecewise approximation of sqrt(2)*erfinv((x+1)*0.5) to quickly compute values.
 		// Find the greatest y[i]<=x, then return x*m[i]+b[i].
-		var x=this.getf64(),xmb=this.xmbarr,i=48;
+		let x=this.getf64(),xmb=this.xmbarr,i=48;
 		i+=x<xmb[i]?-24:24;
 		i+=x<xmb[i]?-12:12;
 		i+=x<xmb[i]?-6:6;
@@ -501,7 +520,187 @@ class Random {
 
 
 //---------------------------------------------------------------------------------
-// Anti-aliased Image Drawing - v1.26
+// Vector - v1.04
+
+
+class Vector extends Array {
+
+	static rnd=new Random();
+
+
+	constructor(elem) {
+		let l=elem.length;
+		if (l!==undefined) {
+			super(l);
+			for (let i=0;i<l;i++) {this[i]=elem[i];}
+		} else {
+			super(elem);
+			this.fill(0);
+		}
+	}
+
+
+	tostring() {
+		return "["+this.join(", ")+"]";
+	}
+
+
+	set(val) {
+		let l=this.length,i;
+		if (val.length!==undefined) {
+			for (i=0;i<l;i++) {this[i]=val[i];}
+		} else {
+			for (i=0;i<l;i++) {this[i]=val;}
+		}
+		return this;
+	}
+
+
+	// ----------------------------------------
+	// Algebra
+
+
+	neg() {
+		let u=this,len=this.length,r=new Vector(len);
+		for (let i=0;i<len;i++) {r[i]=-u[i];}
+		return r;
+	}
+
+
+	iadd(v) {
+		// u+=v
+		let u=this,len=this.length;
+		for (let i=0;i<len;i++) {u[i]+=v[i];}
+		return this;
+	}
+
+
+	add(v) {
+		// u+v
+		let u=this,len=this.length,r=new Vector(len);
+		for (let i=0;i<len;i++) {r[i]=u[i]+v[i];}
+		return r;
+	}
+
+
+	isub(v) {
+		// u-=v
+		let u=this,len=this.length;
+		for (let i=0;i<len;i++) {u[i]-=v[i];}
+		return this;
+	}
+
+
+	sub(v) {
+		// u-v
+		let u=this,len=this.length,r=new Vector(len);
+		for (let i=0;i<len;i++) {r[i]=u[i]-v[i];}
+		return r;
+	}
+
+
+	imul(s) {
+		// u*=s
+		let u=this,len=this.length;
+		for (let i=0;i<len;i++) {u[i]*=s;}
+		return this;
+	}
+
+
+	mul(s) {
+		// u*s
+		let u=this,len=this.length,r=new Vector(len);
+		for (let i=0;i<len;i++) {r[i]=u[i]*s;}
+		return r;
+	}
+
+
+	dot(v) {
+		// u*v
+		let u=this,len=this.length,sum=0;
+		for (let i=0;i<len;i++) {sum+=u[i]*v[i];}
+		return sum;
+	}
+
+
+	// ----------------------------------------
+	// Geometry
+
+
+	dist(v) {
+		// |u-v|
+		let u=this,len=this.length,sum=0,x;
+		for (let i=0;i<len;i++) {x=u[i]-v[i];sum+=x*x;}
+		return Math.sqrt(sum);
+	}
+
+
+	sqr() {
+		// u*u
+		let u=this,len=this.length,sum=0,x;
+		for (let i=0;i<len;i++) {x=u[i];sum+=x*x;}
+		return sum;
+	}
+
+
+	mag() {
+		// sqrt(u*u)
+		let u=this,len=this.length,sum=0,x;
+		for (let i=0;i<len;i++) {x=u[i];sum+=x*x;}
+		return Math.sqrt(sum);
+	}
+
+	randomize() {
+		let u=this,len=this.length;
+		let mag,i,x,rnd=Vector.rnd;
+		do {
+			mag=0;
+			for (i=0;i<len;i++) {
+				x=rnd.getnorm();
+				u[i]=x;
+				mag+=x*x;
+			}
+		} while (mag<1e-10);
+		mag=1.0/Math.sqrt(mag);
+		for (i=0;i<len;i++) {
+			u[i]*=mag;
+		}
+		return this;
+	}
+
+
+	static random(dim) {
+		return (new Vector(dim)).randomize();
+	}
+
+
+	normalize() {
+		let u=this,len=this.length,mag=0,i,x;
+		for (i=0;i<len;i++) {
+			x=u[i];
+			mag+=x*x;
+		}
+		if (mag<1e-10) {
+			this.randomize();
+		} else {
+			mag=1.0/Math.sqrt(mag);
+			for (i=0;i<len;i++) {
+				u[i]*=mag;
+			}
+		}
+		return this;
+	}
+
+
+	norm() {
+		return (new Vector(this)).normalize();
+	}
+
+}
+
+
+//---------------------------------------------------------------------------------
+// Anti-aliased Image Drawing - v1.31
 
 
 class _DrawTransform {
@@ -544,7 +743,7 @@ class _DrawTransform {
 	calcmatrix() {
 		// Precalculates the transformation matrix.
 		// point -> scale -> rotate -> offset
-		var data=this.data;
+		let data=this.data;
 		data[0]= data[ 9]*data[6];
 		data[1]=-data[10]*data[7];
 		data[2]= data[11];
@@ -555,7 +754,7 @@ class _DrawTransform {
 
 
 	setangle(ang) {
-		var data=this.data;
+		let data=this.data;
 		ang%=6.283185307;
 		data[ 8]=ang;
 		data[ 9]=Math.cos(ang);
@@ -600,7 +799,7 @@ class _DrawTransform {
 
 	setoffset(x,y) {
 		if (y===undefined) {y=x[1];x=x[0];}
-		var data=this.data;
+		let data=this.data;
 		data[11]=x;
 		data[12]=y;
 		data[2]=data[11];
@@ -611,9 +810,9 @@ class _DrawTransform {
 
 	addoffset(x,y,apply) {
 		if (y===undefined) {y=x[1];x=x[0];}
-		var data=this.data;
+		let data=this.data;
 		if (apply) {
-			var w=x;
+			let w=x;
 			x=w*data[0]+y*data[1];
 			y=w*data[3]+y*data[4];
 		}
@@ -633,7 +832,7 @@ class _DrawTransform {
 	apply(x,y) {
 		// Applies all transformations to a point.
 		if (y===undefined) {y=x[1];x=x[0];}
-		var data=this.data,w=x;
+		let data=this.data,w=x;
 		x=w*data[0]+y*data[1]+data[2];
 		y=w*data[3]+y*data[4]+data[5];
 		return [x,y];
@@ -643,8 +842,8 @@ class _DrawTransform {
 	undo(x,y) {
 		// Applies the inverse transform to [x,y].
 		if (y===undefined) {y=x[1];x=x[0];}
-		var data=this.data,w=x;
-		var det=data[0]*data[4]-data[1]*data[3];
+		let data=this.data,w=x;
+		let det=data[0]*data[4]-data[1]*data[3];
 		w-=data[2];
 		y-=data[5];
 		x=(w*data[4]-y*data[1])/det;
@@ -683,10 +882,10 @@ class _DrawPoly {
 
 	aabbupdate() {
 		// Recompute the bounding box.
-		var minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
-		var varr=this.vertarr,vidx=this.vertidx;
-		for (var i=0;i<vidx;i++) {
-			var x=varr[i].x,y=varr[i].y;
+		let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
+		let varr=this.vertarr,vidx=this.vertidx;
+		for (let i=0;i<vidx;i++) {
+			let x=varr[i].x,y=varr[i].y;
 			if (minx>x) {minx=x;}
 			if (miny>y) {miny=y;}
 			if (maxx<x) {maxx=x;}
@@ -698,18 +897,19 @@ class _DrawPoly {
 
 
 	addvert(type,x,y) {
-		var idx=this.vertidx++;
-		var arr=this.vertarr;
+		let idx=this.vertidx++;
+		let arr=this.vertarr;
 		if (idx>=arr.length) {
-			for (var len=8;len<=idx;len+=len) {}
-			while (arr.length<len) {arr.push({type:-1,x:0,y:0,i:-1});}
+			let len=8;
+			while (len<=idx) {len+=len;}
+			while (arr.length<len) {arr.push({type:-1,i:-1,x:0,y:0});}
 		}
-		var v=arr[idx];
+		let v=arr[idx];
 		v.type=type;
+		v.i=this.moveidx;
 		v.x=x;
 		v.y=y;
-		v.i=this.moveidx;
-		var aabb=this.aabb;
+		let aabb=this.aabb;
 		if (aabb.minx>x) {aabb.minx=x;aabb.dx=aabb.maxx-x;}
 		if (aabb.miny>y) {aabb.miny=y;aabb.dy=aabb.maxy-y;}
 		if (aabb.maxx<x) {aabb.maxx=x;aabb.dx=x-aabb.minx;}
@@ -748,13 +948,13 @@ class _DrawPoly {
 
 	close() {
 		// Draw a line from the current vertex to our last moveto() call.
-		var move=this.moveidx;
+		let move=this.moveidx;
 		if (move<0) {return this;}
 		if (move===this.vertidx-1) {
 			this.vertidx--;
 			return this;
 		}
-		var m=this.vertarr[move];
+		let m=this.vertarr[move];
 		m.i=this.vertidx;
 		this.addvert(this.CLOSE,m.x,m.y);
 		this.moveidx=-2;
@@ -764,21 +964,21 @@ class _DrawPoly {
 
 	tostring(precision) {
 		// Converts the path to an SVG string.
-		var p=precision===undefined?10:precision;
+		let p=precision===undefined?6:precision;
 		function tostring(x) {
-			var s=x.toFixed(p);
+			let s=x.toFixed(p);
 			if (p>0) {
-				var i=s.length;
+				let i=s.length;
 				while (i>0 && s.charCodeAt(i-1)===48) {i--;}
 				if (s.charCodeAt(i-1)===46) {i--;}
 				s=s.substring(0,i);
 			}
 			return s;
 		}
-		var name=["M ","Z","L ","C "];
-		var ret="";
-		for (var i=0;i<this.vertidx;i++) {
-			var v=this.vertarr[i],t=v.type;
+		let name=["M ","Z","L ","C "];
+		let ret="";
+		for (let i=0;i<this.vertidx;i++) {
+			let v=this.vertarr[i],t=v.type;
 			ret+=(i?" ":"")+name[t];
 			if (t!==this.CLOSE) {
 				ret+=tostring(v.x)+" "+tostring(v.y);
@@ -797,28 +997,40 @@ class _DrawPoly {
 	fromstring(str) {
 		// Parses an SVG path. Supports M, Z, L, C.
 		this.begin();
-		var type,j,len=str.length;
-		var params=[2,0,2,6],v=[0,0,0,0,0,0];
+		let type,j,len=str.length;
+		let params=[2,0,2,6],v=[0,0,0,0,0,0];
+		let off=[0,0];
 		function isnum(c) {
 			c=c.length!==undefined?c.charCodeAt(0):c;
 			return c>42 && c<58 && c!==44 && c!==47;
 		}
-		for (var i=0;i<len;) {
-			var c=str[i++];
-			if (c==="M") {type=0;}
-			else if (c==="Z") {type=1;}
-			else if (c==="L") {type=2;}
-			else if (c==="C") {type=3;}
+		for (let i=0;i<len;) {
+			let c=str[i++];
+			if      (c==="M")  {type=0;}
+			else if (c==="m")  {type=1;}
+			else if (c==="Z")  {type=2;}
+			else if (c==="z")  {type=3;}
+			else if (c==="L")  {type=4;}
+			else if (c==="l")  {type=5;}
+			else if (c==="C")  {type=6;}
+			else if (c==="c")  {type=7;}
 			else if (isnum(c)) {type=2;i--;}
 			else {continue;}
-			for (var t=0;t<params[type];t++) {
+			if ((type&1) && this.vertidx) {
+				let l=this.vertarr[this.vertidx-1];
+				off=[l.x,l.y];
+			} else {
+				off=[0,0];
+			}
+			let p=params[type>>1];
+			for (let t=0;t<p;t++) {
 				for (j=i;j<len && !isnum(str.charCodeAt(j));j++) {}
 				for (i=j;i<len && isnum(str.charCodeAt(i));i++) {}
-				v[t]=parseFloat(str.substring(j,i));
+				v[t]=parseFloat(str.substring(j,i))+off[t&1];
 			}
-			if (type===0) {this.moveto(v[0],v[1]);}
-			else if (type===1) {this.close();}
-			else if (type===2) {this.lineto(v[0],v[1]);}
+			if      (type<2) {this.moveto(v[0],v[1]);}
+			else if (type<4) {this.close();}
+			else if (type<6) {this.lineto(v[0],v[1]);}
 			else {this.curveto(v[0],v[1],v[2],v[3],v[4],v[5]);}
 		}
 	}
@@ -826,10 +1038,10 @@ class _DrawPoly {
 
 	addstrip(points) {
 		// Assumes a loop of [x0,y0,x1,y1,...] where every pair is a separate line.
-		var len=points.length;
+		let len=points.length;
 		if (len<=0 || (len%2)!==0) {return;}
 		this.moveto(points[0],points[1]);
-		for (var i=2;i<len;i+=2) {
+		for (let i=2;i<len;i+=2) {
 			this.lineto(points[i],points[i+1]);
 		}
 		this.close();
@@ -843,8 +1055,8 @@ class _DrawPoly {
 
 
 	addline(x0,y0,x1,y1,rad) {
-		var dx=x1-x0,dy=y1-y0;
-		var dist=dx*dx+dy*dy;
+		let dx=x1-x0,dy=y1-y0;
+		let dist=dx*dx+dy*dy;
 		if (dist<1e-20) {
 			x1=x0;
 			y1=y0;
@@ -856,9 +1068,9 @@ class _DrawPoly {
 			dy*=dist;
 		}
 		const a=1.00005519,b=0.55342686,c=0.99873585;
-		var ax=a*dx,ay=a*dy;
-		var bx=b*dx,cy=c*dy,c0=bx-cy,c3=bx+cy;
-		var cx=c*dx,by=b*dy,c1=cx+by,c2=cx-by;
+		let ax=a*dx,ay=a*dy;
+		let bx=b*dx,cy=c*dy,c0=bx-cy,c3=bx+cy;
+		let cx=c*dx,by=b*dy,c1=cx+by,c2=cx-by;
 		this.moveto(x1+ay,y1-ax);
 		this.curveto(x1+c3,y1-c2,x1+c1,y1-c0,x1+ax,y1+ay);
 		this.curveto(x1+c2,y1+c3,x1+c0,y1+c1,x1-ay,y1+ax);
@@ -879,9 +1091,9 @@ class _DrawPoly {
 	addoval(x,y,xrad,yrad) {
 		// David Ellsworth and Spencer Mortensen constants.
 		const a=1.00005519,b=0.55342686,c=0.99873585;
-		var ax=-a*xrad,ay=a*yrad;
-		var bx=-b*xrad,by=b*yrad;
-		var cx=-c*xrad,cy=c*yrad;
+		let ax=-a*xrad,ay=a*yrad;
+		let bx=-b*xrad,by=b*yrad;
+		let cx=-c*xrad,cy=c*yrad;
 		this.moveto(x,y+ay);
 		this.curveto(x+bx,y+cy,x+cx,y+by,x+ax,y   );
 		this.curveto(x+cx,y-by,x+bx,y-cy,x   ,y-ay);
@@ -896,9 +1108,9 @@ class _DrawPoly {
 class _DrawImage {
 
 	constructor(width,height) {
-		var srcdata=null;
+		let srcdata=null;
 		if (height===undefined) {
-			var img=width;
+			let img=width;
 			if (width===undefined) {
 				width=0;
 				height=0;
@@ -937,21 +1149,21 @@ class _DrawImage {
 
 	fromtga(src) {
 		// Load a TGA image from an array.
-		var len=src.length;
+		let len=src.length;
 		if (len<18) {
 			throw "TGA too short";
 		}
-		var w=src[12]+(src[13]<<8);
-		var h=src[14]+(src[15]<<8);
-		var bits=src[16],bytes=bits>>>3;
+		let w=src[12]+(src[13]<<8);
+		let h=src[14]+(src[15]<<8);
+		let bits=src[16],bytes=bits>>>3;
 		if (w*h*bytes+18!==len || src[2]!==2 || (bits!==24 && bits!==32)) {
 			throw "TGA corrupt";
 		}
 		// Load the image data.
 		this.resize(w,h);
-		var dst=this.data8,didx=0,sidx=18;
-		for (var y=0;y<h;y++) {
-			for (var x=0;x<w;x++) {
+		let dst=this.data8,didx=0,sidx=18;
+		for (let y=0;y<h;y++) {
+			for (let x=0;x<w;x++) {
 				dst[didx++]=src[sidx++];
 				dst[didx++]=src[sidx++];
 				dst[didx++]=src[sidx++];
@@ -964,13 +1176,13 @@ class _DrawImage {
 
 	totga() {
 		// Returns a Uint8Array with TGA image data.
-		var w=this.width,h=this.height;
+		let w=this.width,h=this.height;
 		if (w>0xffff || h>0xffff) {throw "Size too big: "+w+", "+h;}
-		var didx=18,dst=new Uint8Array(w*h*4+didx);
-		var sidx= 0,src=this.data8;
+		let didx=18,dst=new Uint8Array(w*h*4+didx);
+		let sidx= 0,src=this.data8;
 		dst.set([0,0,2,0,0,0,0,0,0,0,0,0,w&255,w>>>8,h&255,h>>>8,32,0],0,didx);
-		for (var y=0;y<h;y++) {
-			for (var x=0;x<w;x++) {
+		for (let y=0;y<h;y++) {
+			for (let x=0;x<w;x++) {
 				dst[didx++]=src[sidx++];
 				dst[didx++]=src[sidx++];
 				dst[didx++]=src[sidx++];
@@ -1105,28 +1317,28 @@ class _DrawFont {
 		// Assume height=scale.
 		this.glyphs={};
 		this.unknown=undefined;
-		var idx=0,len=fontdef.length;
+		let idx=0,len=fontdef.length;
 		function token(eol) {
-			var c;
+			let c;
 			while (idx<len && (c=fontdef.charCodeAt(idx))<=32 && c!==10) {idx++;}
-			var i=idx;
+			let i=idx;
 			while (idx<len && fontdef.charCodeAt(idx)>eol) {idx++;}
 			return fontdef.substring(i,idx);
 		}
 		token(10); idx++; // name
 		token(10); idx++; // info
-		var scale=parseFloat(token(10));
+		let scale=parseFloat(token(10));
 		while (idx<len) {
 			idx++;
-			var chr=token(32);
+			let chr=token(32);
 			if (chr.length<=0) {continue;}
 			chr=chr==="SPC"?32:chr.charCodeAt(0);
-			var g={};
+			let g={};
 			g.width=parseInt(token(32))/scale;
 			g.poly=new Draw.Poly(token(10));
-			var varr=g.poly.vertarr,vidx=g.poly.vertidx;
-			for (var i=0;i<vidx;i++) {
-				var v=varr[i];
+			let varr=g.poly.vertarr,vidx=g.poly.vertidx;
+			for (let i=0;i<vidx;i++) {
+				let v=varr[i];
 				v.x/=scale;
 				v.y/=scale;
 			}
@@ -1142,13 +1354,13 @@ class _DrawFont {
 	textrect(str,scale) {
 		// Returns the rectangle bounding the text.
 		if (scale===undefined) {scale=this.defscale;}
-		var len=str.length;
-		var xpos=0,xmax=0;
-		var ypos=0,lh=this.lineheight;
-		var glyphs=this.glyphs;
-		for (var i=0;i<len;i++) {
-			var c=str.charCodeAt(i);
-			var g=glyphs[c];
+		let len=str.length;
+		let xpos=0,xmax=0;
+		let ypos=0,lh=this.lineheight;
+		let glyphs=this.glyphs;
+		for (let i=0;i<len;i++) {
+			let c=str.charCodeAt(i);
+			let g=glyphs[c];
 			if (g===undefined) {
 				if (c===10) {
 					ypos+=lh;
@@ -1185,16 +1397,21 @@ class Draw {
 	static Image    =_DrawImage;
 
 
+	// The default context used for drawing functions.
+	static def=null;
+
+
 	constructor(width,height) {
-		var con=this.constructor;
+		let con=this.constructor;
 		Object.assign(this,con);
+		if (con.def===null) {con.def=this;}
 		// Image info
 		this.img      =new con.Image(width,height);
 		this.rgba     =new Uint8ClampedArray([0,1,2,3]);
 		this.rgba32   =new Uint32Array(this.rgba.buffer);
 		this.rgbashift=[0,0,0,0];
-		var col=this.rgba32[0];
-		for (var i=0;i<32;i+=8) {this.rgbashift[(col>>>i)&255]=i;}
+		let col=this.rgba32[0];
+		for (let i=0;i<32;i+=8) {this.rgbashift[(col>>>i)&255]=i;}
 		this.rgba32[0]=0xffffffff;
 		// Screen transforms
 		this.viewoffx =0.0;
@@ -1239,8 +1456,8 @@ class Draw {
 
 	rgbatoint(r,g,b,a) {
 		// Convert an RGBA array to a int regardless of endianness.
-		var tmp=this.rgba32[0];
-		var rgba=this.rgba;
+		let tmp=this.rgba32[0];
+		let rgba=this.rgba;
 		rgba[0]=r;
 		rgba[1]=g;
 		rgba[2]=b;
@@ -1263,7 +1480,7 @@ class Draw {
 
 
 	savestate() {
-		var mem=this.stack[this.stackidx++];
+		let mem=this.stack[this.stackidx++];
 		if (mem===undefined) {
 			mem={
 				img  :null,
@@ -1284,7 +1501,7 @@ class Draw {
 
 	loadstate() {
 		if (this.stackidx<=0) {throw "loading null stack";}
-		var mem=this.stack[--this.stackidx];
+		let mem=this.stack[--this.stackidx];
 		this.img=mem.img;
 		this.rgba32[0]=mem.rgba;
 		this.deftrans.copy(mem.trans);
@@ -1294,7 +1511,7 @@ class Draw {
 
 
 	transformpoint(x,y) {
-		var [ox,oy]=this.deftrans.apply(x,y);
+		let [ox,oy]=this.deftrans.apply(x,y);
 		ox=(ox-this.viewoffx)*this.viewmulx;
 		oy=(oy-this.viewoffy)*this.viewmuly;
 		return [ox,oy];
@@ -1334,9 +1551,9 @@ class Draw {
 		// imgdata.fill(rgba) was ~25% slower during testing.
 		if (r===undefined) {r=g=b=0;}
 		if (a===undefined) {a=255;}
-		var rgba=this.rgbatoint(r,g,b,a);
-		var imgdata=this.img.data32;
-		var i=this.img.width*this.img.height;
+		let rgba=this.rgbatoint(r,g,b,a);
+		let imgdata=this.img.data32;
+		let i=this.img.width*this.img.height;
 		while (i>7) {
 			imgdata[--i]=rgba;
 			imgdata[--i]=rgba;
@@ -1355,12 +1572,12 @@ class Draw {
 
 	drawimage(src,dx,dy,dw,dh) {
 		// Draw an image with alpha blending.
-		var dst=this.img;
+		let dst=this.img;
 		dx=(dx===undefined)?0:(dx|0);
 		dy=(dy===undefined)?0:(dy|0);
 		dw=(dw===undefined || dw>src.width )?src.width :(dx|0);
 		dh=(dh===undefined || dh>src.height)?src.height:(dh|0);
-		var sx=0,sy=0;
+		let sx=0,sy=0;
 		dw+=dx;
 		if (dx<0) {sx=-dx;dx=0;}
 		dw=(dw>dst.width?dst.width:dw)-dx;
@@ -1368,14 +1585,14 @@ class Draw {
 		if (dy<0) {sy=-dy;dy=0;}
 		dh=(dh>dst.height?dst.height:dh)-dy;
 		if (dw<=0 || dh<=0) {return;}
-		var dstdata=dst.data32,drow=dy*dst.width+dx,dinc=dst.width-dw;
-		var srcdata=src.data32,srow=sy*src.width+sx,sinc=src.width-dw;
-		var ystop=drow+dst.width*dh,xstop=drow+dw;
-		var amul=this.rgba[3],amul0=amul/255.0,amul1=amul*(256.0/65025.0);
-		var filllim=amul0>0?255/amul0:Infinity;
-		var ashift=this.rgbashift[3],amask=(255<<ashift)>>>0,namask=(~amask)>>>0;
-		var maskl=0x00ff00ff&namask,maskh=0xff00ff00&namask;
-		var sa,da,l,h,tmp;
+		let dstdata=dst.data32,drow=dy*dst.width+dx,dinc=dst.width-dw;
+		let srcdata=src.data32,srow=sy*src.width+sx,sinc=src.width-dw;
+		let ystop=drow+dst.width*dh,xstop=drow+dw;
+		let amul=this.rgba[3],amul0=amul/255.0,amul1=amul*(256.0/65025.0);
+		let filllim=amul0>0?255/amul0:Infinity;
+		let ashift=this.rgbashift[3],amask=(255<<ashift)>>>0,namask=(~amask)>>>0;
+		let maskl=0x00ff00ff&namask,maskh=0xff00ff00&namask;
+		let sa,da,l,h,tmp;
 		dw=dst.width;
 		while (drow<ystop) {
 			while (drow<xstop) {
@@ -1434,7 +1651,7 @@ class Draw {
 
 
 	drawline(x0,y0,x1,y1) {
-		var poly=this.tmppoly,trans=this.deftrans;
+		let poly=this.tmppoly,trans=this.deftrans;
 		poly.begin();
 		poly.addline(x0,y0,x1,y1,this.linewidth*0.5);
 		this.fillpoly(poly,trans);
@@ -1442,7 +1659,7 @@ class Draw {
 
 
 	fillrect(x,y,w,h) {
-		var poly=this.tmppoly,trans=this.tmptrans;
+		let poly=this.tmppoly,trans=this.tmptrans;
 		trans.copy(this.deftrans).addoffset(x,y).mulscale(w,h);
 		poly.begin();
 		poly.addrect(0,0,1,1);
@@ -1456,7 +1673,7 @@ class Draw {
 
 
 	filloval(x,y,xrad,yrad) {
-		var poly=this.tmppoly,trans=this.tmptrans;
+		let poly=this.tmppoly,trans=this.tmptrans;
 		trans.copy(this.deftrans).addoffset(x,y).mulscale(xrad,yrad);
 		poly.begin();
 		poly.addoval(0,0,1,1);
@@ -1473,15 +1690,15 @@ class Draw {
 
 
 	filltext(x,y,str,scale) {
-		var font=this.deffont,glyphs=font.glyphs;
+		let font=this.deffont,glyphs=font.glyphs;
 		if (scale===undefined) {scale=font.defscale;}
-		var len=str.length;
-		var xpos=0,lh=font.lineheight;
-		var trans=this.tmptrans;
+		let len=str.length;
+		let xpos=0,lh=font.lineheight;
+		let trans=this.tmptrans;
 		trans.copy(this.deftrans).addoffset(x,y).mulscale(scale,scale);
-		for (var i=0;i<len;i++) {
-			var c=str.charCodeAt(i);
-			var g=glyphs[c];
+		for (let i=0;i<len;i++) {
+			let c=str.charCodeAt(i);
+			let g=glyphs[c];
 			if (g===undefined) {
 				if (c===10) {
 					trans.addoffset(-xpos,lh,true);
@@ -1514,7 +1731,7 @@ class Draw {
 
 	fillresize(size) {
 		// Declaring line objects this way allows engines to optimize their structs.
-		var len=this.tmpline.length;
+		let len=this.tmpline.length;
 		while (len<size) {len+=len+1;}
 		while (this.tmpline.length<len) {
 			this.tmpline.push({
@@ -1544,51 +1761,53 @@ class Draw {
 		// outside the image. Use a binary heap to dynamically sort lines.
 		if (poly ===undefined) {poly =this.defpoly ;}
 		if (trans===undefined) {trans=this.deftrans;}
-		var iw=this.img.width,ih=this.img.height,imgdata=this.img.data32;
+		let iw=this.img.width,ih=this.img.height,imgdata=this.img.data32;
 		if (poly.vertidx<3 || iw<1 || ih<1) {return;}
 		// Screenspace transformation.
-		var vmulx=this.viewmulx,voffx=this.viewoffx;
-		var vmuly=this.viewmuly,voffy=this.viewoffy;
-		var matxx=trans.data[0]*vmulx,matxy=trans.data[1]*vmulx,matx=(trans.data[2]-voffx)*vmulx;
-		var matyx=trans.data[3]*vmuly,matyy=trans.data[4]*vmuly,maty=(trans.data[5]-voffy)*vmuly;
+		let vmulx=this.viewmulx,voffx=this.viewoffx;
+		let vmuly=this.viewmuly,voffy=this.viewoffy;
+		let matxx=trans.data[0]*vmulx,matxy=trans.data[1]*vmulx,matx=(trans.data[2]-voffx)*vmulx;
+		let matyx=trans.data[3]*vmuly,matyy=trans.data[4]*vmuly,maty=(trans.data[5]-voffy)*vmuly;
 		// Perform a quick AABB-OBB overlap test.
 		// Define the transformed bounding box.
-		var aabb=poly.aabb;
-		var bndx=aabb.minx*matxx+aabb.miny*matxy+matx;
-		var bndy=aabb.minx*matyx+aabb.miny*matyy+maty;
-		var bnddx0=aabb.dx*matxx,bnddy0=aabb.dx*matyx;
-		var bnddx1=aabb.dy*matxy,bnddy1=aabb.dy*matyy;
+		let aabb=poly.aabb;
+		let bndx=aabb.minx*matxx+aabb.miny*matxy+matx;
+		let bndy=aabb.minx*matyx+aabb.miny*matyy+maty;
+		let bnddx0=aabb.dx*matxx,bnddy0=aabb.dx*matyx;
+		let bnddx1=aabb.dy*matxy,bnddy1=aabb.dy*matyy;
 		// Test if the image AABB has a separating axis.
-		var minx=bndx,maxx=bndx,miny=bndy,maxy=bndy;
+		let minx=bndx-iw,maxx=bndx;
 		if (bnddx0<0) {minx+=bnddx0;} else {maxx+=bnddx0;}
-		if (bnddy0<0) {miny+=bnddy0;} else {maxy+=bnddy0;}
 		if (bnddx1<0) {minx+=bnddx1;} else {maxx+=bnddx1;}
+		if (maxx<=0 || 0<=minx) {return;}
+		let miny=bndy-ih,maxy=bndy;
+		if (bnddy0<0) {miny+=bnddy0;} else {maxy+=bnddy0;}
 		if (bnddy1<0) {miny+=bnddy1;} else {maxy+=bnddy1;}
-		if (maxx<=0 || iw<=minx || maxy<=0 || ih<=miny) {
-			return;
-		}
+		if (maxy<=0 || 0<=miny) {return;}
 		// Test if the poly OBB has a separating axis.
-		var cross=bnddx0*bnddy1-bnddy0*bnddx1;
-		minx=cross<0?cross:0;maxx=cross-minx;maxy=-minx;miny=-maxx;
-		if (bnddx0<0) {maxx-=ih*bnddx0;} else {minx-=ih*bnddx0;}
-		if (bnddy0<0) {minx+=iw*bnddy0;} else {maxx+=iw*bnddy0;}
-		if (bnddx1<0) {maxy-=ih*bnddx1;} else {miny-=ih*bnddx1;}
-		if (bnddy1<0) {miny+=iw*bnddy1;} else {maxy+=iw*bnddy1;}
-		var proj0=bndx*bnddy0-bndy*bnddx0;
-		var proj1=bndx*bnddy1-bndy*bnddx1;
-		if (maxx<=proj0 || proj0<=minx || maxy<=proj1 || proj1<=miny) {
-			return;
-		}
+		let cross=bnddx0*bnddy1-bnddy0*bnddx1;
+		minx=bndy*bnddx0-bndx*bnddy0;
+		maxx=minx;bnddx0*=ih;bnddy0*=iw;
+		if (cross <0) {minx+=cross ;} else {maxx+=cross ;}
+		if (bnddx0<0) {maxx-=bnddx0;} else {minx-=bnddx0;}
+		if (bnddy0<0) {minx+=bnddy0;} else {maxx+=bnddy0;}
+		if (maxx<=0 || 0<=minx) {return;}
+		miny=bndy*bnddx1-bndx*bnddy1;
+		maxy=miny;bnddx1*=ih;bnddy1*=iw;
+		if (cross <0) {maxy-=cross ;} else {miny-=cross ;}
+		if (bnddx1<0) {maxy-=bnddx1;} else {miny-=bnddx1;}
+		if (bnddy1<0) {miny+=bnddy1;} else {maxy+=bnddy1;}
+		if (maxy<=0 || 0<=miny) {return;}
 		// Loop through the path nodes.
-		var l,i,j,tmp;
-		var lr=this.tmpline,lrcnt=lr.length,lcnt=0;
-		var splitlen=3;
-		var x0,y0,x1,y1;
-		var p0x,p0y,p1x,p1y;
-		var dx,dy;
-		var varr=poly.vertarr;
+		let l,i,j,tmp;
+		let lr=this.tmpline,lrcnt=lr.length,lcnt=0;
+		let splitlen=3;
+		let x0,y0,x1,y1;
+		let p0x,p0y,p1x,p1y;
+		let dx,dy;
+		let varr=poly.vertarr;
 		for (i=0;i<poly.vertidx;i++) {
-			var v=varr[i];
+			let v=varr[i];
 			if (v.type===poly.CURVE) {v=varr[i+2];}
 			p0x=p1x; p1x=v.x*matxx+v.y*matxy+matx;
 			p0y=p1y; p1y=v.x*matyx+v.y*matyy+maty;
@@ -1606,9 +1825,9 @@ class Draw {
 			if (v.type===poly.CURVE) {
 				// Linear decomposition of curves.
 				// Get the control points and check if the curve's on the screen.
-				v=varr[i++]; var c1x=v.x*matxx+v.y*matxy+matx,c1y=v.x*matyx+v.y*matyy+maty;
-				v=varr[i++]; var c2x=v.x*matxx+v.y*matxy+matx,c2y=v.x*matyx+v.y*matyy+maty;
-				var c3x=p1x,c3y=p1y;
+				v=varr[i++]; let c1x=v.x*matxx+v.y*matxy+matx,c1y=v.x*matyx+v.y*matyy+maty;
+				v=varr[i++]; let c2x=v.x*matxx+v.y*matxy+matx,c2y=v.x*matyx+v.y*matyy+maty;
+				let c3x=p1x,c3y=p1y;
 				x0=Math.min(p0x,Math.min(c1x,Math.min(c2x,c3x)));
 				x1=Math.max(p0x,Math.max(c1x,Math.max(c2x,c3x)));
 				y0=Math.min(p0y,Math.min(c1y,Math.min(c2y,c3y)));
@@ -1616,12 +1835,12 @@ class Draw {
 				if (x0>=iw || y0>=ih || y1<=0) {lcnt--;continue;}
 				if (x1<=0) {continue;}
 				// Estimate bezier length.
-				var dist;
+				let dist;
 				dx=c1x-p0x;dy=c1y-p0y;dist =Math.sqrt(dx*dx+dy*dy);
 				dx=c2x-c1x;dy=c2y-c1y;dist+=Math.sqrt(dx*dx+dy*dy);
 				dx=c3x-c2x;dy=c3y-c2y;dist+=Math.sqrt(dx*dx+dy*dy);
 				dx=p0x-c3x;dy=p0y-c3y;dist+=Math.sqrt(dx*dx+dy*dy);
-				var segs=Math.ceil(dist*0.5/splitlen);
+				let segs=Math.ceil(dist*0.5/splitlen);
 				if (segs<=1) {continue;}
 				lcnt--;
 				if (lrcnt<=lcnt+segs) {
@@ -1631,27 +1850,25 @@ class Draw {
 				// Segment the curve.
 				c2x=(c2x-c1x)*3;c1x=(c1x-p0x)*3;c3x-=p0x+c2x;c2x-=c1x;
 				c2y=(c2y-c1y)*3;c1y=(c1y-p0y)*3;c3y-=p0y+c2y;c2y-=c1y;
-				var ppx=p0x,ppy=p0y,unorm=1.0/segs;
-				for (var s=0;s<segs;s++) {
-					var u=(s+1)*unorm;
-					var cpx=p0x+u*(c1x+u*(c2x+u*c3x));
-					var cpy=p0y+u*(c1y+u*(c2y+u*c3y));
+				let ppx=p0x,ppy=p0y,unorm=1.0/segs,u=0;
+				for (let s=0;s<segs;s++) {
 					l=lr[lcnt++];
 					l.x0=ppx;
 					l.y0=ppy;
-					l.x1=cpx;
-					l.y1=cpy;
-					ppx=cpx;
-					ppy=cpy;
+					u+=unorm;
+					ppx=p0x+u*(c1x+u*(c2x+u*c3x));
+					ppy=p0y+u*(c1y+u*(c2y+u*c3y));
+					l.x1=ppx;
+					l.y1=ppy;
 				}
 			}
 		}
 		// Prune lines.
 		minx=iw;maxx=0;miny=ih;maxy=0;
-		var amul=this.rgba[3]*(256.0/255.0);
+		let amul=this.rgba[3]*(256.0/255.0);
 		if ((matxx<0)!==(matyy<0)) {amul=-amul;}
-		var y0x,y1x;
-		var maxcnt=lcnt;
+		let y0x,y1x;
+		let maxcnt=lcnt;
 		lcnt=0;
 		for (i=0;i<maxcnt;i++) {
 			l=lr[i];
@@ -1666,20 +1883,20 @@ class Draw {
 			l.dxy=dx/dy;
 			l.dyx=Math.abs(dx)>1e-10?dy/dx:0;
 			y0x=x0-y0*l.dxy;
-			var yhx=x0+(ih-y0)*l.dxy;
-			var xwy=y0+(iw-x0)*l.dyx;
+			let yhx=x0+(ih-y0)*l.dxy;
+			let xwy=y0+(iw-x0)*l.dyx;
 			if (y0<0 ) {y0=0 ;x0=y0x;}
 			if (y0>ih) {y0=ih;x0=yhx;}
 			if (y1<0 ) {y1=0 ;x1=y0x;}
 			if (y1>ih) {y1=ih;x1=yhx;}
 			if (Math.abs(y1-y0)<1e-20) {continue;}
 			if (x0>=iw && x1>=iw) {maxx=iw;continue;}
-			var fx=y0<y1?x0:x1;
+			let fx=y0<y1?x0:x1;
 			if (x0>=iw) {x0=iw;y0=xwy;}
 			if (x1>=iw) {x1=iw;y1=xwy;}
 			// Calculate the bounding box.
 			l.minx=Math.max(Math.floor(Math.min(x0,x1)),0);
-			var fy=Math.floor(Math.min(y0,y1));
+			let fy=Math.floor(Math.min(y0,y1));
 			l.maxy=Math.ceil(Math.max(y0,y1));
 			minx=Math.min(minx,l.minx);
 			maxx=Math.max(maxx,Math.max(x0,x1));
@@ -1697,7 +1914,7 @@ class Draw {
 			return;
 		}
 		// Linear time heap construction.
-		for (var p=(lcnt>>1)-1;p>=0;p--) {
+		for (let p=(lcnt>>1)-1;p>=0;p--) {
 			i=p;
 			l=lr[p];
 			while ((j=i+i+1)<lcnt) {
@@ -1709,17 +1926,17 @@ class Draw {
 			lr[i]=l;
 		}
 		// Init blending.
-		var ashift=this.rgbashift[3],amask=(255<<ashift)>>>0,imask=1.0/amask;
-		var maskl=(0x00ff00ff&~amask)>>>0,maskh=(0xff00ff00&~amask)>>>0;
-		var sa,da;
-		var colrgb=(this.rgba32[0]&~amask)>>>0;
-		var coll=(colrgb&0x00ff00ff)>>>0,colh=(colrgb&0xff00ff00)>>>0,colh8=colh>>>8;
-		var filllim=255;
+		let ashift=this.rgbashift[3],amask=(255<<ashift)>>>0,imask=1.0/amask;
+		let maskl=(0x00ff00ff&~amask)>>>0,maskh=(0xff00ff00&~amask)>>>0;
+		let sa,da;
+		let colrgb=(this.rgba32[0]&~amask)>>>0;
+		let coll=(colrgb&0x00ff00ff)>>>0,colh=(colrgb&0xff00ff00)>>>0,colh8=colh>>>8;
+		let filllim=255;
 		// Process the lines row by row.
-		var x=lr[0].sort,y;
-		var xnext=x,xrow=-1;
-		var area,areadx1,areadx2;
-		var pixels=iw*ih;
+		let x=lr[0].sort,y;
+		let xnext=x,xrow=-1;
+		let area,areadx1,areadx2;
+		let pixels=iw*ih;
 		while (true) {
 			areadx2=0;
 			if (x>=xrow) {
@@ -1742,19 +1959,19 @@ class Draw {
 				if (isNaN(l.area)) {
 					x0=l.x0;y0=l.y0-y;
 					x1=l.x1;y1=l.y1-y;
-					var dyx=l.dyx,dxy=l.dxy;
+					let dyx=l.dyx,dxy=l.dxy;
 					y0x=x0-y0*dxy;
 					y1x=y0x+dxy;
 					if (y0<0) {y0=0;x0=y0x;}
 					if (y0>1) {y0=1;x0=y1x;}
 					if (y1<0) {y1=0;x1=y0x;}
 					if (y1>1) {y1=1;x1=y1x;}
-					var next=Math.floor((y0>y1?x0:x1)+(dxy<0?dxy:0));
+					let next=Math.floor((y0>y1?x0:x1)+(dxy<0?dxy:0));
 					next=(next>l.minx?next:l.minx)+xrow;
 					if (next>=l.maxy) {next=pixels;}
 					if (x1<x0) {tmp=x0;x0=x1;x1=tmp;dyx=-dyx;}
-					var fx0=Math.floor(x0);
-					var fx1=Math.floor(x1);
+					let fx0=Math.floor(x0);
+					let fx1=Math.floor(x1);
 					x0-=fx0;
 					x1-=fx1;
 					if (fx0===fx1 || fx1<0) {
@@ -1766,7 +1983,7 @@ class Draw {
 						l.sort=next;
 					} else {
 						dyx*=amul;
-						var mul=dyx*0.5,n0=x0-1,n1=x1-1;
+						let mul=dyx*0.5,n0=x0-1,n1=x1-1;
 						if (fx0<0) {
 							area-=mul-(x0+fx0)*dyx;
 						} else {
@@ -1800,8 +2017,8 @@ class Draw {
 			}
 			// Shade the pixels based on how much we're covering.
 			// If the area isn't changing much use the same area for multiple pixels.
-			var xdraw=x+1;
-			var sa1=Math.floor(area+0.5);
+			let xdraw=x+1;
+			let sa1=Math.floor(area+0.5);
 			if (areadx2===0) {
 				tmp=Math.min(Math.max(sa1+(areadx1<0?-0.5:0.5),0.5),255.5);
 				tmp=(tmp-area)/areadx1+x;
@@ -1816,9 +2033,9 @@ class Draw {
 				// a = sa + da*(1-sa)
 				// c = (sc*sa + dc*da*(1-sa)) / a
 				sa1=256-sa1;
-				var sab=area/256,sai=(1-sab)*imask;
+				let sab=area/256,sai=(1-sab)*imask;
 				do {
-					var dst=imgdata[x];
+					let dst=imgdata[x];
 					da=(dst&amask)>>>0;
 					if (da===amask) {
 						sa=sa1;
@@ -1850,55 +2067,55 @@ async function DrawWASMSetup() {
 	// fill_wasm.c -> compile -> gzip -> base64
 	if (Draw.wasmloading) {return;}
 	Draw.wasmloading=1;
-	var wasmstr=`
-		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
+	let wasmstr=`
+		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
+		4muXbuvJSxcu/RtAfRw72hEAAA==
 	`;
-	var gzipbytes=Uint8Array.from(atob(wasmstr),(c)=>c.codePointAt(0));
-	var gzipstream=new Blob([gzipbytes]).stream();
-	var decstream=gzipstream.pipeThrough(new DecompressionStream("gzip"));
-	var decblob=await new Response(decstream).blob();
-	var wasmbytes=new Uint8Array(await decblob.arrayBuffer());
+	let gzipbytes=Uint8Array.from(atob(wasmstr),(c)=>c.codePointAt(0));
+	let gzipstream=new Blob([gzipbytes]).stream();
+	let decstream=gzipstream.pipeThrough(new DecompressionStream("gzip"));
+	let decblob=await new Response(decstream).blob();
+	let wasmbytes=new Uint8Array(await decblob.arrayBuffer());
 	// Compile module.
-	var module=new WebAssembly.Module(wasmbytes);
+	let module=new WebAssembly.Module(wasmbytes);
 	if (!module) {
 		console.log("could not load module");
 		Draw.wasmloading=2;
@@ -1908,19 +2125,19 @@ async function DrawWASMSetup() {
 	Draw.wasmmodule=module;
 	// Set up class functions.
 	Draw.prototype.wasmprinti64=function(h,l) {
-		var s="Debug: "+((BigInt(h>>>0)<<32n)+BigInt(l>>>0))+"\n";
+		let s="Debug: "+((BigInt(h>>>0)<<32n)+BigInt(l>>>0))+"\n";
 		console.log(s);
 	};
 	Draw.prototype.wasmprintf64=function(x) {
-		var s="Debug: "+x;
+		let s="Debug: "+x;
 		console.log(s);
 	};
 	Draw.prototype.wasmimage=function(img) {
 		// console.log("setting image");
-		var wasm=this.wasm,old=wasm.img;
+		let wasm=this.wasm,old=wasm.img;
 		if (old!==null && !Object.is(old,img)) {
 			// Generate a new copy for the old image.
-			var width=old.width,height=old.height,copy=true;
+			let width=old.width,height=old.height,copy=true;
 			if (width<1 || height<1) {
 				width=1;
 				height=1;
@@ -1938,8 +2155,8 @@ async function DrawWASMSetup() {
 	Draw.prototype.wasmresize=function(bytes) {
 		// console.log("resizing to: "+bytes);
 		if (!bytes) {bytes=0;}
-		var wasm=this.wasm;
-		var img=wasm.img;
+		let wasm=this.wasm;
+		let img=wasm.img;
 		if (img!==null) {
 			wasm.width=img.width;
 			wasm.height=img.height;
@@ -1947,19 +2164,19 @@ async function DrawWASMSetup() {
 			wasm.width=0;
 			wasm.height=0;
 		}
-		var align=15;
-		var imglen=(12+wasm.width*wasm.height*4+align)&~align;
-		var pathlen=(6*8+4+4+24*wasm.vertmax+align)&~align;
-		var heaplen=(wasm.heaplen+align)&~align;
-		var sumlen=heaplen+imglen+pathlen;
+		let align=15;
+		let imglen=(12+wasm.width*wasm.height*4+align)&~align;
+		let pathlen=(6*8+4+4+24*wasm.vertmax+align)&~align;
+		let heaplen=(wasm.heaplen+align)&~align;
+		let sumlen=heaplen+imglen+pathlen;
 		if (bytes && sumlen<bytes) {sumlen=bytes;}
-		var newlen=1;
+		let newlen=1;
 		while (newlen<sumlen) {newlen+=newlen;}
-		var pagebytes=65536;
-		var wasmmem=wasm.instance.exports.memory;
-		var pages=Math.ceil((newlen-wasmmem.buffer.byteLength)/pagebytes);
+		let pagebytes=65536;
+		let wasmmem=wasm.instance.exports.memory;
+		let pages=Math.ceil((newlen-wasmmem.buffer.byteLength)/pagebytes);
 		if (pages>0) {wasmmem.grow(pages);}
-		var memu32=new Uint32Array(wasmmem.buffer,heaplen);
+		let memu32=new Uint32Array(wasmmem.buffer,heaplen);
 		wasm.memu32=memu32;
 		memu32[0]=wasmmem.buffer.byteLength;
 		memu32[1]=wasm.width;
@@ -1967,14 +2184,14 @@ async function DrawWASMSetup() {
 		wasm.imgdata=null;
 		if (img!==null) {
 			// Rebind the image pixel buffer.
-			var width=img.width;
-			var height=img.height;
+			let width=img.width;
+			let height=img.height;
 			if (width<1 || height<1) {
 				width=1;
 				height=1;
 			}
-			var pixels=width*height;
-			var buf=wasmmem.buffer,off=heaplen+12;
+			let pixels=width*height;
+			let buf=wasmmem.buffer,off=heaplen+12;
 			wasm.imgdata=new Uint32Array(buf,off,pixels);
 			if (img.data32.buffer.byteLength>0) {
 				wasm.imgdata.set(img.data32);
@@ -1986,17 +2203,17 @@ async function DrawWASMSetup() {
 		}
 		wasm.tmpu32=new Uint32Array(wasmmem.buffer,heaplen+imglen);
 		wasm.tmpf64=new Float64Array(wasmmem.buffer,heaplen+imglen);
-		var dif=wasmmem.buffer.byteLength-wasm.tmpu32.byteOffset;
+		let dif=wasmmem.buffer.byteLength-wasm.tmpu32.byteOffset;
 		wasm.vertmax=Math.floor((dif-(6*8+4+4))/24);
 	};
 	Draw.prototype.wasminit=function() {
-		var con=this.constructor;
-		var state=this;
+		let con=this.constructor;
+		let state=this;
 		function wasmprinti64(h,l) {state.wasmprinti64(h,l);}
 		function wasmprintf64(x)   {state.wasmprintf64(x);}
 		function wasmresize(bytes) {state.wasmresize(bytes);}
-		var imports={env:{wasmprinti64,wasmprintf64,wasmresize}};
-		var inst=new WebAssembly.Instance(con.wasmmodule,imports);
+		let imports={env:{wasmprinti64,wasmprintf64,wasmresize}};
+		let inst=new WebAssembly.Instance(con.wasmmodule,imports);
 		this.wasm={
 			instance:inst,
 			exports :inst.exports,
@@ -2015,61 +2232,61 @@ async function DrawWASMSetup() {
 		return this.wasm;
 	};
 	Draw.prototype.fillpoly=function(poly,trans) {
-		// Fills the current path.
-		//
-		// Preprocess the lines and curves. Reject anything with a NaN, too narrow, or
-		// outside the image. Use a binary heap to dynamically sort lines.
+		// Copy the path and image to webassembly memory for faster rendering.
 		if (poly ===undefined) {poly =this.defpoly ;}
 		if (trans===undefined) {trans=this.deftrans;}
-		var iw=this.img.width,ih=this.img.height,imgdata=this.img.data32;
+		let iw=this.img.width,ih=this.img.height,imgdata=this.img.data32;
 		if (poly.vertidx<3 || iw<1 || ih<1) {return;}
 		// Screenspace transformation.
-		var vmulx=this.viewmulx,voffx=this.viewoffx;
-		var vmuly=this.viewmuly,voffy=this.viewoffy;
-		var matxx=trans.data[0]*vmulx,matxy=trans.data[1]*vmulx,matx=(trans.data[2]-voffx)*vmulx;
-		var matyx=trans.data[3]*vmuly,matyy=trans.data[4]*vmuly,maty=(trans.data[5]-voffy)*vmuly;
+		let vmulx=this.viewmulx,voffx=this.viewoffx;
+		let vmuly=this.viewmuly,voffy=this.viewoffy;
+		let matxx=trans.data[0]*vmulx,matxy=trans.data[1]*vmulx,matx=(trans.data[2]-voffx)*vmulx;
+		let matyx=trans.data[3]*vmuly,matyy=trans.data[4]*vmuly,maty=(trans.data[5]-voffy)*vmuly;
 		// Perform a quick AABB-OBB overlap test.
 		// Define the transformed bounding box.
-		var aabb=poly.aabb;
-		var bndx=aabb.minx*matxx+aabb.miny*matxy+matx;
-		var bndy=aabb.minx*matyx+aabb.miny*matyy+maty;
-		var bnddx0=aabb.dx*matxx,bnddy0=aabb.dx*matyx;
-		var bnddx1=aabb.dy*matxy,bnddy1=aabb.dy*matyy;
+		let aabb=poly.aabb;
+		let bndx=aabb.minx*matxx+aabb.miny*matxy+matx;
+		let bndy=aabb.minx*matyx+aabb.miny*matyy+maty;
+		let bnddx0=aabb.dx*matxx,bnddy0=aabb.dx*matyx;
+		let bnddx1=aabb.dy*matxy,bnddy1=aabb.dy*matyy;
 		// Test if the image AABB has a separating axis.
-		var minx=bndx,maxx=bndx,miny=bndy,maxy=bndy;
+		let minx=bndx-iw,maxx=bndx;
 		if (bnddx0<0) {minx+=bnddx0;} else {maxx+=bnddx0;}
-		if (bnddy0<0) {miny+=bnddy0;} else {maxy+=bnddy0;}
 		if (bnddx1<0) {minx+=bnddx1;} else {maxx+=bnddx1;}
+		if (maxx<=0 || 0<=minx) {return;}
+		let miny=bndy-ih,maxy=bndy;
+		if (bnddy0<0) {miny+=bnddy0;} else {maxy+=bnddy0;}
 		if (bnddy1<0) {miny+=bnddy1;} else {maxy+=bnddy1;}
-		if (maxx<=0 || iw<=minx || maxy<=0 || ih<=miny) {
-			return;
-		}
+		if (maxy<=0 || 0<=miny) {return;}
 		// Test if the poly OBB has a separating axis.
-		var cross=bnddx0*bnddy1-bnddy0*bnddx1;
-		minx=cross<0?cross:0;maxx=cross-minx;maxy=-minx;miny=-maxx;
-		if (bnddx0<0) {maxx-=ih*bnddx0;} else {minx-=ih*bnddx0;}
-		if (bnddy0<0) {minx+=iw*bnddy0;} else {maxx+=iw*bnddy0;}
-		if (bnddx1<0) {maxy-=ih*bnddx1;} else {miny-=ih*bnddx1;}
-		if (bnddy1<0) {miny+=iw*bnddy1;} else {maxy+=iw*bnddy1;}
-		var proj0=bndx*bnddy0-bndy*bnddx0;
-		var proj1=bndx*bnddy1-bndy*bnddx1;
-		if (maxx<=proj0 || proj0<=minx || maxy<=proj1 || proj1<=miny) {
-			return;
-		}
-		var wasm=this.wasm;
+		let cross=bnddx0*bnddy1-bnddy0*bnddx1;
+		minx=bndy*bnddx0-bndx*bnddy0;
+		maxx=minx;bnddx0*=ih;bnddy0*=iw;
+		if (cross <0) {minx+=cross ;} else {maxx+=cross ;}
+		if (bnddx0<0) {maxx-=bnddx0;} else {minx-=bnddx0;}
+		if (bnddy0<0) {minx+=bnddy0;} else {maxx+=bnddy0;}
+		if (maxx<=0 || 0<=minx) {return;}
+		miny=bndy*bnddx1-bndx*bnddy1;
+		maxy=miny;bnddx1*=ih;bnddy1*=iw;
+		if (cross <0) {maxy-=cross ;} else {miny-=cross ;}
+		if (bnddx1<0) {maxy-=bnddx1;} else {miny-=bnddx1;}
+		if (bnddy1<0) {miny+=bnddy1;} else {maxy+=bnddy1;}
+		if (maxy<=0 || 0<=miny) {return;}
+		// Copy to webassembly.
+		let wasm=this.wasm;
 		if (wasm===undefined) {
 			wasm=this.wasminit();
 		}
 		if (!Object.is(imgdata,wasm.imgdata) || iw!==wasm.width || ih!==wasm.height) {
 			this.wasmimage(this.img);
 		}
-		var vidx=poly.vertidx,varr=poly.vertarr;
+		let vidx=poly.vertidx,varr=poly.vertarr;
 		if (vidx>wasm.vertmax) {
 			wasm.vertmax=vidx;
 			this.wasmresize(0);
 		}
-		var tmpf64=wasm.tmpf64;
-		var tmpu32=wasm.tmpu32;
+		let tmpf64=wasm.tmpf64;
+		let tmpu32=wasm.tmpu32;
 		// transform [0-48]
 		tmpf64[0]=matxx;
 		tmpf64[1]=matxy;
@@ -2081,9 +2298,9 @@ async function DrawWASMSetup() {
 		tmpu32[12]=this.rgba32[0];
 		// path [52-...]
 		tmpu32[13]=vidx;
-		var idx=7;
-		for (var i=0;i<vidx;i++) {
-			var v=varr[i];
+		let idx=7;
+		for (let i=0;i<vidx;i++) {
+			let v=varr[i];
 			tmpu32[(idx++)<<1]=v.type;
 			tmpf64[idx++]=v.x;
 			tmpf64[idx++]=v.y;
@@ -2102,37 +2319,37 @@ DrawWASMSetup();
 function fastcircle(draw,x,y,rad) {
 	// Manually draw a circle pixel by pixel.
 	// This is ugly, but it's faster than canvas.arc and drawimage.
-	var imgdata32=draw.img.data32;
-	var imgwidth=draw.img.width;
-	var imgheight=draw.img.height;
+	let imgdata32=draw.img.data32;
+	let imgwidth=draw.img.width;
+	let imgheight=draw.img.height;
 	rad-=0.5;
 	if (rad<=0 || x-rad>imgwidth || x+rad<0 || y-rad>imgheight || y+rad<0) {
 		return;
 	}
-	var colrgba=draw.rgba32[0];
-	var coll=(colrgba&0x00ff00ff)>>>0;
-	var colh=(colrgba&0xff00ff00)>>>0;
-	var colh2=colh>>>8;
-	var minx=Math.floor(x-rad-0.5);
+	let colrgba=draw.rgba32[0];
+	let coll=(colrgba&0x00ff00ff)>>>0;
+	let colh=(colrgba&0xff00ff00)>>>0;
+	let colh2=colh>>>8;
+	let minx=Math.floor(x-rad-0.5);
 	if (minx<0) {minx=0;}
-	var maxx=Math.ceil(x+rad+0.5);
+	let maxx=Math.ceil(x+rad+0.5);
 	if (maxx>imgwidth) {maxx=imgwidth;}
-	var xs=Math.floor(x);
+	let xs=Math.floor(x);
 	if (xs< minx) {xs=minx;}
 	if (xs>=maxx) {xs=maxx-1;}
-	var miny=Math.floor(y-rad-0.5);
+	let miny=Math.floor(y-rad-0.5);
 	if (miny<0) {miny=0;}
-	var maxy=Math.ceil(y+rad+0.5);
+	let maxy=Math.ceil(y+rad+0.5);
 	if (maxy>imgheight) {maxy=imgheight;}
-	var pixrow=miny*imgwidth;
-	var d,d2,dst;
-	var pixmin,pixmax,pix;
-	var dx,dy=miny-y+0.5;
-	var rad20=rad*rad;
-	var rad21=(rad+1)*(rad+1);
-	var imul=Math.imul,sqrt=Math.sqrt;
-	// var rnorm=256.0/(rad21-rad20);
-	for (var y0=miny;y0<maxy;y0++) {
+	let pixrow=miny*imgwidth;
+	let d,d2,dst;
+	let pixmin,pixmax,pix;
+	let dx,dy=miny-y+0.5;
+	let rad20=rad*rad;
+	let rad21=(rad+1)*(rad+1);
+	let imul=Math.imul,sqrt=Math.sqrt;
+	// let rnorm=256.0/(rad21-rad20);
+	for (let y0=miny;y0<maxy;y0++) {
 		dx=xs-x+0.5;
 		d2=dy*dy+dx*dx;
 		pixmax=pixrow+maxx;
@@ -2181,14 +2398,14 @@ class PhyScene {
 
 	constructor(divid) {
 		// Setup the canvas
-		var drawwidth=600;
-		var drawheight=1066;
-		var canvas=document.getElementById(divid);
+		let drawwidth=600;
+		let drawheight=1066;
+		let canvas=document.getElementById(divid);
 		canvas.width=drawwidth;
 		canvas.height=drawheight;
 		this.input=new Input(canvas);
 		this.input.disablenav();
-		this.mouse=new PhyVec(2);
+		this.mouse=new Vector(2);
 		this.frames=0;
 		this.frametime=0;
 		this.fps=0;
@@ -2201,19 +2418,19 @@ class PhyScene {
 		this.draw=new Draw(drawwidth,drawheight);
 		// Reassigning the buffer data is faster for some reason.
 		this.initworld();
-		var state=this;
+		let state=this;
 		function update() {
 			setTimeout(update,1000/60);
 			state.update();
 		}
 		update();
-		/*var state=this;
-		var statetime=0;
-		var stateden=-1;
+		/*let state=this;
+		let statetime=0;
+		let stateden=-1;
 		function update(time) {
 			requestAnimationFrame(update);
 			if (++stateden>0) {
-				var dif=time-statetime;
+				let dif=time-statetime;
 				if (dif+dif/stateden>=16) {
 					statetime=time;
 					stateden=0;
@@ -2231,29 +2448,29 @@ class PhyScene {
 
 	initworld() {
 		this.world=new PhyWorld(2);
-		var canvas=this.canvas;
-		var world=this.world;
+		let canvas=this.canvas;
+		let world=this.world;
 		world.steps=3;
 		world.gravity.set([0,0.1]);
-		var viewheight=1.0,viewwidth=canvas.width/canvas.height;
-		var walltype=world.createatomtype(1.0,Infinity,1.0);
-		var normtype=world.createatomtype(0.01,1.0,0.98);
-		var boxtype=world.createatomtype(0.0,2.0,1.0);
-		var rnd=new Random(2);
-		var pos=new PhyVec(world.dim);
-		for (var p=0;p<3000;p++) {
-			pos.set(0,rnd.getf64()*viewwidth);
-			pos.set(1,rnd.getf64()*viewheight);
+		let viewheight=1.0,viewwidth=canvas.width/canvas.height;
+		let walltype=world.createatomtype(1.0,Infinity,1.0);
+		let normtype=world.createatomtype(0.01,1.0,0.98);
+		let boxtype=world.createatomtype(0.0,2.0,1.0);
+		let rnd=new Random(2);
+		let pos=new Vector(world.dim);
+		for (let p=0;p<3000;p++) {
+			pos[0]=rnd.getf64()*viewwidth;
+			pos[1]=rnd.getf64()*viewheight;
 			world.createatom(pos,0.004,normtype);
 		}
 		world.createbox([0.3*viewwidth,0.3],5,0.007,boxtype);
 		world.createbox([0.5*viewwidth,0.5],5,0.007,boxtype);
 		world.createbox([0.7*viewwidth,0.3],5,0.007,boxtype);
-		world.bndmin=new PhyVec([0,0]);
-		world.bndmax=new PhyVec([viewwidth,1]);
-		var playertype=world.createatomtype(0.0,Infinity,0.1);
+		world.bndmin=new Vector([0,0]);
+		world.bndmax=new Vector([viewwidth,1]);
+		let playertype=world.createatomtype(0.0,Infinity,0.1);
 		playertype.bound=false;
-		playertype.gravity=new PhyVec([0,0]);
+		playertype.gravity=new Vector([0,0]);
 		pos.set([viewwidth*0.5,viewheight*0.33]);
 		this.playeratom=world.createatom(pos,0.035,playertype);
 		this.mouse.set(pos);
@@ -2262,23 +2479,23 @@ class PhyScene {
 
 
 	update() {
-		var frametime=performance.now();
-		var input=this.input;
+		let frametime=performance.now();
+		let input=this.input;
 		input.update();
-		var draw=this.draw;
-		var scale=this.draw.img.height;
-		var world=this.world;
+		let draw=this.draw;
+		let scale=this.draw.img.height;
+		let world=this.world;
 		world.update();
 		draw.fill(0,0,0,255);
 		// Convert mouse to world space.
-		var mpos=input.getmousepos();
-		var maxx=draw.img.width/draw.img.height;
-		this.mouse.set(0,mpos[0]*maxx);
-		this.mouse.set(1,mpos[1]);
+		let mpos=input.getmousepos();
+		let maxx=draw.img.width/draw.img.height;
+		this.mouse[0]=(mpos[0]/draw.img.width)*maxx;
+		this.mouse[1]=mpos[1]/draw.img.height;
 		// Move the player.
-		var player=this.playeratom;
-		var dir=this.mouse.sub(player.pos);
-		var mag=dir.sqr();
+		let player=this.playeratom;
+		let dir=this.mouse.sub(player.pos);
+		let mag=dir.sqr();
 		if (mag<Infinity) {
 			this.promptshow=0;
 			if (mag>1e-6) {
@@ -2287,29 +2504,29 @@ class PhyScene {
 				player.vel.set(0);
 			}
 		}
-		var link=world.atomlist.head;
+		let link=world.atomlist.head;
 		while (link!==null) {
-			var atom=link.obj;
-			var type=atom.type;
-			var data=atom.userdata;
+			let atom=link.obj;
+			let type=atom.type;
+			let data=atom.userdata;
 			if (data===undefined || data===null) {
 				data={velcolor:0};
 				atom.userdata=data;
 			}
-			var vel=atom.vel.mag();
+			let vel=atom.vel.mag();
 			data.velcolor*=0.99;
 			if (data.velcolor<vel) {
 				data.velcolor=vel;
 			}
-			var pos=atom.pos.elem;
-			var rad=atom.rad*scale+0.25;
-			var r,g,b;
+			let pos=atom.pos;
+			let rad=atom.rad*scale+0.25;
+			let r,g,b;
 			if (type.id===2) {
 				r=64;
 				g=200;
 				b=0;
 			} else {
-				var u=data.velcolor*(256*4);
+				let u=data.velcolor*(256*4);
 				u=Math.floor(u<255?u:255);
 				r=u;
 				g=0;
@@ -2317,20 +2534,20 @@ class PhyScene {
 			}
 			draw.setcolor(r,g,b,255);
 			fastcircle(draw,pos[0]*scale,pos[1]*scale,rad);
-			//draw.filloval(pos[0]*scale,pos[1]*scale,rad,rad);
-			var next=link.next;
+			// draw.filloval(pos[0]*scale,pos[1]*scale,rad,rad);
+			let next=link.next;
 			if (atom.delete!==undefined) {
 				atom.release();
 			}
 			link=next;
 		}
 		if (this.promptshow!==0) {
-			var pframe=(this.promptframe+1)%120;
+			let pframe=(this.promptframe+1)%120;
 			this.promptframe=pframe;
-			var px=player.pos.get(0)*scale;
-			var py=player.pos.get(1)*scale;
-			var rad=player.rad*scale+0.25;
-			var u=Math.floor((Math.sin((pframe/119.0)*Math.PI*2)+1.0)*0.5*255.0);
+			let px=player.pos[0]*scale;
+			let py=player.pos[1]*scale;
+			let rad=player.rad*scale+0.25;
+			let u=Math.floor((Math.sin((pframe/119.0)*Math.PI*2)+1.0)*0.5*255.0);
 			draw.setcolor(u,u,255,255);
 			draw.filloval(px,py,rad,rad);
 		}
@@ -2346,12 +2563,6 @@ class PhyScene {
 			this.frames=0;
 			this.frametime=0;
 			this.fpsstr=this.fps.toFixed(1)+" ms";
-			var den=world.dbgtime[4];
-			den=den>0?1/den:0;
-			for (var i=0;i<4;i++) {
-				this.fpsstr+=", "+(world.dbgtime[i]*den).toFixed(3);
-			}
-			world.dbgtime=[0,0,0,0,0];
 		}
 		this.ctx.putImageData(draw.img.imgdata,0,0);
 	}
@@ -2363,14 +2574,14 @@ class PhyScene0 {
 
 	constructor(divid) {
 		// Swap the <div> with <canvas>
-		var drawwidth=603;
-		var drawheight=1072;
-		var canvas=document.getElementById(divid);
+		let drawwidth=603;
+		let drawheight=1072;
+		let canvas=document.getElementById(divid);
 		canvas.width=drawwidth;
 		canvas.height=drawheight;
 		this.input=new Input(canvas);
 		this.input.disablenav();
-		this.mouse=new PhyVec(2);
+		this.mouse=new Vector(2);
 		this.frames=0;
 		this.frametime=0;
 		this.fps=0;
@@ -2382,7 +2593,7 @@ class PhyScene0 {
 		this.backbuf=this.ctx.createImageData(canvas.width,canvas.height);
 		this.backbuf32=new Uint32Array(this.backbuf.data.buffer);
 		this.initworld();
-		var state=this;
+		let state=this;
 		function update() {
 			setTimeout(update,1000/60);
 			state.update();
@@ -2393,22 +2604,22 @@ class PhyScene0 {
 
 	initworld() {
 		this.world=new PhyWorld(2);
-		var canvas=this.canvas;
-		var world=this.world;
+		let canvas=this.canvas;
+		let world=this.world;
 		world.steps=3;
 		world.gravity.set(0);
-		var viewheight=1.0,viewwidth=canvas.width/canvas.height;
-		var walltype=world.createatomtype(1.0,Infinity,1.0);
-		var normtype=world.createatomtype(0.01,1.0,0.98);
-		var boxtype1=world.createatomtype(0.0,50.0,1.0);
-		var boxtype2=world.createatomtype(0.0,Infinity,1.0);
-		var portaltype=world.createatomtype(0.0,Infinity,0.0);
+		let viewheight=1.0,viewwidth=canvas.width/canvas.height;
+		let walltype=world.createatomtype(1.0,Infinity,1.0);
+		let normtype=world.createatomtype(0.01,1.0,0.98);
+		let boxtype1=world.createatomtype(0.0,50.0,1.0);
+		let boxtype2=world.createatomtype(0.0,Infinity,1.0);
+		let portaltype=world.createatomtype(0.0,Infinity,0.0);
 		portaltype.pmul=0;
-		var rnd=new Random(2);
-		var pos=new PhyVec(world.dim);
-		for (var p=0;p<3000;p++) {
-			pos.set(0,rnd.getf64()*viewwidth);
-			pos.set(1,rnd.getf64()*viewheight);
+		let rnd=new Random(2);
+		let pos=new Vector(world.dim);
+		for (let p=0;p<3000;p++) {
+			pos[0]=rnd.getf64()*viewwidth;
+			pos[1]=rnd.getf64()*viewheight;
 			world.createatom(pos,0.004,normtype);
 		}
 		world.createatom([viewwidth*0.5,0.1],0.1,portaltype);
@@ -2416,28 +2627,28 @@ class PhyScene0 {
 		world.createbox([0.5*viewwidth,0.5],5,0.007,boxtype1);
 		world.createbox([0.7*viewwidth,0.3],5,0.007,boxtype2);
 		function reset(a,b) {
-			if (a.type.id===1) {var tmp=a;a=b;b=tmp;}
+			if (a.type.id===1) {let tmp=a;a=b;b=tmp;}
 			// a is the box
-			b.pos.set([world.bndmax.elem[0]*0.5,world.bndmax.elem[1]*0.9]);
+			b.pos.set([world.bndmax[0]*0.5,world.bndmax[1]*0.9]);
 			b.vel.set(0);
 			return 1;
 		}
 		function eat(a,b) {
-			if (a.type.id===1) {var tmp=a;a=b;b=tmp;}
+			if (a.type.id===1) {let tmp=a;a=b;b=tmp;}
 			// a is the box
 			b.delete=true;
 		}
-		var intr=PhyAtomInteraction.get(boxtype1,normtype);
+		let intr=PhyAtomInteraction.get(boxtype1,normtype);
 		intr.callback=reset;
 		intr=PhyAtomInteraction.get(boxtype2,normtype);
 		intr.callback=reset;
 		intr=PhyAtomInteraction.get(portaltype,normtype);
 		intr.callback=eat;
-		world.bndmin=new PhyVec([0,0]);
-		world.bndmax=new PhyVec([viewwidth,1]);
-		var playertype=world.createatomtype(0.0,Infinity,0.1);
+		world.bndmin=new Vector([0,0]);
+		world.bndmax=new Vector([viewwidth,1]);
+		let playertype=world.createatomtype(0.0,Infinity,0.1);
 		playertype.bound=false;
-		playertype.gravity=new PhyVec([0,0]);
+		playertype.gravity=new Vector([0,0]);
 		pos.set([viewwidth*0.5,viewheight*0.33]);
 		this.playeratom=world.createatom(pos,0.035,playertype);
 		this.mouse.set(pos);
@@ -2447,24 +2658,24 @@ class PhyScene0 {
 
 
 	update() {
-		var frametime=performance.now();
-		var input=this.input;
+		let frametime=performance.now();
+		let input=this.input;
 		input.update();
-		var ctx=this.ctx;
-		var canvas=this.canvas;
-		var scale=canvas.height;
-		var world=this.world;
+		let ctx=this.ctx;
+		let canvas=this.canvas;
+		let scale=canvas.height;
+		let world=this.world;
 		world.update();
 		drawfill(this,0,0,0);
 		// Convert mouse to world space.
-		var mpos=input.getmousepos();
-		var maxx=canvas.width/canvas.height;
-		this.mouse.set(0,mpos[0]*maxx);
-		this.mouse.set(1,mpos[1]);
+		let mpos=input.getmousepos();
+		let maxx=canvas.width/canvas.height;
+		this.mouse[0]=mpos[0]*maxx;
+		this.mouse[1]=mpos[1];
 		// Move the player.
-		var player=this.playeratom;
-		var dir=this.mouse.sub(player.pos);
-		var mag=dir.sqr();
+		let player=this.playeratom;
+		let dir=this.mouse.sub(player.pos);
+		let mag=dir.sqr();
 		if (mag<Infinity) {
 			this.promptshow=0;
 			if (mag>1e-6) {
@@ -2473,24 +2684,24 @@ class PhyScene0 {
 				player.vel.set(0);
 			}
 		}
-		var link=world.atomlist.head;
-		var count=0;
+		let link=world.atomlist.head;
+		let count=0;
 		while (link!==null) {
-			var atom=link.obj;
-			var type=atom.type;
-			var data=atom.userdata;
+			let atom=link.obj;
+			let type=atom.type;
+			let data=atom.userdata;
 			if (data===undefined || data===null) {
 				data={velcolor:0};
 				atom.userdata=data;
 			}
-			var vel=atom.vel.mag();
+			let vel=atom.vel.mag();
 			data.velcolor*=0.99;
 			if (data.velcolor<vel) {
 				data.velcolor=vel;
 			}
-			var pos=atom.pos.elem;
-			var rad=atom.rad*scale;
-			var r,g,b;
+			let pos=atom.pos;
+			let rad=atom.rad*scale;
+			let r,g,b;
 			if (type.id===1) {
 				count+=1;
 			}
@@ -2499,26 +2710,26 @@ class PhyScene0 {
 				g=200;
 				b=0;
 			} else {
-				var u=data.velcolor*(256*4);
+				let u=data.velcolor*(256*4);
 				u=Math.floor(u<255?u:255);
 				r=u;
 				g=0;
 				b=255-u;
 			}
 			drawcircle(this,pos[0]*scale,pos[1]*scale,rad,r,g,b);
-			var next=link.next;
+			let next=link.next;
 			if (atom.delete!==undefined) {
 				atom.release();
 			}
 			link=next;
 		}
 		if (this.promptshow!==0) {
-			var pframe=(this.promptframe+1)%120;
+			let pframe=(this.promptframe+1)%120;
 			this.promptframe=pframe;
-			var px=player.pos.get(0)*scale;
-			var py=player.pos.get(1)*scale;
-			var rad=player.rad*scale;
-			var u=Math.floor((Math.sin((pframe/119.0)*Math.PI*2)+1.0)*0.5*255.0);
+			let px=player.pos[0]*scale;
+			let py=player.pos[1]*scale;
+			let rad=player.rad*scale;
+			let u=Math.floor((Math.sin((pframe/119.0)*Math.PI*2)+1.0)*0.5*255.0);
 			drawcircle(this,px,py,rad,u,u,255);
 		}
 		ctx.putImageData(this.backbuf,0,0);

@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-style.js - v2.05
+style.js - v2.06
 
 Copyright 2018 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -12,14 +12,15 @@ TODO
 
 
 */
+/* jshint esversion: 11  */
 /* jshint bitwise: false */
 /* jshint eqeqeq: true   */
 /* jshint curly: true    */
 
 
 function GetCSSValue(name) {
-	var style=getComputedStyle(document.body);
-	var val=style.getPropertyValue(name);
+	let style=getComputedStyle(document.body);
+	let val=style.getPropertyValue(name);
 	if (val===null || val===undefined || val==="") {
 		throw "can't find "+name;
 	}
@@ -28,8 +29,8 @@ function GetCSSValue(name) {
 
 
 function GetCSSRGBA(name) {
-	var val=GetCSSValue(name);
-	var arr=val.match(/\d+/g).map(Number);
+	let val=GetCSSValue(name);
+	let arr=val.match(/\d+/g).map(Number);
 	if (arr===null || arr.length!==4) {
 		throw name+' = "'+val+'" not an RGBA value';
 	}
@@ -44,20 +45,20 @@ function SetCSSValue(name,value) {
 
 function HighlightPython(text) {
 	// Set up regular expressions to match an expression to a style.
-	var styledefault   ="color:"+GetCSSValue("--code-text");
-	var stylecomment   ="color:"+GetCSSValue("--code-comment");
-	var stylequote     ="color:"+GetCSSValue("--code-string");
-	var stylemultiquote="color:"+GetCSSValue("--code-string");
-	var stylenumber    ="color:"+GetCSSValue("--code-number");
-	var styleoperator  ="color:"+GetCSSValue("--code-text");
-	var stylespecial   ="color:"+GetCSSValue("--code-number");
-	var styleimport    ="color:"+GetCSSValue("--code-keyword");
-	var stylebuiltin   ="color:"+GetCSSValue("--code-keyword");
-	var stylekeyword   ="color:"+GetCSSValue("--code-keyword");
-	var styleexception ="color:"+GetCSSValue("--code-keyword");
-	var arrspecial=["False","None","True"];
-	var arrimport=["as","from","import"];
-	var arrbuiltin=[
+	let styledefault   ="color:"+GetCSSValue("--code-text");
+	let stylecomment   ="color:"+GetCSSValue("--code-comment");
+	let stylequote     ="color:"+GetCSSValue("--code-string");
+	let stylemultiquote="color:"+GetCSSValue("--code-string");
+	let stylenumber    ="color:"+GetCSSValue("--code-number");
+	let styleoperator  ="color:"+GetCSSValue("--code-text");
+	let stylespecial   ="color:"+GetCSSValue("--code-number");
+	let styleimport    ="color:"+GetCSSValue("--code-keyword");
+	let stylebuiltin   ="color:"+GetCSSValue("--code-keyword");
+	let stylekeyword   ="color:"+GetCSSValue("--code-keyword");
+	let styleexception ="color:"+GetCSSValue("--code-keyword");
+	let arrspecial=["False","None","True"];
+	let arrimport=["as","from","import"];
+	let arrbuiltin=[
 		"__build_class__","__debug__","__doc__","__import__","__loader__","__name__","__package__","__spec__",
 		"abs","all","any","ascii","bin","bool","bytearray","bytes","callable","chr","classmethod","compile",
 		"complex","copyright","credits","delattr","dict","dir","divmod","enumerate","eval","exec","exit",
@@ -66,11 +67,11 @@ function HighlightPython(text) {
 		"next","object","oct","open","ord","pow","print","property","quit","range","repr","reversed","round",
 		"set","setattr","slice","sorted","staticmethod","str","sum","super","tuple","type","vars","zip"
 	];
-	var arrkeyword=[
+	let arrkeyword=[
 		"and","assert","break","class","continue","def","del","elif","else","except","exec","finally","for",
 		"global","if","in","is","lambda","not","or","pass","print","raise","return","try","while","with","yield"
 	];
-	var arrexception=[
+	let arrexception=[
 		"ArithmeticError","AssertionError","AttributeError","BaseException","BlockingIOError","BrokenPipeError",
 		"BufferError","BytesWarning","ChildProcessError","ConnectionAbortedError","ConnectionError",
 		"ConnectionRefusedError","ConnectionResetError","DeprecationWarning","EOFError","EnvironmentError",
@@ -84,8 +85,8 @@ function HighlightPython(text) {
 		"UnicodeDecodeError","UnicodeEncodeError","UnicodeError","UnicodeTranslateError",
 		"UnicodeWarning","UserWarning","ValueError","Warning","ZeroDivisionError"
 	];
-	var htmlreplace={"&":"&amp","<":"&lt;",">":"&gt;"};
-	var regexmatch=[
+	let htmlreplace={"&":"&amp","<":"&lt;",">":"&gt;"};
+	let regexmatch=[
 		["[_a-zA-Z][_a-zA-Z0-9]*",styledefault],
 		[arrspecial,stylespecial],
 		[arrimport,styleimport],
@@ -101,22 +102,22 @@ function HighlightPython(text) {
 		["'''[\\s\\S]*?'''",stylemultiquote],
 		["#.*",stylecomment]
 	];
-	for (var i=0;i<regexmatch.length;i++) {
-		var reg=regexmatch[i][0];
+	for (let i=0;i<regexmatch.length;i++) {
+		let reg=regexmatch[i][0];
 		if (i>0 && i<6) {reg="("+reg.join("|")+")[^_0-9a-zA-Z]";}
 		regexmatch[i][0]=new RegExp(reg);
 	}
 	// Begin parsing the text.
-	var prev=styledefault;
-	var ret="<span style=\""+styledefault+"\">";
+	let prev=styledefault;
+	let ret="<span style=\""+styledefault+"\">";
 	while (text.length>0) {
-		var minpos=text.length;
-		var mintext="";
-		var minstyle=styledefault;
+		let minpos=text.length;
+		let mintext="";
+		let minstyle=styledefault;
 		// Find the regex closest to index 0. If two occur at the same index, take the
 		// latter regex.
-		for (var i=0;i<regexmatch.length;i++) {
-			var match=text.match(regexmatch[i][0]);
+		for (let i=0;i<regexmatch.length;i++) {
+			let match=text.match(regexmatch[i][0]);
 			if (match!==null && minpos>=match.index) {
 				minpos=match.index;
 				mintext=match[match.length-1];
@@ -124,7 +125,7 @@ function HighlightPython(text) {
 			}
 		}
 		// If we skipped over text and it's not whitespace, give it the default style.
-		var prefix=text.substring(0,minpos);
+		let prefix=text.substring(0,minpos);
 		if (prefix.trim().length>0 && prev!==styledefault) {
 			ret+="</span><span style=\""+styledefault+"\">";
 			prev=styledefault;
@@ -135,9 +136,9 @@ function HighlightPython(text) {
 			ret+="</span><span style=\""+minstyle+"\">";
 			prev=minstyle;
 		}
-		for (var i=0;i<mintext.length;i++) {
-			var c=mintext[i];
-			var r=htmlreplace[c];
+		for (let i=0;i<mintext.length;i++) {
+			let c=mintext[i];
+			let r=htmlreplace[c];
 			if (r===undefined) {ret+=c;}
 			else {ret+=r;}
 		}
@@ -150,24 +151,24 @@ function HighlightPython(text) {
 function HighlightSico(str) {
 	// Convert SICO assembly language into a formatted HTML string.
 	// Define styles.
-	var stylearr=[
+	let stylearr=[
 		"</span><span style='color:"+GetCSSValue("--code-text"   )+"'>", // default, number, operator, label ref
 		"</span><span style='color:"+GetCSSValue("--code-comment")+"'>", // comment
 		"</span><span style='color:"+GetCSSValue("--code-label"  )+"'>", // label declaration
 		"</span><span style='color:"+GetCSSValue("--code-string" )+"'>"  // ASCII literal
 	];
-	var styledefault =0;
-	var stylecomment =1;
-	var styleascii   =3;
-	var stylenumber  =0;
-	var styleoperator=0;
-	var stylelabelref=0;
-	var stylelabeldec=2;
-	var style=styledefault,prevstyle=styledefault;
-	var htmlconvert=document.createElement("div");
-	var htmlret="<span>";
+	let styledefault =0;
+	let stylecomment =1;
+	let styleascii   =3;
+	let stylenumber  =0;
+	let styleoperator=0;
+	let stylelabelref=0;
+	let stylelabeldec=2;
+	let style=styledefault,prevstyle=styledefault;
+	let htmlconvert=document.createElement("div");
+	let htmlret="<span>";
 	// Helper functions for processing the string.
-	var i=0,i0=0,j=0,len=str.length,c;
+	let i=0,i0=0,j=0,len=str.length,c;
 	function  CNUM(c) {return (c<=57?c+208:((c+191)&~32)+10)&255;}
 	function ISLBL(c) {return CNUM(c)<36 || c===95 || c===46 || c>127;}
 	function  ISOP(c) {return c===43 || c===45;}
@@ -181,7 +182,7 @@ function HighlightSico(str) {
 			NEXT();
 		} else if (c===35) {
 			// Comment. If next='|', use the multi-line format.
-			var mask=0,eoc=10,n=0;
+			let mask=0,eoc=10,n=0;
 			if (NEXT()===124) {mask=255;eoc=31779;NEXT();}
 			while (c!==0 && n!==eoc) {n=((n&mask)<<8)+c;NEXT();}
 			style=stylecomment;
@@ -191,7 +192,7 @@ function HighlightSico(str) {
 			style=styleoperator;
 		} else if (CNUM(c)<10) {
 			// Number. If it starts with "0x", use hexadecimal.
-			var token=10;
+			let token=10;
 			if (c===48 && (NEXT()===120 || c===88)) {token=16;NEXT();}
 			while (CNUM(c)<token) {NEXT();}
 			style=stylenumber;
@@ -225,7 +226,7 @@ function HighlightSico(str) {
 		}
 		if (prevstyle!==style) {
 			// Extract the highlighted substring and convert it to HTML friendly text.
-			var sub=str.substring(j,i0);
+			let sub=str.substring(j,i0);
 			htmlconvert.innerText=sub;
 			sub=htmlconvert.innerHTML;
 			htmlret+=stylearr[prevstyle]+sub;
@@ -234,7 +235,7 @@ function HighlightSico(str) {
 		}
 	}
 	// We need to manually handle the tail end of the string.
-	var sub=str.substring(j,str.length);
+	let sub=str.substring(j,str.length);
 	htmlconvert.innerText=sub;
 	sub=htmlconvert.innerHTML;
 	htmlret+=stylearr[prevstyle]+sub+"</span>";
@@ -244,9 +245,9 @@ function HighlightSico(str) {
 
 function HighlightStyle(classname,func) {
 	// Replace innerHTML with highlighted text.
-	var elems=document.getElementsByClassName(classname);
-	for (var i=0;i<elems.length;i++) {
-		var elem=elems[i];
+	let elems=document.getElementsByClassName(classname);
+	for (let i=0;i<elems.length;i++) {
+		let elem=elems[i];
 		elem.innerHTML=func(elem.innerText);
 	}
 }
@@ -255,9 +256,9 @@ function HighlightStyle(classname,func) {
 function StyleFooter() {
 	// De-obfuscate the email address in the footer to allow the email to work with
 	// ctrl+f.
-	var footer=document.getElementById("footer");
+	let footer=document.getElementById("footer");
 	if (footer!==null) {
-		var text=footer.innerHTML;
+		let text=footer.innerHTML;
 		footer.innerHTML=text.replace(new RegExp("\\<b\\>.*?\\<\\/b\\>","g"),"");
 	}
 }

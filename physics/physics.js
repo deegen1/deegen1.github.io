@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v1.27
+physics.js - v1.21
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -11,7 +11,8 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
-split physics from demo
+divide pvmul by timestep, since it's acceleration
+
 firefox on windows setTimeout() isn't running at 60fps.
 groups
 	center
@@ -23,6 +24,10 @@ groups
 	move
 	copy
 glow effect
+glaives that rotate and hook eachother
+                      \
+              ----O----
+              \
 starfish
 limbs stick to things
 blob, expands bonds towards you
@@ -49,213 +54,10 @@ function PhyAssert(condition,data) {
 
 
 //---------------------------------------------------------------------------------
-// Vectors - v1.02
+// Physics - v1.21
 
 
-class PhyVec {
-	static rnd=null;
-
-
-	constructor(elem,nocopy) {
-		if (elem===undefined) {
-			this.elem=[];
-		} else if (elem instanceof PhyVec) {
-			this.elem=nocopy?elem.elem:elem.elem.slice();
-		} else if (elem.length!==undefined) {
-			this.elem=nocopy?elem:elem.slice();
-		} else if (typeof(elem)==="number") {
-			this.elem=Array(elem).fill(0.0);
-		} else {
-			console.log("unrecognized vector: ",elem);
-			throw "unrecognized vector";
-		}
-	}
-
-
-	tostring() {
-		return "("+this.elem.join(", ")+")";
-	}
-
-
-	length() {
-		return this.elem.length;
-	}
-
-
-	get(i) {
-		// PhyAssert(i>=0 && i<this.elem.length);
-		return this.elem[i];
-	}
-
-
-	set(i,val) {
-		// Copies values into the vector.
-		// Expects an array, vector, or i/val pair.
-		var ue=this.elem,elems=ue.length;
-		if (val===undefined) {
-			if (i.elem!==undefined) {i=i.elem;}
-			if (i.length!==undefined) {
-				// PhyAssert(i.length===elems);
-				for (var j=0;j<elems;j++) {ue[j]=i[j];}
-			} else {
-				ue.fill(i);
-			}
-		} else {
-			// PhyAssert(i>=0 && i<elems);
-			ue[i]=val;
-		}
-		return this;
-	}
-
-
-	copy() {
-		return new PhyVec(this);
-	}
-
-
-	// ----------------------------------------
-	// Algebra
-
-
-	neg() {
-		return new PhyVec(this.elem.map((x)=>-x),true);
-	}
-
-
-	iadd(v) {
-		// u+=v
-		var ue=this.elem,ve=v.elem,elems=ue.length;
-		for (var i=0;i<elems;i++) {ue[i]+=ve[i];}
-		return this;
-	}
-
-
-	add(v) {
-		// u+v
-		var ue=this.elem,ve=v.elem,elems=ue.length,re=new Array(elems);
-		for (var i=0;i<elems;i++) {re[i]=ue[i]+ve[i];}
-		return new PhyVec(re,true);
-	}
-
-
-	isub(v) {
-		// u-=v
-		var ue=this.elem,ve=v.elem,elems=ue.length;
-		for (var i=0;i<elems;i++) {ue[i]-=ve[i];}
-		return this;
-	}
-
-
-	sub(v) {
-		// u-v
-		var ue=this.elem,ve=v.elem,elems=ue.length,re=new Array(elems);
-		for (var i=0;i<elems;i++) {re[i]=ue[i]-ve[i];}
-		return new PhyVec(re,true);
-	}
-
-
-	imul(s) {
-		// u*=s
-		var ue=this.elem,elems=ue.length;
-		for (var i=0;i<elems;i++) {ue[i]*=s;}
-		return this;
-	}
-
-
-	mul(s) {
-		// u*s
-		var ue=this.elem,elems=ue.length,re=new Array(elems);
-		for (var i=0;i<elems;i++) {re[i]=ue[i]*s;}
-		return new PhyVec(re,true);
-	}
-
-
-	dot(v) {
-		// u*v
-		var ue=this.elem,ve=v.elem,elems=ue.length,dot=0;
-		for (var i=0;i<elems;i++) {dot+=ue[i]*ve[i];}
-		return dot;
-	}
-
-
-	// ----------------------------------------
-	// Geometry
-
-
-	dist(v) {
-		// |u-v|
-		var ue=this.elem,ve=v.elem,elems=ue.length,dist=0,dif;
-		for (var i=0;i<elems;i++) {dif=ue[i]-ve[i];dist+=dif*dif;}
-		return Math.sqrt(dist);
-	}
-
-
-	sqr() {
-		// u*u
-		var ue=this.elem,elems=ue.length,dot=0;
-		for (var i=0;i<elems;i++) {dot+=ue[i]*ue[i];}
-		return dot;
-	}
-
-
-	mag() {
-		// sqrt(u*u)
-		var ue=this.elem,elems=ue.length,dot=0;
-		for (var i=0;i<elems;i++) {dot+=ue[i]*ue[i];}
-		return Math.sqrt(dot);
-	}
-
-
-	randomize() {
-		var ue=this.elem,elems=ue.length;
-		var mag,i,x,rnd=PhyVec.rnd;
-		do {
-			mag=0;
-			for (i=0;i<elems;i++) {
-				x=rnd.getnorm();
-				ue[i]=x;
-				mag+=x*x;
-			}
-		} while (mag<1e-10);
-		mag=1.0/Math.sqrt(mag);
-		for (i=0;i<elems;i++) {
-			ue[i]*=mag;
-		}
-		return this;
-	}
-
-
-	static random(dim) {
-		return (new PhyVec(dim)).randomize();
-	}
-
-
-	normalize() {
-		var ue=this.elem,elems=ue.length,mag=0,i,x;
-		for (i=0;i<elems;i++) {
-			x=ue[i];
-			mag+=x*x;
-		}
-		if (mag<1e-10) {
-			this.randomize();
-		} else {
-			mag=1.0/Math.sqrt(mag);
-			for (i=0;i<elems;i++) {
-				ue[i]*=mag;
-			}
-		}
-		return this;
-	}
-
-
-	norm() {
-		return (new PhyVec(this)).normalize();
-	}
-
-}
-
-
-//---------------------------------------------------------------------------------
+// ----------------------------------------
 // Linked Lists
 
 
@@ -298,7 +100,7 @@ class PhyList {
 
 
 	release(clear) {
-		var link=this.head,next;
+		let link=this.head,next;
 		while (link!==null) {
 			next=link.next;
 			link.prev=null;
@@ -319,7 +121,7 @@ class PhyList {
 	addafter(link,prev) {
 		// Inserts the link after prev.
 		link.remove();
-		var next;
+		let next;
 		if (prev!==null) {
 			next=prev.next;
 			prev.next=link;
@@ -342,7 +144,7 @@ class PhyList {
 	addbefore(link,next) {
 		// Inserts the link before next.
 		link.remove();
-		var prev;
+		let prev;
 		if (next!==null) {
 			prev=next.prev;
 			next.prev=link;
@@ -368,8 +170,8 @@ class PhyList {
 		}
 		// PhyAssert(link.list===this);
 		// PhyAssert(this.count>0);
-		var prev=link.prev;
-		var next=link.next;
+		let prev=link.prev;
+		let next=link.next;
 		if (prev!==null) {
 			prev.next=next;
 		} else {
@@ -394,7 +196,7 @@ class PhyList {
 }
 
 
-//---------------------------------------------------------------------------------
+// ----------------------------------------
 // AtomTypes
 
 
@@ -413,7 +215,7 @@ class PhyAtomInteraction {
 
 
 	updateconstants() {
-		var a=this.a,b=this.b;
+		let a=this.a,b=this.b;
 		this.collide=a.collide && b.collide;
 		this.pmul=(a.pmul+b.pmul)*0.5;
 		this.vmul=a.vmul+b.vmul;
@@ -455,8 +257,8 @@ class PhyAtomType {
 
 
 	release() {
-		var id=this.id;
-		var link=this.world.atomtypelist.head;
+		let id=this.id;
+		let link=this.world.atomtypelist.head;
 		while (link!==null) {
 			link.obj.intarr[id]=null;
 			link=link.next;
@@ -525,8 +327,8 @@ class PhyAtomType {
 		//      dt2=dt1
 		//      dt3=(dt1-dt)/ln(1-damp)
 		//
-		var dt=this.world.deltatime/this.world.steps;
-		var damp=this.damp,idamp=1.0-damp,dt0,dt1,dt2;
+		let dt=this.world.deltatime/this.world.steps;
+		let damp=this.damp,idamp=1.0-damp,dt0,dt1,dt2;
 		if (damp<=1e-10) {
 			// Special case damping=0: just integrate.
 			dt0=1.0;
@@ -540,7 +342,7 @@ class PhyAtomType {
 			dt2=0.0;
 		} else {
 			// Normal case.
-			var lnd=Math.log(idamp);
+			let lnd=Math.log(idamp);
 			dt0=Math.exp(dt*lnd);
 			dt1=(dt0-1.0)/lnd;
 			dt2=(dt1-dt )/lnd;
@@ -552,15 +354,15 @@ class PhyAtomType {
 
 
 	updateinteractions() {
-		var intarr=this.intarr;
-		for (var i=intarr.length-1;i>=0;i--) {
+		let intarr=this.intarr;
+		for (let i=intarr.length-1;i>=0;i--) {
 			intarr[i].updateconstants();
 		}
 	}
 
 
 	static initinteraction(a,b) {
-		var inter=new PhyAtomInteraction(a,b);
+		let inter=new PhyAtomInteraction(a,b);
 		while (a.intarr.length<=b.id) {a.intarr.push(null);}
 		while (b.intarr.length<=a.id) {b.intarr.push(null);}
 		a.intarr[b.id]=inter;
@@ -570,7 +372,7 @@ class PhyAtomType {
 }
 
 
-//---------------------------------------------------------------------------------
+// ----------------------------------------
 // Atoms
 
 
@@ -580,10 +382,10 @@ class PhyAtom {
 		this.worldlink=new PhyLink(this);
 		this.world=type.world;
 		this.world.atomlist.add(this.worldlink);
-		pos=new PhyVec(pos);
+		pos=new Vector(pos);
 		this.pos=pos;
-		this.vel=new PhyVec(pos.length());
-		this.acc=new PhyVec(pos.length());
+		this.vel=new Vector(pos.length);
+		this.acc=new Vector(pos.length);
 		this.rad=rad;
 		this.bondlist=new PhyList();
 		this.typelink=new PhyLink(this);
@@ -597,7 +399,7 @@ class PhyAtom {
 	release() {
 		this.worldlink.remove();
 		this.typelink.remove();
-		var link;
+		let link;
 		while ((link=this.bondlist.head)!==null) {
 			link.release();
 		}
@@ -606,14 +408,14 @@ class PhyAtom {
 
 	updateconstants() {
 		// Calculate the mass of the atom, where mass=volume*density.
-		var dim=this.pos.length();
-		var mass=this.type.density;
+		let dim=this.pos.length;
+		let mass=this.type.density;
 		if (dim>0) {
-			var vol0=mass,rad=this.rad;
-			var volmul=rad*rad*6.283185307;
+			let vol0=mass,rad=this.rad;
+			let volmul=rad*rad*6.283185307;
 			mass*=2.0*rad;
-			for (var i=2;i<=dim;i++) {
-				var vol1=vol0*volmul/i;
+			for (let i=2;i<=dim;i++) {
+				let vol1=vol0*volmul/i;
 				vol0=mass;
 				mass=vol1;
 			}
@@ -627,29 +429,29 @@ class PhyAtom {
 		// acc+=gravity
 		// pos+=vel*dt1+acc*dt2
 		// vel =vel*dt0+acc*dt1
-		/*var pe=this.pos.elem,ve=this.vel.elem;
-		var dim=pe.length,type=this.type,v,a;
-		var ae=this.acc.elem,ge=type.gravity;
-		ge=(ge===null?this.world.gravity:ge).elem;
-		var dt0=type.dt0,dt1=type.dt1,dt2=type.dt2;
-		for (var i=0;i<dim;i++) {
+		/*let pe=this.pos,ve=this.vel;
+		let dim=pe.length,type=this.type,v,a;
+		let ae=this.acc,ge=type.gravity;
+		ge=(ge===null?this.world.gravity:ge);
+		let dt0=type.dt0,dt1=type.dt1,dt2=type.dt2;
+		for (let i=0;i<dim;i++) {
 			v=ve[i];
 			a=ae[i]+ge[i];
 			pe[i]+=v*dt1+a*dt2;
 			ve[i] =v*dt0+a*dt1;
 			ae[i] =0;
 		}*/
-		var world=this.world;
-		var bndmin=world.bndmin.elem;
-		var bndmax=world.bndmax.elem;
-		var pe=this.pos.elem,ve=this.vel.elem;
-		var dim=pe.length,type=this.type;
-		var bound=type.bound;
-		var ae=this.acc.elem,ge=type.gravity;
-		ge=(ge===null?this.world.gravity:ge).elem;
-		var dt0=type.dt0,dt1=type.dt1,dt2=type.dt2;
-		var pos,vel,acc,rad=this.rad;
-		for (var i=0;i<dim;i++) {
+		let world=this.world;
+		let bndmin=world.bndmin;
+		let bndmax=world.bndmax;
+		let pe=this.pos,ve=this.vel;
+		let dim=pe.length,type=this.type;
+		let bound=type.bound;
+		let ae=this.acc,ge=type.gravity;
+		ge=(ge===null?this.world.gravity:ge);
+		let dt0=type.dt0,dt1=type.dt1,dt2=type.dt2;
+		let pos,vel,acc,rad=this.rad;
+		for (let i=0;i<dim;i++) {
 			pos=pe[i];
 			vel=ve[i];
 			acc=ae[i]+ge[i];
@@ -675,26 +477,26 @@ class PhyAtom {
 		if (Object.is(a,b)) {
 			return;
 		}
-		var apos=a.pos.elem,bpos=b.pos.elem;
-		var dim=apos.length;
+		let apos=a.pos,bpos=b.pos;
+		let dim=apos.length;
 		// Determine if atoms are overlapping.
-		var dist=0.0,dif,i,norm=a.world.tmpvec.elem;
+		let dist=0.0,dif,i,norm=a.world.tmpvec;
 		for (i=0;i<dim;i++) {
 			dif=bpos[i]-apos[i];
 			norm[i]=dif;
 			dist+=dif*dif;
 		}
-		var rad=a.rad+b.rad;
+		let rad=a.rad+b.rad;
 		if (dist<rad*rad) {
 			// If we have a callback, allow it to handle the collision.
-			var intr=a.type.intarr[b.type.id];
+			let intr=a.type.intarr[b.type.id];
 			if (intr.collide===false) {return;}
 			if (callback===undefined && intr.callback!==null) {
 				if (intr.callback(a,b)) {PhyAtom.collideatom(a,b,true);}
 				return;
 			}
-			var amass=a.mass,bmass=b.mass;
-			var mass=amass+bmass;
+			let amass=a.mass,bmass=b.mass;
+			let mass=amass+bmass;
 			if ((amass>=Infinity && bmass>=Infinity) || mass<=1e-10 || dim===0) {
 				return;
 			}
@@ -711,19 +513,19 @@ class PhyAtom {
 			}
 			// Check the relative velocity. We can have situations where two atoms increase
 			// eachother's velocity because they've been pushed past eachother.
-			var avel=a.vel.elem,bvel=b.vel.elem;
-			var veldif=0.0;
+			let avel=a.vel,bvel=b.vel;
+			let veldif=0.0;
 			for (i=0;i<dim;i++) {
 				norm[i]*=dif;
 				veldif-=(bvel[i]-avel[i])*norm[i];
 			}
 			if (veldif<0.0) {veldif=0.0;}
-			var posdif=rad-dist;
+			let posdif=rad-dist;
 			veldif=veldif*intr.vmul+posdif*intr.vpmul;
 			posdif*=intr.pmul;
 			// Push the atoms apart.
-			var avelmul=veldif*bmass,bvelmul=veldif*amass;
-			var aposmul=posdif*bmass,bposmul=posdif*amass;
+			let avelmul=veldif*bmass,bvelmul=veldif*amass;
+			let aposmul=posdif*bmass,bposmul=posdif*amass;
 			for (i=0;i<dim;i++) {
 				dif=norm[i];
 				apos[i]-=dif*aposmul;
@@ -737,7 +539,7 @@ class PhyAtom {
 }
 
 
-//---------------------------------------------------------------------------------
+// ----------------------------------------
 // Bonds
 
 
@@ -770,7 +572,7 @@ class PhyBond {
 
 
 	updateconstants() {
-		var dt=this.world.deltatime/this.world.steps;
+		let dt=this.world.deltatime/this.world.steps;
 		this.dttension=dt*this.tension;
 		if (this.dttension>1.0) {this.dttension=1.0;}
 		// dttension = tension ^ 1/dt
@@ -785,19 +587,19 @@ class PhyBond {
 	update() {
 		// Pull two atoms toward eachother based on the distance and bond strength.
 		// Vector operations are unrolled to use constant memory.
-		var a=this.a,b=this.b;
-		var amass=a.mass,bmass=b.mass;
-		var mass=amass+bmass;
+		let a=this.a,b=this.b;
+		let amass=a.mass,bmass=b.mass;
+		let mass=amass+bmass;
 		if ((amass>=Infinity && bmass>=Infinity) || mass<=1e-10) {
 			return;
 		}
 		amass=amass>=Infinity?1.0:(amass/mass);
 		bmass=bmass>=Infinity?1.0:(bmass/mass);
 		// Get the distance and direction between the atoms.
-		var apos=a.pos.elem,bpos=b.pos.elem;
-		var dim=apos.length,i,dif;
-		var norm=a.world.tmpvec.elem;
-		var dist=0.0;
+		let apos=a.pos,bpos=b.pos;
+		let dim=apos.length,i,dif;
+		let norm=a.world.tmpvec;
+		let dist=0.0;
 		for (i=0;i<dim;i++) {
 			dif=bpos[i]-apos[i];
 			norm[i]=dif;
@@ -813,9 +615,9 @@ class PhyBond {
 			a.world.tmpvec.randomize();
 		}
 		// Apply equal and opposite forces.
-		var force=(this.dist-dist)*this.dttension*dif;
-		var amul=force*bmass,bmul=force*amass;
-		var avel=a.vel.elem,bvel=b.vel.elem;
+		let force=(this.dist-dist)*this.dttension*dif;
+		let amul=force*bmass,bmul=force*amass;
+		let avel=a.vel,bvel=b.vel;
 		for (i=0;i<dim;i++) {
 			dif=norm[i];
 			apos[i]-=dif*amul;
@@ -828,7 +630,7 @@ class PhyBond {
 }
 
 
-//---------------------------------------------------------------------------------
+// ----------------------------------------
 // Hashmap
 
 
@@ -865,9 +667,9 @@ class PhyBroadphase {
 
 	getcell(point) {
 		if (this.mapused===0) {return null;}
-		var dim=this.world.dim,celldim=this.celldim;
-		var hash=this.hash0,x;
-		for (var d=0;d<dim;d++) {
+		let dim=this.world.dim,celldim=this.celldim;
+		let hash=this.hash0,x;
+		for (let d=0;d<dim;d++) {
 			x=Math.floor(point[d]/celldim);
 			hash=Random.hashu32(hash+x);
 		}
@@ -877,15 +679,15 @@ class PhyBroadphase {
 
 	testcell(newcell,oldcell,point,d,off) {
 		// Tests if the fast distance computation matches the actual distance.
-		var world=this.world;
-		var dim=world.dim,i;
-		var coord=newcell.coord;
+		let world=this.world;
+		let dim=world.dim,i;
+		let coord=newcell.coord;
 		if (coord===undefined) {
 			coord=new Array(dim);
 			newcell.coord=coord;
 		}
-		var hash=this.hash0;
-		var celldim=this.celldim;
+		let hash=this.hash0;
+		let celldim=this.celldim;
 		if (oldcell!==null) {
 			for (i=0;i<dim;i++) {coord[i]=oldcell.coord[i];}
 			coord[d]+=off;
@@ -897,12 +699,12 @@ class PhyBroadphase {
 			console.log("hash mismatch");
 			throw "error";
 		}
-		var rad=newcell.atom.rad*this.slack;
-		var dist=-rad*rad;
+		let rad=newcell.atom.rad*this.slack;
+		let dist=-rad*rad;
 		for (i=0;i<dim;i++) {
-			var x0=coord[i]*celldim;
-			var x1=x0+celldim;
-			var x=point[i];
+			let x0=coord[i]*celldim;
+			let x1=x0+celldim;
+			let x=point[i];
 			if (x<x0) {
 				x-=x0;
 				dist+=x*x;
@@ -942,10 +744,10 @@ class PhyBroadphase {
 		//    Start at      Expand along      Continue until we        Expand along Y
 		//    center.       X axis.           reach the edge.          axis.
 		//
-		var i,j;
-		var world=this.world;
-		var dim=world.dim;
-		var atomcount=world.atomlist.count;
+		let i,j;
+		let world=this.world;
+		let dim=world.dim;
+		let atomcount=world.atomlist.count;
 		this.mapused=0;
 		if (atomcount===0) {
 			return;
@@ -953,15 +755,15 @@ class PhyBroadphase {
 		// Put atoms with infinite mass at the front of the array. This will sort them at
 		// the end of the grid's linked list and allow us to skip them during collision
 		// testing. Randomize the order of the other atoms.
-		var cellmap=this.cellmap;
+		let cellmap=this.cellmap;
 		while (atomcount>cellmap.length) {
 			cellmap=cellmap.concat(new Array(cellmap.length+1));
 		}
-		var rnd=world.rnd;
-		var atomlink=world.atomlist.head;
-		var inactive=0;
-		var celldim=0.0;
-		var atom;
+		let rnd=world.rnd;
+		let atomlink=world.atomlist.head;
+		let inactive=0;
+		let celldim=0.0;
+		let atom;
 		for (i=0;i<atomcount;i++) {
 			atom=atomlink.obj;
 			atomlink=atomlink.next;
@@ -979,22 +781,22 @@ class PhyBroadphase {
 			}
 		}
 		// Use a heuristic to calculate celldim.
-		var slack=this.slack;
+		let slack=this.slack;
 		celldim*=2.5*slack/atomcount;
-		var hash0=rnd.getu32();
+		let hash0=rnd.getu32();
 		this.celldim=celldim;
 		this.hash0=hash0;
-		var invdim=1.0/celldim;
-		var celldim2=2.0*celldim*celldim;
-		var cellend=0;
-		var cellarr=this.cellarr;
-		var cellalloc=cellarr.length;
-		var cellstart;
-		var rad,cell,pos,radcells,d,c;
-		var cen,cendif,neginit,posinit,incinit;
-		var hash,hashcen,dist,distinc,newcell;
-		var hashu32=Random.hashu32;
-		var floor=Math.floor;
+		let invdim=1.0/celldim;
+		let celldim2=2.0*celldim*celldim;
+		let cellend=0;
+		let cellarr=this.cellarr;
+		let cellalloc=cellarr.length;
+		let cellstart;
+		let rad,cell,pos,radcells,d,c;
+		let cen,cendif,neginit,posinit,incinit;
+		let hash,hashcen,dist,distinc,newcell;
+		let hashu32=Random.hashu32;
+		let floor=Math.floor;
 		for (i=0;i<atomcount;i++) {
 			atom=cellmap[i];
 			rad=atom.rad*slack;
@@ -1013,7 +815,7 @@ class PhyBroadphase {
 			cell.atom=atom;
 			cell.dist=-rad*rad;
 			cell.hash=hash0;
-			pos=atom.pos.elem;
+			pos=atom.pos;
 			// this.testcell(cell,null,pos,0,0);
 			for (d=0;d<dim;d++) {
 				// Precalculate constants for the cell-atom distance calculation.
@@ -1059,13 +861,13 @@ class PhyBroadphase {
 			}
 		}
 		// Hash cell coordinates and add to the map.
-		var cellmask=cellend;
+		let cellmask=cellend;
 		cellmask|=cellmask>>>16;
 		cellmask|=cellmask>>>8;
 		cellmask|=cellmask>>>4;
 		cellmask|=cellmask>>>2;
 		cellmask|=cellmask>>>1;
-		var mapused=cellmask+1;
+		let mapused=cellmask+1;
 		if (mapused>cellmap.length) {
 			cellmap=new Array(mapused);
 		}
@@ -1086,10 +888,10 @@ class PhyBroadphase {
 
 	collide() {
 		// Look at each grid cell. Check for collisions among atoms within that cell.
-		var mapused=this.mapused;
-		var cellmap=this.cellmap;
-		var al,bl,a,collide=PhyAtom.collideatom;
-		for (var c=0;c<mapused;c++) {
+		let mapused=this.mapused;
+		let cellmap=this.cellmap;
+		let al,bl,a,collide=PhyAtom.collideatom;
+		for (let c=0;c<mapused;c++) {
 			al=cellmap[c];
 			while (al!==null) {
 				// Once we encounter a atom with infinite mass, we know that the rest of the
@@ -1109,30 +911,28 @@ class PhyBroadphase {
 }
 
 
-//---------------------------------------------------------------------------------
+// ----------------------------------------
 // World
 
 
 class PhyWorld {
 
 	constructor(dim) {
-		PhyVec.rnd=new Random();
 		this.updateflag=true;
 		this.dim=dim;
 		this.steps=8;
 		this.deltatime=1.0/60.0;
 		this.rnd=new Random();
-		this.gravity=new PhyVec(dim);
-		this.gravity.set(dim-1,0.24);
-		this.bndmin=new PhyVec(dim).set(-Infinity);
-		this.bndmax=new PhyVec(dim).set( Infinity);
+		this.gravity=new Vector(dim);
+		this.gravity[dim-1]=0.24;
+		this.bndmin=(new Vector(dim)).set(-Infinity);
+		this.bndmax=(new Vector(dim)).set( Infinity);
 		this.atomtypelist=new PhyList();
 		this.atomlist=new PhyList();
 		this.bondlist=new PhyList();
 		this.tmpmem=[];
-		this.tmpvec=new PhyVec(dim);
+		this.tmpvec=new Vector(dim);
 		this.broad=new PhyBroadphase(this);
-		this.dbgtime=[0,0,0,0,0];
 	}
 
 
@@ -1146,7 +946,7 @@ class PhyWorld {
 
 	gettmpmem(size) {
 		// Use a common pool of temporary memory to avoid constant allocations.
-		var tmp=this.tmpmem;
+		let tmp=this.tmpmem;
 		while (tmp.length<size) {
 			tmp=tmp.concat(Array(tmp.length+1));
 			this.tmpmem=tmp;
@@ -1163,15 +963,15 @@ class PhyWorld {
 	createatomtype(damp,density,elasticity) {
 		// Assume types are sorted from smallest to largest.
 		// Find if there's any missing ID or add to the end.
-		var link=this.atomtypelist.head;
-		var id=0;
+		let link=this.atomtypelist.head;
+		let id=0;
 		while (link!==null) {
-			var nextid=link.obj.id;
+			let nextid=link.obj.id;
 			if (id<nextid) {break;}
 			id=nextid+1;
 			link=link.next;
 		}
-		var type=new PhyAtomType(this,id,damp,density,elasticity);
+		let type=new PhyAtomType(this,id,damp,density,elasticity);
 		this.atomtypelist.addbefore(type.worldlink,link);
 		link=this.atomtypelist.head;
 		while (link!==null) {
@@ -1190,13 +990,13 @@ class PhyWorld {
 	findbond(a,b) {
 		// Return any bond that exists between A and B.
 		if (a.bondlist.count>b.bondlist.count) {
-			var tmp=a;
+			let tmp=a;
 			a=b;
 			b=tmp;
 		}
-		var link=a.bondlist.head;
+		let link=a.bondlist.head;
 		while (link!==null) {
-			var bond=link.obj;
+			let bond=link.obj;
 			if (Object.is(bond.a,a)) {
 				if (Object.is(bond.b,b)) {
 					return bond;
@@ -1217,7 +1017,7 @@ class PhyWorld {
 		if (dist<0.0) {
 			dist=a.pos.dist(b.pos);
 		}
-		var bond=this.findbond(a,b);
+		let bond=this.findbond(a,b);
 		if (bond!==null) {
 			bond.dist=dist;
 			bond.tension=tension;
@@ -1231,23 +1031,23 @@ class PhyWorld {
 
 	autobond(atomarr,tension) {
 		// Balance distance, mass, # of bonds, direction.
-		var count=atomarr.length;
+		let count=atomarr.length;
 		if (count===0) {return;}
-		var i,j;
-		var infoarr=new Array(count);
+		let i,j;
+		let infoarr=new Array(count);
 		for (i=0;i<count;i++) {
-			var info={
+			let info={
 				atom:atomarr[i]
 			};
 			infoarr[i]=info;
 		}
 		for (i=0;i<count;i++) {
-			var mainatom=infoarr[i].atom;
-			var rad=mainatom.rad*5.1;
+			let mainatom=infoarr[i].atom;
+			let rad=mainatom.rad*5.1;
 			for (j=0;j<count;j++) {
-				var atom=infoarr[j].atom;
+				let atom=infoarr[j].atom;
 				if (Object.is(atom,mainatom)) {continue;}
-				var dist=atom.pos.dist(mainatom.pos);
+				let dist=atom.pos.dist(mainatom.pos);
 				if (dist<rad) {
 					this.createbond(atom,mainatom,-1.0,tension);
 				}
@@ -1257,19 +1057,18 @@ class PhyWorld {
 
 
 	createbox(cen,side,rad,type) {
-		if (cen.elem!==undefined) {cen=cen.elem;}
-		var pos=new PhyVec(cen);
-		var atomcombos=1;
-		var i,x,dim=this.dim;
+		let pos=new Vector(cen);
+		let atomcombos=1;
+		let i,x,dim=this.dim;
 		for (i=0;i<dim;i++) {atomcombos*=side;}
-		var atomarr=new Array(atomcombos);
-		for (var atomcombo=0;atomcombo<atomcombos;atomcombo++) {
+		let atomarr=new Array(atomcombos);
+		for (let atomcombo=0;atomcombo<atomcombos;atomcombo++) {
 			// Find the coordinates of the atom.
-			var atomtmp=atomcombo;
+			let atomtmp=atomcombo;
 			for (i=0;i<dim;i++) {
 				x=atomtmp%side;
 				atomtmp=Math.floor(atomtmp/side);
-				pos.set(i,cen[i]+(x*2-side+1)*rad);
+				pos[i]=cen[i]+(x*2-side+1)*rad;
 			}
 			atomarr[atomcombo]=this.createatom(pos,rad,type);
 		}
@@ -1278,24 +1077,21 @@ class PhyWorld {
 
 
 	update() {
-		var next,link,steps=this.steps;
-		var bondcount,bondarr;
-		var rnd=this.rnd;
-		var i,j;
-		var dbgtime=this.dbgtime;
-		for (var step=0;step<steps;step++) {
+		let next,link,steps=this.steps;
+		let bondcount,bondarr;
+		let rnd=this.rnd;
+		let i,j;
+		for (let step=0;step<steps;step++) {
 			if (this.updateflag) {
 				this.updateconstants();
 			}
 			// Integrate atoms.
-			var t0=performance.now();
 			next=this.atomlist.head;
 			while ((link=next)!==null) {
 				next=next.next;
 				link.obj.update();
 			}
 			// Integrate bonds. Randomizing the order minimizes oscillations.
-			var t1=performance.now();
 			bondcount=this.bondlist.count;
 			bondarr=this.gettmpmem(bondcount);
 			link=this.bondlist.head;
@@ -1309,16 +1105,8 @@ class PhyWorld {
 				bondarr[i].obj.update();
 			}
 			// Collide atoms.
-			var t2=performance.now();
 			this.broad.build();
-			var t3=performance.now();
 			this.broad.collide();
-			var t4=performance.now();
-			dbgtime[0]+=t1-t0;
-			dbgtime[1]+=t2-t1;
-			dbgtime[2]+=t3-t2;
-			dbgtime[3]+=t4-t3;
-			dbgtime[4]++;
 		}
 	}
 
