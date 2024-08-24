@@ -885,6 +885,7 @@ class StringSim {
 		ctx.font=(pad/2)+"px monospace";
 		ctx.strokeStyle="#ffffff";
 		this.input=new Input(can);
+		this.input.disablenav();
 		this.pad=pad;
 		this.strings=strings;
 		this.canvas=can;
@@ -927,7 +928,7 @@ class StringSim {
 				let p=(mx-str.clickx0)/(str.clickx1-str.clickx0);
 				p=p>0.00001?p:0.00001;
 				p=p<0.99999?p:0.99999;
-				Audio.createstring(44100,str.freq,1.0,p,0.0092,1.0,1.7).play();
+				Audio.createstring(44100,str.freq,0.5,p,0.0092,1.0,1.7).play();
 				this.pluckarr[this.plucks]={life:1,x:mx,y:str.liney};
 				this.plucks++;
 			}
