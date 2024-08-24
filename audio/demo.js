@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.00
+demo.js - v1.01
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -24,12 +24,415 @@ A1 55.00
 D2 73.00
 G2 98.00
 
+Patch notes
+Added quality of life features for musican'ts
+Users can now strum strings
+Fixed mouse positioning
+
 
 */
 /* jshint esversion: 11  */
 /* jshint bitwise: false */
 /* jshint eqeqeq: true   */
 /* jshint curly: true    */
+
+
+//---------------------------------------------------------------------------------
+// Input - v1.13
+
+
+class Input {
+
+	static KEY={
+		A: 65, B: 66, C: 67, D: 68, E: 69, F: 70, G: 71, H: 72, I: 73, J: 74,
+		K: 75, L: 76, M: 77, N: 78, O: 79, P: 80, Q: 81, R: 82, S: 83, T: 84,
+		U: 85, V: 86, W: 87, X: 88, Y: 89, Z: 90,
+		0: 48, 1: 49, 2: 50, 3: 51, 4: 52, 5: 53, 6: 54, 7: 55, 8: 56, 9: 57,
+		SPACE: 32,
+		LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40
+	};
+
+
+	static MOUSE={
+		LEFT: 256, MID: 257, RIGHT: 258
+	};
+
+
+	constructor(focus) {
+		this.focus=null;
+		this.focustab=null;
+		this.focustouch=null;
+		if (focus!==undefined && focus!==null) {
+			this.focus=focus;
+			// An element needs to have a tabIndex to be focusable.
+			this.focustab=focus.tabIndex;
+			this.focustouch=focus.style.touchAction;
+			if (focus.tabIndex<0) {
+				focus.tabIndex=1;
+			}
+		}
+		this.active=null;
+		this.scrollupdate=false;
+		this.scroll=[window.scrollX,window.scrollY];
+		this.mousepos=[-Infinity,-Infinity];
+		this.mouseraw=[-Infinity,-Infinity];
+		this.mousez=0;
+		this.touchfocus=0;
+		this.clickpos=[0,0];
+		this.repeatdelay=0.5;
+		this.repeatrate=0.05;
+		this.navkeys={32:1,37:1,38:1,39:1,40:1};
+		this.stopnav=0;
+		this.stopnavfocus=0;
+		this.keystate={};
+		this.listeners=[];
+		this.initmouse();
+		this.initkeyboard();
+		this.reset();
+		for (let i=0;i<this.listeners.length;i++) {
+			let list=this.listeners[i];
+			document.addEventListener(list[0],list[1],list[2]);
+		}
+	}
+
+
+	release() {
+		if (this.focus!==null) {
+			this.focus.tabIndex=this.focustab;
+		}
+		this.enablenav();
+		for (let i=0;i<this.listeners.length;i++) {
+			let list=this.listeners[i];
+			document.removeEventListener(list[0],list[1],list[2]);
+		}
+		this.listeners=[];
+		this.reset();
+	}
+
+
+	reset() {
+		this.mousez=0;
+		let statearr=Object.values(this.keystate);
+		let statelen=statearr.length;
+		for (let i=0;i<statelen;i++) {
+			let state=statearr[i];
+			state.down=0;
+			state.hit=0;
+			state.repeat=0;
+			state.time=null;
+			state.active=null;
+			state.isactive=0;
+		}
+		this.active=null;
+	}
+
+
+	update() {
+		// Process keys that are active.
+		let focus=this.focus===null?document.hasFocus():Object.is(document.activeElement,this.focus);
+		if (this.touchfocus!==0) {focus=true;}
+		this.stopnavfocus=focus?this.stopnav:0;
+		let time=performance.now()/1000.0;
+		let delay=time-this.repeatdelay;
+		let rate=1.0/this.repeatrate;
+		let state=this.active;
+		let active=null;
+		let down,next;
+		while (state!==null) {
+			next=state.active;
+			down=focus?state.down:0;
+			state.down=down;
+			if (down>0) {
+				let repeat=Math.floor((delay-state.time)*rate);
+				state.repeat=(repeat>0 && (repeat&1)===0)?state.repeat+1:0;
+			} else {
+				state.repeat=0;
+				state.hit=0;
+			}
+			state.isactive=down?1:0;
+			if (state.isactive!==0) {
+				state.active=active;
+				active=state;
+			}
+			state=next;
+		}
+		this.active=active;
+	}
+
+
+	disablenav() {
+		this.stopnav=1;
+		if (this.focus!==null) {
+			this.focus.style.touchAction="pinch-zoom";
+		}
+	}
+
+
+	enablenav() {
+		this.stopnav=0;
+		if (this.focus!==null) {
+			this.focus.style.touchAction=this.focustouch;
+		}
+	}
+
+
+	makeactive(code) {
+		let state=this.keystate[code];
+		if (state===null || state===undefined) {
+			state=null;
+		} else if (state.isactive===0) {
+			state.isactive=1;
+			state.active=this.active;
+			this.active=state;
+		}
+		return state;
+	}
+
+
+	// ----------------------------------------
+	// Mouse
+
+
+	initmouse() {
+		let state=this;
+		this.MOUSE=this.constructor.MOUSE;
+		let keys=Object.keys(this.MOUSE);
+		for (let i=0;i<keys.length;i++) {
+			let code=this.MOUSE[keys[i]];
+			this.keystate[code]={
+				name: "MOUSE."+keys[i],
+				code: code
+			};
+		}
+		// Mouse controls.
+		function mousemove(evt) {
+			state.setmousepos(evt.pageX,evt.pageY);
+		}
+		function mousewheel(evt) {
+			state.addmousez(evt.deltaY<0?-1:1);
+		}
+		function mousedown(evt) {
+			if (evt.button===0) {
+				state.setkeydown(state.MOUSE.LEFT);
+				state.clickpos=state.mousepos.slice();
+			}
+		}
+		function mouseup(evt) {
+			if (evt.button===0) {
+				state.setkeyup(state.MOUSE.LEFT);
+			}
+		}
+		function onscroll(evt) {
+			// Update relative position on scroll.
+			if (state.scrollupdate) {
+				let difx=window.scrollX-state.scroll[0];
+				let dify=window.scrollY-state.scroll[1];
+				state.setmousepos(state.mouseraw[0]+difx,state.mouseraw[1]+dify);
+			}
+		}
+		// Touch controls.
+		function touchmove(evt) {
+			let touch=evt.touches;
+			if (touch.length===1) {
+				touch=touch.item(0);
+				state.setkeydown(state.MOUSE.LEFT);
+				state.setmousepos(touch.pageX,touch.pageY);
+			} else {
+				// This is probably a gesture.
+				state.setkeyup(state.MOUSE.LEFT);
+			}
+		}
+		function touchstart(evt) {
+			// We need to manually determine if the user has touched our focused object.
+			state.touchfocus=1;
+			let focus=state.focus;
+			if (focus!==null) {
+				let touch=evt.touches.item(0);
+				let rect=state.getrect(focus);
+				let x=touch.pageX-rect.x;
+				let y=touch.pageY-rect.y;
+				if (x<0 || x>=rect.w || y<0 || y>=rect.h) {
+					state.touchfocus=0;
+				}
+			}
+			// touchstart doesn't generate a separate mousemove event.
+			touchmove(evt);
+			state.clickpos=state.mousepos.slice();
+		}
+		function touchend(evt) {
+			state.touchfocus=0;
+			state.setkeyup(state.MOUSE.LEFT);
+		}
+		function touchcancel(evt) {
+			state.touchfocus=0;
+			state.setkeyup(state.MOUSE.LEFT);
+		}
+		this.listeners=this.listeners.concat([
+			["mousemove"  ,mousemove  ,false],
+			["mousewheel" ,mousewheel ,false],
+			["mousedown"  ,mousedown  ,false],
+			["mouseup"    ,mouseup    ,false],
+			["scroll"     ,onscroll   ,false],
+			["touchstart" ,touchstart ,false],
+			["touchmove"  ,touchmove  ,false],
+			["touchend"   ,touchend   ,false],
+			["touchcancel",touchcancel,false]
+		]);
+	}
+
+
+	getrect(elem) {
+		let width  =elem.scrollWidth;
+		let height =elem.scrollHeight;
+		let offleft=elem.clientLeft;
+		let offtop =elem.clientTop;
+		while (elem) {
+			offleft+=elem.offsetLeft;
+			offtop +=elem.offsetTop;
+			elem=elem.offsetParent;
+		}
+		return {x:offleft,y:offtop,w:width,h:height};
+	}
+
+
+	setmousepos(x,y) {
+		this.mouseraw[0]=x;
+		this.mouseraw[1]=y;
+		this.scroll[0]=window.scrollX;
+		this.scroll[1]=window.scrollY;
+		let focus=this.focus;
+		if (focus!==null) {
+			let rect=this.getrect(focus);
+			// If the focus is a canvas, scroll size can differ from pixel size.
+			x=(x-rect.x)*((focus.width||focus.scrollWidth)/rect.w);
+			y=(y-rect.y)*((focus.height||focus.scrollHeight)/rect.h);
+		}
+		this.mousepos[0]=x;
+		this.mousepos[1]=y;
+	}
+
+
+	getmousepos() {
+		return this.mousepos.slice();
+	}
+
+
+	getclickpos() {
+		return this.clickpos.slice();
+	}
+
+
+	addmousez(dif) {
+		this.mousez+=dif;
+	}
+
+
+	getmousez() {
+		let z=this.mousez;
+		this.mousez=0;
+		return z;
+	}
+
+
+	// ----------------------------------------
+	// Keyboard
+
+
+	initkeyboard() {
+		let state=this;
+		this.KEY=this.constructor.KEY;
+		let keys=Object.keys(this.KEY);
+		for (let i=0;i<keys.length;i++) {
+			let code=this.KEY[keys[i]];
+			this.keystate[code]={
+				name: "KEY."+keys[i],
+				code: code
+			};
+		}
+		function keydown(evt) {
+			state.setkeydown(evt.keyCode);
+			if (state.stopnavfocus!==0 && state.navkeys[evt.keyCode]) {evt.preventDefault();}
+		}
+		function keyup(evt) {
+			state.setkeyup(evt.keyCode);
+		}
+		this.listeners=this.listeners.concat([
+			["keydown",keydown,false],
+			["keyup"  ,keyup  ,false]
+		]);
+	}
+
+
+	setkeydown(code) {
+		let state=this.makeactive(code);
+		if (state!==null) {
+			if (state.down===0) {
+				state.down=1;
+				state.hit=1;
+				state.repeat=0;
+				state.time=performance.now()/1000.0;
+			}
+		}
+	}
+
+
+	setkeyup(code) {
+		let state=this.makeactive(code);
+		if (state!==null) {
+			state.down=0;
+			state.hit=0;
+			state.repeat=0;
+			state.time=null;
+		}
+	}
+
+
+	getkeydown(code) {
+		// code can be an array of key codes.
+		if (code===null || code===undefined) {return 0;}
+		if (code.length===undefined) {code=[code];}
+		let keystate=this.keystate;
+		for (let i=0;i<code.length;i++) {
+			let state=keystate[code[i]];
+			if (state!==null && state!==undefined && state.down>0) {
+				return 1;
+			}
+		}
+		return 0;
+	}
+
+
+	getkeyhit(code) {
+		// code can be an array of key codes.
+		if (code===null || code===undefined) {return 0;}
+		if (code.length===undefined) {code=[code];}
+		let keystate=this.keystate;
+		for (let i=0;i<code.length;i++) {
+			let state=keystate[code[i]];
+			if (state!==null && state!==undefined && state.hit>0) {
+				state.hit=0;
+				return 1;
+			}
+		}
+		return 0;
+	}
+
+
+	getkeyrepeat(code) {
+		// code can be an array of key codes.
+		if (code===null || code===undefined) {return 0;}
+		if (code.length===undefined) {code=[code];}
+		let keystate=this.keystate;
+		for (let i=0;i<code.length;i++) {
+			let state=keystate[code[i]];
+			if (state!==null && state!==undefined && state.repeat===1) {
+				return 1;
+			}
+		}
+		return 0;
+	}
+
+}
 
 
 function playsound() {
@@ -452,8 +855,8 @@ function AddKey(snd,addtime,tone,ramp) {
 class StringSim {
 
 	constructor(canvid) {
-		let canv=document.getElementById(canvid);
-		let thick=50;
+		Audio.initdef();
+		let can=document.getElementById(canvid);
 		let strings=[
 			{name:"E",freq:329.63},
 			{name:"B",freq:246.94},
@@ -462,82 +865,119 @@ class StringSim {
 			{name:"A",freq:110.00},
 			{name:"E",freq:82.41}
 		];
-		let width=canv.width;
-		let height=thick*strings.length+thick*0.5;
-		canv.height=height;
-		let ctx=canv.getContext("2d");
-		this.ctx=ctx;
+		let width=can.width;
+		let pad=Math.round(width/20);
+		can.height=pad*strings.length+pad*0.5;
+		for (let i=0;i<strings.length;i++) {
+			let str=strings[i];
+			let y=i*pad+pad*0.25;
+			str.clickx0=pad*0.75;
+			str.clickx1=width-pad*0.75;
+			str.clicky0=y+pad*0.1;
+			str.clicky1=y+pad*0.9;
+			str.liney=y+pad*0.5;
+			str.linex0=pad;
+			str.linex1=width-pad;
+		}
+		let ctx=can.getContext("2d");
 		ctx.textAlign="center";
 		ctx.textBaseline="middle";
-		ctx.font=(thick/2)+"px serif";
-		ctx.fillStyle="#000000";
-		ctx.fillRect(0,0,width,height);
-		ctx.fillStyle="#ffffff";
+		ctx.font=(pad/2)+"px monospace";
 		ctx.strokeStyle="#ffffff";
-		for (let i=0;i<strings.length;i++) {
-			let str=strings[i];
-			let y=i*thick+thick*0.25;
-			let yh=y+thick*0.5;
-			//ctx.fillStyle="#800000";
-			//ctx.fillRect(0,y,width,thick);
-			//ctx.fillStyle="#ffffff";
-			ctx.fillText(str.name,thick*0.5,yh);
-			ctx.moveTo(thick,yh);
-			ctx.lineTo(width-thick,yh);
-			ctx.stroke();
-			str.x=thick;
-			str.y=y;
-			str.w=width-thick-str.x;
-			str.h=thick;
-		}
+		this.input=new Input(can);
+		this.pad=pad;
 		this.strings=strings;
-		this.canv=canv;
+		this.canvas=can;
+		this.ctx=ctx;
+		this.wait=200;
+		this.pluckarr=[{life:0,x:0,y:0}];
+		this.plucks=1;
+		this.laststring=-1;
 		let st=this;
-		canv.onclick=function (evt){return st.click(evt);}
-		if (!Audio.def) {new Audio();}
 		function update() {
-			setTimeout(update,16);
+			setTimeout(update,st.update());
 		}
-		//update();
-	}
-
-
-	click(evt) {
-		let elem=this.canv;
-		let offleft=elem.clientLeft;
-		let offtop =elem.clientTop;
-		while (elem) {
-			offleft+=elem.offsetLeft;
-			offtop +=elem.offsetTop;
-			elem=elem.offsetParent;
-		}
-		let x=evt.x-offleft;
-		let y=evt.y-offtop;
-		let strings=this.strings;
-		let ctx=this.ctx;
-		ctx.fillStyle="#ffffff";
-		ctx.fillRect(x-10,y-10,20,20);
-		for (let i=0;i<strings.length;i++) {
-			let str=strings[i];
-			let sx=x-str.x,sy=y-str.y;
-			if (sx>=0 && sy>=0 && sx<str.w && sy<str.h) {
-				let p=sx/str.w;
-				p=p>0.00001?p:0.00001;
-				p=p<0.99999?p:0.99999;
-				//Audio.createstring(44100,str.freq,1.0,p,0.0092,1.0,1.7).play();
-				break;
-			}
-		}
+		update();
 	}
 
 
 	update() {
-		let canv=this.canv;
-		let ctx=canv.getContext("2d");
-		let width=canv.width;
-		let height=canv.height;
-		ctx.fillStyle="#000000";
-		ctx.fillRect(0,0,width,height);
+		let can=this.canvas;
+		let ctx=this.ctx;
+		let width=can.width;
+		let height=can.height;
+		let input=this.input;
+		let [mx,my]=input.getmousepos();
+		if (mx>=0 && my>=0 && mx<width && my<height) {
+			this.wait=0;
+		}
+		// See if we've clicked on a string.
+		let click=-1;
+		if (input.getkeydown(input.MOUSE.LEFT)) {
+			let strings=this.strings;
+			for (let i=0;i<strings.length;i++) {
+				let str=strings[i];
+				if (mx>=str.clickx0 && my>=str.clicky0 && mx<str.clickx1 && my<str.clicky1) {
+					click=i;
+					break;
+				}
+			}
+			if (this.laststring!==click && click>=0) {
+				let str=strings[click];
+				let p=(mx-str.clickx0)/(str.clickx1-str.clickx0);
+				p=p>0.00001?p:0.00001;
+				p=p<0.99999?p:0.99999;
+				Audio.createstring(44100,str.freq,1.0,p,0.0092,1.0,1.7).play();
+				this.pluckarr[this.plucks]={life:1,x:mx,y:str.liney};
+				this.plucks++;
+			}
+		}
+		this.laststring=click;
+		// See if we have a pluck history to draw.
+		let redraw=false;
+		let plucks=this.plucks;
+		let pluckarr=this.pluckarr;
+		for (let i=plucks-1;i>=0;i--) {
+			redraw=true;
+			let p=pluckarr[i];
+			p.life*=0.99;
+			if (p.life<0.01) {
+				p.life=0;
+				pluckarr[i]=pluckarr[--plucks];
+				pluckarr[plucks]=p;
+			}
+		}
+		// Redraw strings and plucks.
+		if (redraw) {
+			this.wait=0;
+			ctx.fillStyle="#000000";
+			ctx.fillRect(0,0,width,height);
+			for (let i=0;i<plucks;i++) {
+				let p=pluckarr[i];
+				ctx.fillStyle=`rgb(0,0,255,${p.life})`;
+				ctx.beginPath();
+				ctx.arc(p.x,p.y,this.pad*0.5,0,Math.PI*2);
+				ctx.fill();
+			}
+			ctx.fillStyle="#ffffff";
+			let pad=this.pad;
+			let strings=this.strings;
+			for (let i=0;i<strings.length;i++) {
+				let str=strings[i];
+				ctx.fillText(str.name,pad*0.5,str.liney);
+				ctx.beginPath();
+				ctx.moveTo(str.linex0,str.liney);
+				ctx.lineTo(str.linex1,str.liney);
+				ctx.stroke();
+			}
+		}
+		this.plucks=plucks;
+		let wait=this.wait;
+		wait=wait>16?wait:16;
+		let next=wait*1.03;
+		next=next<200?next:200;
+		this.wait=next;
+		return wait;
 	}
 
 }
@@ -613,7 +1053,7 @@ function Spectrogram(real,imag,arr) {
 
 function FilterDiagrams() {
 	// Draw pass-filter diagrams.
-	if (!Audio.def) {new Audio();}
+	Audio.initdef();
 	let freq=44100,len=1<<16;
 	let bqparams=[
 		{id:"bq_none"     ,type:"none"     ,freq:440,bw:1,gain:0 },

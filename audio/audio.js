@@ -572,6 +572,12 @@ class Audio {
 	}
 
 
+	static initdef() {
+		if (!Audio.def) {new Audio();}
+		return Audio.def;
+	}
+
+
 	play(snd,volume,pan,freq) {
 		return new _AudioInstance(snd,volume,pan,freq);
 	}
