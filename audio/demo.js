@@ -572,7 +572,7 @@ function PlayDrumKick() {
 	// https://output.com/blog/get-perfect-kick-drum
 	let freq=44100,len=freq*3;
 	let snd=new Audio.Sound(len,freq);
-	let tones=[256,80];//,200,2000];
+	let tones=[256,80];// ,200,2000];
 	let maxtime=0.2;
 	let data=snd.data;
 	let f=0,f0=tones[1]/freq,f1=(tones[0]-tones[1])/freq;
@@ -626,7 +626,7 @@ function PlayHiHat2() {
 		let mul=Math.exp(voldecay*t);
 		data[i]+=Audio.clamp(note,-1,1)*mul;
 	}
-	//snd.scale(1/snd.getvolume());
+	// snd.scale(1/snd.getvolume());
 	snd.play();
 }
 
@@ -679,7 +679,7 @@ function PlayTones3() {
 	let snd=new Audio.Sound(len,freq);
 	let voldecay=Math.log(1e-4)/400;
 	let fund=80;
-	//let ratio=[1.00,3.00,6.16,10.29,14.01,19.66,24.02];
+	// let ratio=[1.00,3.00,6.16,10.29,14.01,19.66,24.02];
 	let ratio=[1.00,3.92,9.24,16.27,24.22,33.54,42.97];
 	let data=snd.data;
 	for (let r=0;r<ratio.length;r++) {
@@ -700,7 +700,7 @@ function PlayTones4() {
 	let snd=new Audio.Sound(len,freq);
 	let voldecay=Math.log(1e-4)/400;
 	let fund=200;
-	//let ratio=[1.00,3.00,6.16,10.29,14.01,19.66,24.02];
+	// let ratio=[1.00,3.00,6.16,10.29,14.01,19.66,24.02];
 	let ratio=[1.00,3.92,9.24,16.27,24.22,33.54,42.97];
 	let lp=new Audio.Biquad("lowpass",200/freq,1);
 	let data=snd.data;
@@ -726,8 +726,8 @@ function PlayTones5() {
 	let voldecay=Math.log(1e-4)/400;
 	let fund=200;
 	let a=1.1,d=10.1,w0=1.0,x=0.3;
-	//let ratio=[1.00,3.00,6.16,10.29,14.01,19.66,24.02];
-	//let ratio=[1.00,3.92,9.24,16.27,24.22,33.54,42.97];
+	// let ratio=[1.00,3.00,6.16,10.29,14.01,19.66,24.02];
+	// let ratio=[1.00,3.92,9.24,16.27,24.22,33.54,42.97];
 	let d2=d*d,d4=d2*d2,di=1/d2;
 	let x2=x*x,xd=x2*d2;
 	let data=snd.data;
@@ -750,12 +750,12 @@ function PlayTones6() {
 	let snd=new Audio.Sound(len,freq);
 	let voldecay=Math.log(1e-4)/400;
 	let fund=200;
-	//let ratio=[1.00,3.00,6.16,10.29,14.01,19.66,24.02];
+	// let ratio=[1.00,3.00,6.16,10.29,14.01,19.66,24.02];
 	let ratio=[1.00,3.92,9.24,16.27,24.22,33.54,42.97];
 	let data=snd.data;
 	for (let r=0;r<ratio.length;r++) {
 		let tone=fund*ratio[r];
-		let mul=1;///(ratio[r]*ratio[r]);
+		let mul=1;// /(ratio[r]*ratio[r]);
 		for (let i=0;i<len;i++) {
 			let t=i/freq;
 			let m=mul*Math.exp(voldecay*tone*t);
@@ -902,7 +902,7 @@ class StringSim {
 					ctx.arc(p.x,p.str.liney,this.pad*0.45,0,Math.PI*2);
 					ctx.fill();
 					p.life*=0.98;
-					//p.life-=0.01;
+					// p.life-=0.01;
 				} else {
 					pluckarr[i]=pluckarr[--plucks];
 					pluckarr[plucks]=p;
@@ -940,7 +940,7 @@ class StringSim2 {
 		let can=document.getElementById(canvid);
 		this.stringlen=65.00;
 		this.stringmin=20.47;
-		this.pluckpos=10.62;
+		this.pluckpos=54.38;
 		let strings=[
 			{name:"E",freq:329.63},
 			{name:"B",freq:246.94},
@@ -950,34 +950,35 @@ class StringSim2 {
 			{name:"E",freq:82.41}
 		];
 		let fretdots=[
-			{x:55.90,y:0},
-			{x:49.83,y:0},
-			{x:44.42,y:0},
-			{x:39.65,y:0},
-			{x:33.36,y:1.5},
-			{x:33.36,y:-1.5},
-			{x:28.06,y:0}
+			{x: 9.10,y:0},
+			{x:15.17,y:0},
+			{x:20.58,y:0},
+			{x:25.35,y:0},
+			{x:31.64,y:1.5},
+			{x:31.64,y:-1.5},
+			{x:36.94,y:0}
 		];
 		let width=can.width;
 		let pad=Math.round(width/20);
 		can.height=pad*strings.length+pad*0.5;
-		let minx=pad*0.75,maxx=width-pad*0.75;
+		let minx=pad,maxx=width-pad;
 		for (let i=0;i<strings.length;i++) {
 			let str=strings[i];
 			let y=i*pad+pad*0.25;
-			str.clickx0=minx;
-			str.clickx1=maxx;
+			str.clickx0=pad*0.75;
+			str.clickx1=width-pad*0.75;
 			str.clicky0=y+pad*0.1;
 			str.clicky1=y+pad*0.9;
 			str.liney=y+pad*0.5;
-			str.linex0=pad;
-			str.linex1=width-pad;
+			str.linex0=minx;
+			str.linex1=maxx;
 			let u=i/(strings.length-1),v=1-u,n=255.99/Math.sqrt(u*u+v*v);
 			str.color="rgb("+Math.floor(v*n)+",0,"+Math.floor(u*n)+",";
 		}
+		let scale=(maxx-minx)/(this.stringlen-this.stringmin);
 		for (let i=0;i<fretdots.length;i++) {
 			let dot=fretdots[i];
-			dot.x=minx+(1-(dot.x-this.stringmin)/(this.stringlen-this.stringmin))*(maxx-minx);
+			dot.x=minx+dot.x*scale;
 			dot.y=can.height*0.5+dot.y*pad;
 		}
 		this.fretdots=fretdots;
@@ -1030,9 +1031,12 @@ class StringSim2 {
 			if (this.laststring!==click && click>=0) {
 				let str=strings[click];
 				let len=this.stringlen,min=this.stringmin;
-				let fret=(mx-str.clickx0)/(str.clickx1-str.clickx0);
+				let x0=str.linex0,x1=str.linex1;
+				mx=mx>x0?mx:x0;
+				mx=mx<x1?mx:x1;
+				let fret=(mx-x0)/(x1-x0);
 				fret=(1-fret)*(len-min)+min;
-				let pluck=1-this.pluckpos/fret;
+				let pluck=1-(len-this.pluckpos)/fret;
 				Audio.createstring(44100,str.freq*len/fret,0.5,pluck,0.0092,1.0,1.7).play();
 				pluckarr[plucks++]={life:1,x:mx,str:str};
 			}
@@ -1051,7 +1055,7 @@ class StringSim2 {
 					ctx.arc(p.x,p.str.liney,this.pad*0.45,0,Math.PI*2);
 					ctx.fill();
 					p.life*=0.98;
-					//p.life-=0.01;
+					// p.life-=0.01;
 				} else {
 					pluckarr[i]=pluckarr[--plucks];
 					pluckarr[plucks]=p;
