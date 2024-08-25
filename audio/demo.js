@@ -844,13 +844,13 @@ class StringSim {
 		this.strings=strings;
 		this.canvas=can;
 		this.ctx=ctx;
-		this.wait=200;
-		this.pluckarr=[{life:0}];
+		this.pluckarr=[{life:-Infinity}];
 		this.plucks=1;
 		this.laststring=-1;
 		let st=this;
 		function update() {
-			setTimeout(update,st.update());
+			setTimeout(update,16);
+			st.update();
 		}
 		update();
 	}
@@ -862,15 +862,12 @@ class StringSim {
 		let width=can.width;
 		let height=can.height;
 		let input=this.input;
-		let [mx,my]=input.getmousepos();
-		if (mx>=0 && my>=0 && mx<width && my<height) {
-			this.wait=0;
-		}
 		// See if we've clicked on a string.
 		let click=-1;
 		let plucks=this.plucks;
 		let pluckarr=this.pluckarr;
 		if (input.getkeydown(input.MOUSE.LEFT)) {
+			let [mx,my]=input.getmousepos();
 			let strings=this.strings;
 			for (let i=0;i<strings.length;i++) {
 				let str=strings[i];
@@ -882,27 +879,24 @@ class StringSim {
 			if (this.laststring!==click && click>=0) {
 				let str=strings[click];
 				let p=(mx-str.clickx0)/(str.clickx1-str.clickx0);
-				p=p>0.00001?p:0.00001;
-				p=p<0.99999?p:0.99999;
 				Audio.createstring(44100,str.freq,0.5,p,0.0092,1.0,1.7).play();
-				pluckarr[plucks++]={life:1,x:mx,str:str};
+				pluckarr[plucks++]={time:performance.now(),x:mx,str:str};
 			}
 		}
 		this.laststring=click;
 		// Redraw strings and plucks.
 		if (plucks>0) {
-			this.wait=0;
 			ctx.fillStyle="#000000";
 			ctx.fillRect(0,0,width,height);
 			for (let i=plucks-1;i>=0;i--) {
 				let p=pluckarr[i];
-				if (p.life>=0.01) {
-					ctx.fillStyle=p.str.color+p.life.toFixed(6)+")";
+				let t=(performance.now()-p.time)/1000;
+				let a=Math.exp(-1.316*t);
+				if (a>=0.01) {
+					ctx.fillStyle=p.str.color+a.toFixed(6)+")";
 					ctx.beginPath();
 					ctx.arc(p.x,p.str.liney,this.pad*0.45,0,Math.PI*2);
 					ctx.fill();
-					p.life*=0.98;
-					// p.life-=0.01;
 				} else {
 					pluckarr[i]=pluckarr[--plucks];
 					pluckarr[plucks]=p;
@@ -921,12 +915,6 @@ class StringSim {
 				ctx.stroke();
 			}
 		}
-		let wait=this.wait;
-		wait=wait>16?wait:16;
-		let next=wait*1.03;
-		next=next<200?next:200;
-		this.wait=next;
-		return wait;
 	}
 
 }
@@ -993,13 +981,13 @@ class StringSim2 {
 		this.strings=strings;
 		this.canvas=can;
 		this.ctx=ctx;
-		this.wait=200;
-		this.pluckarr=[{life:0}];
+		this.pluckarr=[{life:-Infinity}];
 		this.plucks=1;
 		this.laststring=-1;
 		let st=this;
 		function update() {
-			setTimeout(update,st.update());
+			setTimeout(update,16);
+			st.update();
 		}
 		update();
 	}
@@ -1011,19 +999,16 @@ class StringSim2 {
 		let width=can.width;
 		let height=can.height;
 		let input=this.input;
-		let [mx,my]=input.getmousepos();
-		if (mx>=0 && my>=0 && mx<width && my<height) {
-			this.wait=0;
-		}
 		// See if we've clicked on a string.
 		let click=-1;
 		let plucks=this.plucks;
 		let pluckarr=this.pluckarr;
 		if (input.getkeydown(input.MOUSE.LEFT)) {
+			let [mx,my]=input.getmousepos();
 			let strings=this.strings;
 			for (let i=0;i<strings.length;i++) {
 				let str=strings[i];
-				if (mx>=str.clickx0 && my>=str.clicky0 && mx<str.clickx1 && my<str.clicky1) {
+				if (my>=str.clicky0 && my<str.clicky1 && mx>=str.clickx0 && mx<str.clickx1) {
 					click=i;
 					break;
 				}
@@ -1038,24 +1023,23 @@ class StringSim2 {
 				fret=(1-fret)*(len-min)+min;
 				let pluck=1-(len-this.pluckpos)/fret;
 				Audio.createstring(44100,str.freq*len/fret,0.5,pluck,0.0092,1.0,1.7).play();
-				pluckarr[plucks++]={life:1,x:mx,str:str};
+				pluckarr[plucks++]={time:performance.now(),x:mx,str:str};
 			}
 		}
 		this.laststring=click;
 		// Redraw strings and plucks.
 		if (plucks>0) {
-			this.wait=0;
 			ctx.fillStyle="#000000";
 			ctx.fillRect(0,0,width,height);
 			for (let i=plucks-1;i>=0;i--) {
 				let p=pluckarr[i];
-				if (p.life>=0.01) {
-					ctx.fillStyle=p.str.color+p.life.toFixed(6)+")";
+				let t=(performance.now()-p.time)/1000;
+				let a=Math.exp(-1.316*t);
+				if (a>=0.01) {
+					ctx.fillStyle=p.str.color+a.toFixed(6)+")";
 					ctx.beginPath();
 					ctx.arc(p.x,p.str.liney,this.pad*0.45,0,Math.PI*2);
 					ctx.fill();
-					p.life*=0.98;
-					// p.life-=0.01;
 				} else {
 					pluckarr[i]=pluckarr[--plucks];
 					pluckarr[plucks]=p;
@@ -1081,12 +1065,6 @@ class StringSim2 {
 				ctx.stroke();
 			}
 		}
-		let wait=this.wait;
-		wait=wait>16?wait:16;
-		let next=wait*1.03;
-		next=next<200?next:200;
-		this.wait=next;
-		return wait;
 	}
 
 }

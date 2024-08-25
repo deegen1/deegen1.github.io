@@ -86,10 +86,10 @@ for i in range(sndnotes):
 
 class _AudioSound {
 
-	constructor(len,freq) {
+	constructor(len,freq=44100) {
 		// accepts len/path and frequency
 		this.audio=Audio.def;
-		this.freq=freq===undefined?44100:freq;
+		this.freq=freq;
 		this.queue=null;
 		let type=typeof len;
 		if (type==="number") {
@@ -143,10 +143,9 @@ class _AudioSound {
 	}
 
 
-	fromwav(data,dataidx) {
+	fromwav(data,dataidx=0) {
 		// Load a sound from WAV data. Can handle PCM or floating point samples.
 		// Converts multi-channel to mono-channel.
-		if (!dataidx) {dataidx=0;}
 		this.loaded=true;
 		// Helper functions.
 		function read32(i) {
@@ -428,12 +427,12 @@ class _AudioBiquad {
 	// Biquad filter type 1
 	// https://shepazu.github.io/Audio-EQ-Cookbook/audio-eq-cookbook.html
 
-	constructor(type,rate,bandwidth,peakgain) {
+	constructor(type,rate,bandwidth=1,peakgain=0) {
 		// rate = freq / sample rate
 		this.type=type;
 		this.rate=rate;
-		this.peakgain=peakgain||0;
-		this.bandwidth=bandwidth||1;
+		this.peakgain=peakgain;
+		this.bandwidth=bandwidth;
 		this.x1=0;
 		this.x2=0;
 		this.y1=0;
@@ -553,13 +552,13 @@ class Audio {
 	static def=null;
 
 
-	constructor() {
+	constructor(freq=44100) {
 		let con=this.constructor;
 		Object.assign(this,con);
 		if (con.def===null) {con.def=this;}
-		this.freq=44100;
+		this.freq=freq;
 		this.queue=null;
-		let ctx=new AudioContext({latencyHint:"interactive",sampleRate:this.freq});
+		let ctx=new AudioContext({latencyHint:"interactive",sampleRate:freq});
 		this.ctx=ctx;
 		if (Audio.def===null) {
 			Audio.def=this;
@@ -841,35 +840,35 @@ class Audio {
 	// Generators
 
 
-	static createstring(sndfreq,freq,volume,pos,inharm,harmexp,decay) {
+	static createstring(sndfreq,freq=200,volume=1,pos=0.5,inharm=0.008,harmexp=1.0,decay=1.7) {
 		// Jason Pelc
 		// http://large.stanford.edu/courses/2007/ph210/pelc2/
-		if (freq===undefined) {freq=220;}
-		if (pos===undefined) {pos=0.21;}
-		pos=pos>0.00001?pos:0.00001;
-		pos=pos<0.99999?pos:0.99999;
-		if (volume===undefined) {volume=1;}
-		const cutoff=1e-4;
-		// Generate coefficients.
-		let c0=inharm*inharm;
-		let c1=pos*Math.PI;
-		let c2=(2*volume)/(Math.PI*c1*(1-pos));
-		let c3=freq*2*Math.PI;
-		let coefs=Math.ceil(sndfreq/(2*freq));
 		// Stop when e^(-decay*time/sndfreq)<=cutoff
+		const cutoff=1e-4;
+		let harmonics=Math.ceil(sndfreq/(2*freq));
 		let sndlen=Math.ceil(-Math.log(cutoff)*sndfreq/decay);
 		let snd=new Audio.Sound(sndlen,sndfreq);
 		let snddata=snd.data;
-		for (let n=coefs;n>0;n--) {
+		// Generate coefficients.
+		let c0=pos*Math.PI;
+		let c1=(2*volume)/(Math.PI*c0*(1-pos));
+		let c2=inharm*inharm;
+		let c3=freq*2*Math.PI;
+		// Close to 0, sin(x)/x = 1.
+		if (pos<0.0001 || pos>0.9999) {
+			harmonics=1;
+			c0=Math.PI*0.5;
+			c1=volume;
+		}
+		// Process highest to lowest for floating point accuracy.
+		for (let n=harmonics;n>0;n--) {
 			// Calculate coefficients for the n'th harmonic.
-			// Go highest to lowest for floating point accuracy.
 			let n2=n*n;
-			let harmmul=Math.sin(n*c1)*c2/n2;
+			let harmmul=Math.sin(n*c0)*c1/n2;
 			if (Math.abs(harmmul)<=cutoff) {continue;}
 			// Correct n2 by -1 so the fundamental = freq.
-			//let harmfreq=n*c3*Math.sqrt(1+n2*c0)/sndfreq;
-			let harmfreq=n*c3*Math.sqrt(1+(n2-1)*c0)/sndfreq;
-			//console.log(harmfreq*sndfreq/(Math.PI*2),harmmul);
+			// let harmfreq=n*c3*Math.sqrt(1+n2*c2)/sndfreq;
+			let harmfreq=n*c3*Math.sqrt(1+(n2-1)*c2)/sndfreq;
 			let dscale=-decay*Math.pow(n,harmexp)/sndfreq;
 			let harmlen=Math.ceil(Math.log(cutoff/Math.abs(harmmul))/dscale);
 			if (harmlen>sndlen) {harmlen=sndlen;}
@@ -886,33 +885,33 @@ class Audio {
 	}
 
 
-	static createguitar(sndfreq,freq,pluck,volume) {
-		// freq ~ 220 hz, volume ~ 1.0
+	static createguitar(sndfreq,freq,pluck,volume=1.0) {
+		// freq ~ 200 hz
 		return Audio.createstring(sndfreq,freq,volume,pluck,0.0092,1.0,1.7);
 	}
 
 
-	static createbassguitar(sndfreq,freq,pluck,volume) {
-		// freq ~ 80 hz, volume ~ 1.0
+	static createbassguitar(sndfreq,freq,pluck,volume=1.0) {
+		// freq ~ 80 hz
 		return Audio.createstring(sndfreq,freq,volume,pluck,0.0092,2.0,1.7);
 	}
 
 
-	static createmarimba(sndfreq,freq,pos,volume) {
-		// freq ~ 250 hz, volume ~ 1.0
+	static createmarimba(sndfreq,freq,pos,volume=1.0) {
+		// freq ~ 250 hz
 		// length = 3924cm/freq
 		return Audio.createstring(sndfreq,freq,volume,pos,0.40,2.0,3.2);
 	}
 
 
-	static createglockenspiel(sndfreq,freq,pos,volume) {
-		// freq ~ 1873 hz, volume ~ 0.2
+	static createglockenspiel(sndfreq,freq,pos,volume=0.2) {
+		// freq ~ 1873 hz
 		return Audio.createstring(sndfreq,freq,volume,pos,0.30,2.0,1.3);
 	}
 
 
-	static createmusicbox(sndfreq,freq,volume) {
-		// freq ~ 877 hz, volume ~ 0.1
+	static createmusicbox(sndfreq,freq,volume=0.1) {
+		// freq ~ 877 hz
 		return Audio.createstring(sndfreq,freq,volume,0.40,0.32,1.0,2.2);
 	}
 
