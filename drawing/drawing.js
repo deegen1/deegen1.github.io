@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v1.31
+drawing.js - v1.33
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -38,7 +38,7 @@ Polygon filling
 
 
 //---------------------------------------------------------------------------------
-// Anti-aliased Image Drawing - v1.31
+// Anti-aliased Image Drawing - v1.33
 
 
 class _DrawTransform {
@@ -300,9 +300,9 @@ class _DrawPoly {
 	}
 
 
-	tostring(precision) {
+	tostring(precision=6) {
 		// Converts the path to an SVG string.
-		let p=precision===undefined?6:precision;
+		let p=precision;
 		function tostring(x) {
 			let s=x.toFixed(p);
 			if (p>0) {
@@ -444,6 +444,7 @@ class _DrawPoly {
 
 
 class _DrawImage {
+	// Pixel data is in R, G, B, A, R, G, B, A,... format.
 
 	constructor(width,height) {
 		let srcdata=null;
@@ -485,6 +486,16 @@ class _DrawImage {
 	}
 
 
+	savefile(name) {
+		// Save the image to a TGA file.
+		let blob=new Blob([this.totga()]);
+		let link=document.createElement("a");
+		link.href=window.URL.createObjectURL(blob);
+		link.download=name;
+		link.click();
+	}
+
+
 	fromtga(src) {
 		// Load a TGA image from an array.
 		let len=src.length;
@@ -499,14 +510,14 @@ class _DrawImage {
 		}
 		// Load the image data.
 		this.resize(w,h);
-		let dst=this.data8,didx=0,sidx=18;
+		let dst=this.data8,didx=0,sidx=18,a=255;
 		for (let y=0;y<h;y++) {
 			for (let x=0;x<w;x++) {
 				dst[didx++]=src[sidx++];
 				dst[didx++]=src[sidx++];
 				dst[didx++]=src[sidx++];
-				if (bytes===3) {dst[didx++]=255;}
-				else {dst[didx++]=src[sidx++];}
+				if (bytes===4) {a=src[sidx++];}
+				dst[didx++]=a;
 			}
 		}
 	}
@@ -528,6 +539,18 @@ class _DrawImage {
 			}
 		}
 		return dst;
+	}
+
+
+	todataurl() {
+		// Returns a data string for use in <img src="..."> objects.
+		let canv=document.createElement("canvas");
+		canv.width=this.width;
+		canv.height=this.height;
+		canv.getContext("2d").putImageData(this.imgdata);
+		let strdata=canv.toDataURL("image/png");
+		canv.remove();
+		return strdata;
 	}
 
 }
@@ -638,8 +661,8 @@ class _DrawFont {
 	// `
 
 
-	constructor(defscale) {
-		this.defscale=defscale===undefined?16:defscale;
+	constructor(defscale=16) {
+		this.defscale=defscale;
 		this.lineheight=1.1;
 		this.loadfont(this.constructor.deffont);
 	}
@@ -782,9 +805,8 @@ class Draw {
 	}
 
 
-	setcolor(r,g,b,a) {
+	setcolor(r,g,b,a=255) {
 		if (g===undefined) {a=(r>>>0)&255;b=(r>>>8)&255;g=(r>>>16)&255;r>>>=24;}
-		if (a===undefined) {a=255;}
 		this.rgba[0]=r?Math.max(Math.min(Math.floor(r),255),0):0;
 		this.rgba[1]=g?Math.max(Math.min(Math.floor(g),255),0):0;
 		this.rgba[2]=b?Math.max(Math.min(Math.floor(b),255),0):0;
@@ -884,11 +906,9 @@ class Draw {
 	// Images
 
 
-	fill(r,g,b,a) {
+	fill(r=0,g=0,b=0,a=255) {
 		// Fills the current image with a solid color.
 		// imgdata.fill(rgba) was ~25% slower during testing.
-		if (r===undefined) {r=g=b=0;}
-		if (a===undefined) {a=255;}
 		let rgba=this.rgbatoint(r,g,b,a);
 		let imgdata=this.img.data32;
 		let i=this.img.width*this.img.height;

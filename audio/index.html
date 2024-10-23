@@ -1,0 +1,426 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Sound Effects</title>
+	<link rel="stylesheet" href="../style/style.css" type="text/css">
+	<script src="../style/style.js"></script>
+	<script src="./audio.js"></script>
+	<script src="./demo.js"></script>
+	<!--<script src="./extra/test.js"></script>-->
+	<style>
+		.padtable {
+			max-width:100%;
+			width:100%;
+			margin:auto;
+			margin-bottom:2rem;
+		}
+		.padtable tbody tr td {
+			padding:1rem;
+			vertical-align:middle;
+		}
+		.padtable img {
+			width:100% !important;
+			margin:0 !important;
+			padding:0 !important;
+		}
+	</style>
+</head>
+<body>
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<div id="header"><a href="../index.html">Alec Dee's General Site</a></div>
+<div id="content">
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Sound Design ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Sound Design</h1>
+<p>All of the sounds on this page are produced live in the browser. The source
+files <a href="./audio.js">audio.js</a> and <a href="./demo.js">demo.js</a> take
+just 63 kb - if the sounds were instead stored as .wav files they would be 1,187
+times bigger.</p>
+<table class="listtable padtable">
+<tr>
+<td style="width:25%"><img src="chrome_xylophone.png"></td>
+<td><canvas style="width:100%;margin:auto" width="1000" height="300"
+id="xylosim"></canvas></td>
+</tr><tr>
+<td style="width:25%"><img src="zelda_guitar.png"></td>
+<td><canvas style="width:100%;margin:auto" width="1000" height="300"
+id="guitarsim"></canvas></td>
+</tr><tr>
+<td style="text-align:right"><a href="#" id="gtplay">&#9658; play</a></td>
+<td><input type="text" id="gttext" class="consoleblock"
+style="display:inline;margin:0;width:100%" value="E0----A7--D5--E6--E5----A7--E0----A7--D5--E6--E5----A7--E0----A7--D5--E6--E5"></td>
+</tr>
+</table>
+<table class="listtable padtable">
+<tr>
+<td style="width:20%;"><a href="#" onclick="Bebop.toggle(this);return false;"><img src="bebop_bang.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="PlayPhone();return false;"><img src="old_phone.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="Audio.createexplosion2(0.7).play();return false;"><img src="explosion.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="Audio.createdrumhihat(1.1).play();return false;"><img src="hithat_bluesbrother.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="Audio.createdrumkick(1.1).play();return false;"><img src="kick_step_brothers.png"></a></td>
+</tr><tr>
+<td style="width:20%;"><a href="#" onclick="Audio.createmarble(0.6).play();return false;"><img src="galaxy_marbles.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="PlayKnock();return false;"><img src="door_knock.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="Audio.createlaser(0.7).play();return false;"><img src="laser.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="Audio.createelectricity().play();return false;"><img src="electric_arc.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="PlayUI();return false;"><img src="game_menu.png"></a></td>
+</tr>
+</table>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Sound Examples ~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Sound Examples</h1>
+<p>Short sound effects can be created pretty easily. Essentially, we'll take a
+few frequencies, delay or distort them, and add them together. Most tutorials
+go over how to create these sounds in synthesizers like Ableton or FL Studio,
+but they're not hard to create from source either. Source code also gives us the
+ability to adjust our algorithms in ways that are difficult for
+synthesizers.</p>
+<h2>Guitars and Strings</h2>
+<p>Given the popularity of musical instruments, I expected to find a large
+number of mathematical models simulating them with plenty of examples. This
+turned out to be a far cry from the truth - most of the models that were
+available were tersely described in academic papers with no code examples. Among
+the more legible models I found was Jason Pelc's research on guitar synthesis
+(<a href="http://large.stanford.edu/courses/2007/ph210/pelc2">here</a>), which
+is what I based my simulator off of.</p>
+<p>Surprisingly, the guitar, xylophone, and music box demos above were all
+generated from this stringed instrument model. It turns out that instruments
+that generate the majority of their sound waves from a linear medium all have
+similar equations governing them. The biggest failing of this model is the
+lack of body resonance, which makes the guitar emulation sound a bit hollow.</p>
+<p>The model works by approximating the harmonics a string generates given a
+pluck position. Here are snippets of the coefficients:</p>
+<div class="codeblock langjs">// Constants
+let c0 = pos*Math.PI;
+let c1 = (2*volume)/(Math.PI*Math.PI*pos*(1-pos));
+let c2 = freq*Math.PI*2;
+
+// n'th harmonic frequency, decay, and volume.
+let n2        = n*n;
+let ihscale   = n*Math.sqrt(1+(n2-1)*inharm);
+let harmdecay = -decay*ihscale;
+let harmfreq  = c2*ihscale;
+let harmvol   = Math.sin(n*c0)*c1/n2;
+</div>
+<p>The inharmonicity factor <i>inharm</i> determines the how well the harmonics
+approximate a pure string. A guitar has a low inharmonicity of <i>0.00006</i>
+while a xylophone has <i>0.37452</i>. This leads to a xylophone having higher
+frequency harmonics as expected. Pure metal instruments will also decay faster
+than a guitar for instance.</p>
+<p>This is the full function:</p>
+<div class="codeblock langjs">static generatestring(volume=1.0,freq=200,pos=0.5,inharm=0.00006,decay=1.2,sndfreq=44100) {
+	// Stop when e^(-decay*time/sndfreq)&lt;=cutoff
+	const cutoff=1e-3;
+	decay/=sndfreq;
+	freq/=sndfreq;
+	let harmonics=Math.ceil(0.5/freq);
+	let sndlen=Math.ceil(-Math.log(cutoff)/decay);
+	let snd=new Audio.Sound(sndfreq,sndlen);
+	let data=snd.data;
+	// Generate coefficients.
+	if (pos&lt;0.0001) {pos=0.0001;}
+	if (pos&gt;0.9999) {pos=0.9999;}
+	let listen=pos; // 0.16;
+	let c0=listen*Math.PI;
+	let c1=(2*volume)/(Math.PI*Math.PI*pos*(1-pos));
+	let c2=freq*Math.PI*2;
+	// Process highest to lowest for floating point accuracy.
+	for (let n=harmonics;n&gt;0;n--) {
+		// Calculate coefficients for the n'th harmonic.
+		let n2=n*n;
+		let harmvol=Math.sin(n*c0)*c1/n2;
+		if (Math.abs(harmvol)&lt;=cutoff) {continue;}
+		// Correct n2 by -1 so the fundamental = freq.
+		let ihscale=n*Math.sqrt(1+(n2-1)*inharm);
+		let harmdecay=-decay*ihscale;
+		let harmmul=Math.exp(harmdecay);
+		let harmlen=Math.ceil(Math.log(cutoff/Math.abs(harmvol))/harmdecay);
+		if (harmlen&gt;sndlen) {harmlen=sndlen;}
+		let harmfreq=c2*ihscale;
+		let harmphase=0;
+		// Generate the waveform.
+		for (let i=0;i&lt;harmlen;i++) {
+			data[i]+=harmvol*Math.sin(harmphase);
+			harmvol*=harmmul;
+			harmphase+=harmfreq;
+		}
+	}
+	// Taper the ends.
+	let head=Math.ceil(0.010*sndfreq);
+	for (let i=0;i&lt;head &amp;&amp; i&lt;sndlen;i++) {data[i]*=i/head;}
+	let tail=Math.ceil(0.005*sndfreq);
+	for (let i=0;i&lt;tail &amp;&amp; i&lt;sndlen;i++) {data[sndlen-1-i]*=i/tail;}
+	return snd;
+}
+</div>
+<p>One thing that I found conflicting data on was frequency decay rates. We
+should expect a guitar string that vibrates at 200hz to decay twice as fast as a
+100hz string. When looking at acoustic samples in the Magenta NSynth database I
+found, for instance, a 137hz guitar sample that took 1.801s to decay to -50db
+and a 230hz sample that took 2.082s. My guess is that instrument materials are
+picked so that vibrations last the same amount of time independent of frequency.
+In any case, this allows our model to stay simple, so I've stuck to increasing
+decay rates based on inharmonicity rather than pure frequency.</p>
+<h2>Explosions</h2>
+<p>Explosions are some of the easiest sounds to produce. An explosion is nothing
+more than an initial burst of noise followed by some reverb as the shockwave
+bounces around. Explosions that are closer to the listener will be higher in
+frequency, so as the frequency rises we emphasize noise closer to our target
+frequency. As the frequency drops, we instead emphasize the lower frequencies of
+the noise and increase the delay.</p>
+<p>Filtering out frequencies from white noise is handled by biquad filters.
+Details about them are at the end of the page.</p>
+<div class="codeblock langjs">static generateexplosion(volume=0.75,freq=1000,time=0.25,sndfreq=44100) {
+	let len=Math.ceil(time*sndfreq);
+	let ramp=0.01*sndfreq,rampden=1/ramp,tail=len-ramp;
+	let snd=new Audio.Sound(sndfreq,len);
+	let data=snd.data;
+	let vmul=Math.exp(Math.log(1e-4)*3/len),vol=1;
+	let f=freq/(freq+1000);
+	let lpcoef=1-f,bpcoef=f,del=0.75+0.15*f,delmul=-0.9+0.5*f;
+	let lp=new Audio.Biquad(Audio.Biquad.LOWPASS,freq/sndfreq,1);
+	let bp=new Audio.Biquad(Audio.Biquad.BANDPASS,freq/sndfreq,2);
+	for (let i=0;i&lt;len;i++) {
+		let x=Audio.noise(i)*vol;
+		vol*=vmul;
+		x=lp.process(x)*lpcoef+bp.process(x)*bpcoef;
+		let u=i*del,k=Math.floor(u);
+		if (k&gt;=0 &amp;&amp; k+1&lt;i) {
+			u-=k;
+			x+=(data[k]*(1-u)+data[k+1]*u)*delmul;
+		}
+		if (i&lt;ramp || i&gt;tail) {x*=(i&lt;ramp?i:len-1-i)*rampden;}
+		data[i]=x;
+	}
+	snd.scalevol(volume,true);
+	return snd;
+}
+</div>
+<h2>Lasers</h2>
+<p>Lasers are another sound effect that I expected to find very simple examples
+on how to generate the waveform, but in the end even the latter pages of Google
+turned up nil. Half of the results were people recounting how the Star Wars
+blaster sound was made with a slinky.</p>
+<p>We know that lasers should be simple, since sci-fi movies have primed our
+ears to expect a simple sine wave with some distortion, and this is what my
+model does. In this case, the distortion is a delay with a twist. Where a
+traditional delay filter will repeat sounds from 1 second ago, 2 seconds ago, or
+some other constant, I've used a multiplier to calculate the delay offset.</p>
+<p>For instance, the model's first delay has a time multiplier of <i>0.99</i>.
+If we are at <i>2</i> seconds into the sound, the delay will find the sample at
+<i>2*0.99</i> = <i>1.98s</i>, multiply it by <i>-0.35</i> in this case, and add
+it to the current sample.</p>
+<p>This delay multiplier effect works to slow the sound down as it plays out and
+give a complex sound not possible through traditional delays.</p>
+<div class="codeblock langjs">static createlaser(volume=0.5,freq=10000,time=0.25) {
+	let sndfreq=44100,len=Math.ceil(time*sndfreq);
+	let ramp=0.01*sndfreq,rampden=1/ramp,tail=len-ramp;
+	let snd=new Audio.Sound(sndfreq,len);
+	let data=snd.data;
+	freq*=Math.PI*2/sndfreq;
+	let vmul=Math.exp(Math.log(1e-4)/len),vol=1;
+	// Instead of a delay constant, use a delay multiplier. Scales sum &lt; 1.
+	// Array format: delay, scale, delay, scale, ...
+	let deltable=[0.99,-0.35,0.90,-0.28,0.80,-0.21,0.40,-0.13];
+	let delays=deltable.length;
+	for (let i=0;i&lt;len;i++) {
+		let x=Math.sin(i*freq)*vol;
+		if (i&lt;ramp) {x*=i*rampden;}
+		vol*=vmul;
+		for (let j=0;j&lt;delays;j+=2) {
+			let u=i*deltable[j],k=Math.floor(u);
+			if (k&gt;=0 &amp;&amp; k+1&lt;i) {
+				u-=k;
+				x+=(data[k]*(1-u)+data[k+1]*u)*deltable[j+1];
+			}
+		}
+		if (i&gt;tail) {x*=(len-1-i)*rampden;}
+		data[i]=x;
+	}
+	snd.scalevol(volume,true);
+	return snd;
+}
+</div>
+<p>My biggest complaint is the need to scale the volume at the end, but the
+complex nature of the delays make calculating the peak value difficult.</p>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Biquad Filters ~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Filters</h1>
+<p>From beginning this project with zero music knowledge, these are some of the
+quality of life features and algorithms I learned about that are make music
+generation much easier.</p>
+<h2>Biquad Filters</h2>
+<p>The samples above make heavy use of biquad filters. They're a simple way to
+emphasize, reduce, or isolate certain frequencies within a waveform (usually
+white noise). Since human hearing is based around decoding frequencies, this
+ends up being an immensely useful and simple way for creating sounds.</p>
+<p>Biquad filters are order-2 filters with a simple processing function:</p>
+<div class="codeblock langjs">function process(x) {
+	let y = this.b0*x + this.b1*this.x1 + this.b2*this.x2
+	                  - this.a1*this.y1 - this.a2*this.y2;
+	this.x2 = this.x1;
+	this.x1 = x;
+	this.y2 = this.y1;
+	this.y1 = y;
+	return y;
+}</div>
+<p>Different choices for <i>a1</i>, <i>a2</i>, <i>b0</i>, <i>b1</i>, and
+<i>b2</i> produce different effects. The examples below show how the filters
+affect some white noise:</p>
+<table style="white-space:pre;width:75%;margin:auto">
+<tr id="bq_none"     ><td><a href="#">none</a>  </td><td></td></tr>
+<tr id="bq_lowpass"  ><td><a href="#">low-pass</a>  </td><td></td></tr>
+<tr id="bq_highpass" ><td><a href="#">high-pass</a>  </td><td></td></tr>
+<tr id="bq_bandpass" ><td><a href="#">band-pass</a>  </td><td></td></tr>
+<tr id="bq_notch"    ><td><a href="#">notch</a>  </td><td></td></tr>
+<!--
+<tr id="bq_allpass"  ><td><a href="#">all-pass</a>  </td><td></td></tr>
+<tr id="bq_peak"     ><td><a href="#">peak</a>  </td><td></td></tr>
+<tr id="bq_lowshelf" ><td><a href="#">low-shelf</a>  </td><td></td></tr>
+<tr id="bq_highshelf"><td><a href="#">high-shelf</a>  </td><td></td></tr>
+-->
+</table>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Delay Filters ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h2>Delay Filters</h2>
+<p>These are very common for reverb or delay effects, which are needed for the
+more complex resonances in instruments. The simplest delay we can make looks
+like this:</p>
+<div class="codeblock langjs">data[i] += data[i-delay] * mul;</div>
+<p>This delay works for simple sounds, but has a subtle drawback: most delays
+are not an integer value. To fix this we just use linear interpolation:</p>
+<div class="codeblock langjs">let u = i - delay;
+let k = Math.floor(u);
+u -= k;
+data[i] += (data[k]*(1-u) + data[k+1]*u) * mul;</div>
+<p>Other testimonials I've come across have mentioned problems with linear
+interpolation in high frequency data. I've avoided using the common workarounds
+to keep the filter simple.</p>
+<p>One feature we use that I don't see elsewhere is the use of a multiplier in
+addition to a delay constant. Where most filters return <i>data[i-delay]</i>,
+I've found some utility in <i>data[i*mul-delay]</i>. That being said, the only
+places I use this are in the explosion and laser effects, so I've avoided
+adding a multiplier to the filter for now.</p>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Envelope Filters ~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h2>Envelope Filters</h2>
+<p>Envelope (or gain) filters describe the overall energy level of a sound
+throughout its lifetime. Since most sounds follow the pattern of energy input
+-&gt; energy dissipation -&gt; body reverb -&gt; energy decay, this filter is a
+quality of life feature. Synthesizers will abuse envelopes to control things
+like frequency modulation.</p>
+
+
+<h2>Waveguides</h2>
+<p>One way to model the complex physical interactions in instruments is with
+banded waveguides. Searching online will most likely turn up diagrams like this
+(<a href="https://www.researchgate.net/publication/234809707_Theory_of_Banded_Waveguides">ref</a>):</p>
+<svg version="1.1" viewBox="0 0 1000 300" class="diagram" style="stroke-width:1.5px">
+<g transform="translate(67,35)">
+	<rect x="0" y="0" width="200" height="40" style="fill:none;stroke-width:3px"/>
+	<text x="100" y="20" class="center">Interaction</text>
+	<line x1="250" y1="20" x2="250" y2="160"/>
+	<line x1="200" y1="20" x2="250" y2="20"/>
+	<!-- Band pass 1 -->
+	<g transform="translate(200,0)">
+		<line x1="50" y1="20" x2="97" y2="20"/>
+		<path transform="translate(97,20)" d="M 0 0 L -10 4 L -10 -4 Z"/>
+		<rect x="100" y="0" width="50" height="40" style="fill:none;stroke-width:3px"/>
+		<text x="125" y="20" class="center">BP</text>
+		<line x1="150" y1="20" x2="197" y2="20"/>
+		<path transform="translate(197,20)" d="M 0 0 L -10 4 L -10 -4 Z"/>
+		<rect x="200" y="0" width="200" height="40" style="fill:none;stroke-width:3px"/>
+		<text x="270" y="20" class="center">Delay</text>
+		<line x1="400" y1="20" x2="450" y2="20"/>
+	</g>
+	<!-- Band pass 2 -->
+	<g transform="translate(200,70)">
+		<line x1="50" y1="20" x2="97" y2="20"/>
+		<path transform="translate(97,20)" d="M 0 0 L -10 4 L -10 -4 Z"/>
+		<rect x="100" y="0" width="50" height="40" style="fill:none;stroke-width:3px"/>
+		<text x="125" y="20" class="center">BP</text>
+		<line x1="150" y1="20" x2="197" y2="20"/>
+		<path transform="translate(197,20)" d="M 0 0 L -10 4 L -10 -4 Z"/>
+		<rect x ="200" y="0" width="170" height="40" style="fill:none;stroke-width:3px"/>
+		<text x ="270" y="20" class="center">Delay</text>
+		<line x1="370" y1="20" x2="450" y2="20"/>
+	</g>
+	<!-- Band pass 3 -->
+	<g transform="translate(200,140)">
+		<line x1="50" y1="20" x2="97" y2="20"/>
+		<path transform="translate(97,20)" d="M 0 0 L -10 4 L -10 -4 Z"/>
+		<rect x="100" y="0" width="50" height="40" style="fill:none;stroke-width:3px"/>
+		<text x="125" y="20" class="center">BP</text>
+		<line x1="150" y1="20" x2="197" y2="20"/>
+		<path transform="translate(197,20)" d="M 0 0 L -10 4 L -10 -4 Z"/>
+		<rect x="200" y="0" width="140" height="40" style="fill:none;stroke-width:3px"/>
+		<text x="270" y="20" class="center">Delay</text>
+		<line x1="340" y1="20" x2="450" y2="20"/>
+	</g>
+	<line x1="650" y1="20" x2="727" y2="74"/>
+	<path transform="translate(727,74) rotate(34.99)" d="M 0 0 L -10 4 L -10 -4 Z"/>
+	<line x1="650" y1="90" x2="722" y2="90"/>
+	<path transform="translate(722,90) rotate(0)" d="M 0 0 L -10 4 L -10 -4 Z"/>
+	<line x1="650" y1="160" x2="727" y2="106"/>
+	<path transform="translate(727,106) rotate(-34.99)" d="M 0 0 L -10 4 L -10 -4 Z"/>
+	<circle cx="750" cy="90" r="25" style="fill:none;stroke-width:3px"/>
+	<text x="750" y="90" class="center" style="font-size:200%">+</text>
+	<line x1="775" y1="90" x2="825" y2="90"/>
+	<path transform="translate(825,90)" d="M 0 0 L -10 4 L -10 -4 Z"/>
+	<text x="830" y="90" class="vcenter">Out</text>
+	<line x1="750" y1="115" x2="750" y2="230"/>
+	<line x1="750" y1="230" x2="150" y2="230"/>
+	<line x1="150" y1="230" x2="150" y2="43"/>
+	<path transform="translate(150,43) rotate(-90)" d="M 0 0 L -10 4 L -10 -4 Z"/>
+</g>
+</svg>
+<p>Almost all of my attempts to get this model to work have failed. One thing
+this model obscures away is the fact that splitting the wave into <i>N</i> bands
+multiplies the strength of wave by <i>N</i> when we sum them together. In only a
+few iterations the positive feedback will cause the signal to fly off towards
+infinity.</p>
+<p>The simplest way to prevent this is to scale each bandpass filter by some
+coefficient so their sum is less than 1, with weaker frequencies being given
+smaller coefficients. This very quickly leads to the weaker frequencies tending
+to 0 while the stronger frequencies sound muted.</p>
+<p>The smarter way to fix this feedback is to create the bandpasses so that if
+one responds strongly to the incoming signal, the others will not. This can be
+done by shrinking the bandwidth or spacing out the frequencies to minimize
+overlap. Spreading out frequencies is not ideal since we need specific
+frequencies to model the instrument in the first place, and shrinking the
+bandwidth causes the bandpass to act like a pure sine wave.</p>
+<p>This is the point at which I gave up on banded waveguides. If I go back to
+this area, I'll most likely focus on a series of comb filters instead since they
+won't run into this positive feedback issue.</p>
+<p>This is the only guitar sound I was able to produce with waveguides:
+<a href="#" onclick="PlayWaveguide();return false;">play</a></p>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Notes ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Notes</h1>
+<p>As someone who was looking to dip their feet into music, I ran into several
+problems finding music compositions. I hoped to find a database that gives
+exact timing offsets for instruments instead of plain sheet music. If you're in
+the same position, my advice is to start with music box melodies or beginner
+guitar tabs as they're the easiest to transcribe from videos or recordings.</p>
+<p>Most sound effects have exponential decay. Different frequencies have
+different decay rates based on material properties.</p>
+<p>Most instruments are valued for the complex resonances their bodies have.
+Emulating that is what's needed to go from synthetic sounding to real
+sounding.</p>
+<p>Thanks to Daniel for advice about how guitars work. "You're playing like
+you're an alien who's only studied human anatomy".</p>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+</div><div id="footer">Created on 22 Oct 2024 - Modified on 22 Oct 2024<br>
+Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
+<a href="../index.html">Alec Dee's General Site</a></div>
+</body>
+</html>

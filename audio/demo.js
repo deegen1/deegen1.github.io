@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.01
+demo.js - v1.03
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -416,387 +416,186 @@ class Input {
 }
 
 
-function playsound() {
-	Audio.initdef();
-	// kick
-	// let tones=[1000,800,600,400,200,100,50];
-/*
-	let tones=[256,120];
-	//for (let i=0;i<tones.length;i++) {
-	let norm=1.0;///tones.length;
-	let fc=0.02,vc=0.1;
-	//let voldecay=Math.log(1e-3)/time;
-	//let fdecay=Math.log(1e-3)/time;
-	let len=snd.len,data=snd.data,freq=snd.freq;
-	let f=(new Array(tones.length)).fill(0);
-	for (let i=0;i<len;i++) {
-		let t=i/freq;
-		let mul=vc/(t+vc);
-		for (let j=0;j<tones.length;j++) {
-			f[j]+=(fc/(t+fc))*tones[j]*(1/freq);
-			data[i]+=Math.sin(f[j]*Math.PI*2)*mul*norm;
+//---------------------------------------------------------------------------------
+// Bebop Music Box
+
+
+class Bebop {
+
+	// Music box notes are all at the same volume.
+	// time, freq
+	static notes=[
+		[ 0.188, 1158],
+		[ 0.941,  337],
+		[ 1.099,  464],
+		[ 1.099,  618],
+		[ 1.148, 1382],
+		[ 2.722, 1158],
+		[ 3.465,  611],
+		[ 3.465,  678],
+		[ 3.490,  425],
+		[ 5.355, 1158],
+		[ 6.058,  337],
+		[ 6.198,  612],
+		[ 6.239,  765],
+		[ 6.307, 1382],
+		[ 7.893, 1158],
+		[ 8.779,  425],
+		[ 8.779,  614],
+		[ 8.779,  765],
+		[ 8.779, 1158],
+		[ 8.779, 1382],
+		[ 9.221, 1657],
+		[ 9.592, 1381],
+		[11.096, 1106],
+		[12.031,  464],
+		[12.088,  544],
+		[12.212,  678],
+		[12.212, 1158],
+		[14.059,  725],
+		[15.504,  464],
+		[15.592,  544],
+		[15.623,  765],
+		[16.108, 1030],
+		[16.596, 1030],
+		[17.036,  930],
+		[17.606,  813],
+		[17.616, 1030],
+		[18.006, 1158],
+		[18.440, 1030],
+		[19.223,  930],
+		[20.359,  297],
+		[20.441,  365],
+		[20.478,  678],
+		[20.519,  550],
+		[21.622,  550],
+		[21.984,  606],
+		[22.761,  205],
+		[22.825,  368],
+		[22.964,  414],
+		[23.008,  507],
+		[23.008,  678],
+		[25.307,  368],
+		[25.360,  205],
+		[25.360,  480],
+		[26.038,  678],
+		[26.610,  814],
+		[27.006,  931],
+		[27.716,  205],
+		[27.782,  414],
+		[27.782,  629],
+		[28.149, 1106],
+		[28.639,  678],
+		[28.660,  930],
+		[30.224,  931],
+		[31.028,  295],
+		[31.065,  550],
+		[31.065,  683],
+		[31.080, 1106],
+		[32.159,  380],
+		[32.728,  931],
+		[33.461,  368],
+		[33.461,  461],
+		[33.461,  548],
+		[34.732,  205],
+		[34.732,  380],
+		[34.732,  508],
+		[34.732,  643],
+		[35.116,  614],
+		[36.145,  335],
+		[36.145,  461],
+		[36.145,  550]
+	];
+	static volume=0.1;
+	static notepos=100000;
+	static time=0;
+	static img=null;
+	static imgset=false;
+	static imgorig="";
+	static imgstop="";
+
+
+	constructor() {
+	}
+
+
+	static toggle(linkobj) {
+		let len=Bebop.notes.length;
+		if (Bebop.notepos<len) {
+			Bebop.notepos=len;
+		} else {
+			Bebop.notepos=0;
+			Bebop.time=performance.now();
 		}
-	}
-*/
-	/*let tones=256;
-	let voldecay=Math.log(1e-4)/1;
-	let len=snd.len,data=snd.data,freq=snd.freq;
-	let f=0;
-	for (let i=0;i<len;i++) {
-		let t=i/freq;
-		let mul=math.exp(voldecay*t);
-		let inc=Math.random()*2-1
-		for (let j=0;j<tones.length;j++) {
-			f[j]+=(fc/(t+fc))*tones[j]*(1/freq);
-			data[i]+=Math.sin(f[j]*Math.PI*2)*mul*norm;
-		}
-	}*/
-}
-
-
-function PlayPhoneDial1() {
-	let freq=44100,len=freq*2;
-	let snd=new Audio.Sound(len,freq);
-	let data=snd.data;
-	for (let i=0;i<len;i++) {
-		let t=i/freq;
-		let note=Audio.sin(t*350)+Audio.sin(t*440);
-		data[i]+=note;
-	}
-	snd.scale(0.2/snd.getvolume());
-	snd.play();
-}
-
-
-function PlayPhoneDial2() {
-	let freq=44100,len=freq*2;
-	let snd=new Audio.Sound(len,freq);
-	let data=snd.data;
-	let bp2 =new Audio.Biquad("bandpass",2000/freq,12);
-	let bp4 =new Audio.Biquad("bandpass", 400/freq,3);
-	let hp90=new Audio.Biquad("highpass",  90/freq);
-	let hp91=new Audio.Biquad("highpass",  90/freq);
-	for (let i=0;i<len;i++) {
-		let t=i/freq;
-		let n0 =Audio.sin(t*350)+Audio.sin(t*440);
-		let n1 =Audio.clamp(n0,-0.9,0.9);
-		let n2 =bp2.process(n1);
-		let n30=bp4.process(n2*0.5);
-		let n31=Audio.clamp(n2,-0.4,0.4)*0.15;
-		let n4 =hp90.process(n30+n31);
-		let n5 =hp91.process(n4);
-		data[i]+=n5;
-	}
-	snd.scale(0.2/snd.getvolume());
-	snd.play();
-}
-
-
-function PlayPhoneRing1() {
-	let freq=44100,len=freq*2;
-	let snd=new Audio.Sound(len,freq);
-	let data=snd.data;
-	for (let i=0;i<len;i++) {
-		let t=i/freq;
-		let note=Audio.sin(t*440)+Audio.sin(t*480);
-		data[i]+=note;
-	}
-	snd.scale(0.2/snd.getvolume());
-	snd.play();
-}
-
-
-function PlayPhoneRing2() {
-	let freq=44100,len=freq*2;
-	let snd=new Audio.Sound(len,freq);
-	let data=snd.data;
-	let bp2 =new Audio.Biquad("bandpass",2000/freq,12);
-	let bp4 =new Audio.Biquad("bandpass", 400/freq,3);
-	let hp90=new Audio.Biquad("highpass",  90/freq);
-	let hp91=new Audio.Biquad("highpass",  90/freq);
-	for (let i=0;i<len;i++) {
-		let t=i/freq;
-		let n0 =Audio.sin(t*440)+Audio.sin(t*480);
-		let n1 =Audio.clamp(n0,-0.9,0.9);
-		let n2 =bp2.process(n1);
-		let n30=bp4.process(n2*0.5);
-		let n31=Audio.clamp(n2,-0.4,0.4)*0.15;
-		let n4 =hp90.process(n30+n31);
-		let n5 =hp91.process(n4);
-		data[i]+=n5;
-	}
-	snd.scale(0.2/snd.getvolume());
-	snd.play();
-}
-
-
-function PlayAlarm2() {
-	let freq=44100,len=freq*3;
-	let snd=new Audio.Sound(len,freq);
-	let data=snd.data;
-	let lp7=new Audio.Biquad("lowpass",70/freq);
-	for (let i=0;i<len;i++) {
-		let t=i/freq;
-		let n0 =(Audio.sqr(t)+1)*0.5;
-		let n1 =lp7.process(n0);
-		let n20=Audio.sin(t*600)*(1-n1);
-		let n21=Audio.sin(t*800)*n1;
-		data[i]+=(n20+n21)*0.2;
-	}
-	// snd.scale(0.2/snd.getvolume());
-	snd.play();
-}
-
-
-function PlayTuba() {
-	let freq=44100,len=freq*3;
-	let snd=new Audio.Sound(len,freq);
-	let voldecay=Math.log(1e-4)/3;
-	let data=snd.data;
-	let filter=new Audio.Biquad("lowpass",300/freq,1);
-	let f=0;
-	let delay=Math.floor(0.02*freq),delaygain=0.95;
-	for (let i=0;i<len;i++) {
-		let t=i/freq;
-		let mul=Math.exp(voldecay*t);
-		let x=Math.random()*2-1;
-		data[i]+=filter.process(x)*mul*2;
-		if (i>=delay) {data[i]+=data[i-delay]*delaygain;}
-	}
-	snd.scale(1/snd.getvolume());
-	snd.play();
-}
-
-
-function PlayDrumKick() {
-	// https://output.com/blog/get-perfect-kick-drum
-	let freq=44100,len=freq*3;
-	let snd=new Audio.Sound(len,freq);
-	let tones=[256,80];// ,200,2000];
-	let maxtime=0.2;
-	let data=snd.data;
-	let f=0,f0=tones[1]/freq,f1=(tones[0]-tones[1])/freq;
-	for (let i=0;i<len;i++) {
-		let u=i/freq;
-		let v=u<maxtime?1-u/maxtime:0;
-		f+=f0+v*f1;
-		data[i]+=Math.sin(f*Math.PI*2)*v;
-	}
-	snd.scale(1/snd.getvolume());
-	snd.play();
-}
-
-
-function PlayHiHat1() {
-	let freq=44100,len=freq*3;
-	let snd=new Audio.Sound(len,freq);
-	let hp=new Audio.Biquad("highpass",7000/freq);
-	let voldecay=Math.log(1e-4)/1;
-	let data=snd.data;
-	let f=0;
-	for (let i=0;i<len;i++) {
-		let t=i/freq;
-		let mul=Math.exp(voldecay*t);
-		let note=Audio.noise(i);
-		data[i]+=hp.process(note)*mul;
-	}
-	snd.scale(0.3/snd.getvolume());
-	snd.play();
-}
-
-
-function PlayHiHat2() {
-	let freq=44100,len=freq*3;
-	let snd=new Audio.Sound(len,freq);
-	let rate=40;
-	let ratio=[2,3,4.16,5.43,6.79,8.21];
-	let ratios=ratio.length;
-	let bp=new Audio.Biquad("bandpass",10000/freq);
-	let hp=new Audio.Biquad("highpass",7000/freq);
-	let voldecay=Math.log(1e-4)/0.3;
-	let data=snd.data;
-	for (let i=0;i<len;i++) {
-		let t=i/freq;
-		let note=0;
-		for (let j=0;j<ratios;j++) {
-			note+=Audio.sqr(t*rate*ratio[j]);
-		}
-		note=bp.process(note);
-		note=hp.process(note);
-		let mul=Math.exp(voldecay*t);
-		data[i]+=Audio.clamp(note,-1,1)*mul;
-	}
-	// snd.scale(1/snd.getvolume());
-	snd.play();
-}
-
-
-function PlayTones1() {
-	let freq=44100,len=freq*3;
-	let snd=new Audio.Sound(len,freq);
-	let tones=[200,311,4100]; // xylophone
-	// let tones=[200,3011,4100]; // long glass
-	// let tones=[50,3011,4100]; // glass
-	// let tones=[50,70,90,110,131,444];
-	// let tones=[80,160];//,200,2000];
-	// let tones=[200,400,800,1600,3200,6400,213];
-	let data=snd.data;
-	for (let t=0;t<tones.length;t++) {
-		let tone=tones[t];
-		for (let i=0;i<len;i++) {
-			let t=i/freq;
-			data[i]+=Audio.sin(tone*t)*Math.exp(-0.02*tone*t);
-		}
-	}
-	snd.scale(1/snd.getvolume());
-	snd.play();
-}
-
-
-function PlayTones2() {
-	let freq=44100,len=freq*3;
-	let snd=new Audio.Sound(len,freq);
-	let tones=[200,3011,4100]; // long glass
-	// let tones=[50,3011,4100]; // glass
-	// let tones=[50,70,90,110,131,444];
-	// let tones=[80,160];//,200,2000];
-	// let tones=[200,400,800,1600,3200,6400,213];
-	let data=snd.data;
-	for (let t=0;t<tones.length;t++) {
-		let tone=tones[t];
-		for (let i=0;i<len;i++) {
-			let t=i/freq;
-			data[i]+=Audio.sin(tone*t)*Math.exp(-0.02*tone*t);
-		}
-	}
-	snd.scale(1/snd.getvolume());
-	snd.play();
-}
-
-
-function PlayTones3() {
-	let freq=44100,len=freq*3;
-	let snd=new Audio.Sound(len,freq);
-	let voldecay=Math.log(1e-4)/400;
-	let fund=80;
-	// let ratio=[1.00,3.00,6.16,10.29,14.01,19.66,24.02];
-	let ratio=[1.00,3.92,9.24,16.27,24.22,33.54,42.97];
-	let data=snd.data;
-	for (let r=0;r<ratio.length;r++) {
-		let tone=fund*ratio[r];
-		for (let i=0;i<len;i++) {
-			let t=i/freq;
-			let mul=Math.exp(voldecay*tone*t);
-			data[i]+=Audio.sin(tone*t)*mul;
-		}
-	}
-	snd.scale(1/snd.getvolume());
-	snd.play();
-}
-
-
-function PlayTones4() {
-	let freq=44100,len=freq*3;
-	let snd=new Audio.Sound(len,freq);
-	let voldecay=Math.log(1e-4)/400;
-	let fund=200;
-	// let ratio=[1.00,3.00,6.16,10.29,14.01,19.66,24.02];
-	let ratio=[1.00,3.92,9.24,16.27,24.22,33.54,42.97];
-	let lp=new Audio.Biquad("lowpass",200/freq,1);
-	let data=snd.data;
-	for (let r=0;r<ratio.length;r++) {
-		let tone=fund*ratio[r];
-		for (let i=0;i<len;i++) {
-			let t=i/freq;
-			let mul=Math.exp(voldecay*tone*t);
-			data[i]+=Audio.tri(tone*t)*mul;
-		}
-	}
-	for (let i=0;i<len;i++) {
-		data[i]=lp.process(data[i]);
-	}
-	snd.scale(1/snd.getvolume());
-	snd.play();
-}
-
-
-function PlayTones5() {
-	let freq=44100,len=freq*3;
-	let snd=new Audio.Sound(len,freq);
-	let voldecay=Math.log(1e-4)/400;
-	let fund=200;
-	let a=1.1,d=10.1,w0=1.0,x=0.3;
-	// let ratio=[1.00,3.00,6.16,10.29,14.01,19.66,24.02];
-	// let ratio=[1.00,3.92,9.24,16.27,24.22,33.54,42.97];
-	let d2=d*d,d4=d2*d2,di=1/d2;
-	let x2=x*x,xd=x2*d2;
-	let data=snd.data;
-	for (let i=0;i<len;i++) {
-		let t=i/freq;
-		let at=a*t,at2=at*at,ad=at*di;
-		let den=0.25/(d4+at2);
-		let mul0=w0/Math.sqrt(Math.sqrt(1+ad*ad));
-		let mul1=Math.exp(-xd*den);
-		let mul2=Math.cos(at*x2*den-0.5*Math.atan(ad));
-		data[i]+=mul0*mul1*mul2;
-	}
-	snd.scale(1/snd.getvolume());
-	snd.play();
-}
-
-
-function PlayTones6() {
-	let freq=44100,len=freq*3;
-	let snd=new Audio.Sound(len,freq);
-	let voldecay=Math.log(1e-4)/400;
-	let fund=200;
-	// let ratio=[1.00,3.00,6.16,10.29,14.01,19.66,24.02];
-	let ratio=[1.00,3.92,9.24,16.27,24.22,33.54,42.97];
-	let data=snd.data;
-	for (let r=0;r<ratio.length;r++) {
-		let tone=fund*ratio[r];
-		let mul=1;// /(ratio[r]*ratio[r]);
-		for (let i=0;i<len;i++) {
-			let t=i/freq;
-			let m=mul*Math.exp(voldecay*tone*t);
-			data[i]+=Audio.sin(tone*t)*m;
-		}
-	}
-	snd.scale(1/snd.getvolume());
-	snd.play();
-}
-
-
-function PlayMaraca() {
-	let freq=44100,len=freq*3;
-	let snd=new Audio.Sound(len,freq);
-	let beadlen=Math.floor(0.02*freq),beadfreq=5000,beaddec=Math.log(1e-5)/0.02;
-	let beadsnd=new Array(beadlen);
-	for (let i=0;i<beadlen;i++) {
-		let t=i/freq;
-		beadsnd[i]=Math.sin(t*beadfreq*Math.PI*2)*Math.exp(t*beaddec);
-	}
-	let data=snd.data;
-	let volmul=Math.log(1e-4)/5;
-	let next=Math.random()*0.04;
-	for (let i=0;i<len;i++) {
-		let t=i/freq;
-		if (t>=next) {
-			let mul=Math.exp(t*volmul);
-			next=t+Math.random()*0.03*t;
-			for (let j=0;j<beadlen;j++) {
-				data[i+j]+=beadsnd[j]*mul;
+		if (linkobj && Bebop.img===null) {
+			let img=linkobj.firstChild;
+			if (img && img.localName==="img") {
+				Bebop.img=img;
+				Bebop.imgorig=img.src;
+				let canv=document.createElement("canvas");
+				let w=img.naturalWidth,h=img.naturalHeight;
+				canv.width=w;
+				canv.height=h;
+				let ctx=canv.getContext("2d");
+				ctx.drawImage(img,0,0,w,h);
+				ctx.fillStyle="#000000";
+				let ratioh=0.7,ratiow=0.25;
+				let rh=h*ratioh,rw=rh*ratiow;
+				if (rw*2.5>w) {rw=w*ratioh/2.5;rh=rw/ratiow;}
+				let offx=(w-rw*2.5)*0.5,offy=(h-rh)*0.5;
+				ctx.fillRect(offx       ,offy,rw,rh);
+				ctx.fillRect(offx+1.5*rw,offy,rw,rh);
+				Bebop.imgstop=canv.toDataURL();
+				canv.remove();
 			}
 		}
+		Bebop.update();
 	}
-	snd.scale(1/snd.getvolume());
-	snd.play();
-}
 
 
-function AddKey(snd,addtime,tone,ramp) {
-	// ramp: [[time,type],...]
-	// type: con, lin, exp
+	static update() {
+		let time=(performance.now()-Bebop.time)/1000;
+		let notes=Bebop.notes;
+		let notelen=notes.length;
+		let notepos=Bebop.notepos;
+		while (notepos<notelen && notes[notepos][0]<=time) {
+			let note=notes[notepos++];
+			Audio.createmusicbox(Bebop.volume,note[1]).play();
+		}
+		Bebop.notepos=notepos;
+		let playing=notepos<notelen;
+		if (playing) {setTimeout(Bebop.update,1);}
+		if (Bebop.img!==null && Bebop.imgset!==playing) {
+			Bebop.imgset=playing;
+			Bebop.img.src=playing?Bebop.imgstop:Bebop.imgorig;
+		}
+	}
+
+
+	static download() {
+		let notes=Bebop.notes;
+		let sndfreq=44100;
+		let snddata=new Float64Array(0);
+		for (let i=notes.length-1;i>=0;i--) {
+			let note=notes[i];
+			let idx=Math.floor(note[0]*sndfreq);
+			let sub=Audio.createmusicbox(Bebop.volume,note[1]);
+			let sublen=sub.len;
+			if (idx+sublen>snddata.length) {
+				let newdata=new Float64Array(idx+sublen);
+				newdata.set(snddata,0);
+				snddata=newdata;
+			}
+			let subdata=sub.data;
+			for (let i=0;i<sublen;i++) {
+				snddata[idx++]+=subdata[i];
+			}
+		}
+		let snd=new Audio.Sound(sndfreq,snddata.length);
+		snd.data.set(snddata);
+		snd.savefile("bebop_memory.wav");
+	}
+
 }
 
 
@@ -806,88 +605,214 @@ function AddKey(snd,addtime,tone,ramp) {
 
 class StringSim {
 
-	constructor(canvid) {
+	constructor(canvid,autotext,autoplay) {
+		// Lengths are in cm.
 		Audio.initdef();
+		let st=this;
 		let can=document.getElementById(canvid);
+		this.stringlen=63.00;
+		this.pluckpos=51.53;
+		this.frets=22;
+		let fretpos=new Array(this.frets+1);
+		fretpos[0]=0;
+		for (let i=1;i<=this.frets;i++) {
+			fretpos[i]=fretpos[i-1]+(this.stringlen-fretpos[i-1])/18;
+		}
+		this.stringmin=this.stringlen-fretpos[this.frets];
+		this.fretpos=fretpos;
+		let fretdots=[
+			{x: 2,y:0},
+			{x: 4,y:0},
+			{x: 6,y:0},
+			{x: 8,y:0},
+			{x:10,y:1.5},
+			{x:10,y:-1.5},
+			{x:12,y:0}
+		];
+		for (let i=0;i<fretdots.length;i++) {
+			let dot=fretdots[i];
+			dot.x=(fretpos[dot.x]+fretpos[dot.x+1])*0.5/(this.stringlen-this.stringmin);
+		}
+		this.fretdots=fretdots;
 		let strings=[
-			{name:"E",freq:329.63},
+			{name:"e",freq:329.63},
 			{name:"B",freq:246.94},
 			{name:"G",freq:196.00},
 			{name:"D",freq:146.83},
 			{name:"A",freq:110.00},
 			{name:"E",freq:82.41}
 		];
-		let width=can.width;
-		let pad=Math.round(width/20);
-		can.height=pad*strings.length+pad*0.5;
 		for (let i=0;i<strings.length;i++) {
-			let str=strings[i];
-			let y=i*pad+pad*0.25;
-			str.clickx0=pad*0.75;
-			str.clickx1=width-pad*0.75;
-			str.clicky0=y+pad*0.1;
-			str.clicky1=y+pad*0.9;
-			str.liney=y+pad*0.5;
-			str.linex0=pad;
-			str.linex1=width-pad;
 			let u=i/(strings.length-1),v=1-u,n=255.99/Math.sqrt(u*u+v*v);
-			str.color="rgb("+Math.floor(v*n)+",0,"+Math.floor(u*n)+",";
+			strings[i].color="rgb("+Math.floor(v*n)+",0,"+Math.floor(u*n)+",";
 		}
-		let ctx=can.getContext("2d");
-		ctx.textAlign="center";
-		ctx.textBaseline="middle";
-		ctx.font=(pad/2)+"px monospace";
-		ctx.strokeStyle="#ffffff";
+		this.strings=strings;
+		this.scale=-1;
 		this.input=new Input(can);
 		this.input.disablenav();
-		this.pad=pad;
-		this.strings=strings;
 		this.canvas=can;
-		this.ctx=ctx;
-		this.pluckarr=[{life:-Infinity}];
-		this.plucks=1;
-		this.laststring=-1;
-		let st=this;
+		this.ctx=can.getContext("2d");
+		this.pluckarr=[];
+		this.plucks=0;
+		this.click=-1;
+		this.hover=-1;
+		// Automatic player.
+		this.autopausetime=0.1138;
+		this.autoplucktime=0.01;
+		this.autotime=0;
+		this.autonotes=[];
+		this.autopos=0xffffffff;
+		this.autotext=document.getElementById(autotext);
+		if (this.autotext) {
+			this.autoplay=document.getElementById(autoplay);
+			if (this.autoplay) {this.autoplay.onclick=function(){st.autotoggle();return false;};}
+		}
 		function update() {
-			setTimeout(update,16);
+			setTimeout(update,8);
 			st.update();
 		}
 		update();
 	}
 
 
-	update() {
-		let can=this.canvas;
-		let ctx=this.ctx;
-		let width=can.width;
-		let height=can.height;
-		let input=this.input;
-		// See if we've clicked on a string.
-		let click=-1;
-		let plucks=this.plucks;
-		let pluckarr=this.pluckarr;
-		if (input.getkeydown(input.MOUSE.LEFT)) {
-			let [mx,my]=input.getmousepos();
-			let strings=this.strings;
-			for (let i=0;i<strings.length;i++) {
-				let str=strings[i];
-				if (mx>=str.clickx0 && my>=str.clicky0 && mx<str.clickx1 && my<str.clicky1) {
-					click=i;
-					break;
+	playstring(id,fret) {
+		// Generate the string sound and visual cues.
+		let pad=1/20,lx0=pad,lx1=1-pad;
+		let str=this.strings[id];
+		let len=this.stringlen,min=this.stringmin;
+		fret=fret>0?fret:0;
+		fret=fret<1?fret:1;
+		let x=lx0+fret*(lx1-lx0);
+		fret=(1-fret)*(len-min)+min;
+		let pluck=1-(len-this.pluckpos)/fret;
+		Audio.createguitar(0.4,str.freq*len/fret,pluck).play();
+		this.pluckarr[this.plucks++]={time:performance.now(),x:x,y:(id+0.75)*pad,str:str};
+	}
+
+
+	autotoggle() {
+		// If we're already playing, stop and reset.
+		let notelen=this.autonotes.length;
+		if (this.autopos<notelen) {
+			this.autopos=notelen;
+			this.autoplay.innerHTML="&#9658; play";
+			return;
+		}
+		// Restart the autoplay state and parse the text box.
+		this.autotime=performance.now();
+		this.autopos=0;
+		this.autonotes=[];
+		let text=this.autotext.value;
+		text=text.replace(/[^ABDGEe\d-]/g,'');
+		let strmap={"e":0,"B":1,"G":2,"D":3,"A":4,"E":5};
+		let len=text.length;
+		let time=0;
+		let chordtime=0;
+		let fretpos=this.fretpos;
+		for (let i=0;i<len;i++) {
+			let c=text[i];
+			let id=strmap[c];
+			if (id!==undefined) {
+				let fret=0;
+				while (i+1<len) {
+					let n=text.charCodeAt(i+1);
+					if (n<48 || n>57) {break;}
+					i++;
+					fret=fret*10+n-48;
 				}
-			}
-			if (this.laststring!==click && click>=0) {
-				let str=strings[click];
-				let p=(mx-str.clickx0)/(str.clickx1-str.clickx0);
-				Audio.createstring(44100,str.freq,0.5,p,0.0092,1.0,1.7).play();
-				pluckarr[plucks++]={time:performance.now(),x:mx,str:str};
+				fret=fret<22?fret:22;
+				fret=fret>0?fret:0;
+				let pos=fretpos[fret]/fretpos[this.frets];
+				this.autonotes[this.autonotes.length]={time:time+chordtime,id:id,fret:pos};
+				chordtime+=this.autoplucktime;
+			} else if (c==="-") {
+				time+=this.autopausetime;
+				chordtime=0;
 			}
 		}
-		this.laststring=click;
+		this.autoplay.innerHTML="&#9632; stop";
+	}
+
+
+	autoupdate() {
+		// Play the notes.
+		let notes=this.autonotes;
+		let notelen=notes.length;
+		let notepos=this.autopos;
+		if (notepos>=notelen) {return;}
+		let time=(performance.now()-this.autotime)/1000;
+		while (notepos<notelen && notes[notepos].time<=time) {
+			let note=notes[notepos++];
+			this.playstring(note.id,note.fret);
+		}
+		this.autopos=notepos;
+		if (notepos>=notelen) {
+			this.autoplay.innerHTML="&#9658; play";
+		}
+	}
+
+
+	update() {
+		let can=this.canvas;
+		let scale=can.scrollWidth;
+		let input=this.input;
+		this.autoupdate();
+		let pad=1/20,lx0=pad,lx1=1-pad;
+		// See if we're hovering over a string.
+		let [mx,my]=input.getmousepos();
+		mx/=scale;
+		my/=scale;
+		let strings=this.strings;
+		let x0=pad*0.75,x1=1-pad*0.75;
+		let hover=-1;
+		if (mx>=x0 && mx<=x1) {
+			let c=my/pad-0.35,i=Math.floor(c);
+			if (c-i<0.80 && i>=0 && i<strings.length) {hover=i;}
+		}
+		// If we're clicking.
+		let click=-1;
+		if (input.getkeydown(input.MOUSE.LEFT)) {
+			click=hover;
+			if (hover>=0 && this.click!==click) {
+				let fret=(mx-lx0)/(lx1-lx0);
+				this.playstring(click,fret);
+			}
+		}
+		this.click=click;
 		// Redraw strings and plucks.
-		if (plucks>0) {
+		let plucks=this.plucks;
+		if (plucks>0 || this.scale!==scale || this.hover!==hover) {
+			this.hover=hover;
+			let ctx=this.ctx;
+			if (this.scale!==scale) {
+				this.scale=scale;
+				can.width=scale;
+				can.height=Math.round((strings.length+0.5)*(scale/20));
+				// Reset the context after a resize event.
+				ctx.textAlign="center";
+				ctx.textBaseline="middle";
+				ctx.strokeStyle="#ffffff";
+				ctx.font=(scale/40).toFixed(0)+"px monospace";
+			}
 			ctx.fillStyle="#000000";
-			ctx.fillRect(0,0,width,height);
+			ctx.fillRect(0,0,can.width,can.height);
+			ctx.fillStyle="#ffffff";
+			let fretdots=this.fretdots;
+			let midy=(strings.length+0.5)/40;
+			let fscale=lx1-lx0;
+			for (let i=0;i<fretdots.length;i++) {
+				let dot=fretdots[i];
+				ctx.beginPath();
+				ctx.arc((lx0+dot.x*fscale)*scale,(midy+dot.y*pad)*scale,scale*0.0075,0,Math.PI*2);
+				ctx.fill();
+			}
+			for (let i=0;i<strings.length;i++) {
+				let str=strings[i],y=(i+0.75)*pad*scale,t=scale*0.0015;
+				if (i===hover) {t*=3;}
+				ctx.fillText(str.name,scale*0.025,y);
+				ctx.fillRect(lx0*scale,y-t*0.5,(lx1-lx0)*scale,t);
+			}
+			let pluckarr=this.pluckarr;
 			for (let i=plucks-1;i>=0;i--) {
 				let p=pluckarr[i];
 				let t=(performance.now()-p.time)/1000;
@@ -895,7 +820,7 @@ class StringSim {
 				if (a>=0.01) {
 					ctx.fillStyle=p.str.color+a.toFixed(6)+")";
 					ctx.beginPath();
-					ctx.arc(p.x,p.str.liney,this.pad*0.45,0,Math.PI*2);
+					ctx.arc(p.x*scale,p.y*scale,scale*0.0225,0,Math.PI*2);
 					ctx.fill();
 				} else {
 					pluckarr[i]=pluckarr[--plucks];
@@ -903,90 +828,49 @@ class StringSim {
 				}
 			}
 			this.plucks=plucks;
-			ctx.fillStyle="#ffffff";
-			let pad=this.pad;
-			let strings=this.strings;
-			for (let i=0;i<strings.length;i++) {
-				let str=strings[i];
-				ctx.fillText(str.name,pad*0.5,str.liney);
-				ctx.beginPath();
-				ctx.moveTo(str.linex0,str.liney);
-				ctx.lineTo(str.linex1,str.liney);
-				ctx.stroke();
-			}
 		}
 	}
 
 }
 
 
-class StringSim2 {
+//---------------------------------------------------------------------------------
+// Xylophone
+
+
+class XylophoneSim {
 
 	constructor(canvid) {
 		// Lengths are in cm.
 		Audio.initdef();
 		let can=document.getElementById(canvid);
-		this.stringlen=65.00;
-		this.stringmin=20.47;
-		this.pluckpos=54.38;
-		let strings=[
-			{name:"E",freq:329.63},
-			{name:"B",freq:246.94},
-			{name:"G",freq:196.00},
-			{name:"D",freq:146.83},
-			{name:"A",freq:110.00},
-			{name:"E",freq:82.41}
-		];
-		let fretdots=[
-			{x: 9.10,y:0},
-			{x:15.17,y:0},
-			{x:20.58,y:0},
-			{x:25.35,y:0},
-			{x:31.64,y:1.5},
-			{x:31.64,y:-1.5},
-			{x:36.94,y:0}
-		];
-		let width=can.width;
-		let pad=Math.round(width/20);
-		can.height=pad*strings.length+pad*0.5;
-		let minx=pad,maxx=width-pad;
-		for (let i=0;i<strings.length;i++) {
-			let str=strings[i];
-			let y=i*pad+pad*0.25;
-			str.clickx0=pad*0.75;
-			str.clickx1=width-pad*0.75;
-			str.clicky0=y+pad*0.1;
-			str.clicky1=y+pad*0.9;
-			str.liney=y+pad*0.5;
-			str.linex0=minx;
-			str.linex1=maxx;
-			let u=i/(strings.length-1),v=1-u,n=255.99/Math.sqrt(u*u+v*v);
-			str.color="rgb("+Math.floor(v*n)+",0,"+Math.floor(u*n)+",";
+		this.bars=new Array(15);
+		for (let i=0;i<this.bars.length;i++) {
+			let len=22.2-0.614285*i;
+			let u=i/(this.bars.length-1),v=1-u,n=255.99/Math.sqrt(u*u+v*v);
+			this.bars[i]={
+				color:"rgb("+Math.floor(v*n)+",0,"+Math.floor(u*n)+",",
+				freq:98568/(len*len),
+				len:len,
+				x:0,
+				y:0,
+				w:0,
+				h:0,
+			};
 		}
-		let scale=(maxx-minx)/(this.stringlen-this.stringmin);
-		for (let i=0;i<fretdots.length;i++) {
-			let dot=fretdots[i];
-			dot.x=minx+dot.x*scale;
-			dot.y=can.height*0.5+dot.y*pad;
-		}
-		this.fretdots=fretdots;
-		let ctx=can.getContext("2d");
-		ctx.textAlign="center";
-		ctx.textBaseline="middle";
-		ctx.font=(pad/2)+"px monospace";
-		ctx.strokeStyle="#ffffff";
+		this.whratio=8;
+		this.scale=-1;
 		this.input=new Input(can);
 		this.input.disablenav();
-		this.pad=pad;
-		this.strings=strings;
 		this.canvas=can;
-		this.ctx=ctx;
-		this.pluckarr=[{life:-Infinity}];
-		this.plucks=1;
-		this.laststring=-1;
+		this.ctx=can.getContext("2d");
+		this.hitarr=[];
+		this.hits=0;
+		this.click=-1;
+		this.hover=-1;
 		let st=this;
 		function update() {
-			setTimeout(update,16);
+			setTimeout(update,8);
 			st.update();
 		}
 		update();
@@ -995,75 +879,89 @@ class StringSim2 {
 
 	update() {
 		let can=this.canvas;
-		let ctx=this.ctx;
-		let width=can.width;
-		let height=can.height;
+		let scale=can.scrollWidth;
 		let input=this.input;
-		// See if we've clicked on a string.
-		let click=-1;
-		let plucks=this.plucks;
-		let pluckarr=this.pluckarr;
-		if (input.getkeydown(input.MOUSE.LEFT)) {
-			let [mx,my]=input.getmousepos();
-			let strings=this.strings;
-			for (let i=0;i<strings.length;i++) {
-				let str=strings[i];
-				if (my>=str.clicky0 && my<str.clicky1 && mx>=str.clickx0 && mx<str.clickx1) {
-					click=i;
-					break;
-				}
-			}
-			if (this.laststring!==click && click>=0) {
-				let str=strings[click];
-				let len=this.stringlen,min=this.stringmin;
-				let x0=str.linex0,x1=str.linex1;
-				mx=mx>x0?mx:x0;
-				mx=mx<x1?mx:x1;
-				let fret=(mx-x0)/(x1-x0);
-				fret=(1-fret)*(len-min)+min;
-				let pluck=1-(len-this.pluckpos)/fret;
-				Audio.createstring(44100,str.freq*len/fret,0.5,pluck,0.0092,1.0,1.7).play();
-				pluckarr[plucks++]={time:performance.now(),x:mx,str:str};
+		let pad=1/20;
+		let height=Math.round(6.5*(scale/20));
+		// See if we're hovering over a string.
+		let [mx,my]=input.getmousepos();
+		// mx/=scale;
+		// my/=scale;
+		let bars=this.bars;
+		let barh=(1-pad*4)*height/bars[0].len;
+		let barw=barh*4;
+		let bary=pad*2*height;
+		let barpad=barw+pad*0.6*height;
+		let barx=(scale-barpad*bars.length)/2;
+		let bart=(pad/5)*height;
+		let hover=-1;
+		if (mx>=barx && mx<can.width && my>=bary && my<height) {
+			let c=(mx-barx)/barpad,i=Math.floor(c);
+			if (i>=0 && i<bars.length && c-i<barw/barpad) {
+				let bar=bars[i];
+				if (my>=bar.y && my<bar.y+bar.h) {hover=i;}
 			}
 		}
-		this.laststring=click;
+		// If we're clicking.
+		let click=-1;
+		let hits=this.hits;
+		let hitarr=this.hitarr;
+		if (input.getkeydown(input.MOUSE.LEFT)) {
+			click=hover;
+			if (hover>=0 && this.click!==click) {
+				let bar=bars[click];
+				let fret=(my-bar.y-bart)/(bar.h-2*bart);
+				fret=fret<1?fret:1;
+				fret=fret>0?fret:0;
+				Audio.createxylophone(0.5,bar.freq,fret).play();
+				let x=(bar.x+bar.w*0.5)/scale;
+				let y=(bar.y+bart+fret*bar.h)/scale;
+				hitarr[hits++]={time:performance.now(),x:x,y:y,bar:bar};
+			}
+		}
+		this.click=click;
 		// Redraw strings and plucks.
-		if (plucks>0) {
+		if (hits>0 || this.scale!==scale || this.hover!==hover) {
+			this.hover=hover;
+			let ctx=this.ctx;
+			if (this.scale!==scale) {
+				this.scale=scale;
+				can.width=scale;
+				can.height=height;
+				// Reset the context after a resize event.
+				ctx.textAlign="center";
+				ctx.textBaseline="middle";
+				ctx.strokeStyle="#ffffff";
+				ctx.font=(scale/40).toFixed(0)+"px monospace";
+			}
 			ctx.fillStyle="#000000";
-			ctx.fillRect(0,0,width,height);
-			for (let i=plucks-1;i>=0;i--) {
-				let p=pluckarr[i];
-				let t=(performance.now()-p.time)/1000;
+			ctx.fillRect(0,0,can.width,can.height);
+			for (let i=0;i<bars.length;i++) {
+				let bar=bars[i];
+				let w=barw,x=barx+barpad*i;
+				let h=barh*bar.len,y=bary;// (height-h)*0.5;
+				bar.x=x; bar.y=y;
+				bar.w=w; bar.h=h;
+				ctx.fillStyle="#ffffff";
+				ctx.fillRect(x,y,w,h);
+				ctx.fillStyle=i===this.hover?"#606060":"#303030";
+				ctx.fillRect(x+bart,y+bart,w-2*bart,h-2*bart);
+			}
+			for (let i=hits-1;i>=0;i--) {
+				let hit=hitarr[i];
+				let t=(performance.now()-hit.time)/1000;
 				let a=Math.exp(-1.316*t);
 				if (a>=0.01) {
-					ctx.fillStyle=p.str.color+a.toFixed(6)+")";
+					ctx.fillStyle=hit.bar.color+a.toFixed(6)+")";
 					ctx.beginPath();
-					ctx.arc(p.x,p.str.liney,this.pad*0.45,0,Math.PI*2);
+					ctx.arc(hit.x*scale,hit.y*scale,scale*0.0225,0,Math.PI*2);
 					ctx.fill();
 				} else {
-					pluckarr[i]=pluckarr[--plucks];
-					pluckarr[plucks]=p;
+					hitarr[i]=hitarr[--hits];
+					hitarr[hits]=hit;
 				}
 			}
-			this.plucks=plucks;
-			ctx.fillStyle="#ffffff";
-			let pad=this.pad;
-			let fretdots=this.fretdots;
-			for (let i=0;i<fretdots.length;i++) {
-				let dot=fretdots[i];
-				ctx.beginPath();
-				ctx.arc(dot.x,dot.y,this.pad*0.15,0,Math.PI*2);
-				ctx.fill();
-			}
-			let strings=this.strings;
-			for (let i=0;i<strings.length;i++) {
-				let str=strings[i];
-				ctx.fillText(str.name,pad*0.5,str.liney);
-				ctx.beginPath();
-				ctx.moveTo(str.linex0,str.liney);
-				ctx.lineTo(str.linex1,str.liney);
-				ctx.stroke();
-			}
+			this.hits=hits;
 		}
 	}
 
@@ -1096,9 +994,9 @@ function CompressPoints(ret,points,len,maxpoints) {
 }
 
 
-function Spectrogram(real,imag,arr) {
+function Spectrogram(real,imag,arr,len) {
 	// Copy the array. If len isn't a power of 2, pad it with 0's.
-	let bits=0,len=arr.length;
+	let bits=0;
 	while (len>(1<<bits)) {bits++;}
 	// Swap the array elements to reproduce the recursion of the standard algorithm.
 	for (let i=0;i<len;i++) {
@@ -1143,15 +1041,15 @@ function FilterDiagrams() {
 	Audio.initdef();
 	let freq=44100,len=1<<16;
 	let bqparams=[
-		{id:"bq_none"     ,type:"none"     ,freq:440,bw:1,gain:0 },
-		{id:"bq_lowpass"  ,type:"lowpass"  ,freq:440,bw:1,gain:0 },
-		{id:"bq_highpass" ,type:"highpass" ,freq:440,bw:1,gain:0 },
-		{id:"bq_bandpass" ,type:"bandpass" ,freq:440,bw:1,gain:0 },
-		{id:"bq_notch"    ,type:"notch"    ,freq:440,bw:5,gain:0 },
-		{id:"bq_allpass"  ,type:"allpass"  ,freq:440,bw:1,gain:0 },
-		{id:"bq_peak"     ,type:"peak"     ,freq:440,bw:5,gain:40},
-		{id:"bq_lowshelf" ,type:"lowshelf" ,freq:440,bw:1,gain:40},
-		{id:"bq_highshelf",type:"highshelf",freq:440,bw:1,gain:40}
+		{id:"bq_none"     ,type:Audio.Biquad.NONE     ,freq:440,bw:1,gain:0 },
+		{id:"bq_lowpass"  ,type:Audio.Biquad.LOWPASS  ,freq:440,bw:1,gain:0 },
+		{id:"bq_highpass" ,type:Audio.Biquad.HIGHPASS ,freq:440,bw:1,gain:0 },
+		{id:"bq_bandpass" ,type:Audio.Biquad.BANDPASS ,freq:440,bw:1,gain:0 },
+		{id:"bq_notch"    ,type:Audio.Biquad.NOTCH    ,freq:440,bw:5,gain:0 },
+		{id:"bq_allpass"  ,type:Audio.Biquad.ALLPASS  ,freq:440,bw:1,gain:0 },
+		{id:"bq_peak"     ,type:Audio.Biquad.PEAK     ,freq:440,bw:5,gain:40},
+		{id:"bq_lowshelf" ,type:Audio.Biquad.LOWSHELF ,freq:440,bw:1,gain:40},
+		{id:"bq_highshelf",type:Audio.Biquad.HIGHSHELF,freq:440,bw:1,gain:40}
 	];
 	let svgwidth=1020,svgheight=120,svgpad=20,svgpoints=svgwidth-svgpad*2;
 	let real=new Array(len),imag=new Array(len);
@@ -1159,12 +1057,12 @@ function FilterDiagrams() {
 		let param=bqparams[i];
 		let tr=document.getElementById(param.id);
 		if (!tr) {continue;}
-		let snd=new Audio.Sound(len,freq);
+		let snd=new Audio.Sound(freq,len);
 		let bq=new Audio.Biquad(param.type,param.freq/freq,param.bw,param.gain);
 		let data=snd.data;
 		for (let j=0;j<len;j++) {data[j]=bq.process(Audio.noise(j));}
-		Spectrogram(real,imag,data);
-		CompressPoints(real,real,real.length>>2,svgpoints);
+		Spectrogram(real,imag,data,len);
+		CompressPoints(real,real,len>>2,svgpoints);
 		let svg=`<svg width="100%" viewBox='0 0 ${svgwidth} ${svgheight}' style='background:#000000;'>`;
 		let offx=svgpad,offy=svgheight-svgpad;
 		svg+=`<path fill='#202040' stroke='#8080ff' stroke-width='1' d='M ${offx} ${offy}`;
@@ -1176,8 +1074,12 @@ function FilterDiagrams() {
 		}
 		let time=Math.floor(0.01*freq);
 		if (time>len) {time=len;}
-		let vol=0.4/snd.getvolume();
-		for (let j=0;j<time;j++) {data[j]*=vol*j/time;}
+		let vol=0.4/snd.getvol();
+		for (let j=0;j<time;j++) {
+			let vmul=vol*j/time;
+			data[j]*=vmul;
+			data[len-1-j]*=vmul;
+		}
 		for (let j=time;j<len;j++) {data[j]*=vol;}
 		let normx=(svgwidth-svgpad*2)/svgpoints;
 		let normy=(svgheight-svgpad*2)/(max-min);
@@ -1197,5 +1099,155 @@ function FilterDiagrams() {
 		tdl.childNodes[0].onclick=function(){snd.play();return false;};
 	}
 }
-window.addEventListener("load",FilterDiagrams,true);
 
+
+//---------------------------------------------------------------------------------
+// Misc Sounds
+
+
+function PlayPhone() {
+	let freq=44100,len=Math.floor(freq*1.0);
+	let snd=new Audio.Sound(freq,len*2);
+	let data=snd.data;
+	// Dial tone.
+	let bp2 =new Audio.Biquad(Audio.Biquad.BANDPASS,2000/freq,12);
+	let bp4 =new Audio.Biquad(Audio.Biquad.BANDPASS, 400/freq,3);
+	let hp90=new Audio.Biquad(Audio.Biquad.HIGHPASS,  90/freq);
+	let hp91=new Audio.Biquad(Audio.Biquad.HIGHPASS,  90/freq);
+	for (let i=0;i<len;i++) {
+		let t=i/freq;
+		let n0 =Audio.sin(t*350)+Audio.sin(t*440);
+		let n1 =Audio.clip(n0,-0.9,0.9);
+		let n2 =bp2.process(n1);
+		let n30=bp4.process(n2*0.5);
+		let n31=Audio.clip(n2,-0.4,0.4)*0.15;
+		let n4 =hp90.process(n30+n31);
+		let n5 =hp91.process(n4);
+		data[i]+=n5;
+	}
+	// Ring tone.
+	bp2 =new Audio.Biquad(Audio.Biquad.BANDPASS,2000/freq,12);
+	bp4 =new Audio.Biquad(Audio.Biquad.BANDPASS, 400/freq,3);
+	hp90=new Audio.Biquad(Audio.Biquad.HIGHPASS,  90/freq);
+	hp91=new Audio.Biquad(Audio.Biquad.HIGHPASS,  90/freq);
+	for (let i=0;i<len;i++) {
+		let t=i/freq;
+		let n0 =Audio.sin(t*440)+Audio.sin(t*480);
+		let n1 =Audio.clip(n0,-0.9,0.9);
+		let n2 =bp2.process(n1);
+		let n30=bp4.process(n2*0.5);
+		let n31=Audio.clip(n2,-0.4,0.4)*0.15;
+		let n4 =hp90.process(n30+n31);
+		let n5 =hp91.process(n4);
+		data[i+len]+=n5;
+	}
+	snd.scalevol(0.18,true);
+	snd.play();
+}
+
+
+function PlayKnock() {
+	let snd=new Audio.Sound(44100,0);
+	let knock=Audio.createthud();
+	snd.add(knock,0.0);
+	snd.add(knock,0.3);
+	snd.add(knock,0.6);
+	snd.play();
+}
+
+
+function PlayUI() {
+	let snd=new Audio.Sound(44100,0);
+	let t=0,vol=0.5;
+	snd.add(Audio.createuiincrease(vol),t); t+=0.3;
+	snd.add(Audio.createuiincrease(vol),t); t+=0.3;
+	snd.add(Audio.createuiincrease(vol),t); t+=0.5;
+	snd.add(Audio.createuidecrease(vol),t); t+=0.3;
+	snd.add(Audio.createuidecrease(vol),t); t+=0.3;
+	snd.add(Audio.createuidecrease(vol),t); t+=0.5;
+	snd.add(Audio.createuiclick(vol),t); t+=0.2;
+	snd.add(Audio.createuiclick(vol),t); t+=0.2;
+	snd.add(Audio.createuiclick(vol),t); t+=0.5;
+	// snd.add(Audio.createuiconfirm(vol),t); t+=1.2;
+	// snd.add(Audio.createuierror(vol),t); t+=1.2;
+	snd.play();
+}
+
+
+function PlayWaveguide() {
+	let sndfreq=44100,sndtime=3,sndlen=Math.floor(sndfreq*sndtime);
+	let snd=new Audio.Sound(sndfreq,sndlen);
+	let pluckheight=1.0,pluckpos=0.25;
+	let freq=200;
+	let wavelen=Math.round(0.5*sndfreq/freq),wavepos=0;
+	let wave=new Float64Array(wavelen);
+	let wavemul=-0.995;
+	for (let i=0;i<wavelen;i++) {
+		let u=i/(wavelen-1);
+		let v=u<pluckpos?u/pluckpos:(1-u)/(1-pluckpos);
+		// let v=u<0.5?1:0;
+		wave[i]=v*pluckheight;
+	}
+	let data=snd.data;
+	let inharm=0.00006;
+	let bands=Math.floor(sndfreq/(4*freq));
+	let bandarr=new Array(bands);
+	let nbands=0;
+	let mnorm=0;
+	for (let b=0;b<bands;b++) {
+		let n=b+1,n2=n*n;
+		let harmfreq=n*Math.sqrt(1+(n2-1)*inharm)*freq/sndfreq;
+		let harmmul=1/n2;
+		let len=Math.round(1/harmfreq);
+		if (len<2) {break;}
+		mnorm+=harmmul;
+		bandarr[nbands++]={
+			filter:new Audio.Biquad(Audio.Biquad.BANDPASS,harmfreq,1),
+			len:len,
+			pos:0,
+			data:new Float64Array(len),
+			mul:harmmul
+		};
+	}
+	bands=nbands;
+	let volume=1;
+	mnorm=(mnorm>1?1/mnorm:1)*volume;
+	for (let b=0;b<bands;b++) {
+		let band=bandarr[b];
+		band.mul*=mnorm;
+	}
+	let insum=0;
+	for (let i=0;i<sndlen;i++) {
+		// let t=i/sndfreq;
+		let w=wave[wavepos];
+		wave[wavepos]=w*wavemul;
+		if (++wavepos>=wavelen) {wavepos=0;}
+		w=(w+insum);// /(bands+1);
+		insum=0;
+		let outsum=0;
+		for (let b=0;b<bands;b++) {
+			let band=bandarr[b];
+			let x=band.data[band.pos];
+			insum+=x*band.mul;
+			outsum+=x*band.mul;
+			band.data[band.pos]=band.filter.process(w);
+			if (++band.pos>=band.len) {band.pos=0;}
+		}
+		data[i]=outsum;
+	}
+	snd.scalevol(1,true);
+	// snd.savefile("wve.wav");
+	snd.play();
+}
+
+
+//---------------------------------------------------------------------------------
+// Main
+
+
+function LoadJS() {
+	new XylophoneSim("xylosim");
+	new StringSim("guitarsim","gttext","gtplay");
+	FilterDiagrams();
+}
+window.addEventListener("load",LoadJS,true);

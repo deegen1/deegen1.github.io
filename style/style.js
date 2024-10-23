@@ -104,7 +104,91 @@ function HighlightPython(text) {
 	];
 	for (let i=0;i<regexmatch.length;i++) {
 		let reg=regexmatch[i][0];
-		if (i>0 && i<6) {reg="("+reg.join("|")+")[^_0-9a-zA-Z]";}
+		if (Array.isArray(reg)) {reg="("+reg.join("|")+")[^_0-9a-zA-Z]";}
+		regexmatch[i][0]=new RegExp(reg);
+	}
+	// Begin parsing the text.
+	let prev=styledefault;
+	let ret="<span style=\""+styledefault+"\">";
+	while (text.length>0) {
+		let minpos=text.length;
+		let mintext="";
+		let minstyle=styledefault;
+		// Find the regex closest to index 0. If two occur at the same index, take the
+		// latter regex.
+		for (let i=0;i<regexmatch.length;i++) {
+			let match=text.match(regexmatch[i][0]);
+			if (match!==null && minpos>=match.index) {
+				minpos=match.index;
+				mintext=match[match.length-1];
+				minstyle=regexmatch[i][1];
+			}
+		}
+		// If we skipped over text and it's not whitespace, give it the default style.
+		let prefix=text.substring(0,minpos);
+		if (prefix.trim().length>0 && prev!==styledefault) {
+			ret+="</span><span style=\""+styledefault+"\">";
+			prev=styledefault;
+		}
+		ret+=prefix;
+		// Append and style the best matched regex.
+		if (prev!==minstyle) {
+			ret+="</span><span style=\""+minstyle+"\">";
+			prev=minstyle;
+		}
+		for (let i=0;i<mintext.length;i++) {
+			let c=mintext[i];
+			let r=htmlreplace[c];
+			if (r===undefined) {ret+=c;}
+			else {ret+=r;}
+		}
+		text=text.substring(minpos+mintext.length);
+	}
+	return ret+"</span>";
+}
+
+
+function HighlightJavascript(text) {
+	// Set up regular expressions to match an expression to a style.
+	let styledefault   ="color:"+GetCSSValue("--code-text");
+	let stylecomment   ="color:"+GetCSSValue("--code-comment");
+	let stylequote     ="color:"+GetCSSValue("--code-string");
+	let stylemultiquote="color:"+GetCSSValue("--code-string");
+	let stylenumber    ="color:"+GetCSSValue("--code-number");
+	let styleoperator  ="color:"+GetCSSValue("--code-text");
+	let stylespecial   ="color:"+GetCSSValue("--code-number");
+	let stylekeyword   ="color:"+GetCSSValue("--code-keyword");
+	let arrspecial=[
+		"Array","Date","eval","function","hasOwnProperty","Infinity","isFinite","isNaN",
+		"isPrototypeOf","length","Math","NaN","name","Number","Object","prototype",
+		"String","toString","undefined","valueOf","eval","null","true","false"
+	];
+	let arrkeyword=[
+		"abstract","arguments","await","boolean","break","byte","case","catch","char",
+		"class","const","continue","debugger","default","delete","do","double","else",
+		"enum","export","extends","final","finally","float","for","function","goto",
+		"if","implements","import","in","instanceof","int","interface","let","long",
+		"native","new","package","private","protected","public","return","short",
+		"static","super","switch","synchronized","this","throw","throws","transient",
+		"try","typeof","var","void","volatile","while","with","yield"
+	];
+	let htmlreplace={"&":"&amp","<":"&lt;",">":"&gt;"};
+	let regexmatch=[
+		["[_a-zA-Z][_a-zA-Z0-9]*",styledefault],
+		[arrspecial,stylespecial],
+		[arrkeyword,stylekeyword],
+		["(?:0|[1-9]\\d*)(?:\\.\\d*)?(?:[eE][+\\-]?\\d+)?",stylenumber],
+		["0[xX][0-9a-fA-F]*",stylenumber],
+		["[\\~\\!\\@\\$\\%\\^\\&\\*\\(\\)\\-\\+\\=\\<\\>\\/\\|\\[\\]]+",styleoperator],
+		['"(?:\\\\[\\s\\S]|[^"\\\\])*?"',stylequote],
+		["'(?:\\\\[\\s\\S]|[^'\\\\])*?'",stylequote],
+		["`(?:\\\\[\\s\\S]|[^`\\\\])*?`",stylequote],
+		["/\\*[\\s\\S]*?\\*/",stylemultiquote],
+		["//.*",stylecomment]
+	];
+	for (let i=0;i<regexmatch.length;i++) {
+		let reg=regexmatch[i][0];
+		if (Array.isArray(reg)) {reg="("+reg.join("|")+")[^_0-9a-zA-Z]";}
 		regexmatch[i][0]=new RegExp(reg);
 	}
 	// Begin parsing the text.
@@ -267,6 +351,7 @@ function StyleFooter() {
 function StyleOnload() {
 	StyleFooter();
 	HighlightStyle("langpython",HighlightPython);
+	HighlightStyle("langjs",HighlightJavascript);
 	HighlightStyle("langsico",HighlightSico);
 }
 

@@ -35,12 +35,9 @@ Notes:
 TODO
 
 
+Split simplexes until simplex_area / aabb_area > some ratio. Split in half along
+longest edge.
 Simplify text generation. Reduce to 5kb.
-Use quadtree/octtree.
-	Build from bottom up.
-	How to test if simplex / cube overlap?
-	Might not need to rebuild tree when adding or deleting.
-	Can terminate when first collision is found.
 Add denoising.
 Add recalcnorm() and applytransform() to mesh.
 Add vert/face unique id tracking. Add delete/get.

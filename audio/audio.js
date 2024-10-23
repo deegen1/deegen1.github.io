@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-audio.js - v1.00
+audio.js - v1.06
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -11,67 +11,27 @@ deegen1.github.io - akdee144@gmail.com
 Notes
 
 
+To transfer energy between two systems: energy0 * freq0 = energy1 * freq1
 References
-	https://freewavesamples.com
 	NSynth (magenta) library
 	https://csounds.com/manual/html/MiscModalFreq.html
-	https://www.youtube.com/watch?v=wYlOw8YXoBs
-Most sound effects have exponential decay.
-Different frequencies have different decay rates based on material properties.
+	http://aspress.co.uk/sd/index.html
 
 
 --------------------------------------------------------------------------------
 TODO
 
 
-check max volume of guitar
-Maraca probability of collision vs wall, vs beads + intensity.
-Based on number of beads vs relative size.
-sliding guassian, middle is < 0
-guitar add fret position, freq*length/(1-fret)
-drums: https://www.youtube.com/watch?v=wYlOw8YXoBs
-https://csounds.com/manual/html/MiscModalFreq.html
-https://en.wikipedia.org/wiki/Banded_waveguide_synthesis
-phaser
-flanger
-sound effects
-	explosion
-	hi hat
-	drum kick
-	thud
-	marbles = small sine wave + fast decay
-	laser
-	electricity
-	button press
-out of phase reverb
-	look up annihilation movie ost
-	play one sine wave out of sync
-	off = tri(t*200)
-	sin(x) + sin(x+off)
+Add resonance factor to generatstring().
+Remove scalevol() for sound effect normalization.
+Use biquad updatecoefs() for snare.
+Waveguides
+	https://www.osar.fr/notes/waveguides/
+	https://www.ee.columbia.edu/~ronw/dsp/
+	Use excitation wave and comb filters. Don't add them together.
+	Splitting into N bands and adding them together increases the gain by N.
+	Or subtract from signal as different filters process the sample.
 
-Guitar.prototype.strumChord = function(time, downstroke, velocity, chord) {
- new GuitarString(audioCtx, audioDestination, 0, 2, 4),   // E2
-this.strings[stringNumber].pluck(time, velocity, chord[stringNumber]);
-
-
-https://www.ee.columbia.edu/~ronw/dsp/
-https://github.com/mrahtz/javascript-karplus-strong/blob/master/karplus-strong/guitarstring_asm.js
-
-// flying saucer
-sndfreq =44100
-sndtime =5
-sndnotes=int(sndtime*sndfreq)
-sndarr =list(range(sndnotes))
-umin=(1/sndfreq)*math.pi*200
-umax=(1/sndfreq)*math.pi*500
-uspan=0.3
-j=0
-for i in range(sndnotes):
-	u=((i/sndfreq)%uspan)/uspan
-	u=abs(u-0.5)*2
-	df=u*(umax-umin)+umin
-	j+=df
-	sndarr[i]=math.sin(j)
 
 */
 /* jshint esversion: 11  */
@@ -81,43 +41,105 @@ for i in range(sndnotes):
 
 
 //---------------------------------------------------------------------------------
-// Audio - v1.00
+// Audio - v1.06
 
 
 class _AudioSound {
 
-	constructor(len,freq=44100) {
+	constructor(freq=44100,len=0) {
 		// accepts len/path and frequency
+		Audio.initdef();
 		this.audio=Audio.def;
 		this.freq=freq;
 		this.queue=null;
 		let type=typeof len;
 		if (type==="number") {
-			this.resize(len);
+			this.resizelen(len);
 		} else if (type==="string") {
 			this.loadfile(len);
 		} else {
-			this.resize(0);
+			this.resizelen(0);
 		}
 	}
 
 
-	resize(size) {
-		this.loaded=true;
-		this.len=size;
-		if (size>0) {
-			this.ctxbuf=this.audio.ctx.createBuffer(1,size,this.freq);
-			this.data=this.ctxbuf.getChannelData(0);
-		} else {
-			this.ctxbuf=null;
-			this.data=new Float32Array(0);
+	slicelen(start=0,len=Infinity) {
+		start=Math.floor(start);
+		if (start<0) {
+			len+=start;
+			start=0;
 		}
+		if (start>this.len) {start=this.len;}
+		if (len>this.len-start) {len=this.len-start;}
+		len=Math.floor(len);
+		let newsnd=new Audio.Sound(this.freq,len);
+		let newdata=newsnd.data;
+		let data=this.data;
+		for (let i=0;i<len;i++) {newdata[i]=data[start+i];}
+		return newsnd;
+	}
+
+
+	slicetime(start=0,len=Infinity) {
+		return this.slicelen(start*this.freq,len*this.freq);
+	}
+
+
+	copy() {return this.slicelen();}
+
+
+	trim(eps=1e-4) {
+		return this.trimend(eps).trimstart(eps);
+	}
+
+
+	trimstart(eps=1e-4) {
+		let data=this.data;
+		let len=this.len,pos=0;
+		while (pos<len && Math.abs(data[pos])<=eps) {pos++;}
+		for (let i=pos;i<len;i++) {data[i-pos]=data[i];}
+		return this.resizelen(len-pos);
+	}
+
+
+	trimend(eps=1e-4) {
+		let data=this.data;
+		let len=this.len;
+		while (len>0 && Math.abs(data[len-1])<=eps) {len--;}
+		return this.resizelen(len);
+	}
+
+
+	resizelen(len) {
+		// Over-allocate in case we keep modifying the sound.
+		this.loaded=true;
+		let olddata=this.data;
+		let oldlen=olddata?olddata.length:0;
+		let newlen=(len>oldlen || 3*len<oldlen)?len*2:oldlen;
+		let data=this.data;
+		if (newlen!==oldlen) {
+			if (newlen>0) {
+				this.ctxbuf=this.audio.ctx.createBuffer(1,newlen,this.freq);
+				data=this.ctxbuf.getChannelData(0);
+			} else {
+				this.ctxbuf=null;
+				data=new Float32Array(0);
+			}
+			let copylen=oldlen<newlen?oldlen:newlen;
+			for (let i=0;i<copylen;i++) {data[i]=olddata[i];}
+		}
+		let clearlen=this.len<newlen?this.len:newlen;
+		this.data=data;
+		for (let i=len;i<clearlen;i++) {data[i]=0;}
+		this.len=len;
+		this.time=len/this.freq;
+		return this;
 	}
 
 
 	loadfile(path) {
 		// Load and replace the sound with a WAV file.
-		this.resize(0);
+		this.resizelen(0);
 		this.loaded=false;
 		let req=new XMLHttpRequest();
 		req.open("GET",path,true);
@@ -134,8 +156,7 @@ class _AudioSound {
 
 	savefile(name) {
 		// Save the sound to a WAV file.
-		let data=this.towav();
-		let blob=new Blob([data]);
+		let blob=new Blob([this.towav()]);
 		let link=document.createElement("a");
 		link.href=window.URL.createObjectURL(blob);
 		link.download=name;
@@ -210,7 +231,7 @@ class _AudioSound {
 		let samples=Math.floor((datlen-8)/(chan*bytes));
 		let channorm=1/chan;
 		this.freq=freq;
-		this.resize(samples);
+		this.resizelen(samples);
 		let snddata=this.data;
 		datidx+=8+dataidx;
 		if (fmt===1) {
@@ -289,22 +310,105 @@ class _AudioSound {
 	}
 
 
-	getvolume() {
+	addindex(snd,dstoff=0,vol=1.0) {
+		// Add sound samples to the current sound.
+		let srcoff=0,srclen=snd.len;
+		if (dstoff<0) {
+			srcoff=-dstoff;
+			srclen+=dstoff;
+		}
+		if (srclen<=0) {return this;}
+		if (dstoff+srclen>this.len) {
+			this.resizelen(dstoff+srclen);
+		}
+		let dstdata=this.data;
+		let srcdata=snd.data;
+		// If we're adding the sound to itself, we may need to go back-to-front.
+		if (dstoff<srcoff) {
+			for (let i=0;i<srclen;i++) {
+				dstdata[dstoff++]+=srcdata[srcoff++]*vol;
+			}
+		} else {
+			dstoff+=srclen;
+			srcoff+=srclen;
+			for (let i=0;i<srclen;i++) {
+				dstdata[--dstoff]+=srcdata[--srcoff]*vol;
+			}
+		}
+		return this;
+	}
+
+
+	add(snd,offset=0,vol=1.0) {
+		return this.addindex(snd,Math.round(offset*this.freq),vol);
+	}
+
+
+	getvol() {
 		let data=this.data,len=data.length;
 		let v=0,x;
 		for (let i=0;i<len;i++) {
 			x=Math.abs(data[i]);
-			v=x>v?x:v;
+			v=v<x?x:v;
 		}
 		return v;
 	}
 
 
-	scale(v) {
+	scalevol(mul,normalize=false) {
 		let data=this.data,len=data.length;
-		for (let i=0;i<len;i++) {
-			data[i]*=v;
+		if (normalize) {
+			let norm=this.getvol();
+			mul=norm>1e-10?mul/norm:0;
 		}
+		for (let i=0;i<len;i++) {data[i]*=mul;}
+		return this;
+	}
+
+
+	scalelen(newlen) {
+		let data=this.data,len=this.len;
+		if (len<newlen) {
+			// Stretch by linearly interpolating.
+			this.resizelen(newlen);
+			data=this.data;
+			let sinc=len-1,dinc=newlen-1;
+			let spos=len-1,dpos=newlen;
+			let x0=len>0?data[spos]:0,xd=0;
+			let rem=0,iden=1/dinc;
+			while (dpos>0) {
+				data[--dpos]=x0+xd*rem;
+				rem-=sinc;
+				if (rem<0) {
+					rem+=dinc;
+					xd=x0;
+					x0=data[--spos];
+					xd=(xd-x0)*iden;
+				}
+			}
+		} else if (len>newlen) {
+			// Shrink by summing and averaging.
+			let rem=0,rden=1/len,sum=0,sden=newlen/len,x;
+			let dpos=0,spos=0;
+			while (dpos<newlen) {
+				x=data[spos++];
+				sum+=x;
+				rem+=newlen;
+				if (rem>=len) {
+					rem-=len;
+					x=rem>0?x*(rem*rden):0;
+					data[dpos++]=sum*sden-x;
+					sum=x;
+				}
+			}
+			this.resizelen(newlen);
+		}
+		return this;
+	}
+
+
+	scaletime(newtime) {
+		return this.scalelen(Math.round((newtime/this.time)*this.freq));
 	}
 
 }
@@ -312,7 +416,7 @@ class _AudioSound {
 
 class _AudioInstance {
 
-	constructor(snd,volume,pan,freq) {
+	constructor(snd,vol=1.0,pan=0.0,freq=null) {
 		let audio=snd.audio;
 		// Audio player link
 		this.audprev=null;
@@ -334,14 +438,14 @@ class _AudioInstance {
 		this.setpan(pan);
 		this.ctxpan.connect(ctx.destination);
 		this.ctxgain=ctx.createGain();
-		this.setvolume(volume);
+		this.setvolume(vol);
 		this.ctxgain.connect(this.ctxpan);
 		let ctxsrc=ctx.createBufferSource();
 		this.ctxsrc=ctxsrc;
 		ctxsrc.addEventListener("ended",()=>{this.remove();});
 		ctxsrc.buffer=snd.ctxbuf;
 		ctxsrc.connect(this.ctxgain);
-		ctxsrc.start();
+		ctxsrc.start(0,0,snd.time);
 	}
 
 
@@ -423,34 +527,182 @@ class _AudioInstance {
 }
 
 
+class _AudioDelay {
+	// Delay filter with linear interpolation.
+
+	constructor(rate,delay) {
+		this.rate=rate;
+		this.delay=delay;
+		this.pos=0;
+		this.len=Math.floor(rate*delay)+2;
+		this.data=new Float32Array(this.len);
+	}
+
+
+	add(x) {
+		if (++this.pos>=this.len) {this.pos=0;}
+		this.data[this.pos]=x;
+	}
+
+
+	get(delay) {
+		if (delay===undefined) {
+			delay=this.delay;
+		} else if (delay<0 || delay>this.delay) {
+			throw `Delay too large ${delay} > ${this.delay}`;
+		}
+		delay*=this.rate;
+		let i=Math.floor(delay);
+		let f=delay-i;
+		let len=this.len,data=this.data;
+		i=this.pos-i;
+		if (i<0) {i+=len;}
+		let j=i-1;
+		if (j<0) {j+=len;}
+		return data[i]*(1-f)+data[j]*f;
+	}
+
+
+	process(x) {
+		this.add(x);
+		return this.get();
+	}
+
+}
+
+
+class _AudioEnvelope {
+	// Envelope/gain filter.
+
+	static CON=0;
+	static LIN=1;
+	static EXP=2;
+
+
+	constructor(arr=null,eps=0.001) {
+		// [ type, time, target, type, time, target, ... ]
+		// type = con, lin, exp
+		this.last=null;
+		this.stop=0;
+		this.eps=eps;
+		this.envarr=[];
+		for (let i=0;arr && i<arr.length;i+=3) {
+			this.add(arr[i],arr[i+1],arr[i+2]);
+		}
+	}
+
+
+	add(type,time,target) {
+		if (time<0 || isNaN(time)) {
+			throw "envelope invalid time: "+time.toString();
+		}
+		let envarr=this.envarr;
+		let prev=envarr.length>0?envarr[envarr.length-1]:null;
+		let prevtar=prev?prev.target:0;
+		let prevstop=prev?prev.stop:0;
+		let env={};
+		env.start=prevstop;
+		env.stop=prevstop+time;
+		env.type=type;
+		if (type===_AudioEnvelope.CON || time<=0) {
+			env.mul=0;
+			env.con=target;
+		} else if (type===_AudioEnvelope.LIN) {
+			env.mul=(target-prevtar)/time;
+			env.con=prevtar-env.mul*prevstop;
+		} else if (type===_AudioEnvelope.EXP) {
+			// Scale the exponential by 1/(1-eps) to reach our target values.
+			let leps=Math.log(this.eps);
+			let expmul=(target-prevtar)/(1-this.eps);
+			if (expmul<0) {
+				env.mul=leps/time;
+				env.con=Math.log(-expmul)-env.mul*prevstop;
+				env.expcon=prevtar+expmul;
+			} else {
+				env.mul=-leps/time;
+				env.con=Math.log(expmul)+leps-env.mul*prevstop;
+				env.expcon=target-expmul;
+			}
+		} else {
+			throw "envelope type not recognized: "+type;
+		}
+		env.target=target;
+		envarr.push(env);
+		this.stop=env.stop;
+		return this;
+	}
+
+
+	get(time) {
+		let env=this.last;
+		// If we're in a new time segment.
+		if (env===null || time<env.start || time>=env.stop) {
+			env=null;
+			if (time>=0 && time<this.stop) {
+				let envarr=this.envarr;
+				let i=0,len=envarr.length;
+				while (i<len && time>=envarr[i].stop) {i++;}
+				env=i<len?envarr[i]:null;
+			}
+			this.last=env;
+			if (env===null) {return 0;}
+		}
+		let u=time*env.mul+env.con;
+		if (env.type!==_AudioEnvelope.EXP) {return u;}
+		else {return Math.exp(u)+env.expcon;}
+	}
+
+}
+
+
 class _AudioBiquad {
 	// Biquad filter type 1
 	// https://shepazu.github.io/Audio-EQ-Cookbook/audio-eq-cookbook.html
 
+	static NONE     =0;
+	static LOWPASS  =1;
+	static HIGHPASS =2;
+	static BANDPASS =3;
+	static NOTCH    =4;
+	static ALLPASS  =5;
+	static PEAK     =6;
+	static LOWSHELF =7;
+	static HIGHSHELF=8;
+
+
 	constructor(type,rate,bandwidth=1,peakgain=0) {
+		// bandwidth in kHz
 		// rate = freq / sample rate
 		this.type=type;
 		this.rate=rate;
 		this.peakgain=peakgain;
 		this.bandwidth=bandwidth;
-		this.x1=0;
-		this.x2=0;
-		this.y1=0;
-		this.y2=0;
+		this.clear();
 		this.calccoefs();
 	}
 
 
+	clear() {
+		this.x1=0;
+		this.x2=0;
+		this.y1=0;
+		this.y2=0;
+	}
+
+
 	process(x) {
-		if (x<=-Infinity || x>=Infinity || isNaN(x)) {x=0;}
 		let y=this.b0*x+this.b1*this.x1+this.b2*this.x2
 		               -this.a1*this.y1-this.a2*this.y2;
+		if (!(y>-Infinity && y<Infinity)) {y=0;}
 		this.x2=this.x1;
 		this.x1=x;
 		this.y2=this.y1;
 		this.y1=y;
 		return y;
 	}
+
+
+	prev() {return this.y1;}
 
 
 	getq() {
@@ -461,7 +713,18 @@ class _AudioBiquad {
 	}
 
 
-	calccoefs() {
+	updatecoefs(type,rate,bandwidth=1,peakgain=0) {
+		if (this.type!==type || this.rate!==rate || this.bandwidth!==bandwidth || this.peakgain!==peakgain) {
+			this.type=type;
+			this.rate=rate;
+			this.peakgain=peakgain;
+			this.bandwidth=bandwidth;
+			this.calccoefs(false);
+		}
+	}
+
+
+	calccoefs(reset=true) {
 		let b0=1,b1=0,b2=0;
 		let a0=1,a1=0,a2=0;
 		let v  =Math.exp(this.peakgain/(Math.log(10)*40));
@@ -472,57 +735,57 @@ class _AudioBiquad {
 		let a  =sn/(2*q);
 		let vr =2*Math.sqrt(v)*a;
 		let type=this.type;
-		if (type==="none") {
-		} else if (type==="lowpass") {
+		if (type===_AudioBiquad.NONE) {
+		} else if (type===_AudioBiquad.LOWPASS) {
 			b1=1-cs;
 			b0=0.5*b1;
 			b2=b0;
 			a0=1+a;
 			a1=-2*cs;
 			a2=1-a;
-		} else if (type==="highpass") {
+		} else if (type===_AudioBiquad.HIGHPASS) {
 			b1=-1-cs;
 			b0=-0.5*b1;
 			b2=b0;
 			a0=1+a;
 			a1=-2*cs;
 			a2=1-a;
-		} else if (type==="bandpass") {
+		} else if (type===_AudioBiquad.BANDPASS) {
 			b0=a;
 			b1=0;
 			b2=-b0;
 			a0=1+a;
 			a1=-2*cs;
 			a2=1-a;
-		} else if (type==="notch") {
+		} else if (type===_AudioBiquad.NOTCH) {
 			b0=1;
 			b1=-2*cs;
 			b2=b0;
 			a0=1+a;
 			a1=-2*cs;
 			a2=1-a;
-		} else if (type==="allpass") {
+		} else if (type===_AudioBiquad.ALLPASS) {
 			b0=1-a;
 			b1=-2*cs;
 			b2=1+a;
 			a0=b2;
 			a1=b1;
 			a2=b0;
-		} else if (type==="peak") {
+		} else if (type===_AudioBiquad.PEAK) {
 			b0=1+a*v;
 			b1=-2*cs;
 			b2=1-a*v;
 			a0=1+a/v;
 			a1=-2*cs;
 			a2=1-a/v;
-		} else if (type==="lowshelf") {
+		} else if (type===_AudioBiquad.LOWSHELF) {
 			b0=v*((v+1)-(v-1)*cs+vr);
 			b1=2*v*((v-1)-(v+1)*cs);
 			b2=v*((v+1)-(v-1)*cs-vr);
 			a0=(v+1)+(v-1)*cs+vr;
 			a1=-2*((v-1)+(v+1)*cs);
 			a2=(v+1)+(v-1)*cs-vr;
-		} else if (type==="highshelf") {
+		} else if (type===_AudioBiquad.HIGHSHELF) {
 			b0=v*((v+1)+(v-1)*cs+vr);
 			b1=-2*v*((v-1)+(v+1)*cs);
 			b2=v*((v+1)+(v-1)*cs-vr);
@@ -530,13 +793,23 @@ class _AudioBiquad {
 			a1=2*((v-1)-(v+1)*cs);
 			a2=(v+1)-(v-1)*cs-vr;
 		} else {
-			throw "type should be none, lowpass, highpass, bandpass, allpass, notch, peak, lowshelf, or highshelf: "+type;
+			throw "Biquad type not recognized: "+type;
 		}
+		// Rescale running constants.
+		if (reset) {
+			this.a0=0;
+			this.x1=0;
+			this.x2=0;
+		}
+		let norm=this.a0/a0;
+		this.y1*=norm;
+		this.y2*=norm;
+		this.a0=a0;
+		this.a1=a1/a0;
+		this.a2=a2/a0;
 		this.b0=b0/a0;
 		this.b1=b1/a0;
 		this.b2=b2/a0;
-		this.a1=a1/a0;
-		this.a2=a2/a0;
 	}
 
 }
@@ -546,6 +819,8 @@ class Audio {
 
 	static Sound   =_AudioSound;
 	static Instance=_AudioInstance;
+	static Delay   =_AudioDelay;
+	static Envelope=_AudioEnvelope;
 	static Biquad  =_AudioBiquad;
 
 	// The default context used for audio functions.
@@ -560,164 +835,20 @@ class Audio {
 		this.queue=null;
 		let ctx=new AudioContext({latencyHint:"interactive",sampleRate:freq});
 		this.ctx=ctx;
-		if (Audio.def===null) {
-			Audio.def=this;
-		}
+		if (!Audio.def) {Audio.initdef(this);}
 	}
 
 
-	static initdef() {
-		if (!Audio.def) {new Audio();}
-		return Audio.def;
+	static initdef(def) {
+		if (!def) {def=Audio.def;}
+		if (!def) {def=new Audio();}
+		Audio.def=def;
+		return def;
 	}
 
 
 	play(snd,volume,pan,freq) {
 		return new _AudioInstance(snd,volume,pan,freq);
-	}
-
-
-	setsound(snd) {
-	}
-
-
-	// ----------------------------------------
-	// DCT
-
-
-	static dct(arr,start,len) {
-		// Computes the discrete cosine transform. Converts an array into a sum of
-		// cosines.
-		if (arr.data!==undefined) {arr=arr.data;}
-		if (start===undefined) {start=0;}
-		if (len===undefined) {len=arr.length-start;}
-		if (start<0 || start+len>arr.length) {
-			console.log("dct indices out of bounds:",start,len);
-			return [];
-		}
-		if (len<=0) {return [];}
-		// If len isn't a power of 2, pad it with 0's. Swap array elements to reproduce
-		// the recursion of the standard FFT algorithm.
-		let bits=0,nlen=1;
-		while (nlen<len) {nlen+=nlen;bits++;}
-		let real=new Array(nlen);
-		let imag=new Array(nlen);
-		for (let i=0;i<nlen;i++) {
-			let rev=0,j=(i&1)?(nlen-1-(i>>1)):(i>>1);
-			for (let b=0;b<bits;b++) {rev+=rev+((j>>>b)&1);}
-			real[i]=rev<len?arr[start+rev]:0;
-			imag[i]=0;
-		}
-		// Butterfly transform.
-		for (let part=2;part<=nlen;part+=part) {
-			let hpart=part>>>1,inc=Math.PI/hpart,ang=0;
-			for (let h=0;h<hpart;h++) {
-				let wr=Math.cos(ang),wi=Math.sin(ang);
-				ang+=inc;
-				for (let i=h;i<nlen;i+=part) {
-					let j=i+hpart;
-					let ur=real[i],ui=imag[i];
-					let vr=real[j],vi=imag[j];
-					let tr=wr*vr-wi*vi;
-					let ti=wi*vr+wr*vi;
-					real[i]=ur+tr;
-					imag[i]=ui+ti;
-					real[j]=ur-tr;
-					imag[j]=ui-ti;
-				}
-			}
-		}
-		// Convert FFT output to DCT and scale it.
-		real[0]/=nlen;
-		let inc=Math.PI/(2*nlen),ang=0,norm=2/nlen;
-		for (let i=1;i<nlen;i++) {
-			ang+=inc;
-			let wr=Math.cos(ang),wi=Math.sin(ang);
-			real[i]=(real[i]*wr-imag[i]*wi)*norm;
-		}
-		return real;
-	}
-
-
-	static idct(arr,start,len) {
-		// Inverse discrete cosine transform. Converts coefficients of cosines into the
-		// original array.
-		if (arr.data!==undefined) {arr=arr.data;}
-		if (start===undefined) {start=0;}
-		if (len===undefined) {len=arr.length-start;}
-		if (start<0 || start+len>arr.length) {
-			console.log("idct indices out of bounds:",start,len);
-			return [];
-		}
-		if (len<=0) {return [];}
-		// If len isn't a power of 2, pad it with 0's. Undo the final rotation of the
-		// DCT and swap the array elements to reproduce recursion.
-		let bits=0,nlen=1;
-		while (nlen<len) {nlen+=nlen;bits++;}
-		let real=new Array(nlen);
-		let imag=new Array(nlen);
-		let inc=Math.PI/(2*nlen);
-		for (let i=0;i<nlen;i++) {
-			let rev=0;
-			for (let b=0;b<bits;b++) {rev+=rev+((i>>>b)&1);}
-			let val=rev<len?arr[start+rev]:0,ang=rev*inc;
-			real[i]=val*Math.cos(ang);
-			imag[i]=val*Math.sin(ang);
-		}
-		// Butterfly transform.
-		for (let part=2;part<=nlen;part+=part) {
-			let hpart=part>>>1,inc=Math.PI/hpart,ang=0;
-			for (let h=0;h<hpart;h++) {
-				let wr=Math.cos(ang),wi=Math.sin(ang);
-				ang+=inc;
-				for (let i=h;i<nlen;i+=part) {
-					let j=i+hpart;
-					let ur=real[i],ui=imag[i];
-					let vr=real[j],vi=imag[j];
-					let tr=wr*vr-wi*vi;
-					let ti=wi*vr+wr*vi;
-					real[i]=ur+tr;
-					imag[i]=ui+ti;
-					real[j]=ur-tr;
-					imag[j]=ui-ti;
-				}
-			}
-		}
-		// Convert undo initial DCT permutation.
-		for (let i=0;i<nlen;i++) {
-			let j=(i&1)?(nlen-1-(i>>1)):(i>>1);
-			imag[i]=real[j];
-		}
-		return imag;
-	}
-
-
-	static dctsample(arr,idx) {
-		// Computes an individual coefficient of the DCT.
-		let len=arr.length;
-		let sum=0;
-		if (idx===0) {
-			for (let i=0;i<len;i++) {sum+=arr[i];}
-			return sum/len;
-		}
-		let inc=Math.PI*(idx/len),ang=inc*0.5;
-		for (let i=0;i<len;i++) {
-			sum+=Math.cos(ang)*arr[i];
-			ang+=inc;
-		}
-		return sum*2/len;
-	}
-
-
-	static idctsample(arr,idx) {
-		// Computes an element of the original array given DCT coefficients.
-		let len=arr.length;
-		let inc=Math.PI*(idx+0.5)/len,ang=0,sum=0;
-		for (let i=0;i<len;i++) {
-			sum+=Math.cos(ang)*arr[i];
-			ang+=inc;
-		}
-		return sum;
 	}
 
 
@@ -763,7 +894,7 @@ class Audio {
 		x%=1.0;
 		if (x<0) {x+=1;}
 		x*=2;
-		if (x>1) {return 1-x;}
+		if (x>1) {return 2-x;}
 		return x>0?x:0;
 	}
 
@@ -810,7 +941,8 @@ class Audio {
 	}
 
 
-	static clamp(x,min,max) {
+	static clip(x,min,max) {
+		// Same as clamping.
 		if (min>max) {
 			let tmp=min;
 			min=max;
@@ -837,82 +969,388 @@ class Audio {
 
 
 	// ----------------------------------------
-	// Generators
+	// String Instruments
 
 
-	static createstring(sndfreq,freq=200,volume=1,pos=0.5,inharm=0.008,harmexp=1.0,decay=1.7) {
+	static generatestring(volume=1.0,freq=200,pos=0.5,inharm=0.00006,decay=1.2,sndfreq=44100) {
 		// Jason Pelc
 		// http://large.stanford.edu/courses/2007/ph210/pelc2/
 		// Stop when e^(-decay*time/sndfreq)<=cutoff
-		const cutoff=1e-4;
-		let harmonics=Math.ceil(sndfreq/(2*freq));
-		let sndlen=Math.ceil(-Math.log(cutoff)*sndfreq/decay);
-		let snd=new Audio.Sound(sndlen,sndfreq);
-		let snddata=snd.data;
+		const cutoff=1e-3;
+		decay/=sndfreq;
+		freq/=sndfreq;
+		let harmonics=Math.ceil(0.5/freq);
+		let sndlen=Math.ceil(-Math.log(cutoff)/decay);
+		let snd=new Audio.Sound(sndfreq,sndlen);
+		let data=snd.data;
 		// Generate coefficients.
-		let c0=pos*Math.PI;
-		let c1=(2*volume)/(Math.PI*c0*(1-pos));
-		let c2=inharm*inharm;
-		let c3=freq*2*Math.PI;
-		// Close to 0, sin(x)/x = 1.
-		if (pos<0.0001 || pos>0.9999) {
-			harmonics=1;
-			c0=Math.PI*0.5;
-			c1=volume;
-		}
+		if (pos<0.0001) {pos=0.0001;}
+		if (pos>0.9999) {pos=0.9999;}
+		let listen=pos; // 0.16;
+		let c0=listen*Math.PI;
+		let c1=(2*volume)/(Math.PI*Math.PI*pos*(1-pos));
+		let c2=freq*Math.PI*2;
 		// Process highest to lowest for floating point accuracy.
 		for (let n=harmonics;n>0;n--) {
 			// Calculate coefficients for the n'th harmonic.
 			let n2=n*n;
-			let harmmul=Math.sin(n*c0)*c1/n2;
-			if (Math.abs(harmmul)<=cutoff) {continue;}
+			let harmvol=Math.sin(n*c0)*c1/n2;
+			if (Math.abs(harmvol)<=cutoff) {continue;}
 			// Correct n2 by -1 so the fundamental = freq.
-			// let harmfreq=n*c3*Math.sqrt(1+n2*c2)/sndfreq;
-			let harmfreq=n*c3*Math.sqrt(1+(n2-1)*c2)/sndfreq;
-			let dscale=-decay*Math.pow(n,harmexp)/sndfreq;
-			let harmlen=Math.ceil(Math.log(cutoff/Math.abs(harmmul))/dscale);
+			let ihscale=n*Math.sqrt(1+(n2-1)*inharm);
+			let harmdecay=-decay*ihscale;
+			let harmmul=Math.exp(harmdecay);
+			let harmlen=Math.ceil(Math.log(cutoff/Math.abs(harmvol))/harmdecay);
 			if (harmlen>sndlen) {harmlen=sndlen;}
-			// Generate the waveform.
+			let harmfreq=c2*ihscale;
 			let harmphase=0;
-			let harmdecay=Math.exp(dscale);
+			// Generate the waveform.
 			for (let i=0;i<harmlen;i++) {
-				snddata[i]+=harmmul*Math.sin(harmphase);
-				harmmul*=harmdecay;
+				data[i]+=harmvol*Math.sin(harmphase);
+				harmvol*=harmmul;
 				harmphase+=harmfreq;
 			}
+		}
+		// Taper the ends.
+		let head=Math.ceil(0.010*sndfreq);
+		for (let i=0;i<head && i<sndlen;i++) {data[i]*=i/head;}
+		let tail=Math.ceil(0.005*sndfreq);
+		for (let i=0;i<tail && i<sndlen;i++) {data[sndlen-1-i]*=i/tail;}
+		return snd;
+	}
+
+
+	static createguitar(volume=1.0,freq=200,pluck=0.5,sndfreq=44100) {
+		return Audio.generatestring(volume,freq,pluck,0.000050,1.2,sndfreq);
+	}
+
+
+	static createxylophone(volume=1.0,freq=250,pos=0.5,sndfreq=44100) {
+		// freq = constant / length^2
+		return Audio.generatestring(volume,freq,pos,0.374520,3.2,sndfreq);
+	}
+
+
+	static createmarimba(volume=1.0,freq=250,pos=0.5,sndfreq=44100) {
+		return Audio.generatestring(volume,freq,pos,0.947200,3.2,sndfreq);
+	}
+
+
+	static createglockenspiel(volume=0.2,freq=1867,pos=0.5,sndfreq=44100) {
+		return Audio.generatestring(volume,freq,pos,0.090000,1.3,sndfreq);
+	}
+
+
+	static createmusicbox(volume=0.1,freq=877,sndfreq=44100) {
+		return Audio.generatestring(volume,freq,0.40,0.050000,2.3,sndfreq);
+	}
+
+
+	// ----------------------------------------
+	// Percussion Instruments
+
+
+	static createdrumhihat(volume=1.0,freq=7000,time=0.1,sndfreq=44100) {
+		let len=Math.ceil(time*sndfreq);
+		let snd=new Audio.Sound(sndfreq,len);
+		let gain=new Audio.Envelope([Audio.Envelope.LIN,0.01,volume,Audio.Envelope.EXP,time-0.01,0]);
+		let hp=new Audio.Biquad(Audio.Biquad.HIGHPASS,freq/sndfreq);
+		let bp=new Audio.Biquad(Audio.Biquad.BANDPASS,freq*1.4/sndfreq);
+		let data=snd.data;
+		for (let i=0;i<len;i++) {
+			let t=i/sndfreq;
+			let x=Audio.noise(i);
+			x=bp.process(x);
+			x=hp.process(x);
+			x=Audio.clip(x,-1,1);
+			data[i]=x*gain.get(t);
 		}
 		return snd;
 	}
 
 
-	static createguitar(sndfreq,freq,pluck,volume=1.0) {
-		// freq ~ 200 hz
-		return Audio.createstring(sndfreq,freq,volume,pluck,0.0092,1.0,1.7);
+	static createdrumkick(volume=1.0,freq=120,time=0.2,sndfreq=44100) {
+		let len=Math.ceil(time*sndfreq);
+		let snd=new Audio.Sound(sndfreq,len);
+		let gain=new Audio.Envelope([Audio.Envelope.LIN,0.01,volume*0.5,Audio.Envelope.LIN,time-0.01,0]);
+		let freq1=freq/sndfreq,freq2=freq1*0.41;
+		let osc1=new Audio.Envelope([Audio.Envelope.CON,0,freq1,Audio.Envelope.LIN,0.01,freq1,Audio.Envelope.LIN,time-0.01,freq1*0.2]);
+		let osc2=new Audio.Envelope([Audio.Envelope.CON,0,freq2,Audio.Envelope.LIN,0.01,freq2,Audio.Envelope.LIN,time-0.01,freq2*0.2]);
+		let phase1=0,phase2=0;
+		let data=snd.data;
+		for (let i=0;i<len;i++) {
+			let t=i/sndfreq;
+			let x=Audio.sin(phase1)+Audio.sin(phase2);
+			phase1+=osc1.get(t);
+			phase2+=osc2.get(t);
+			data[i]=x*gain.get(t);
+		}
+		return snd;
 	}
 
 
-	static createbassguitar(sndfreq,freq,pluck,volume=1.0) {
-		// freq ~ 80 hz
-		return Audio.createstring(sndfreq,freq,volume,pluck,0.0092,2.0,1.7);
+	static createdrumsnare(volume=1.0,freq=100,time=0.2,sndfreq=44100) {
+		let len=Math.ceil(time*sndfreq);
+		let snd=new Audio.Sound(sndfreq,len);
+		let gain=new Audio.Envelope([Audio.Envelope.LIN,0.01,volume,Audio.Envelope.EXP,time-0.01,0]);
+		let freq1=freq/sndfreq,freq2=freq1*0.41;
+		let osc1=new Audio.Envelope([Audio.Envelope.CON,0,freq1,Audio.Envelope.LIN,0.01,freq1,Audio.Envelope.LIN,time-0.01,freq1*0.2]);
+		let osc2=new Audio.Envelope([Audio.Envelope.CON,0,freq2,Audio.Envelope.LIN,0.01,freq2,Audio.Envelope.LIN,time-0.01,freq2*0.2]);
+		let oscn=new Audio.Envelope([Audio.Envelope.LIN,time,1]);
+		let phase1=0,phase2=0;
+		let hp0=new Audio.Biquad(Audio.Biquad.HIGHPASS,freq/sndfreq);
+		let hp1=new Audio.Biquad(Audio.Biquad.HIGHPASS,10*freq/sndfreq);
+		let data=snd.data;
+		for (let i=0;i<len;i++) {
+			let t=i/sndfreq;
+			let n=Audio.noise(i);
+			let n0=hp0.process(n);
+			let n1=hp1.process(n);
+			n=n0+oscn.get(t)*(n1-n0);
+			let x=(Audio.sin(phase1)+Audio.sin(phase2))*0.5*0.2+n*0.8;
+			phase1+=osc1.get(t);
+			phase2+=osc2.get(t);
+			data[i]=x*gain.get(t);
+		}
+		return snd;
 	}
 
 
-	static createmarimba(sndfreq,freq,pos,volume=1.0) {
-		// freq ~ 250 hz
-		// length = 3924cm/freq
-		return Audio.createstring(sndfreq,freq,volume,pos,0.40,2.0,3.2);
+	// ----------------------------------------
+	// Wind Instruments
+
+
+	static createflute(volume=1.0,freq=200) {
+		let sndfreq=44100,len=sndfreq*2;
+		let snd=new Audio.Sound(sndfreq,len);
+		// let voldecay=Math.log(1e-4)/4;
+		let data=snd.data;
+		let filter=new Audio.Biquad(Audio.Biquad.LOWPASS,freq/sndfreq,2);
+		let delay=new Audio.Delay(sndfreq,1/freq),delaygain=-0.95;
+		for (let i=0;i<len;i++) {
+			let t=i/sndfreq;
+			// let mul=Math.exp(voldecay*t);
+			let x=t<0.5?(Math.random()*2-1):0;
+			x=filter.process(x)+delay.get()*delaygain;
+			delay.add(x);
+			data[i]=x;
+		}
+		snd.scalevol(volume,true);
+		return snd;
 	}
 
 
-	static createglockenspiel(sndfreq,freq,pos,volume=0.2) {
-		// freq ~ 1873 hz
-		return Audio.createstring(sndfreq,freq,volume,pos,0.30,2.0,1.3);
+	static createtuba(volume=1.0,freq=300) {
+		let sndfreq=44100,len=sndfreq*3;
+		let snd=new Audio.Sound(sndfreq,len);
+		let voldecay=Math.log(1e-4)/3;
+		let data=snd.data;
+		let filter=new Audio.Biquad(Audio.Biquad.LOWPASS,freq/sndfreq,1);
+		let delay=new Audio.Delay(sndfreq,0.02),delaygain=0.95;
+		for (let i=0;i<len;i++) {
+			let t=i/sndfreq;
+			let mul=Math.exp(voldecay*t);
+			let x=filter.process(Audio.noise(i))*mul;
+			x+=delay.get()*delaygain;
+			delay.add(x);
+			data[i]=x;
+		}
+		snd.scalevol(volume,true);
+		return snd;
 	}
 
 
-	static createmusicbox(sndfreq,freq,volume=0.1) {
-		// freq ~ 877 hz
-		return Audio.createstring(sndfreq,freq,volume,0.40,0.32,1.0,2.2);
+	// ----------------------------------------
+	// User Interface
+
+
+	static generateui(volume=0.04,freq=200,time=0.2,noise=0.5,sndfreq=44100) {
+		let len=Math.ceil(time*sndfreq);
+		let snd=new Audio.Sound(sndfreq,len);
+		let data=snd.data;
+		let attack=0.01,sustain=time*0.25;
+		let scale=freq/5000;
+		let bp1=new Audio.Biquad(Audio.Biquad.BANDPASS,freq/sndfreq,6*scale);
+		// let bp2=new Audio.Biquad(Audio.Biquad.BANDPASS, 700/sndfreq,3*scale);
+		// let del=new Audio.Delay(sndfreq,time*0.25);
+		for (let i=0;i<len;i++) {
+			let t=i/sndfreq;
+			let x=0;
+			if (t<attack) {x=t/attack;}
+			else if (t-attack<sustain) {x=1-(t-attack)/sustain;}
+			x*=x;
+			x*=bp1.process(Audio.tri(t*freq)*(1-noise)+Audio.noise(i)*noise);
+			// x+=del.get();
+			// This bandpass adds low frequency vibrations from the hypothetical console.
+			// del.add(bp2.process(x)*0.25);
+			data[i]=x;
+		}
+		snd.scalevol(volume,true);
+		return snd;
+	}
+
+
+	static createuiincrease(volume=0.05) {
+		return Audio.generateui(volume,2000,0.2,0.5);
+	}
+
+
+	static createuidecrease(volume=0.05) {
+		return Audio.generateui(volume,1500,0.2,0.5);
+	}
+
+
+	static createuiconfirm(volume=0.05) {
+		return Audio.generateui(volume,4000,2.0,0.25);
+	}
+
+
+	static createuierror(volume=0.05) {
+		return Audio.generateui(volume,800,1.0,0.5);
+	}
+
+
+	static createuiclick(volume=0.05) {
+		return Audio.generateui(volume,800,0.2,0.75);
+	}
+
+
+	// ----------------------------------------
+	// Misc
+
+
+	static generatethud(volume=1.0,freq=8000,time=0.02,sndfreq=44100) {
+		// Pitch should increase slightly with force.
+		let decay=Math.log(1e-4)/(time*sndfreq);
+		let len=Math.ceil(Math.log(1e-4)/decay);
+		let snd=new Audio.Sound(sndfreq,len);
+		let data=snd.data;
+		let vmul=Math.exp(decay),vtmp=1;
+		freq/=sndfreq;
+		let bp1=new Audio.Biquad(Audio.Biquad.BANDPASS,freq,2);
+		let bp2=new Audio.Biquad(Audio.Biquad.BANDPASS,freq,2);
+		let del=new Audio.Delay(sndfreq,0.003),delmul=0.9;
+		for (let i=0;i<len;i++) {
+			let x=Audio.noise(i)*vtmp;
+			vtmp*=vmul;
+			x=bp1.process(x);
+			x=bp2.process(x);
+			x+=del.process(x)*delmul;
+			data[i]=x;
+		}
+		snd.scalevol(volume,true);
+		return snd;
+	}
+
+
+	static createmarble(volume=0.5) {
+		return Audio.generatethud(volume,8000,0.02);
+	}
+
+
+	static createthud(volume=1.0) {
+		return Audio.generatethud(volume,100,0.2);
+	}
+
+
+	static createelectricity(volume=0.15,freq=159.8,time=1.5) {
+		let sndfreq=44100,len=Math.ceil(time*sndfreq);
+		let ramp=0.01*sndfreq,rampden=1/ramp,tail=len-ramp;
+		let snd=new Audio.Sound(sndfreq,len);
+		let data=snd.data;
+		let freq0=freq/sndfreq,freq1=freq0*1.002;
+		let lp3=new Audio.Biquad(Audio.Biquad.LOWPASS,3000/sndfreq);
+		for (let i=0;i<len;i++) {
+			let x=Audio.saw1(i*freq0)+Audio.saw1(i*freq1);
+			x=Audio.clip(x-1,-0.5,0.5);
+			x=lp3.process(x);
+			if (i<ramp || i>tail) {x*=(i<ramp?i:len-1-i)*rampden;}
+			data[i]=x;
+		}
+		snd.scalevol(volume,true);
+		return snd;
+	}
+
+
+	static createlaser(volume=0.5,freq=10000,time=0.25) {
+		let sndfreq=44100,len=Math.ceil(time*sndfreq);
+		let ramp=0.01*sndfreq,rampden=1/ramp,tail=len-ramp;
+		let snd=new Audio.Sound(sndfreq,len);
+		let data=snd.data;
+		freq*=Math.PI*2/sndfreq;
+		let vmul=Math.exp(Math.log(1e-4)/len),vol=1;
+		// Instead of a delay constant, use a delay multiplier. Scales sum < 1.
+		// Array format: delay, scale, delay, scale, ...
+		let deltable=[0.99,-0.35,0.90,-0.28,0.80,-0.21,0.40,-0.13];
+		let delays=deltable.length;
+		for (let i=0;i<len;i++) {
+			let x=Math.sin(i*freq)*vol;
+			if (i<ramp) {x*=i*rampden;}
+			vol*=vmul;
+			for (let j=0;j<delays;j+=2) {
+				let u=i*deltable[j],k=Math.floor(u);
+				if (k>=0 && k+1<i) {
+					u-=k;
+					x+=(data[k]*(1-u)+data[k+1]*u)*deltable[j+1];
+				}
+			}
+			if (i>tail) {x*=(len-1-i)*rampden;}
+			data[i]=x;
+		}
+		snd.scalevol(volume,true);
+		return snd;
+	}
+
+
+	static generateexplosion(volume=0.75,freq=1000,time=0.25,sndfreq=44100) {
+		let len=Math.ceil(time*sndfreq);
+		let ramp=0.01*sndfreq,rampden=1/ramp,tail=len-ramp;
+		let snd=new Audio.Sound(sndfreq,len);
+		let data=snd.data;
+		let vmul=Math.exp(Math.log(1e-4)*3/len),vol=1;
+		let f=freq/(freq+1000);
+		let lpcoef=1-f,bpcoef=f,del=0.75+0.15*f,delmul=-0.9+0.5*f;
+		let lp=new Audio.Biquad(Audio.Biquad.LOWPASS,freq/sndfreq,1);
+		let bp=new Audio.Biquad(Audio.Biquad.BANDPASS,freq/sndfreq,2);
+		for (let i=0;i<len;i++) {
+			let x=Audio.noise(i)*vol;
+			vol*=vmul;
+			x=lp.process(x)*lpcoef+bp.process(x)*bpcoef;
+			let u=i*del,k=Math.floor(u);
+			if (k>=0 && k+1<i) {
+				u-=k;
+				x+=(data[k]*(1-u)+data[k+1]*u)*delmul;
+			}
+			if (i<ramp || i>tail) {x*=(i<ramp?i:len-1-i)*rampden;}
+			data[i]=x;
+		}
+		snd.scalevol(volume,true);
+		return snd;
+	}
+
+
+	static createexplosion1(volume=0.5) {
+		return Audio.generateexplosion(volume,100,5.0);
+	}
+
+
+	static createexplosion2(volume=1.0) {
+		return Audio.generateexplosion(volume,300,5.0);
+	}
+
+
+	static creategunshot1(volume=0.25) {
+		return Audio.generateexplosion(volume,500,0.25);
+	}
+
+
+	static creategunshot2(volume=0.5) {
+		return Audio.generateexplosion(volume,1000,1.0);
+	}
+
+
+	static creategunhit(volume=0.25) {
+		return Audio.generateexplosion(volume,200,0.10);
 	}
 
 }
