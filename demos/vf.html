@@ -19,8 +19,6 @@
 			background-color:#000000;
 		}
 	</style>
-	<script src="./library.js"></script>
-	<script src="./game.js"></script>
 </head>
 <body>
 <canvas id="gamecanv" style="display:block;margin:auto;"></canvas>
@@ -3690,7 +3688,7 @@ class Audio {
 /*------------------------------------------------------------------------------
 
 
-game.js - v1.00
+vf.js - v1.01
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -4067,19 +4065,18 @@ class Game {
 
 	update() {
 		let input=this.input;
+		if (!input.getkeydown(input.MOUSE.LEFT)) {
+			this.prevclick=null;
+			return;
+		}
 		let img=this.draw.img;
 		let width=img.width,height=img.height,imgdata=img.data32;
-		let changed=false;
-		let mrad=this.mouserad,mrad2=mrad*mrad;
 		let [mx,my]=input.getmousepos();
 		mx=Math.max(Math.min(Math.floor(mx),width-1),0);
 		my=Math.max(Math.min(Math.floor(my),height-1),0);
 		if (this.prevclick===null) {this.prevclick=[mx,my];}
 		let [px,py]=this.prevclick;
 		this.prevclick=[mx,my];
-		if (!input.getkeydown(input.MOUSE.LEFT)) {
-			return;
-		}
 		let dx=mx-px,dy=my-py;
 		let dist=Math.sqrt(dx*dx+dy*dy);
 		if (isNaN(dist) || dist<1e-5) {
@@ -4090,6 +4087,8 @@ class Game {
 			dx/=dist;
 			dy/=dist;
 		}
+		let mrad=this.mouserad,mrad2=mrad*mrad;
+		let changed=false;
 		let areainv=this.areainv;
 		let areamap=this.areamap;
 		let stack=this.areastack;
