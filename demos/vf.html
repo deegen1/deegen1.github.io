@@ -3708,19 +3708,14 @@ Notes
 class Game {
 
 	constructor(canvid,text) {
-		//let width=(window.innerWidth*window.devicePixelRatio+1)>>1,height=(window.innerHeight*window.devicePixelRatio+1)>>1;
 		let width=Math.round(window.innerWidth*window.devicePixelRatio);
 		let height=Math.round(window.innerHeight*window.devicePixelRatio);
-		//let width=window.innerWidth,height=window.innerHeight;
-		let maxdim=1200;
-		if (width>height && width>maxdim) {
-			height=Math.round(maxdim*height/width);
-			width=maxdim;
-		} else if (height>maxdim) {
-			width=Math.round(maxdim*width/height);
-			height=maxdim;
-		}
-		this.mouserad=5;
+		let pixels=600000;
+		let ratio=Math.sqrt(pixels/(width*height));
+		width=Math.round(width*ratio);
+		height=Math.round(height*ratio);
+		console.log(width,height);
+		this.mouserad=Math.min(width,height)/100;
 		this.canvas=document.getElementById(canvid);
 		this.canvas.width=width;
 		this.canvas.height=height;
@@ -4125,18 +4120,20 @@ class Game {
 
 
 function GameInit() {
-	let text="    test    ";
+	let text="";
 	let arg=window.location.search.trim().replace("?","");
-	if (arg.length===4) {
+	if (arg.length>0) {
 		let table=[
-			[49,65,50,50,72,97,112,112,121,10,32,10,66,105,114,116,104,100,97,121,10,32,10,84,114,105,101,117]
+			[112,121,103,51,36,65,38,39,40,41,42,43,6,69,111,127,96,104,50,51,52,31,54,121,56,57,58,59,60,61,20,93,73,83,86,75,64,68,95,45,8,76,10,11,12,13,14,15,58,17,94,19,20,21,22,23,24],
+			[114,102,96,122,76,100,118,119,113,3,42,1,78,100,124,123,120,117,115,106,30,53,28,67,106,112,127,110]
 		];
 		for (let row of table) {
-			let i=0;
-			while (i<4 && row[i]===arg.charCodeAt(i)) {i++;}
-			if (i===4) {text="";while (i<row.length) {text+=String.fromCharCode(row[i++]);}}
+			let i=0,al=arg.length,rl=row.length;
+			while (i<rl && i<al && (arg.charCodeAt(i)^row[i])===i) {i++;}
+			while (i<rl && i>=al) {text+=String.fromCharCode(row[i]^i);i++;}
 		}
 	}
+	if (!text) {text="    test    ";}
 	let state=new Game("gamecanv",text);
 	function resize() {
 		// Properly resize the canvas
