@@ -22,7 +22,7 @@ References
 TODO
 
 
-Add resonance factor to generatstring().
+Add resonance factor to generatestring().
 Remove scalevol() for sound effect normalization.
 Use biquad updatecoefs() for snare.
 Waveguides

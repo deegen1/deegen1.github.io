@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-input.js - v1.13
+input.js - v1.14
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -23,7 +23,7 @@ TODO
 
 
 //---------------------------------------------------------------------------------
-// Input - v1.13
+// Input - v1.14
 
 
 class Input {
@@ -59,8 +59,8 @@ class Input {
 		this.active=null;
 		this.scrollupdate=false;
 		this.scroll=[window.scrollX,window.scrollY];
-		this.mousepos=[-Infinity,-Infinity];
-		this.mouseraw=[-Infinity,-Infinity];
+		this.mousepos=[NaN,NaN];
+		this.mouseraw=[NaN,NaN];
 		this.mousez=0;
 		this.touchfocus=0;
 		this.clickpos=[0,0];

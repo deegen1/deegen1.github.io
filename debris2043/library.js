@@ -1,10 +1,21 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.02
+library.js - v1.00
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
+
+
+--------------------------------------------------------------------------------
+Versions
+
+
+Input   - v1.13
+Random  - v1.08
+Vector  - v1.04
+Drawing - v1.33
+Audio   - v1.06
 
 
 */
@@ -413,13 +424,12 @@ class Input {
 
 
 //---------------------------------------------------------------------------------
-// PRNG - v1.06
+// Random - v1.08
 
 
 class Random {
 
 	constructor(seed) {
-		this.xmbarr=this.constructor.xmbarr;
 		this.acc=0;
 		this.inc=1;
 		this.seed(seed);
@@ -462,6 +472,7 @@ class Random {
 	getu32() {
 		let val=(this.acc+this.inc)>>>0;
 		this.acc=val;
+		val+=0x66daacfd;
 		val=Math.imul(val^(val>>>16),0xf8b7629f);
 		val=Math.imul(val^(val>>> 8),0xcbc5c2b5);
 		val=Math.imul(val^(val>>>24),0xf5a5bda5);
@@ -480,40 +491,40 @@ class Random {
 	}
 
 
-	getf64() {
+	getf() {
+		// Returns a float in [0,1).
 		return this.getu32()*(1.0/4294967296.0);
 	}
 
 
-	static xmbarr=[
-		0.0000000000,2.1105791e+05,-5.4199832e+00,0.0000056568,6.9695708e+03,-4.2654963e+00,
-		0.0000920071,7.7912181e+02,-3.6959312e+00,0.0007516877,1.6937928e+02,-3.2375953e+00,
-		0.0032102442,6.1190088e+01,-2.8902816e+00,0.0088150936,2.8470915e+01,-2.6018590e+00,
-		0.0176252084,1.8800444e+01,-2.4314149e+00,0.0283040851,1.2373531e+01,-2.2495070e+00,
-		0.0466319112,8.6534303e+00,-2.0760316e+00,0.0672857680,6.8979540e+00,-1.9579131e+00,
-		0.0910495504,5.3823501e+00,-1.8199180e+00,0.1221801449,4.5224728e+00,-1.7148581e+00,
-		0.1540346442,3.9141567e+00,-1.6211563e+00,0.1900229058,3.4575317e+00,-1.5343871e+00,
-		0.2564543024,2.8079448e+00,-1.3677978e+00,0.3543675790,2.6047685e+00,-1.2957987e+00,
-		0.4178358886,2.5233767e+00,-1.2617903e+00,0.5881852711,2.6379475e+00,-1.3291791e+00,
-		0.6397157999,2.7530438e+00,-1.4028080e+00,0.7303095074,3.3480131e+00,-1.8373198e+00,
-		0.7977016349,3.7812818e+00,-2.1829389e+00,0.8484734402,4.7872429e+00,-3.0364702e+00,
-		0.8939255135,6.2138677e+00,-4.3117665e+00,0.9239453541,7.8175201e+00,-5.7934537e+00,
-		0.9452687641,1.0404724e+01,-8.2390571e+00,0.9628624602,1.4564418e+01,-1.2244270e+01,
-		0.9772883839,2.3567788e+01,-2.1043159e+01,0.9881715750,4.4573121e+01,-4.1800032e+01,
-		0.9948144543,1.0046744e+02,-9.7404506e+01,0.9980488575,2.5934959e+02,-2.5597666e+02,
-		0.9994697975,1.0783868e+03,-1.0745796e+03,0.9999882905,1.3881171e+05,-1.3880629e+05
-	];
 	getnorm() {
-		// Returns a normally distributed random variable. This function uses a linear
-		// piecewise approximation of sqrt(2)*erfinv((x+1)*0.5) to quickly compute values.
-		// Find the greatest y[i]<=x, then return x*m[i]+b[i].
-		let x=this.getf64(),xmb=this.xmbarr,i=48;
-		i+=x<xmb[i]?-24:24;
-		i+=x<xmb[i]?-12:12;
-		i+=x<xmb[i]?-6:6;
-		i+=x<xmb[i]?-3:3;
-		i+=x<xmb[i]?-3:0;
-		return x*xmb[i+1]+xmb[i+2];
+		// Transform a uniform distribution to a normal one via sqrt(2)*erfinv(2*u-1).
+		// erfinv credit: njuffa, https://stackoverflow.com/a/49743348
+		let u=(this.getu32()-2147483647.5)*(1/2147483648);
+		let t=Math.log(1-u*u),p;
+		if (t<-6.125) {
+			p=    4.294932181e-10;
+			p=p*t+4.147083705e-8;
+			p=p*t+1.727466590e-6;
+			p=p*t+4.017907374e-5;
+			p=p*t+5.565679449e-4;
+			p=p*t+4.280807652e-3;
+			p=p*t+6.833279087e-3;
+			p=p*t-3.742661647e-1;
+			p=p*t+1.187962704e+0;
+		} else {
+			p=    7.691594063e-9;
+			p=p*t+2.026362239e-7;
+			p=p*t+1.736297774e-6;
+			p=p*t+1.597546919e-7;
+			p=p*t-7.941244165e-5;
+			p=p*t-2.088759943e-4;
+			p=p*t+3.273461437e-3;
+			p=p*t+1.631897530e-2;
+			p=p*t-3.281194328e-1;
+			p=p*t+1.253314090e+0;
+		}
+		return p*u;
 	}
 
 }
@@ -700,7 +711,7 @@ class Vector extends Array {
 
 
 //---------------------------------------------------------------------------------
-// Anti-aliased Image Drawing - v1.31
+// Anti-aliased Image Drawing - v1.33
 
 
 class _DrawTransform {
@@ -962,9 +973,9 @@ class _DrawPoly {
 	}
 
 
-	tostring(precision) {
+	tostring(precision=6) {
 		// Converts the path to an SVG string.
-		let p=precision===undefined?6:precision;
+		let p=precision;
 		function tostring(x) {
 			let s=x.toFixed(p);
 			if (p>0) {
@@ -1106,6 +1117,7 @@ class _DrawPoly {
 
 
 class _DrawImage {
+	// Pixel data is in R, G, B, A, R, G, B, A,... format.
 
 	constructor(width,height) {
 		let srcdata=null;
@@ -1147,6 +1159,16 @@ class _DrawImage {
 	}
 
 
+	savefile(name) {
+		// Save the image to a TGA file.
+		let blob=new Blob([this.totga()]);
+		let link=document.createElement("a");
+		link.href=window.URL.createObjectURL(blob);
+		link.download=name;
+		link.click();
+	}
+
+
 	fromtga(src) {
 		// Load a TGA image from an array.
 		let len=src.length;
@@ -1161,14 +1183,14 @@ class _DrawImage {
 		}
 		// Load the image data.
 		this.resize(w,h);
-		let dst=this.data8,didx=0,sidx=18;
+		let dst=this.data8,didx=0,sidx=18,a=255;
 		for (let y=0;y<h;y++) {
 			for (let x=0;x<w;x++) {
 				dst[didx++]=src[sidx++];
 				dst[didx++]=src[sidx++];
 				dst[didx++]=src[sidx++];
-				if (bytes===3) {dst[didx++]=255;}
-				else {dst[didx++]=src[sidx++];}
+				if (bytes===4) {a=src[sidx++];}
+				dst[didx++]=a;
 			}
 		}
 	}
@@ -1190,6 +1212,18 @@ class _DrawImage {
 			}
 		}
 		return dst;
+	}
+
+
+	todataurl() {
+		// Returns a data string for use in <img src="..."> objects.
+		let canv=document.createElement("canvas");
+		canv.width=this.width;
+		canv.height=this.height;
+		canv.getContext("2d").putImageData(this.imgdata);
+		let strdata=canv.toDataURL("image/png");
+		canv.remove();
+		return strdata;
 	}
 
 }
@@ -1300,8 +1334,8 @@ class _DrawFont {
 	// `
 
 
-	constructor(defscale) {
-		this.defscale=defscale===undefined?16:defscale;
+	constructor(defscale=16) {
+		this.defscale=defscale;
 		this.lineheight=1.1;
 		this.loadfont(this.constructor.deffont);
 	}
@@ -1444,9 +1478,8 @@ class Draw {
 	}
 
 
-	setcolor(r,g,b,a) {
+	setcolor(r,g,b,a=255) {
 		if (g===undefined) {a=(r>>>0)&255;b=(r>>>8)&255;g=(r>>>16)&255;r>>>=24;}
-		if (a===undefined) {a=255;}
 		this.rgba[0]=r?Math.max(Math.min(Math.floor(r),255),0):0;
 		this.rgba[1]=g?Math.max(Math.min(Math.floor(g),255),0):0;
 		this.rgba[2]=b?Math.max(Math.min(Math.floor(b),255),0):0;
@@ -1546,11 +1579,9 @@ class Draw {
 	// Images
 
 
-	fill(r,g,b,a) {
+	fill(r=0,g=0,b=0,a=255) {
 		// Fills the current image with a solid color.
 		// imgdata.fill(rgba) was ~25% slower during testing.
-		if (r===undefined) {r=g=b=0;}
-		if (a===undefined) {a=255;}
 		let rgba=this.rgbatoint(r,g,b,a);
 		let imgdata=this.img.data32;
 		let i=this.img.width*this.img.height;
@@ -2314,288 +2345,1316 @@ DrawWASMSetup();
 
 
 //---------------------------------------------------------------------------------
+// Audio - v1.06
 
 
-function fastcircle(draw,x,y,rad) {
-	// Manually draw a circle pixel by pixel.
-	// This is ugly, but it's faster than canvas.arc and drawimage.
-	let imgdata32=draw.img.data32;
-	let imgwidth=draw.img.width;
-	let imgheight=draw.img.height;
-	rad-=0.5;
-	if (rad<=0 || x-rad>imgwidth || x+rad<0 || y-rad>imgheight || y+rad<0) {
-		return;
-	}
-	let colrgba=draw.rgba32[0];
-	let coll=(colrgba&0x00ff00ff)>>>0;
-	let colh=(colrgba&0xff00ff00)>>>0;
-	let colh2=colh>>>8;
-	let minx=Math.floor(x-rad-0.5);
-	if (minx<0) {minx=0;}
-	let maxx=Math.ceil(x+rad+0.5);
-	if (maxx>imgwidth) {maxx=imgwidth;}
-	let xs=Math.floor(x);
-	if (xs< minx) {xs=minx;}
-	if (xs>=maxx) {xs=maxx-1;}
-	let miny=Math.floor(y-rad-0.5);
-	if (miny<0) {miny=0;}
-	let maxy=Math.ceil(y+rad+0.5);
-	if (maxy>imgheight) {maxy=imgheight;}
-	let pixrow=miny*imgwidth;
-	let d,d2,dst;
-	let pixmin,pixmax,pix;
-	let dx,dy=miny-y+0.5;
-	let rad20=rad*rad;
-	let rad21=(rad+1)*(rad+1);
-	let imul=Math.imul,sqrt=Math.sqrt;
-	// let rnorm=256.0/(rad21-rad20);
-	for (let y0=miny;y0<maxy;y0++) {
-		dx=xs-x+0.5;
-		d2=dy*dy+dx*dx;
-		pixmax=pixrow+maxx;
-		pix=pixrow+xs;
-		while (d2<rad20 && pix<pixmax) {
-			imgdata32[pix++]=colrgba;
-			d2+=dx+dx+1;
-			dx++;
-		}
-		while (d2<rad21 && pix<pixmax) {
-			d=((sqrt(d2)-rad)*256)|0;
-			// d=(d2-rad20)*rnorm|0;
-			dst=imgdata32[pix];
-			imgdata32[pix]=(((imul((dst&0x00ff00ff)-coll,d)>>>8)+coll)&0x00ff00ff)+
-			               ((imul(((dst&0xff00ff00)>>>8)-colh2,d)+colh)&0xff00ff00);
-			pix++;
-			d2+=dx+dx+1;
-			dx++;
-		}
-		dx=xs-x-0.5;
-		d2=dy*dy+dx*dx;
-		pixmin=pixrow+minx;
-		pix=pixrow+(xs-1);
-		while (d2<rad20 && pix>=pixmin) {
-			imgdata32[pix--]=colrgba;
-			d2-=dx+dx-1;
-			dx--;
-		}
-		while (d2<rad21 && pix>=pixmin) {
-			d=((sqrt(d2)-rad)*256)|0;
-			// d=(d2-rad20)*rnorm|0;
-			dst=imgdata32[pix];
-			imgdata32[pix]=(((imul((dst&0x00ff00ff)-coll,d)>>>8)+coll)&0x00ff00ff)+
-			               ((imul(((dst&0xff00ff00)>>>8)-colh2,d)+colh)&0xff00ff00);
-			pix--;
-			d2-=dx+dx-1;
-			dx--;
-		}
-		pixrow+=imgwidth;
-		dy++;
-	}
-}
+class _AudioSound {
 
-
-class PhyScene {
-
-	constructor(divid) {
-		// Setup the canvas
-		let drawwidth=600;
-		let drawheight=1066;
-		let canvas=document.getElementById(divid);
-		canvas.width=drawwidth;
-		canvas.height=drawheight;
-		this.input=new Input(canvas);
-		this.input.disablenav();
-		this.mouse=new Vector(2);
-		this.frames=0;
-		this.frametime=0;
-		this.fps=0;
-		this.fpsstr="0 ms";
-		this.promptshow=1;
-		this.promptframe=0;
-		// Setup the UI.
-		this.canvas=canvas;
-		this.ctx=this.canvas.getContext("2d");
-		this.draw=new Draw(drawwidth,drawheight);
-		// Reassigning the buffer data is faster for some reason.
-		this.initworld();
-		let state=this;
-		function update() {
-			setTimeout(update,1000/60);
-			state.update();
-		}
-		update();
-		/*let state=this;
-		let statetime=0;
-		let stateden=-1;
-		function update(time) {
-			requestAnimationFrame(update);
-			if (++stateden>0) {
-				let dif=time-statetime;
-				if (dif+dif/stateden>=16) {
-					statetime=time;
-					stateden=0;
-					console.log(dif);
-					state.update(dif);
-				}
-			} else {
-				statetime=time;
-				state.update(1/60);
-			}
-		}
-		requestAnimationFrame(update);*/
-	}
-
-
-	initworld() {
-		this.world=new PhyWorld(2);
-		let canvas=this.canvas;
-		let world=this.world;
-		world.steps=3;
-		world.gravity.set([0,0.1]);
-		let viewheight=1.0,viewwidth=canvas.width/canvas.height;
-		let walltype=world.createatomtype(1.0,Infinity,1.0);
-		let normtype=world.createatomtype(0.01,1.0,0.98);
-		let boxtype=world.createatomtype(0.0,2.0,1.0);
-		let rnd=new Random(2);
-		let pos=new Vector(world.dim);
-		for (let p=0;p<3000;p++) {
-			pos[0]=rnd.getf64()*viewwidth;
-			pos[1]=rnd.getf64()*viewheight;
-			world.createatom(pos,0.004,normtype);
-		}
-		world.createbox([0.3*viewwidth,0.3],5,0.007,boxtype);
-		world.createbox([0.5*viewwidth,0.5],5,0.007,boxtype);
-		world.createbox([0.7*viewwidth,0.3],5,0.007,boxtype);
-		world.bndmin=new Vector([0,0]);
-		world.bndmax=new Vector([viewwidth,1]);
-		let playertype=world.createatomtype(0.0,Infinity,0.1);
-		playertype.bound=false;
-		playertype.gravity=new Vector([0,0]);
-		pos.set([viewwidth*0.5,viewheight*0.33]);
-		this.playeratom=world.createatom(pos,0.035,playertype);
-		this.mouse.set(pos);
-		this.frametime=performance.now();
-	}
-
-
-	update() {
-		let frametime=performance.now();
-		let input=this.input;
-		input.update();
-		let draw=this.draw;
-		let scale=this.draw.img.height;
-		let world=this.world;
-		world.update();
-		draw.fill(0,0,0,255);
-		// Convert mouse to world space.
-		let mpos=input.getmousepos();
-		let maxx=draw.img.width/draw.img.height;
-		this.mouse[0]=(mpos[0]/draw.img.width)*maxx;
-		this.mouse[1]=mpos[1]/draw.img.height;
-		// Move the player.
-		let player=this.playeratom;
-		let dir=this.mouse.sub(player.pos);
-		let mag=dir.sqr();
-		if (mag<Infinity) {
-			this.promptshow=0;
-			if (mag>1e-6) {
-				player.vel=dir.mul(0.2/world.deltatime);
-			} else {
-				player.vel.set(0);
-			}
-		}
-		let link=world.atomlist.head;
-		while (link!==null) {
-			let atom=link.obj;
-			let type=atom.type;
-			let data=atom.userdata;
-			if (data===undefined || data===null) {
-				data={velcolor:0};
-				atom.userdata=data;
-			}
-			let vel=atom.vel.mag();
-			data.velcolor*=0.99;
-			if (data.velcolor<vel) {
-				data.velcolor=vel;
-			}
-			let pos=atom.pos;
-			let rad=atom.rad*scale+0.25;
-			let r,g,b;
-			if (type.id===2) {
-				r=64;
-				g=200;
-				b=0;
-			} else {
-				let u=data.velcolor*(256*4);
-				u=Math.floor(u<255?u:255);
-				r=u;
-				g=0;
-				b=255-u;
-			}
-			draw.setcolor(r,g,b,255);
-			fastcircle(draw,pos[0]*scale,pos[1]*scale,rad);
-			// draw.filloval(pos[0]*scale,pos[1]*scale,rad,rad);
-			let next=link.next;
-			if (atom.delete!==undefined) {
-				atom.release();
-			}
-			link=next;
-		}
-		if (this.promptshow!==0) {
-			let pframe=(this.promptframe+1)%120;
-			this.promptframe=pframe;
-			let px=player.pos[0]*scale;
-			let py=player.pos[1]*scale;
-			let rad=player.rad*scale+0.25;
-			let u=Math.floor((Math.sin((pframe/119.0)*Math.PI*2)+1.0)*0.5*255.0);
-			draw.setcolor(u,u,255,255);
-			draw.filloval(px,py,rad,rad);
-		}
-		// Draw the HUD
-		draw.setcolor(255,255,255,255);
-		draw.filltext(5,20,"FPS: "+this.fpsstr,20);
-		draw.filltext(5,44,"Cnt: "+world.atomlist.count,20);
-		// Calculate the frame time.
-		this.frametime+=performance.now()-frametime;
-		this.frames++;
-		if (this.frames>=60) {
-			this.fps=this.frametime/this.frames;
-			this.frames=0;
-			this.frametime=0;
-			this.fpsstr=this.fps.toFixed(1)+" ms";
-		}
-		this.ctx.putImageData(draw.img.imgdata,0,0);
-	}
-
-}
-
-
-function DemoInit() {
-	let phy=new PhyScene("democanv");
-	function resize() {
-		// Properly resize the canvas
-		let canvas =phy.canvas;
-		let ratio  =canvas.height/canvas.width;
-		let elem   =canvas;
-		let offleft=elem.clientLeft;
-		let offtop =elem.clientTop;
-		while (elem!==null) {
-			offleft+=elem.offsetLeft;
-			offtop +=elem.offsetTop;
-			elem=elem.offsetParent;
-		}
-		let pscale =1;// window.devicePixelRatio;
-		let width  =Math.floor(pscale*(window.innerWidth));// -offleft));
-		let height =Math.floor(pscale*(window.innerHeight-offtop));
-		if (width*ratio<height) {
-			height=Math.floor(width*ratio);
+	constructor(freq=44100,len=0) {
+		// accepts len/path and frequency
+		Audio.initdef();
+		this.audio=Audio.def;
+		this.freq=freq;
+		this.queue=null;
+		let type=typeof len;
+		if (type==="number") {
+			this.resizelen(len);
+		} else if (type==="string") {
+			this.loadfile(len);
 		} else {
-			width =Math.floor(height/ratio);
+			this.resizelen(0);
 		}
-		canvas.style.width =width +"px";
-		canvas.style.height=height+"px";
 	}
-	window.addEventListener("resize",resize);
-	resize();
+
+
+	slicelen(start=0,len=Infinity) {
+		start=Math.floor(start);
+		if (start<0) {
+			len+=start;
+			start=0;
+		}
+		if (start>this.len) {start=this.len;}
+		if (len>this.len-start) {len=this.len-start;}
+		len=Math.floor(len);
+		let newsnd=new Audio.Sound(this.freq,len);
+		let newdata=newsnd.data;
+		let data=this.data;
+		for (let i=0;i<len;i++) {newdata[i]=data[start+i];}
+		return newsnd;
+	}
+
+
+	slicetime(start=0,len=Infinity) {
+		return this.slicelen(start*this.freq,len*this.freq);
+	}
+
+
+	copy() {return this.slicelen();}
+
+
+	trim(eps=1e-4) {
+		return this.trimend(eps).trimstart(eps);
+	}
+
+
+	trimstart(eps=1e-4) {
+		let data=this.data;
+		let len=this.len,pos=0;
+		while (pos<len && Math.abs(data[pos])<=eps) {pos++;}
+		for (let i=pos;i<len;i++) {data[i-pos]=data[i];}
+		return this.resizelen(len-pos);
+	}
+
+
+	trimend(eps=1e-4) {
+		let data=this.data;
+		let len=this.len;
+		while (len>0 && Math.abs(data[len-1])<=eps) {len--;}
+		return this.resizelen(len);
+	}
+
+
+	resizelen(len) {
+		// Over-allocate in case we keep modifying the sound.
+		this.loaded=true;
+		let olddata=this.data;
+		let oldlen=olddata?olddata.length:0;
+		let newlen=(len>oldlen || 3*len<oldlen)?len*2:oldlen;
+		let data=this.data;
+		if (newlen!==oldlen) {
+			if (newlen>0) {
+				this.ctxbuf=this.audio.ctx.createBuffer(1,newlen,this.freq);
+				data=this.ctxbuf.getChannelData(0);
+			} else {
+				this.ctxbuf=null;
+				data=new Float32Array(0);
+			}
+			let copylen=oldlen<newlen?oldlen:newlen;
+			for (let i=0;i<copylen;i++) {data[i]=olddata[i];}
+		}
+		let clearlen=this.len<newlen?this.len:newlen;
+		this.data=data;
+		for (let i=len;i<clearlen;i++) {data[i]=0;}
+		this.len=len;
+		this.time=len/this.freq;
+		return this;
+	}
+
+
+	loadfile(path) {
+		// Load and replace the sound with a WAV file.
+		this.resizelen(0);
+		this.loaded=false;
+		let req=new XMLHttpRequest();
+		req.open("GET",path,true);
+		req.responseType="arraybuffer";
+		req.onload=((evt)=>{
+			if (req.response) {
+				let data=new Uint8Array(req.response);
+				this.fromwav(data);
+			}
+		});
+		req.send(null);
+	}
+
+
+	savefile(name) {
+		// Save the sound to a WAV file.
+		let blob=new Blob([this.towav()]);
+		let link=document.createElement("a");
+		link.href=window.URL.createObjectURL(blob);
+		link.download=name;
+		link.click();
+	}
+
+
+	fromwav(data,dataidx=0) {
+		// Load a sound from WAV data. Can handle PCM or floating point samples.
+		// Converts multi-channel to mono-channel.
+		this.loaded=true;
+		// Helper functions.
+		function read32(i) {
+			i+=dataidx;
+			return ((data[i+3]<<24)|(data[i+2]<<16)|(data[i+1]<<8)|data[i])>>>0;
+		}
+		function read16(i) {
+			i+=dataidx;
+			return ((data[i+1]<<8)|data[i])>>>0;
+		}
+		let convu8 =new Uint8Array([1,0,0,0,0,0,0,0]);
+		let convf32=new Float32Array(convu8.buffer,0);
+		let convf64=new Float64Array(convu8.buffer);
+		let little =(new Uint32Array(convu8.buffer))[0]===1;
+		function readf32(i) {
+			for (let j=0;j<4;j++) {convu8[j]=data[dataidx+i+(little?j:(3-j))];}
+			return convf32[0];
+		}
+		function readf64(i) {
+			for (let j=0;j<8;j++) {convu8[j]=data[dataidx+i+(little?j:(7-j))];}
+			return convf64[0];
+		}
+		// Check RIFF and WAVE signatures.
+		if (data.length<44 || read32(0)!==0x46464952 || read32(8)!==0x45564157) {
+			return this;
+		}
+		let filelen=read32(4)+8;
+		if (filelen>data.length) {filelen=data.length;}
+		// Find the format and data blocks.
+		let fmtidx=-1,fmtlen=-1;
+		let datidx=-1,datlen=-1;
+		for (let i=12;i+8<=filelen;) {
+			let blockid=read32(i);
+			let blocklen=read32(i+4)+8;
+			if (blocklen<=0) {
+				console.log("corrupt block");
+				return this;
+			} else if (blockid===0x20746d66) {
+				fmtidx=i;
+				fmtlen=blocklen;
+			} else if (blockid===0x61746164) {
+				datidx=i;
+				datlen=blocklen;
+			}
+			i+=blocklen;
+		}
+		if (fmtlen<24 || datlen<0) {
+			console.log("could not find format or data blocks");
+			return this;
+		}
+		// Read the format block.
+		let fmt =read16(fmtidx+ 8);
+		let chan=read16(fmtidx+10);
+		let freq=read32(fmtidx+12);
+		let bits=read16(fmtidx+22);
+		// Allow loading of PCM and float data.
+		if (!(fmt===1 && bits>=8 && (bits&7)===0) && !(fmt===3 && (bits===32 || bits===64))) {
+			return this;
+		}
+		// Parse the data block.
+		let bytes=bits>>>3;
+		let samples=Math.floor((datlen-8)/(chan*bytes));
+		let channorm=1/chan;
+		this.freq=freq;
+		this.resizelen(samples);
+		let snddata=this.data;
+		datidx+=8+dataidx;
+		if (fmt===1) {
+			let mid=1<<(bits-1),offn=mid*2;
+			let normp=1.0/(mid-1),normn=1.0/mid;
+			datidx+=bytes-1;
+			for (let s=0;s<samples;s++) {
+				let nsum=0.0;
+				for (let c=0;c<chan;c++) {
+					let csum=0;
+					for (let b=0;b<bytes;b++) {csum=csum*256+data[datidx-b];}
+					nsum+=csum<mid?csum*normp:(csum-offn)*normn;
+					datidx+=bytes;
+				}
+				snddata[s]=nsum*channorm;
+			}
+		} else {
+			for (let s=0;s<samples;s++) {
+				let nsum=0.0;
+				for (let c=0;c<chan;c++) {
+					if (bits===32) {nsum+=readf32(datidx);}
+					if (bits===64) {nsum+=readf64(datidx);}
+					datidx+=bytes;
+				}
+				snddata[s]=nsum*channorm;
+			}
+		}
+		return this;
+	}
+
+
+	towav() {
+		// Convert the sound to a 32-bit floating point WAV file.
+		// Helper functions.
+		function write32(i,x) {
+			for (let j=0;j<4;j++) {data[i+j]=(x>>>(j*8))&255;}
+		}
+		function write16(i,x) {
+			for (let j=0;j<2;j++) {data[i+j]=(x>>>(j*8))&255;}
+		}
+		let convu8 =new Uint8Array([1,0,0,0]);
+		let convf32=new Float32Array(convu8.buffer,0);
+		let little =(new Uint32Array(convu8.buffer))[0]===1;
+		function writef32(i,x) {
+			convf32[0]=x;
+			for (let j=0;j<4;j++) {data[i+(little?j:(3-j))]=convu8[j];}
+		}
+		// Write RIFF and WAVE signatures.
+		let bytes=4,bits=bytes*8,chan=1,fmt=3,freq=Math.round(this.freq);
+		let sndlen=this.len,snddata=this.data;
+		let data=new Uint8Array(sndlen*bytes*chan+12+24+8);
+		write32(0,0x46464952);
+		write32(4,data.length-8);
+		write32(8,0x45564157);
+		// Write format block.
+		write32(12,0x20746d66);
+		write32(16,16);
+		write16(20,fmt);
+		write16(22,chan);
+		write32(24,freq);
+		write32(28,freq*bytes*chan);
+		write16(32,bytes*chan);
+		write16(34,bits);
+		// Write data block.
+		write32(36,0x61746164);
+		write32(40,data.length-44);
+		for (let s=0;s<sndlen;s++) {
+			writef32(44+s*4,snddata[s]);
+		}
+		return data;
+	}
+
+
+	play(volume,pan,freq) {
+		return this.audio.play(this,volume,pan,freq);
+	}
+
+
+	addindex(snd,dstoff=0,vol=1.0) {
+		// Add sound samples to the current sound.
+		let srcoff=0,srclen=snd.len;
+		if (dstoff<0) {
+			srcoff=-dstoff;
+			srclen+=dstoff;
+		}
+		if (srclen<=0) {return this;}
+		if (dstoff+srclen>this.len) {
+			this.resizelen(dstoff+srclen);
+		}
+		let dstdata=this.data;
+		let srcdata=snd.data;
+		// If we're adding the sound to itself, we may need to go back-to-front.
+		if (dstoff<srcoff) {
+			for (let i=0;i<srclen;i++) {
+				dstdata[dstoff++]+=srcdata[srcoff++]*vol;
+			}
+		} else {
+			dstoff+=srclen;
+			srcoff+=srclen;
+			for (let i=0;i<srclen;i++) {
+				dstdata[--dstoff]+=srcdata[--srcoff]*vol;
+			}
+		}
+		return this;
+	}
+
+
+	add(snd,offset=0,vol=1.0) {
+		return this.addindex(snd,Math.round(offset*this.freq),vol);
+	}
+
+
+	getvol() {
+		let data=this.data,len=data.length;
+		let v=0,x;
+		for (let i=0;i<len;i++) {
+			x=Math.abs(data[i]);
+			v=v<x?x:v;
+		}
+		return v;
+	}
+
+
+	scalevol(mul,normalize=false) {
+		let data=this.data,len=data.length;
+		if (normalize) {
+			let norm=this.getvol();
+			mul=norm>1e-10?mul/norm:0;
+		}
+		for (let i=0;i<len;i++) {data[i]*=mul;}
+		return this;
+	}
+
+
+	scalelen(newlen) {
+		let data=this.data,len=this.len;
+		if (len<newlen) {
+			// Stretch by linearly interpolating.
+			this.resizelen(newlen);
+			data=this.data;
+			let sinc=len-1,dinc=newlen-1;
+			let spos=len-1,dpos=newlen;
+			let x0=len>0?data[spos]:0,xd=0;
+			let rem=0,iden=1/dinc;
+			while (dpos>0) {
+				data[--dpos]=x0+xd*rem;
+				rem-=sinc;
+				if (rem<0) {
+					rem+=dinc;
+					xd=x0;
+					x0=data[--spos];
+					xd=(xd-x0)*iden;
+				}
+			}
+		} else if (len>newlen) {
+			// Shrink by summing and averaging.
+			let rem=0,rden=1/len,sum=0,sden=newlen/len,x;
+			let dpos=0,spos=0;
+			while (dpos<newlen) {
+				x=data[spos++];
+				sum+=x;
+				rem+=newlen;
+				if (rem>=len) {
+					rem-=len;
+					x=rem>0?x*(rem*rden):0;
+					data[dpos++]=sum*sden-x;
+					sum=x;
+				}
+			}
+			this.resizelen(newlen);
+		}
+		return this;
+	}
+
+
+	scaletime(newtime) {
+		return this.scalelen(Math.round((newtime/this.time)*this.freq));
+	}
+
 }
-window.addEventListener("load",DemoInit);
+
+
+class _AudioInstance {
+
+	constructor(snd,vol=1.0,pan=0.0,freq=null) {
+		let audio=snd.audio;
+		// Audio player link
+		this.audprev=null;
+		this.audnext=audio.queue;
+		audio.queue =this;
+		// Sound link
+		this.snd    =snd;
+		this.sndprev=null;
+		this.sndnext=snd.queue;
+		snd.queue   =this;
+		// Misc
+		this.rate   =1.0;
+		this.playing=true;
+		this.done   =false;
+		// src -> gain -> pan -> ctx
+		let ctx=audio.ctx;
+		this.ctx=ctx;
+		this.ctxpan=ctx.createStereoPanner();
+		this.setpan(pan);
+		this.ctxpan.connect(ctx.destination);
+		this.ctxgain=ctx.createGain();
+		this.setvolume(vol);
+		this.ctxgain.connect(this.ctxpan);
+		let ctxsrc=ctx.createBufferSource();
+		this.ctxsrc=ctxsrc;
+		ctxsrc.addEventListener("ended",()=>{this.remove();});
+		ctxsrc.buffer=snd.ctxbuf;
+		ctxsrc.connect(this.ctxgain);
+		ctxsrc.start(0,0,snd.time);
+	}
+
+
+	remove() {
+		if (this.done) {return;}
+		this.done=true;
+		this.playing=false;
+		let audio=this.snd.audio;
+		let audprev=this.audprev;
+		let audnext=this.audnext;
+		if (audprev===null) {
+			audio.queue=audnext;
+		} else {
+			audprev.audnext=audnext;
+			this.audprev=null;
+		}
+		if (audnext!==null) {
+			audnext.audprev=audprev;
+			this.audnext=null;
+		}
+		// this.audio=null;
+		let sndprev=this.sndprev;
+		let sndnext=this.sndnext;
+		if (sndprev===null) {
+			this.snd.queue=sndnext;
+		} else {
+			sndprev.sndnext=sndnext;
+			this.sndprev=null;
+		}
+		if (sndnext!==null) {
+			sndnext.sndprev=sndprev;
+			this.sndnext=null;
+		}
+		// this.snd=null;
+		this.ctxsrc.disconnect();
+		this.ctxgain.disconnect();
+		this.ctxpan.disconnect();
+	}
+
+
+	stop() {
+		if (!this.done) {
+			this.playing=false;
+			this.ctxsrc.stop();
+		}
+	}
+
+
+	start() {
+		if (!this.done) {
+			this.playing=true;
+			this.ctxsrc.start();
+		}
+	}
+
+
+	setpan(pan) {
+		// -1: 100% left channel
+		//  0: 100% both channels
+		// +1: 100% right channel
+		if (pan<-1) {pan=-1;}
+		else if (pan>1) {pan=1;}
+		else if (isNaN(pan) || pan===undefined || pan===null) {pan=0;}
+		this.pan=pan;
+		if (!this.done) {
+			this.ctxpan.pan.setValueAtTime(this.pan,this.ctx.currentTime);
+		}
+	}
+
+
+	setvolume(vol) {
+		if (isNaN(vol) || vol===undefined || vol===null) {vol=1;}
+		this.volume=vol;
+		if (!this.done) {
+			this.ctxgain.gain.setValueAtTime(this.volume,this.ctx.currentTime);
+		}
+	}
+
+}
+
+
+class _AudioDelay {
+	// Delay filter with linear interpolation.
+
+	constructor(rate,delay) {
+		this.rate=rate;
+		this.delay=delay;
+		this.pos=0;
+		this.len=Math.floor(rate*delay)+2;
+		this.data=new Float32Array(this.len);
+	}
+
+
+	add(x) {
+		if (++this.pos>=this.len) {this.pos=0;}
+		this.data[this.pos]=x;
+	}
+
+
+	get(delay) {
+		if (delay===undefined) {
+			delay=this.delay;
+		} else if (delay<0 || delay>this.delay) {
+			throw `Delay too large ${delay} > ${this.delay}`;
+		}
+		delay*=this.rate;
+		let i=Math.floor(delay);
+		let f=delay-i;
+		let len=this.len,data=this.data;
+		i=this.pos-i;
+		if (i<0) {i+=len;}
+		let j=i-1;
+		if (j<0) {j+=len;}
+		return data[i]*(1-f)+data[j]*f;
+	}
+
+
+	process(x) {
+		this.add(x);
+		return this.get();
+	}
+
+}
+
+
+class _AudioEnvelope {
+	// Envelope/gain filter.
+
+	static CON=0;
+	static LIN=1;
+	static EXP=2;
+
+
+	constructor(arr=null,eps=0.001) {
+		// [ type, time, target, type, time, target, ... ]
+		// type = con, lin, exp
+		this.last=null;
+		this.stop=0;
+		this.eps=eps;
+		this.envarr=[];
+		for (let i=0;arr && i<arr.length;i+=3) {
+			this.add(arr[i],arr[i+1],arr[i+2]);
+		}
+	}
+
+
+	add(type,time,target) {
+		if (time<0 || isNaN(time)) {
+			throw "envelope invalid time: "+time.toString();
+		}
+		let envarr=this.envarr;
+		let prev=envarr.length>0?envarr[envarr.length-1]:null;
+		let prevtar=prev?prev.target:0;
+		let prevstop=prev?prev.stop:0;
+		let env={};
+		env.start=prevstop;
+		env.stop=prevstop+time;
+		env.type=type;
+		if (type===_AudioEnvelope.CON || time<=0) {
+			env.mul=0;
+			env.con=target;
+		} else if (type===_AudioEnvelope.LIN) {
+			env.mul=(target-prevtar)/time;
+			env.con=prevtar-env.mul*prevstop;
+		} else if (type===_AudioEnvelope.EXP) {
+			// Scale the exponential by 1/(1-eps) to reach our target values.
+			let leps=Math.log(this.eps);
+			let expmul=(target-prevtar)/(1-this.eps);
+			if (expmul<0) {
+				env.mul=leps/time;
+				env.con=Math.log(-expmul)-env.mul*prevstop;
+				env.expcon=prevtar+expmul;
+			} else {
+				env.mul=-leps/time;
+				env.con=Math.log(expmul)+leps-env.mul*prevstop;
+				env.expcon=target-expmul;
+			}
+		} else {
+			throw "envelope type not recognized: "+type;
+		}
+		env.target=target;
+		envarr.push(env);
+		this.stop=env.stop;
+		return this;
+	}
+
+
+	get(time) {
+		let env=this.last;
+		// If we're in a new time segment.
+		if (env===null || time<env.start || time>=env.stop) {
+			env=null;
+			if (time>=0 && time<this.stop) {
+				let envarr=this.envarr;
+				let i=0,len=envarr.length;
+				while (i<len && time>=envarr[i].stop) {i++;}
+				env=i<len?envarr[i]:null;
+			}
+			this.last=env;
+			if (env===null) {return 0;}
+		}
+		let u=time*env.mul+env.con;
+		if (env.type!==_AudioEnvelope.EXP) {return u;}
+		else {return Math.exp(u)+env.expcon;}
+	}
+
+}
+
+
+class _AudioBiquad {
+	// Biquad filter type 1
+	// https://shepazu.github.io/Audio-EQ-Cookbook/audio-eq-cookbook.html
+
+	static NONE     =0;
+	static LOWPASS  =1;
+	static HIGHPASS =2;
+	static BANDPASS =3;
+	static NOTCH    =4;
+	static ALLPASS  =5;
+	static PEAK     =6;
+	static LOWSHELF =7;
+	static HIGHSHELF=8;
+
+
+	constructor(type,rate,bandwidth=1,peakgain=0) {
+		// bandwidth in kHz
+		// rate = freq / sample rate
+		this.type=type;
+		this.rate=rate;
+		this.peakgain=peakgain;
+		this.bandwidth=bandwidth;
+		this.clear();
+		this.calccoefs();
+	}
+
+
+	clear() {
+		this.x1=0;
+		this.x2=0;
+		this.y1=0;
+		this.y2=0;
+	}
+
+
+	process(x) {
+		let y=this.b0*x+this.b1*this.x1+this.b2*this.x2
+		               -this.a1*this.y1-this.a2*this.y2;
+		if (!(y>-Infinity && y<Infinity)) {y=0;}
+		this.x2=this.x1;
+		this.x1=x;
+		this.y2=this.y1;
+		this.y1=y;
+		return y;
+	}
+
+
+	prev() {return this.y1;}
+
+
+	getq() {
+		let ang=2*Math.PI*this.rate;
+		let sn =Math.sin(ang);
+		let q  =0.5/Math.sinh(Math.log(2)*0.5*this.bandwidth*ang/sn);
+		return q;
+	}
+
+
+	updatecoefs(type,rate,bandwidth=1,peakgain=0) {
+		if (this.type!==type || this.rate!==rate || this.bandwidth!==bandwidth || this.peakgain!==peakgain) {
+			this.type=type;
+			this.rate=rate;
+			this.peakgain=peakgain;
+			this.bandwidth=bandwidth;
+			this.calccoefs(false);
+		}
+	}
+
+
+	calccoefs(reset=true) {
+		let b0=1,b1=0,b2=0;
+		let a0=1,a1=0,a2=0;
+		let v  =Math.exp(this.peakgain/(Math.log(10)*40));
+		let ang=2*Math.PI*this.rate;
+		let sn =Math.sin(ang);
+		let cs =Math.cos(ang);
+		let q  =0.5/Math.sinh(Math.log(2)*0.5*this.bandwidth*ang/sn);
+		let a  =sn/(2*q);
+		let vr =2*Math.sqrt(v)*a;
+		let type=this.type;
+		if (type===_AudioBiquad.NONE) {
+		} else if (type===_AudioBiquad.LOWPASS) {
+			b1=1-cs;
+			b0=0.5*b1;
+			b2=b0;
+			a0=1+a;
+			a1=-2*cs;
+			a2=1-a;
+		} else if (type===_AudioBiquad.HIGHPASS) {
+			b1=-1-cs;
+			b0=-0.5*b1;
+			b2=b0;
+			a0=1+a;
+			a1=-2*cs;
+			a2=1-a;
+		} else if (type===_AudioBiquad.BANDPASS) {
+			b0=a;
+			b1=0;
+			b2=-b0;
+			a0=1+a;
+			a1=-2*cs;
+			a2=1-a;
+		} else if (type===_AudioBiquad.NOTCH) {
+			b0=1;
+			b1=-2*cs;
+			b2=b0;
+			a0=1+a;
+			a1=-2*cs;
+			a2=1-a;
+		} else if (type===_AudioBiquad.ALLPASS) {
+			b0=1-a;
+			b1=-2*cs;
+			b2=1+a;
+			a0=b2;
+			a1=b1;
+			a2=b0;
+		} else if (type===_AudioBiquad.PEAK) {
+			b0=1+a*v;
+			b1=-2*cs;
+			b2=1-a*v;
+			a0=1+a/v;
+			a1=-2*cs;
+			a2=1-a/v;
+		} else if (type===_AudioBiquad.LOWSHELF) {
+			b0=v*((v+1)-(v-1)*cs+vr);
+			b1=2*v*((v-1)-(v+1)*cs);
+			b2=v*((v+1)-(v-1)*cs-vr);
+			a0=(v+1)+(v-1)*cs+vr;
+			a1=-2*((v-1)+(v+1)*cs);
+			a2=(v+1)+(v-1)*cs-vr;
+		} else if (type===_AudioBiquad.HIGHSHELF) {
+			b0=v*((v+1)+(v-1)*cs+vr);
+			b1=-2*v*((v-1)+(v+1)*cs);
+			b2=v*((v+1)+(v-1)*cs-vr);
+			a0=(v+1)-(v-1)*cs+vr;
+			a1=2*((v-1)-(v+1)*cs);
+			a2=(v+1)-(v-1)*cs-vr;
+		} else {
+			throw "Biquad type not recognized: "+type;
+		}
+		// Rescale running constants.
+		if (reset) {
+			this.a0=0;
+			this.x1=0;
+			this.x2=0;
+		}
+		let norm=this.a0/a0;
+		this.y1*=norm;
+		this.y2*=norm;
+		this.a0=a0;
+		this.a1=a1/a0;
+		this.a2=a2/a0;
+		this.b0=b0/a0;
+		this.b1=b1/a0;
+		this.b2=b2/a0;
+	}
+
+}
+
+
+class Audio {
+
+	static Sound   =_AudioSound;
+	static Instance=_AudioInstance;
+	static Delay   =_AudioDelay;
+	static Envelope=_AudioEnvelope;
+	static Biquad  =_AudioBiquad;
+
+	// The default context used for audio functions.
+	static def=null;
+
+
+	constructor(freq=44100) {
+		let con=this.constructor;
+		Object.assign(this,con);
+		if (con.def===null) {con.def=this;}
+		this.freq=freq;
+		this.queue=null;
+		let ctx=new AudioContext({latencyHint:"interactive",sampleRate:freq});
+		this.ctx=ctx;
+		if (!Audio.def) {Audio.initdef(this);}
+	}
+
+
+	static initdef(def) {
+		if (!def) {def=Audio.def;}
+		if (!def) {def=new Audio();}
+		Audio.def=def;
+		return def;
+	}
+
+
+	play(snd,volume,pan,freq) {
+		return new _AudioInstance(snd,volume,pan,freq);
+	}
+
+
+	// ----------------------------------------
+	// Oscillators
+	// All input domains are wrapped to [0,1).
+	// NaN and infinite values return 0 or the minimum value.
+
+
+	static sin1(x) {
+		x%=1.0;
+		if (isNaN(x)) {return 0;}
+		return Math.sin(x*6.2831853071795864769252866)*0.5+0.5;
+	}
+
+
+	static sin(x) {
+		x%=1.0;
+		if (isNaN(x)) {return 0;}
+		return Math.sin(x*6.2831853071795864769252866);
+	}
+
+
+	static saw1(x) {
+		//   /|  /|  /|
+		//  / | / | / |
+		// /  |/  |/  |
+		x%=1.0;
+		if (x<0) {x+=1;}
+		return x>=0?x:0;
+	}
+
+
+	static saw(x) {
+		return Audio.saw1(x+0.5)*2-1;
+	}
+
+
+	static tri1(x) {
+		//   /\    /\    /
+		//  /  \  /  \  /
+		// /    \/    \/
+		x%=1.0;
+		if (x<0) {x+=1;}
+		x*=2;
+		if (x>1) {return 2-x;}
+		return x>0?x:0;
+	}
+
+
+	static tri(x) {
+		return Audio.tri1(x+0.25)*2-1;
+	}
+
+
+	static sqr1(x) {
+		//    __    __
+		//   |  |  |  |
+		//   |  |  |  |
+		// __|  |__|  |__
+		x%=1.0;
+		if (x<0) {x+=1;}
+		return x>0.5?1:0;
+	}
+
+
+	static sqr(x) {
+		return Audio.sqr1(x)*2-1;
+	}
+
+
+	static noise1(x) {
+		// PRNG noise with interpolation for different frequencies.
+		let v=x%1;
+		if (v<0) {v+=1;}
+		else if (isNaN(v)) {v=0;x=0;}
+		let u0=(Math.floor(x)>>>0)+0x66daacfd,u1=u0+1;
+		u0=Math.imul(u0^(u0>>>16),0xf8b7629f);
+		u0=Math.imul(u0^(u0>>> 8),0xcbc5c2b5);
+		u0=Math.imul(u0^(u0>>>24),0xf5a5bda5)>>>0;
+		u1=Math.imul(u1^(u1>>>16),0xf8b7629f);
+		u1=Math.imul(u1^(u1>>> 8),0xcbc5c2b5);
+		u1=Math.imul(u1^(u1>>>24),0xf5a5bda5)>>>0;
+		return (u0+(u1-u0)*v)*(1.0/4294967295.0);
+	}
+
+
+	static noise(x) {
+		return Audio.noise1(x)*2-1;
+	}
+
+
+	static clip(x,min,max) {
+		// Same as clamping.
+		if (min>max) {
+			let tmp=min;
+			min=max;
+			max=tmp;
+		}
+		if (x>=max) {return max;}
+		return x>=min?x:min;
+	}
+
+
+	static wrap(x,min,max) {
+		if (min>max) {
+			let tmp=min;
+			min=max;
+			max=tmp;
+		}
+		// Prevent floating point drift for successive calls.
+		if (x>=min && x<=max) {return x;}
+		max-=min;
+		x=(x-min)%max;
+		if (x<0) {x+=max;}
+		return x>=0?x+min:min;
+	}
+
+
+	// ----------------------------------------
+	// String Instruments
+
+
+	static generatestring(volume=1.0,freq=200,pos=0.5,inharm=0.00006,decay=1.2,sndfreq=44100) {
+		// Jason Pelc
+		// http://large.stanford.edu/courses/2007/ph210/pelc2/
+		// Stop when e^(-decay*time/sndfreq)<=cutoff
+		const cutoff=1e-3;
+		decay/=sndfreq;
+		freq/=sndfreq;
+		let harmonics=Math.ceil(0.5/freq);
+		let sndlen=Math.ceil(-Math.log(cutoff)/decay);
+		let snd=new Audio.Sound(sndfreq,sndlen);
+		let data=snd.data;
+		// Generate coefficients.
+		if (pos<0.0001) {pos=0.0001;}
+		if (pos>0.9999) {pos=0.9999;}
+		let listen=pos; // 0.16;
+		let c0=listen*Math.PI;
+		let c1=(2*volume)/(Math.PI*Math.PI*pos*(1-pos));
+		let c2=freq*Math.PI*2;
+		// Process highest to lowest for floating point accuracy.
+		for (let n=harmonics;n>0;n--) {
+			// Calculate coefficients for the n'th harmonic.
+			let n2=n*n;
+			let harmvol=Math.sin(n*c0)*c1/n2;
+			if (Math.abs(harmvol)<=cutoff) {continue;}
+			// Correct n2 by -1 so the fundamental = freq.
+			let ihscale=n*Math.sqrt(1+(n2-1)*inharm);
+			let harmdecay=-decay*ihscale;
+			let harmmul=Math.exp(harmdecay);
+			let harmlen=Math.ceil(Math.log(cutoff/Math.abs(harmvol))/harmdecay);
+			if (harmlen>sndlen) {harmlen=sndlen;}
+			let harmfreq=c2*ihscale;
+			let harmphase=0;
+			// Generate the waveform.
+			for (let i=0;i<harmlen;i++) {
+				data[i]+=harmvol*Math.sin(harmphase);
+				harmvol*=harmmul;
+				harmphase+=harmfreq;
+			}
+		}
+		// Taper the ends.
+		let head=Math.ceil(0.010*sndfreq);
+		for (let i=0;i<head && i<sndlen;i++) {data[i]*=i/head;}
+		let tail=Math.ceil(0.005*sndfreq);
+		for (let i=0;i<tail && i<sndlen;i++) {data[sndlen-1-i]*=i/tail;}
+		return snd;
+	}
+
+
+	static createguitar(volume=1.0,freq=200,pluck=0.5,sndfreq=44100) {
+		return Audio.generatestring(volume,freq,pluck,0.000050,1.2,sndfreq);
+	}
+
+
+	static createxylophone(volume=1.0,freq=250,pos=0.5,sndfreq=44100) {
+		// freq = constant / length^2
+		return Audio.generatestring(volume,freq,pos,0.374520,3.2,sndfreq);
+	}
+
+
+	static createmarimba(volume=1.0,freq=250,pos=0.5,sndfreq=44100) {
+		return Audio.generatestring(volume,freq,pos,0.947200,3.2,sndfreq);
+	}
+
+
+	static createglockenspiel(volume=0.2,freq=1867,pos=0.5,sndfreq=44100) {
+		return Audio.generatestring(volume,freq,pos,0.090000,1.3,sndfreq);
+	}
+
+
+	static createmusicbox(volume=0.1,freq=877,sndfreq=44100) {
+		return Audio.generatestring(volume,freq,0.40,0.050000,2.3,sndfreq);
+	}
+
+
+	// ----------------------------------------
+	// Percussion Instruments
+
+
+	static createdrumhihat(volume=1.0,freq=7000,time=0.1,sndfreq=44100) {
+		let len=Math.ceil(time*sndfreq);
+		let snd=new Audio.Sound(sndfreq,len);
+		let gain=new Audio.Envelope([Audio.Envelope.LIN,0.01,volume,Audio.Envelope.EXP,time-0.01,0]);
+		let hp=new Audio.Biquad(Audio.Biquad.HIGHPASS,freq/sndfreq);
+		let bp=new Audio.Biquad(Audio.Biquad.BANDPASS,freq*1.4/sndfreq);
+		let data=snd.data;
+		for (let i=0;i<len;i++) {
+			let t=i/sndfreq;
+			let x=Audio.noise(i);
+			x=bp.process(x);
+			x=hp.process(x);
+			x=Audio.clip(x,-1,1);
+			data[i]=x*gain.get(t);
+		}
+		return snd;
+	}
+
+
+	static createdrumkick(volume=1.0,freq=120,time=0.2,sndfreq=44100) {
+		let len=Math.ceil(time*sndfreq);
+		let snd=new Audio.Sound(sndfreq,len);
+		let gain=new Audio.Envelope([Audio.Envelope.LIN,0.01,volume*0.5,Audio.Envelope.LIN,time-0.01,0]);
+		let freq1=freq/sndfreq,freq2=freq1*0.41;
+		let osc1=new Audio.Envelope([Audio.Envelope.CON,0,freq1,Audio.Envelope.LIN,0.01,freq1,Audio.Envelope.LIN,time-0.01,freq1*0.2]);
+		let osc2=new Audio.Envelope([Audio.Envelope.CON,0,freq2,Audio.Envelope.LIN,0.01,freq2,Audio.Envelope.LIN,time-0.01,freq2*0.2]);
+		let phase1=0,phase2=0;
+		let data=snd.data;
+		for (let i=0;i<len;i++) {
+			let t=i/sndfreq;
+			let x=Audio.sin(phase1)+Audio.sin(phase2);
+			phase1+=osc1.get(t);
+			phase2+=osc2.get(t);
+			data[i]=x*gain.get(t);
+		}
+		return snd;
+	}
+
+
+	static createdrumsnare(volume=1.0,freq=100,time=0.2,sndfreq=44100) {
+		let len=Math.ceil(time*sndfreq);
+		let snd=new Audio.Sound(sndfreq,len);
+		let gain=new Audio.Envelope([Audio.Envelope.LIN,0.01,volume,Audio.Envelope.EXP,time-0.01,0]);
+		let freq1=freq/sndfreq,freq2=freq1*0.41;
+		let osc1=new Audio.Envelope([Audio.Envelope.CON,0,freq1,Audio.Envelope.LIN,0.01,freq1,Audio.Envelope.LIN,time-0.01,freq1*0.2]);
+		let osc2=new Audio.Envelope([Audio.Envelope.CON,0,freq2,Audio.Envelope.LIN,0.01,freq2,Audio.Envelope.LIN,time-0.01,freq2*0.2]);
+		let oscn=new Audio.Envelope([Audio.Envelope.LIN,time,1]);
+		let phase1=0,phase2=0;
+		let hp0=new Audio.Biquad(Audio.Biquad.HIGHPASS,freq/sndfreq);
+		let hp1=new Audio.Biquad(Audio.Biquad.HIGHPASS,10*freq/sndfreq);
+		let data=snd.data;
+		for (let i=0;i<len;i++) {
+			let t=i/sndfreq;
+			let n=Audio.noise(i);
+			let n0=hp0.process(n);
+			let n1=hp1.process(n);
+			n=n0+oscn.get(t)*(n1-n0);
+			let x=(Audio.sin(phase1)+Audio.sin(phase2))*0.5*0.2+n*0.8;
+			phase1+=osc1.get(t);
+			phase2+=osc2.get(t);
+			data[i]=x*gain.get(t);
+		}
+		return snd;
+	}
+
+
+	// ----------------------------------------
+	// Wind Instruments
+
+
+	static createflute(volume=1.0,freq=200) {
+		let sndfreq=44100,len=sndfreq*2;
+		let snd=new Audio.Sound(sndfreq,len);
+		// let voldecay=Math.log(1e-4)/4;
+		let data=snd.data;
+		let filter=new Audio.Biquad(Audio.Biquad.LOWPASS,freq/sndfreq,2);
+		let delay=new Audio.Delay(sndfreq,1/freq),delaygain=-0.95;
+		for (let i=0;i<len;i++) {
+			let t=i/sndfreq;
+			// let mul=Math.exp(voldecay*t);
+			let x=t<0.5?(Math.random()*2-1):0;
+			x=filter.process(x)+delay.get()*delaygain;
+			delay.add(x);
+			data[i]=x;
+		}
+		snd.scalevol(volume,true);
+		return snd;
+	}
+
+
+	static createtuba(volume=1.0,freq=300) {
+		let sndfreq=44100,len=sndfreq*3;
+		let snd=new Audio.Sound(sndfreq,len);
+		let voldecay=Math.log(1e-4)/3;
+		let data=snd.data;
+		let filter=new Audio.Biquad(Audio.Biquad.LOWPASS,freq/sndfreq,1);
+		let delay=new Audio.Delay(sndfreq,0.02),delaygain=0.95;
+		for (let i=0;i<len;i++) {
+			let t=i/sndfreq;
+			let mul=Math.exp(voldecay*t);
+			let x=filter.process(Audio.noise(i))*mul;
+			x+=delay.get()*delaygain;
+			delay.add(x);
+			data[i]=x;
+		}
+		snd.scalevol(volume,true);
+		return snd;
+	}
+
+
+	// ----------------------------------------
+	// User Interface
+
+
+	static generateui(volume=0.04,freq=200,time=0.2,noise=0.5,sndfreq=44100) {
+		let len=Math.ceil(time*sndfreq);
+		let snd=new Audio.Sound(sndfreq,len);
+		let data=snd.data;
+		let attack=0.01,sustain=time*0.25;
+		let scale=freq/5000;
+		let bp1=new Audio.Biquad(Audio.Biquad.BANDPASS,freq/sndfreq,6*scale);
+		// let bp2=new Audio.Biquad(Audio.Biquad.BANDPASS, 700/sndfreq,3*scale);
+		// let del=new Audio.Delay(sndfreq,time*0.25);
+		for (let i=0;i<len;i++) {
+			let t=i/sndfreq;
+			let x=0;
+			if (t<attack) {x=t/attack;}
+			else if (t-attack<sustain) {x=1-(t-attack)/sustain;}
+			x*=x;
+			x*=bp1.process(Audio.tri(t*freq)*(1-noise)+Audio.noise(i)*noise);
+			// x+=del.get();
+			// This bandpass adds low frequency vibrations from the hypothetical console.
+			// del.add(bp2.process(x)*0.25);
+			data[i]=x;
+		}
+		snd.scalevol(volume,true);
+		return snd;
+	}
+
+
+	static createuiincrease(volume=0.05) {
+		return Audio.generateui(volume,2000,0.2,0.5);
+	}
+
+
+	static createuidecrease(volume=0.05) {
+		return Audio.generateui(volume,1500,0.2,0.5);
+	}
+
+
+	static createuiconfirm(volume=0.05) {
+		return Audio.generateui(volume,4000,2.0,0.25);
+	}
+
+
+	static createuierror(volume=0.05) {
+		return Audio.generateui(volume,800,1.0,0.5);
+	}
+
+
+	static createuiclick(volume=0.05) {
+		return Audio.generateui(volume,800,0.2,0.75);
+	}
+
+
+	// ----------------------------------------
+	// Misc
+
+
+	static generatethud(volume=1.0,freq=8000,time=0.02,sndfreq=44100) {
+		// Pitch should increase slightly with force.
+		let decay=Math.log(1e-4)/(time*sndfreq);
+		let len=Math.ceil(Math.log(1e-4)/decay);
+		let snd=new Audio.Sound(sndfreq,len);
+		let data=snd.data;
+		let vmul=Math.exp(decay),vtmp=1;
+		freq/=sndfreq;
+		let bp1=new Audio.Biquad(Audio.Biquad.BANDPASS,freq,2);
+		let bp2=new Audio.Biquad(Audio.Biquad.BANDPASS,freq,2);
+		let del=new Audio.Delay(sndfreq,0.003),delmul=0.9;
+		for (let i=0;i<len;i++) {
+			let x=Audio.noise(i)*vtmp;
+			vtmp*=vmul;
+			x=bp1.process(x);
+			x=bp2.process(x);
+			x+=del.process(x)*delmul;
+			data[i]=x;
+		}
+		snd.scalevol(volume,true);
+		return snd;
+	}
+
+
+	static createmarble(volume=0.5) {
+		return Audio.generatethud(volume,8000,0.02);
+	}
+
+
+	static createthud(volume=1.0) {
+		return Audio.generatethud(volume,100,0.2);
+	}
+
+
+	static createelectricity(volume=0.15,freq=159.8,time=1.5) {
+		let sndfreq=44100,len=Math.ceil(time*sndfreq);
+		let ramp=0.01*sndfreq,rampden=1/ramp,tail=len-ramp;
+		let snd=new Audio.Sound(sndfreq,len);
+		let data=snd.data;
+		let freq0=freq/sndfreq,freq1=freq0*1.002;
+		let lp3=new Audio.Biquad(Audio.Biquad.LOWPASS,3000/sndfreq);
+		for (let i=0;i<len;i++) {
+			let x=Audio.saw1(i*freq0)+Audio.saw1(i*freq1);
+			x=Audio.clip(x-1,-0.5,0.5);
+			x=lp3.process(x);
+			if (i<ramp || i>tail) {x*=(i<ramp?i:len-1-i)*rampden;}
+			data[i]=x;
+		}
+		snd.scalevol(volume,true);
+		return snd;
+	}
+
+
+	static createlaser(volume=0.5,freq=10000,time=0.25) {
+		let sndfreq=44100,len=Math.ceil(time*sndfreq);
+		let ramp=0.01*sndfreq,rampden=1/ramp,tail=len-ramp;
+		let snd=new Audio.Sound(sndfreq,len);
+		let data=snd.data;
+		freq*=Math.PI*2/sndfreq;
+		let vmul=Math.exp(Math.log(1e-4)/len),vol=1;
+		// Instead of a delay constant, use a delay multiplier. Scales sum < 1.
+		// Array format: delay, scale, delay, scale, ...
+		let deltable=[0.99,-0.35,0.90,-0.28,0.80,-0.21,0.40,-0.13];
+		let delays=deltable.length;
+		for (let i=0;i<len;i++) {
+			let x=Math.sin(i*freq)*vol;
+			if (i<ramp) {x*=i*rampden;}
+			vol*=vmul;
+			for (let j=0;j<delays;j+=2) {
+				let u=i*deltable[j],k=Math.floor(u);
+				if (k>=0 && k+1<i) {
+					u-=k;
+					x+=(data[k]*(1-u)+data[k+1]*u)*deltable[j+1];
+				}
+			}
+			if (i>tail) {x*=(len-1-i)*rampden;}
+			data[i]=x;
+		}
+		snd.scalevol(volume,true);
+		return snd;
+	}
+
+
+	static generateexplosion(volume=0.75,freq=1000,time=0.25,sndfreq=44100) {
+		let len=Math.ceil(time*sndfreq);
+		let ramp=0.01*sndfreq,rampden=1/ramp,tail=len-ramp;
+		let snd=new Audio.Sound(sndfreq,len);
+		let data=snd.data;
+		let vmul=Math.exp(Math.log(1e-4)*3/len),vol=1;
+		let f=freq/(freq+1000);
+		let lpcoef=1-f,bpcoef=f,del=0.75+0.15*f,delmul=-0.9+0.5*f;
+		let lp=new Audio.Biquad(Audio.Biquad.LOWPASS,freq/sndfreq,1);
+		let bp=new Audio.Biquad(Audio.Biquad.BANDPASS,freq/sndfreq,2);
+		for (let i=0;i<len;i++) {
+			let x=Audio.noise(i)*vol;
+			vol*=vmul;
+			x=lp.process(x)*lpcoef+bp.process(x)*bpcoef;
+			let u=i*del,k=Math.floor(u);
+			if (k>=0 && k+1<i) {
+				u-=k;
+				x+=(data[k]*(1-u)+data[k+1]*u)*delmul;
+			}
+			if (i<ramp || i>tail) {x*=(i<ramp?i:len-1-i)*rampden;}
+			data[i]=x;
+		}
+		snd.scalevol(volume,true);
+		return snd;
+	}
+
+
+	static createexplosion1(volume=0.5) {
+		return Audio.generateexplosion(volume,100,5.0);
+	}
+
+
+	static createexplosion2(volume=1.0) {
+		return Audio.generateexplosion(volume,300,5.0);
+	}
+
+
+	static creategunshot1(volume=0.25) {
+		return Audio.generateexplosion(volume,500,0.25);
+	}
+
+
+	static creategunshot2(volume=0.5) {
+		return Audio.generateexplosion(volume,1000,1.0);
+	}
+
+
+	static creategunhit(volume=0.25) {
+		return Audio.generateexplosion(volume,200,0.10);
+	}
+
+}

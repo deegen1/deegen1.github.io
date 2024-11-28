@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 	<meta charset="utf-8">
-	<title>Polyfill</title>
+	<title>Drawing</title>
 	<link rel="stylesheet" href="../style/style.css" type="text/css">
 	<script src="../style/style.js"></script>
 	<script src="./drawing.js"></script>
@@ -26,291 +26,326 @@ cached raster methods.</p>
 </div>
 
 
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Polyfill ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<h1>Polyfill</h1>
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Drawing ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Drawing</h1>
 <p><a href="#" onclick="PerformanceTest()">Performance test</a></p>
-<p><a href="./drawing.js">drawing.js</a></p>
-<p>While working on my <a href="../physics/index.html">physics engine</a> I
-realized that I would need a 2D graphics solution to draw the wide variety of
-shapes my engine would support. I also noticed that as I've moved between
-languages and platforms I needed something portable as well. Ideally the
-graphics library would be simple, capable of scaling to high resolutions, and
-support embedded fonts. The requirement for embedded fonts is important as most
-font libraries are fairly large -
-<a href="https://github.com/nothings/stb/blob/master/stb_truetype.h">
-stb_truetype.h</a> for instance is a single-file library of 194kb.</p>
-<p>All of these requirements have led me to create
-<a href="./drawing.js">drawing.js</a>: a polygon based library modelled after
-javascript canvases. Polygons, circles, and even fonts are composed of just 2
-things: lines and bezier curves.</p>
-<div id="polydemo1" class="consoleblock" style="width:80%;height:30rem;">
+<p><a href="./drawing.js">drawing.js</a> is a graphics library I'm developing
+for use in simple 2D demos. Most of the graphics libraries available are heavy
+in terms of size and dependencies. <a href="./drawing.js">drawing.js</a> on the
+other hand is designed be a simple, single file library that supports a wide
+variety of shapes, high resolutions, and even embedded fonts.</p>
+<p>The library is modeled after javascript canvases. Everything from polygons,
+to circles, to letters are composed of just 2 things: lines and bezier
+curves.</p>
+<div id="drawdemo1" class="consoleblock" style="width:80%;height:30rem;">
 Loading javascript...</div>
-<script>new PolyDemo1("polydemo1");</script>
 
 
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ SVG Paths ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<h1>SVG Paths</h1>
-<p>Defining even simple polygons in source can be exhausting, so most SVG
-engines allow for a shorthand notation: <i>M</i> move to, <i>L</i> line,
-<i>C</i> curve, <i>Z</i> close the path. Using this notation we can draw a
-simple cat:</p>
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Defining Shapes ~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Defining Shapes</h1>
+<p>Defining even simple polygons programmatically can be tedious, so the library
+allows SVG path notation: <i>M</i> move to, <i>L</i> line, <i>C</i> curve,
+<i>Z</i> close path. This allows us to make use of SVG editors (like
+<a href="https://yqnn.github.io/svg-path-editor">yqnn's</a>) to easily define
+polygons. Using this notation we can draw a simple cat:</p>
 <div class="consoleblock">M 0 0 L 250 250 L 750 250 L 1000 0 L 1000 700 L 500 1000 L 0 700 Z
 M 500 683 L 394 727 L 396 732 L 500 689 L 604 732 L 606 727 Z
 M 190 398 C 207 487 327 512 395 450 Z
 M 605 450 C 673 512 793 487 810 398 Z
 </div>
 <p>Left shows the control points, right shows the final result.</p>
-<svg version="1.1" viewBox="0 0 1000 500" class="diagram" style="background:#000000">
-	<path d="M 25 25 L 137 137 L 362 137 L 475 25 L 475 340 L 250 475 L 25 340
-	Z M 250 332 L 202 352 L 203 354 L 250 335 L 296 354 L 297 352 Z M 110 204 C
-	118 244 172 255 202 227 Z M 297 227 C 327 255 381 244 389 204 Z"
-	fill="none" class="forestroke" />
-	<g class="highstroke highfill">
-		<circle cx=25 cy=25 r=5 />
-		<circle cx=137 cy=137 r=5 />
-		<circle cx=362 cy=137 r=5 />
-		<circle cx=475 cy=25 r=5 />
-		<circle cx=475 cy=340 r=5 />
-		<circle cx=250 cy=475 r=5 />
-		<circle cx=25 cy=340 r=5 />
-		<circle cx=250 cy=332 r=5 />
-		<circle cx=202 cy=352 r=5 />
-		<circle cx=203 cy=354 r=5 />
-		<circle cx=250 cy=335 r=5 />
-		<circle cx=296 cy=354 r=5 />
-		<circle cx=297 cy=352 r=5 />
-		<circle cx=110 cy=204 r=5 />
-		<line x1=110 y1=204 x2=118 y2=244 />
-		<circle cx=118 cy=244 r=5 />
-		<circle cx=172 cy=255 r=5 />
-		<line x1=172 y1=255 x2=202 y2=227 />
-		<circle cx=202 cy=227 r=5 />
-		<circle cx=297 cy=227 r=5 />
-		<line x1=297 y1=227 x2=327 y2=255 />
-		<circle cx=327 cy=255 r=5 />
-		<circle cx=381 cy=244 r=5 />
-		<line x1=381 y1=244 x2=389 y2=204 />
-		<circle cx=389 cy=204 r=5 />
+<svg version="1.1" viewBox="0 0 1000 400" class="diagram" style="background:#000000">
+	<g class="dimstroke" stroke-width=1>
+		<line x1=203 y1=168 x2=209 y2=195 />
+		<line x1=246 y1=203 x2=267 y2=184 />
+		<line x1=332 y1=184 x2=353 y2=203 />
+		<line x1=390 y1=195 x2=396 y2=168 />
 	</g>
-	<path d="M 525 25 L 637 137 L 862 137 L 975 25 L 975 340 L 750 475 L 525
-	340 Z M 750 332 L 702 352 L 703 354 L 750 335 L 796 354 L 797 352 Z M 610
-	204 C 618 244 672 255 702 227 Z M 797 227 C 827 255 881 244 889 204 Z"
+	<path d="M 145 45 L 222 122 L 377 122 L 455 45 L 455 262 L 300 355 L 145
+	262 Z M 300 256 L 267 270 L 267 271 L 300 258 L 332 271 L 332 270 Z M 203
+	168 C 209 195 246 203 267 184 Z M 332 184 C 353 203 390 195 396 168 Z"
+	fill="none" class="highstroke" />
+	<g class="highstroke highfill">
+		<circle cx=145 cy=45 r=3 />
+		<circle cx=222 cy=122 r=3 />
+		<circle cx=377 cy=122 r=3 />
+		<circle cx=455 cy=45 r=3 />
+		<circle cx=455 cy=262 r=3 />
+		<circle cx=300 cy=355 r=3 />
+		<circle cx=145 cy=262 r=3 />
+		<circle cx=300 cy=256 r=3 />
+		<circle cx=267 cy=270 r=3 />
+		<circle cx=267 cy=271 r=3 />
+		<circle cx=300 cy=258 r=3 />
+		<circle cx=332 cy=271 r=3 />
+		<circle cx=332 cy=270 r=3 />
+		<circle cx=203 cy=168 r=3 />
+		<circle cx=209 cy=195 r=3 />
+		<circle cx=246 cy=203 r=3 />
+		<circle cx=267 cy=184 r=3 />
+		<circle cx=332 cy=184 r=3 />
+		<circle cx=353 cy=203 r=3 />
+		<circle cx=390 cy=195 r=3 />
+		<circle cx=396 cy=168 r=3 />
+	</g>
+	<path d="M 545 45 L 622 122 L 777 122 L 855 45 L 855 262 L 700 355 L 545
+	262 Z M 700 256 L 667 270 L 667 271 L 700 258 L 732 271 L 732 270 Z M 603
+	168 C 609 195 646 203 667 184 Z M 732 184 C 753 203 790 195 796 168 Z"
 	class="forefill" stroke="none" />
 </svg>
-
-
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Characters ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<h1>Characters</h1>
 <p>In addition to geometric shapes we can represent letters, numbers, and
-symbols as SVG paths.</p>
-<svg version="1.1" viewBox="0 0 1000 500" class="diagram" style="background:#000000">
-	<path d="M 398 30 L 398 74 L 347 74 C 355 82 366 102 366 131 C 366 200 311
-	240 244 240 C 217 240 200 236 179 226 C 172 235 165 245 165 260 C 165 276
-	182 286 204 288 L 297 291 C 355 294 397 323 397 370 C 397 434 338 475 242
-	475 C 166 475 101 454 101 393 C 101 357 123 336 145 320 C 134 316 113 299
-	113 270 C 113 244 126 223 146 200 C 128 181 120 163 120 134 C 120 70 169 25
-	243 25 C 263 25 273 27 284 30 Z M 243 200 C 284 200 311 169 311 132 C 311
-	102 292 65 243 65 C 216 65 176 82 176 132 C 176 186 220 200 243 200 M 193
-	335 C 179 346 159 359 159 388 C 159 421 203 432 247 431 C 314 431 339 401
-	339 376 C 338 350 313 339 277 338 Z" fill="none" class="forestroke" />
-	<g class="highstroke highfill">
-		<circle cx=398 cy=30 r=5 />
-		<circle cx=398 cy=74 r=5 />
-		<circle cx=347 cy=74 r=5 />
-		<line x1=347 y1=74 x2=355 y2=82 />
-		<circle cx=355 cy=82 r=5 />
-		<circle cx=366 cy=102 r=5 />
-		<line x1=366 y1=102 x2=366 y2=131 />
-		<circle cx=366 cy=131 r=5 />
-		<line x1=366 y1=131 x2=366 y2=200 />
-		<circle cx=366 cy=200 r=5 />
-		<circle cx=311 cy=240 r=5 />
-		<line x1=311 y1=240 x2=244 y2=240 />
-		<circle cx=244 cy=240 r=5 />
-		<line x1=244 y1=240 x2=217 y2=240 />
-		<circle cx=217 cy=240 r=5 />
-		<circle cx=200 cy=236 r=5 />
-		<line x1=200 y1=236 x2=179 y2=226 />
-		<circle cx=179 cy=226 r=5 />
-		<line x1=179 y1=226 x2=172 y2=235 />
-		<circle cx=172 cy=235 r=5 />
-		<circle cx=165 cy=245 r=5 />
-		<line x1=165 y1=245 x2=165 y2=260 />
-		<circle cx=165 cy=260 r=5 />
-		<line x1=165 y1=260 x2=165 y2=276 />
-		<circle cx=165 cy=276 r=5 />
-		<circle cx=182 cy=286 r=5 />
-		<line x1=182 y1=286 x2=204 y2=288 />
-		<circle cx=204 cy=288 r=5 />
-		<circle cx=297 cy=291 r=5 />
-		<line x1=297 y1=291 x2=355 y2=294 />
-		<circle cx=355 cy=294 r=5 />
-		<circle cx=397 cy=323 r=5 />
-		<line x1=397 y1=323 x2=397 y2=370 />
-		<circle cx=397 cy=370 r=5 />
-		<line x1=397 y1=370 x2=397 y2=434 />
-		<circle cx=397 cy=434 r=5 />
-		<circle cx=338 cy=475 r=5 />
-		<line x1=338 y1=475 x2=242 y2=475 />
-		<circle cx=242 cy=475 r=5 />
-		<line x1=242 y1=475 x2=166 y2=475 />
-		<circle cx=166 cy=475 r=5 />
-		<circle cx=101 cy=454 r=5 />
-		<line x1=101 y1=454 x2=101 y2=393 />
-		<circle cx=101 cy=393 r=5 />
-		<line x1=101 y1=393 x2=101 y2=357 />
-		<circle cx=101 cy=357 r=5 />
-		<circle cx=123 cy=336 r=5 />
-		<line x1=123 y1=336 x2=145 y2=320 />
-		<circle cx=145 cy=320 r=5 />
-		<line x1=145 y1=320 x2=134 y2=316 />
-		<circle cx=134 cy=316 r=5 />
-		<circle cx=113 cy=299 r=5 />
-		<line x1=113 y1=299 x2=113 y2=270 />
-		<circle cx=113 cy=270 r=5 />
-		<line x1=113 y1=270 x2=113 y2=244 />
-		<circle cx=113 cy=244 r=5 />
-		<circle cx=126 cy=223 r=5 />
-		<line x1=126 y1=223 x2=146 y2=200 />
-		<circle cx=146 cy=200 r=5 />
-		<line x1=146 y1=200 x2=128 y2=181 />
-		<circle cx=128 cy=181 r=5 />
-		<circle cx=120 cy=163 r=5 />
-		<line x1=120 y1=163 x2=120 y2=134 />
-		<circle cx=120 cy=134 r=5 />
-		<line x1=120 y1=134 x2=120 y2=70 />
-		<circle cx=120 cy=70 r=5 />
-		<circle cx=169 cy=25 r=5 />
-		<line x1=169 y1=25 x2=243 y2=25 />
-		<circle cx=243 cy=25 r=5 />
-		<line x1=243 y1=25 x2=263 y2=25 />
-		<circle cx=263 cy=25 r=5 />
-		<circle cx=273 cy=27 r=5 />
-		<line x1=273 y1=27 x2=284 y2=30 />
-		<circle cx=284 cy=30 r=5 />
-		<circle cx=243 cy=200 r=5 />
-		<line x1=243 y1=200 x2=284 y2=200 />
-		<circle cx=284 cy=200 r=5 />
-		<circle cx=311 cy=169 r=5 />
-		<line x1=311 y1=169 x2=311 y2=132 />
-		<circle cx=311 cy=132 r=5 />
-		<line x1=311 y1=132 x2=311 y2=102 />
-		<circle cx=311 cy=102 r=5 />
-		<circle cx=292 cy=65 r=5 />
-		<line x1=292 y1=65 x2=243 y2=65 />
-		<circle cx=243 cy=65 r=5 />
-		<line x1=243 y1=65 x2=216 y2=65 />
-		<circle cx=216 cy=65 r=5 />
-		<circle cx=176 cy=82 r=5 />
-		<line x1=176 y1=82 x2=176 y2=132 />
-		<circle cx=176 cy=132 r=5 />
-		<line x1=176 y1=132 x2=176 y2=186 />
-		<circle cx=176 cy=186 r=5 />
-		<circle cx=220 cy=200 r=5 />
-		<line x1=220 y1=200 x2=243 y2=200 />
-		<circle cx=243 cy=200 r=5 />
-		<circle cx=193 cy=335 r=5 />
-		<line x1=193 y1=335 x2=179 y2=346 />
-		<circle cx=179 cy=346 r=5 />
-		<circle cx=159 cy=359 r=5 />
-		<line x1=159 y1=359 x2=159 y2=388 />
-		<circle cx=159 cy=388 r=5 />
-		<line x1=159 y1=388 x2=159 y2=421 />
-		<circle cx=159 cy=421 r=5 />
-		<circle cx=203 cy=432 r=5 />
-		<line x1=203 y1=432 x2=247 y2=431 />
-		<circle cx=247 cy=431 r=5 />
-		<line x1=247 y1=431 x2=314 y2=431 />
-		<circle cx=314 cy=431 r=5 />
-		<circle cx=339 cy=401 r=5 />
-		<line x1=339 y1=401 x2=339 y2=376 />
-		<circle cx=339 cy=376 r=5 />
-		<line x1=339 y1=376 x2=338 y2=350 />
-		<circle cx=338 cy=350 r=5 />
-		<circle cx=313 cy=339 r=5 />
-		<line x1=313 y1=339 x2=277 y2=338 />
-		<circle cx=277 cy=338 r=5 />
+symbols as SVG paths. At 5 lines and 22 curves, this is the most complex
+character in drawing.js - as expected of a real <i>g</i>.</p>
+<svg version="1.1" viewBox="0 0 1000 400" class="diagram" style="background:#000000">
+	<g class="dimstroke" stroke-width=1>
+		<line x1=367 y1=79 x2=372 y2=84 />
+		<line x1=380 y1=98 x2=380 y2=118 />
+		<line x1=380 y1=118 x2=380 y2=166 />
+		<line x1=342 y1=193 x2=296 y2=193 />
+		<line x1=296 y1=193 x2=277 y2=193 />
+		<line x1=266 y1=190 x2=251 y2=183 />
+		<line x1=251 y1=183 x2=246 y2=189 />
+		<line x1=241 y1=197 x2=241 y2=207 />
+		<line x1=241 y1=207 x2=241 y2=218 />
+		<line x1=253 y1=225 x2=268 y2=226 />
+		<line x1=333 y1=228 x2=372 y2=230 />
+		<line x1=401 y1=250 x2=401 y2=283 />
+		<line x1=401 y1=283 x2=401 y2=327 />
+		<line x1=360 y1=355 x2=294 y2=355 />
+		<line x1=294 y1=355 x2=242 y2=355 />
+		<line x1=197 y1=340 x2=197 y2=299 />
+		<line x1=197 y1=299 x2=197 y2=273 />
+		<line x1=213 y1=259 x2=227 y2=248 />
+		<line x1=227 y1=248 x2=220 y2=245 />
+		<line x1=205 y1=234 x2=205 y2=213 />
+		<line x1=205 y1=213 x2=205 y2=196 />
+		<line x1=215 y1=181 x2=228 y2=166 />
+		<line x1=228 y1=166 x2=216 y2=152 />
+		<line x1=211 y1=140 x2=211 y2=120 />
+		<line x1=211 y1=120 x2=211 y2=76 />
+		<line x1=244 y1=45 x2=295 y2=45 />
+		<line x1=295 y1=45 x2=309 y2=45 />
+		<line x1=316 y1=46 x2=323 y2=48 />
+		<line x1=295 y1=165 x2=323 y2=165 />
+		<line x1=342 y1=144 x2=342 y2=119 />
+		<line x1=342 y1=119 x2=342 y2=98 />
+		<line x1=329 y1=72 x2=295 y2=72 />
+		<line x1=295 y1=72 x2=277 y2=72 />
+		<line x1=249 y1=84 x2=249 y2=119 />
+		<line x1=249 y1=119 x2=249 y2=156 />
+		<line x1=279 y1=165 x2=295 y2=165 />
+		<line x1=261 y1=258 x2=251 y2=266 />
+		<line x1=237 y1=275 x2=237 y2=295 />
+		<line x1=237 y1=295 x2=237 y2=317 />
+		<line x1=267 y1=325 x2=298 y2=325 />
+		<line x1=298 y1=325 x2=344 y2=324 />
+		<line x1=361 y1=304 x2=361 y2=287 />
+		<line x1=361 y1=287 x2=360 y2=268 />
+		<line x1=343 y1=261 x2=319 y2=260 />
 	</g>
-	<path d="M 898 30 L 898 74 L 847 74 C 855 82 866 102 866 131 C 866 200 811
-	240 744 240 C 717 240 700 236 679 226 C 672 235 665 245 665 260 C 665 276
-	682 286 704 288 L 797 291 C 855 294 897 323 897 370 C 897 434 838 475 742
-	475 C 666 475 601 454 601 393 C 601 357 623 336 645 320 C 634 316 613 299
-	613 270 C 613 244 626 223 646 200 C 628 181 620 163 620 134 C 620 70 669
-	25 743 25 C 763 25 773 27 784 30 Z M 743 200 C 784 200 811 169 811 132 C
-	811 102 792 65 743 65 C 716 65 676 82 676 132 C 676 186 720 200 743 200 M
-	693 335 C 679 346 659 359 659 388 C 659 421 703 432 747 431 C 814 431 839
-	401 839 376 C 838 350 813 339 777 338 Z" class="forefill" stroke="none" />
+	<path d="M 402 48 L 402 79 L 367 79 C 372 84 380 98 380 118 C 380 166 342
+	193 296 193 C 277 193 266 190 251 183 C 246 189 241 197 241 207 C 241 218
+	253 225 268 226 L 333 228 C 372 230 401 250 401 283 C 401 327 360 355 294
+	355 C 242 355 197 340 197 299 C 197 273 213 259 227 248 C 220 245 205 234
+	205 213 C 205 196 215 181 228 166 C 216 152 211 140 211 120 C 211 76 244 45
+	295 45 C 309 45 316 46 323 48 Z M 295 165 C 323 165 342 144 342 119 C 342
+	98 329 72 295 72 C 277 72 249 84 249 119 C 249 156 279 165 295 165 M 261
+	258 C 251 266 237 275 237 295 C 237 317 267 325 298 325 C 344 324 361 304
+	361 287 C 360 268 343 261 319 260 Z" fill="none" class="highstroke" />
+	<g class="highstroke highfill">
+		<circle cx=402 cy=48 r=3 />
+		<circle cx=402 cy=79 r=3 />
+		<circle cx=367 cy=79 r=3 />
+		<circle cx=372 cy=84 r=3 />
+		<circle cx=380 cy=98 r=3 />
+		<circle cx=380 cy=118 r=3 />
+		<circle cx=380 cy=166 r=3 />
+		<circle cx=342 cy=193 r=3 />
+		<circle cx=296 cy=193 r=3 />
+		<circle cx=277 cy=193 r=3 />
+		<circle cx=266 cy=190 r=3 />
+		<circle cx=251 cy=183 r=3 />
+		<circle cx=246 cy=189 r=3 />
+		<circle cx=241 cy=197 r=3 />
+		<circle cx=241 cy=207 r=3 />
+		<circle cx=241 cy=218 r=3 />
+		<circle cx=253 cy=225 r=3 />
+		<circle cx=268 cy=226 r=3 />
+		<circle cx=333 cy=228 r=3 />
+		<circle cx=372 cy=230 r=3 />
+		<circle cx=401 cy=250 r=3 />
+		<circle cx=401 cy=283 r=3 />
+		<circle cx=401 cy=327 r=3 />
+		<circle cx=360 cy=355 r=3 />
+		<circle cx=294 cy=355 r=3 />
+		<circle cx=242 cy=355 r=3 />
+		<circle cx=197 cy=340 r=3 />
+		<circle cx=197 cy=299 r=3 />
+		<circle cx=197 cy=273 r=3 />
+		<circle cx=213 cy=259 r=3 />
+		<circle cx=227 cy=248 r=3 />
+		<circle cx=220 cy=245 r=3 />
+		<circle cx=205 cy=234 r=3 />
+		<circle cx=205 cy=213 r=3 />
+		<circle cx=205 cy=196 r=3 />
+		<circle cx=215 cy=181 r=3 />
+		<circle cx=228 cy=166 r=3 />
+		<circle cx=216 cy=152 r=3 />
+		<circle cx=211 cy=140 r=3 />
+		<circle cx=211 cy=120 r=3 />
+		<circle cx=211 cy=76 r=3 />
+		<circle cx=244 cy=45 r=3 />
+		<circle cx=295 cy=45 r=3 />
+		<circle cx=309 cy=45 r=3 />
+		<circle cx=316 cy=46 r=3 />
+		<circle cx=323 cy=48 r=3 />
+		<circle cx=295 cy=165 r=3 />
+		<circle cx=323 cy=165 r=3 />
+		<circle cx=342 cy=144 r=3 />
+		<circle cx=342 cy=119 r=3 />
+		<circle cx=342 cy=98 r=3 />
+		<circle cx=329 cy=72 r=3 />
+		<circle cx=295 cy=72 r=3 />
+		<circle cx=277 cy=72 r=3 />
+		<circle cx=249 cy=84 r=3 />
+		<circle cx=249 cy=119 r=3 />
+		<circle cx=249 cy=156 r=3 />
+		<circle cx=279 cy=165 r=3 />
+		<circle cx=295 cy=165 r=3 />
+		<circle cx=261 cy=258 r=3 />
+		<circle cx=251 cy=266 r=3 />
+		<circle cx=237 cy=275 r=3 />
+		<circle cx=237 cy=295 r=3 />
+		<circle cx=237 cy=317 r=3 />
+		<circle cx=267 cy=325 r=3 />
+		<circle cx=298 cy=325 r=3 />
+		<circle cx=344 cy=324 r=3 />
+		<circle cx=361 cy=304 r=3 />
+		<circle cx=361 cy=287 r=3 />
+		<circle cx=360 cy=268 r=3 />
+		<circle cx=343 cy=261 r=3 />
+		<circle cx=319 cy=260 r=3 />
+	</g>
+	<path d="M 802 48 L 802 79 L 767 79 C 772 84 780 98 780 118 C 780 166 742
+	193 696 193 C 677 193 666 190 651 183 C 646 189 641 197 641 207 C 641 218
+	653 225 668 226 L 733 228 C 772 230 801 250 801 283 C 801 327 760 355 694
+	355 C 642 355 597 340 597 299 C 597 273 613 259 627 248 C 620 245 605 234
+	605 213 C 605 196 615 181 628 166 C 616 152 611 140 611 120 C 611 76 644 45
+	695 45 C 709 45 716 46 723 48 Z M 695 165 C 723 165 742 144 742 119 C 742
+	98 729 72 695 72 C 677 72 649 84 649 119 C 649 156 679 165 695 165 M 661
+	258 C 651 266 637 275 637 295 C 637 317 667 325 698 325 C 744 324 761 304
+	761 287 C 760 268 743 261 719 260 Z" class="forefill" stroke="none" />
 </svg>
-<p>At 5 lines and 22 curves, this is the most complex character in drawing.js.
-As expected of a real <i>g</i>.</p>
 
 
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~ Curve Segmentation ~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<h1>Curve Segmentation</h1>
-<p>The cubic Bezier curves we use are represented as a cubic polynomials. This
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Optimizations ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Optimizations</h1>
+<h2>Curve Segmentation</h2>
+<p>The cubic bezier curves we use are represented as cubic polynomials. This
 makes determining what pixels they overlap computationally expensive. Instead,
-the curves are decomposed into lines immediately before rasterization.</p>
-<svg version="1.1" viewBox="0 0 1000 413" class="diagram" style="background:#000000">
-<g transform="translate(200,0)" stroke-width=10>
-	<g transform="translate(0,80) scale(0.30,0.30)">
+the curves are decomposed into lines immediately before rasterization. This
+conversion ends up being faster and simpler than rasterizing the curves
+directly.</p>
+<p>A good segmentation algorithm will create the fewest lines possible while
+closely approximating the curve. drawing.js does this by picking 3 points on
+a section of the curve and finding their distance to the line. If the distance
+is too great that section is split. We continue doing this until all lines are
+close enough to the curve.</p>
+<svg version="1.1" viewBox="0 0 1000 260" class="diagram" style="background:#000000">
+<g transform="translate(62,140)" stroke-width=10>
+	<text x=125 y=-100 style="font-size:30px" class="center">Iter 1</text>
+	<g transform="translate(0,0) scale(-0.25,0.25) rotate(90)" class="highstroke">
+		<line x1=0 y1=1000 x2=0 y2=0 />
+		<line x1=-183 y1=296 x2=0 y2=296 stroke-width="8" stroke-dasharray="16"/>
+		<line x1=182 y1=703 x2=0 y2=703  stroke-width="8" stroke-dasharray="16"/>
+		<circle cx=-183 cy=296 r=15 />
+		<circle cx=0 cy=500 r=15 />
+		<circle cx=182 cy=703 r=15 />
+	</g>
+	<g transform="translate(0,0) scale(-0.25,0.25) rotate(90)">
 		<path d="M 0 1000 C 650 500 -650 500 0 0" fill="none" class="forestroke" />
 	</g>
 </g>
-<g transform="translate(500,0)" stroke-width=10 class="highstroke">
-	<text x="0" y="40" dy="0.3em" style="font-size:30px" text-anchor="middle">4 lines</text>
-	<g transform="translate(0,80) scale(0.30,0.30)">
+<g transform="translate(374,140)" stroke-width=10 class="highstroke">
+	<text x=125 y=-100 style="font-size:30px" class="center">Iter 2</text>
+	<g transform="translate(0,0) scale(-0.25,0.25) rotate(90)" class="highstroke">
+		<line x1=0 y1=0 x2=-183 y2=296 />
+		<line x1=-183 y1=296 x2=0 y2=1000 />
+		<circle cx=-183 cy=296 r=15 />
+		<circle cx=0 cy=0 r=15 />
+		<circle cx=0 cy=1000 r=15 />
+	</g>
+	<g transform="translate(0,0) scale(-0.25,0.25) rotate(90)">
+		<path d="M 0 1000 C 650 500 -650 500 0 0" fill="none" class="forestroke" />
+	</g>
+</g>
+<g transform="translate(689,140)" stroke-width=10 class="highstroke">
+	<text x=125 y=-100 style="font-size:30px" class="center">Iter 3</text>
+	<g transform="translate(0,0) scale(-0.25,0.25) rotate(90)" class="highstroke">
 		<line x1=0 y1=1000 x2=182 y2=703 />
 		<line x1=182 y1=703 x2=0 y2=500 />
 		<line x1=0 y1=500 x2=-183 y2=296 />
 		<line x1=-183 y1=296 x2=0 y2=0 />
+		<circle cx=-183 cy=296 r=15 />
+		<circle cx=182 cy=703 r=15 />
+		<circle cx=0 cy=0 r=15 />
+		<circle cx=0 cy=1000 r=15 />
 	</g>
-</g>
-<g transform="translate(800,0)" stroke-width=10 class="highstroke">
-	<text x="0" y="40" dy="0.3em" style="font-size:30px" text-anchor="middle">16 lines</text>
-	<g transform="translate(0,80) scale(0.30,0.30)">
-		<line x1=0 y1=1000 x2=99 y2=911 />
-		<line x1=99 y1=911 x2=159 y2=833 />
-		<line x1=159 y1=833 x2=185 y2=764 />
-		<line x1=185 y1=764 x2=182 y2=703 />
-		<line x1=182 y1=703 x2=157 y2=647 />
-		<line x1=157 y1=647 x2=114 y2=595 />
-		<line x1=114 y1=595 x2=59 y2=547 />
-		<line x1=59 y1=547 x2=0 y2=500 />
-		<line x1=0 y1=500 x2=-60 y2=452 />
-		<line x1=-60 y1=452 x2=-115 y2=404 />
-		<line x1=-115 y1=404 x2=-158 y2=352 />
-		<line x1=-158 y1=352 x2=-183 y2=296 />
-		<line x1=-183 y1=296 x2=-186 y2=235 />
-		<line x1=-186 y1=235 x2=-160 y2=166 />
-		<line x1=-160 y1=166 x2=-100 y2=88 />
-		<line x1=-100 y1=88 x2=0 y2=0 />
+	<g transform="translate(0,0) scale(-0.25,0.25) rotate(90)">
+		<path d="M 0 1000 C 650 500 -650 500 0 0" fill="none" class="forestroke" />
 	</g>
 </g>
 </svg>
-<p>A good segmentation algorithm will create the fewest lines possible while
-closely approximating the curve.</p>
-
-
-<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Blending ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-<h1>Pixel Blending</h1>
+<h2>Pixel Runs</h2>
+<p>While processing each line on a row, we can calculate how many pixels we are
+able to draw (or skip) before reaching the next line. This allows us to skip
+empty portions of the polygon and also enter a tight loop to allow the polygon
+filler to focus on drawing pixels.</p>
+<h2>Line Ends</h2>
+<p>When calculating pixel coverage, one of the biggest optimizations comes from
+noting that lines that span multiple pixels on a row can be divided into 3
+sections: a beginning, middle, and end. Since the middle section's area will
+change at a constant rate (depending on the slope), we can skip calculating area
+coverage - we just need to add a constant value to the area as we process each
+pixel along the row. This means that the worst case complexity per row can be
+reduced from <i>width*lines</i> to <i>2*lines</i>. We only need to calculate the
+non-constant area changes at each end of the line.</p>
+<h2>Heaps</h2>
+<p>The filler needs to keep track of where each line starts and ends on each row
+to determine where to draw and where to skip. In order to efficiently keep track
+of all these lines, which can easily number in the hundreds, the filler uses a
+binary heap to track on what pixel a line starts. To determine where to draw
+next, we pop the top entry off the heap and jump to that row and column. We then
+look at the next entry to determine how far we can draw before we encounter
+another line. This allows <i>log(n)</i> complexity when managing lines.</p>
+<h2>Line Caching</h2>
+<p>Although a binary heap makes managing lines efficient, it still eats up about
+29% of <i>fillpoly</i>'s run time. Mathematically, we would expect shorter lines
+(per row) to be more common, and this is what I also observed. In order to
+reduce the time spent on these short lines, I expanded the variables used in the
+Line Ends section to handle 2 pixel wide lines. This ended being as fast as the
+basic 1 pixel wide algorithm while being more complex, so it was abandoned.</p>
+<h2>Bounding Boxes</h2>
+<p>Ideally, we'd like to avoid drawing as many polygons as possible. To do this,
+when building an SVG path, we also keep track of the axis aligned bounding box
+around its points. When it's time to draw, we apply any transforms to this
+bounding box and can easily determine if this oriented box overlaps the screen.
+If it doesn't we skip drawing altogether in <i>O(1)</i> time.</p>
+<h2>WebAssembly</h2>
+<p>One attempt at speeding up polygon filling was by using webassembly. In good
+conditions, it offers a 1.2x to 2.0x speed up in browsers. The downsides are
+needing to move images to the sandboxed WASM memory, maintain a separate version
+of <i>fillpoly</i>, and handle the scaffolding to support swapping to WASM
+during runtime. Currently drawing.js has WASM module removed until it becomes
+faster.</p>
+<h2>Pixel Blending</h2>
 <p>Pixels on the edge of the polygon might not be entirely covered by the
 polygon. When this happens, we don't want to completely replace the background
-pixel's color. Instead we want to blend it with the polygon's color.</p>
-<p>There are several algorithms to blend pixels on the edge of the polygon with
-the background - some faster than others.</p>
-<table class="datatable headerrow">
-<tr><td>Algorithm</td><td>Firefox (ms)</td><td>Chrome (ms)</td>
-<td>Accurate</td></tr>
-<tr><td>Naive RGB #1</td><td>128</td><td>88</td><td>true</td></tr>
-<tr><td>Naive RGB #2</td><td>133</td><td>94</td><td>true</td></tr>
-<tr><td>32-bit #1</td><td>48</td><td>47</td><td>true</td></tr>
-<tr><td>32-bit #2</td><td>48</td><td>38</td><td>true</td></tr>
-<tr><td>32-bit #3</td><td>47</td><td>33</td><td>false</td></tr>
-<tr><td>imul #1</td><td>53</td><td>36</td><td>false</td></tr>
-<tr><td>imul #2</td><td>43</td><td>34</td><td>true</td></tr>
-</table>
-<p>The winning algorithm, imul #2, splits the pixel into red/blue and
-green/alpha bytes and uses some integer tricks:</p>
+pixel's color. Instead, we want to blend it with the polygon's color. This can
+be incredibly slow due to the
+<a href="https://en.wikipedia.org/wiki/Alpha_compositing">math</a> involved.
+The fastest algorithm I've found so far involves using <i>imul</i> to blend
+multiple rgb components at once:</p>
 <div class="codeblock">src = polygon color
 lh  = (src&0x00ff00ff)>>>0;
 hh  = (src&0xff00ff00)>>>0;
@@ -322,10 +357,14 @@ col = img[i];
 col = (((Math.imul((col&0x00ff00ff)-lh,a)>>>8)+lh)&0x00ff00ff)+
       ((Math.imul(((col&0xff00ff00)>>>8)-hh2,a)+hh)&0xff00ff00);
 </div>
+<h2>Alpha Tables</h2>
+<p>In order to speed up pixel compositing, I looked into precomputing the source
+and dest alpha values. Ultimately, it was as fast as direct computation while
+being more complex, so it's been abandoned.</p>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-</div><div id="footer">Created on 21 Jan 2024 - Modified on 12 May 2024<br>
+</div><div id="footer">Created on 21 Jan 2024 - Modified on 28 Nov 2024<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>

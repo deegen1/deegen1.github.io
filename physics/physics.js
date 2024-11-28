@@ -12,8 +12,6 @@ TODO
 
 
 divide pvmul by timestep, since it's acceleration
-
-firefox on windows setTimeout() isn't running at 60fps.
 groups
 	center
 	set vel
@@ -23,18 +21,16 @@ groups
 	scale
 	move
 	copy
-glow effect
-glaives that rotate and hook eachother
-                      \
-              ----O----
-              \
-starfish
-limbs stick to things
-blob, expands bonds towards you
-bomb that deletes things
-enemy that spins and sheds its outer lining
-boss room, filled with objects, boss spins around and hits them
-laser that heats up atoms and makes them vibrate
+variable timestep
+	firefox on windows setTimeout() isn't running at 60fps.
+	maxframetime = 1/15
+	maxsteptime = 1/180
+	steps = ceil(dt/maxsteptime)
+	if steps<=0: return
+	dt /= steps
+	if dt<=1e-10: return
+	for s in steps:
+		...
 
 
 */

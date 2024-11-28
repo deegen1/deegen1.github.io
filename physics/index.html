@@ -29,37 +29,7 @@
 <body>
 <table style="width:100%;height:100%;">
 <tr><td style="text-align:center"><a href="../index.html">Alec Dee's General Site</a></td></tr>
-<tr><td><canvas id="physmain" style="display:block;margin:auto;"></canvas></td></tr>
+<tr><td><canvas id="democanv" style="display:block;margin:auto;"></canvas></td></tr>
 </table>
-<!-- Properly resize the canvas -->
-<script>
-(function() {
-	let phy=new PhyScene("physmain");
-	function resize() {
-		let canvas =phy.canvas;
-		let ratio  =canvas.height/canvas.width;
-		let elem   =canvas;
-		let offleft=elem.clientLeft;
-		let offtop =elem.clientTop;
-		while (elem!==null) {
-			offleft+=elem.offsetLeft;
-			offtop +=elem.offsetTop;
-			elem=elem.offsetParent;
-		}
-		let pscale =1;//window.devicePixelRatio;
-		let width  =Math.floor(pscale*(window.innerWidth));//-offleft));
-		let height =Math.floor(pscale*(window.innerHeight-offtop));
-		if (width*ratio<height) {
-			height=Math.floor(width*ratio);
-		} else {
-			width =Math.floor(height/ratio);
-		}
-		canvas.style.width =width +"px";
-		canvas.style.height=height+"px";
-	}
-	window.addEventListener("resize",resize);
-	window.addEventListener("load",resize);
-})();
-</script>
 </body>
 </html>
