@@ -1,0 +1,45 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Physics Game</title>
+	<style>
+		* {
+			padding:0;
+			border:0;
+			border-collapse:collapse;
+			margin:0;
+			outline:none;
+			text-decoration:none;
+			font-size:100%;
+			vertical-align:baseline;
+		}
+		body {
+			overflow:hidden;
+			background-color:#000000;
+			color:#ffffff;
+			font-family:sans-serif,sans-serif;
+		}
+	</style>
+</head>
+<body>
+<script>
+function main() {
+	let cnt=0;
+	let arr=new Float64Array(10);
+	let prev=performance.now();
+	while (cnt<10) {
+		let t=performance.now();
+		if (t!==prev) {
+			arr[cnt++]=t-prev;
+			prev=t;
+		}
+	}
+	for (let i=0;i<cnt;i++) {
+		document.body.innerHTML+=arr[i].toFixed(10)+"<br>";
+	}
+}
+window.addEventListener("load",main);
+</script>
+</body>
+</html>
