@@ -24,7 +24,7 @@
 </head>
 <body>
 <script>
-function main() {
+function main1() {
 	let cnt=0;
 	let arr=new Float64Array(10);
 	let prev=performance.now();
@@ -38,6 +38,19 @@ function main() {
 	for (let i=0;i<cnt;i++) {
 		document.body.innerHTML+=arr[i].toFixed(10)+"<br>";
 	}
+}
+function main() {
+	let cnt=0;
+	let prev=0;
+	function update(time) {
+		let dif=time-prev;
+		document.body.innerHTML+=dif.toFixed(10)+"<br>";
+		prev=time;
+		if (++cnt<20) {
+			requestAnimationFrame(update);
+		}
+	}
+	update(0);
 }
 window.addEventListener("load",main);
 </script>
