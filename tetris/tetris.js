@@ -11,7 +11,8 @@ deegen1.github.io - akdee144@gmail.com
 TODO
 
 
-Speed up frames where AI computes path.
+Integrate with library.
+Performance testing. Speed up frames where AI computes path.
 Clean up UI creation.
 
 

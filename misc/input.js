@@ -15,6 +15,11 @@ Notes
 TODO
 
 
+Remove relative mouse coordinates. Always use absolute.
+Add event queues for key presses?
+Controller support.
+
+
 */
 /* jshint esversion: 11  */
 /* jshint bitwise: false */

@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.07
+demo.js - v1.08
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -566,23 +566,23 @@ class DrawDemo1 {
 			dy:0,
 			age:rnd.getf()*1.5
 		}));
-		this.time=performance.now();
+		this.time=0;
 		this.fps=0;
 		let state=this;
-		function update(elapsed) {
-			state.update(elapsed);
+		function update(time) {
+			state.update(time);
 			requestAnimationFrame(update);
 		}
 		update(0);
 	}
 
 
-	update(elapsed) {
+	update(time) {
 		let draw=this.draw;
 		let dw=draw.img.width,dh=draw.img.height;
 		let rnd=this.rnd;
-		let delta=(performance.now()-this.time)/1000.0;
-		this.time=performance.now();
+		let delta=(time-this.prevtime)/1000.0;
+		this.prevtime=time;
 		delta=delta>0?delta:0;
 		delta=delta<1/30?delta:1/30;
 		// Handle player input.
@@ -658,7 +658,7 @@ class DrawDemo2 {
 	constructor() {
 		let canvas=document.getElementById("perfcanvas");
 		this.conout=document.getElementById("perftable");
-		this.tests=10;
+		this.tests=11;
 		this.clipdim=60;
 		this.clippad=4;
 		canvas.width=this.clipdim*4+this.clippad*3;
@@ -956,10 +956,10 @@ class DrawDemo2 {
 		let tstop=t0+1000;
 		let pixels=0;
 		if (test<4) {
-			// Circles.
+			// Baseline.
 			for (tests=0;(tests&0x1ff)!==0 || performance.now()<tstop;tests++) {
 				draw.rgba32[0]=rnd.getu32();
-				let rad=4;
+				let rad=rnd.getf()*16;
 				pixels+=rad*rad;
 				let x=rnd.getf()*(imgwidth -rad*2)+rad;
 				let y=rnd.getf()*(imgheight-rad*2)+rad;
@@ -987,10 +987,21 @@ class DrawDemo2 {
 			}
 			pixels*=Math.PI;
 		} else if (test===4) {
+			// Rectangles.
+			for (tests=0;(tests&0x1ff)!==0 || performance.now()<tstop;tests++) {
+				draw.rgba32[0]=rnd.getu32();
+				let w=rnd.getf()*16;
+				let h=rnd.getf()*16;
+				let x=rnd.getf()*(imgwidth -w);
+				let y=rnd.getf()*(imgheight-h);
+				pixels+=w*h;
+				draw.fillrect(x,y,w,h);
+			}
+		} else if (test===5) {
 			// Cached image circles.
 			draw.setcolor(255,255,255,255);
 			draw.savestate();
-			let rad=4;
+			let rad=16;
 			let cache=new Draw.Image(2*rad,2*rad);
 			draw.setimage(cache);
 			draw.filloval(rad,rad,rad,rad);
@@ -1002,7 +1013,7 @@ class DrawDemo2 {
 				draw.drawimage(cache,x,y);
 			}
 			pixels+=tests*cache.width*cache.height;
-		} else if (test<7) {
+		} else if (test<8) {
 			// Lines.
 			for (tests=0;(tests&0x1ff)!==0 || performance.now()<tstop;tests++) {
 				draw.rgba32[0]=rnd.getu32();
@@ -1010,15 +1021,14 @@ class DrawDemo2 {
 				let y0=rnd.getf()*imgheight;
 				let x1=rnd.getf()*imgwidth;
 				let y1=rnd.getf()*imgheight;
-				let xdif=x1-x0;
-				let ydif=y1-y0;
-				pixels+=Math.sqrt(xdif*xdif+ydif*ydif)+Math.PI;
+				let dx=x1-x0,dy=y1-y0;
+				pixels+=Math.sqrt(dx*dx+dy*dy);
 				switch (test) {
-					case 5:
+					case 6:
 						// Aliased lines.
 						this.drawline(x0,y0,x1,y1);
 						break;
-					case 6:
+					case 7:
 						// Anti-aliased lines.
 						draw.drawline(x0,y0,x1,y1);
 						break;
@@ -1026,7 +1036,7 @@ class DrawDemo2 {
 						break;
 				}
 			}
-		} else if (test===7) {
+		} else if (test===8) {
 			// Text.
 			let text=" !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_`abcdefghijklmnopqrstuvwxyz{|}~█";
 			let rect=draw.textrect("@",16);
@@ -1054,66 +1064,67 @@ class DrawDemo2 {
 		} else {
 			t0=(t0-this.baseline*tests)/pixels;
 		}
-		let units=["call","px","px","px","px","px","px","px"];
-		let names=["Baseline","Oval alias","Oval smooth","Oval poly","Image cache","Line alias","Line poly","Text poly"];
-		this.log(names[test].padEnd(11)+": "+t0.toFixed(3).padStart(6," ")+" ns/"+units[test]);
+		let unit=test?"px":"call";
+		let names=["Baseline","Oval alias","Oval smooth","Oval poly","Rect poly","Image cache","Line alias","Line poly","Text poly"];
+		this.log(names[test].padEnd(11)+": "+t0.toFixed(3).padStart(6," ")+" ns/"+unit);
 		// Draw preview.
-		if (test>0) {
-			let dim=this.clipdim,pad=this.clippad;
-			let img=new Draw.Image(dim,dim);
-			draw.savestate();
-			draw.setimage(img);
-			draw.fill(0,0,0,255);
-			draw.setcolor(255,255,255,255);
-			let cen=Math.floor(dim/2);
-			let rad=dim*0.40;
-			if (test===1) {
-				this.drawcircle1(cen,cen,rad);
-			} else if (test===2) {
-				this.drawcircle2(cen,cen,rad);
-			} else if (test===3) {
-				draw.filloval(cen,cen,rad,rad);
-			} else if (test===4) {
-				draw.beginpath();
-				let arc=Math.PI*2/10;
-				for (let i=1.5;i<10;i+=2) {
-					let a0=i*arc,a1=a0+arc;
-					draw.lineto(Math.cos(a0)*rad+cen,Math.sin(a0)*rad+cen);
-					draw.lineto(Math.cos(a1)*rad*0.5+cen,Math.sin(a1)*rad*0.5+cen);
-				}
-				draw.closepath();
-				draw.fillpoly();
-			} else if (test===5) {
-				this.drawline(dim*0.1,dim*0.1,dim*0.9,dim*0.9);
-				this.drawline(dim*0.1,dim*0.9,dim*0.9,dim*0.1);
-			} else if (test===6) {
-				draw.drawline(dim*0.1,dim*0.1,dim*0.9,dim*0.9);
-				draw.drawline(dim*0.1,dim*0.9,dim*0.9,dim*0.1);
-			} else if (test===7) {
-				let rect=draw.textrect("@",dim*0.8);
-				draw.filltext((dim-rect.w)*0.5,dim*0.1,"@",dim*0.8);
+		if (!test) {return true;}
+		let dim=this.clipdim,pad=this.clippad;
+		let img=new Draw.Image(dim,dim);
+		draw.savestate();
+		draw.setimage(img);
+		draw.fill(0,0,0,255);
+		draw.setcolor(255,255,255,255);
+		let cen=Math.floor(dim/2);
+		let rad=dim*0.40;
+		if (test===1) {
+			this.drawcircle1(cen,cen,rad);
+		} else if (test===2) {
+			this.drawcircle2(cen,cen,rad);
+		} else if (test===3) {
+			draw.filloval(cen,cen,rad,rad);
+		} else if (test===4) {
+			draw.fillrect(cen-rad,cen-rad,rad*2,rad*2);
+		} else if (test===5) {
+			draw.beginpath();
+			let arc=Math.PI*2/10;
+			for (let i=1.5;i<10;i+=2) {
+				let a0=i*arc,a1=a0+arc;
+				draw.lineto(Math.cos(a0)*rad+cen,Math.sin(a0)*rad+cen);
+				draw.lineto(Math.cos(a1)*rad*0.5+cen,Math.sin(a1)*rad*0.5+cen);
 			}
-			// Sunset color palette.
-			let col0=[1.00,0.83,0.10];
-			let col1=[0.55,0.12,1.00];
-			let ih=img.height,ipos=0,idata=img.data8;
-			for (let y=0;y<ih;y++) {
-				let u=y/(ih-1);
-				let r=col0[0]*(1-u)+col1[0]*u;
-				let g=col0[1]*(1-u)+col1[1]*u;
-				let b=col0[2]*(1-u)+col1[2]*u;
-				let istop=ipos+img.width*4;
-				while (ipos<istop) {
-					idata[ipos++]*=r;
-					idata[ipos++]*=g;
-					idata[ipos++]*=b;
-					ipos++;
-				}
-			}
-			draw.loadstate();
-			let winx=((test-1)%4)*(dim+pad),winy=Math.floor((test-1)/4)*(dim+pad);
-			this.ctx.putImageData(img.imgdata,winx,winy);
+			draw.closepath();
+			draw.fillpoly();
+		} else if (test===6) {
+			this.drawline(dim*0.1,dim*0.1,dim*0.9,dim*0.9);
+			this.drawline(dim*0.1,dim*0.9,dim*0.9,dim*0.1);
+		} else if (test===7) {
+			draw.drawline(dim*0.1,dim*0.1,dim*0.9,dim*0.9);
+			draw.drawline(dim*0.1,dim*0.9,dim*0.9,dim*0.1);
+		} else if (test===8) {
+			let rect=draw.textrect("@",dim*0.8);
+			draw.filltext((dim-rect.w)*0.5,dim*0.1,"@",dim*0.8);
 		}
+		// Sunset color palette.
+		let col0=[1.00,0.83,0.10];
+		let col1=[0.55,0.12,1.00];
+		let ih=img.height,ipos=0,idata=img.data8;
+		for (let y=0;y<ih;y++) {
+			let u=y/(ih-1);
+			let r=col0[0]*(1-u)+col1[0]*u;
+			let g=col0[1]*(1-u)+col1[1]*u;
+			let b=col0[2]*(1-u)+col1[2]*u;
+			let istop=ipos+img.width*4;
+			while (ipos<istop) {
+				idata[ipos++]*=r;
+				idata[ipos++]*=g;
+				idata[ipos++]*=b;
+				ipos++;
+			}
+		}
+		draw.loadstate();
+		let winx=((test-1)%4)*(dim+pad),winy=Math.floor((test-1)/4)*(dim+pad);
+		this.ctx.putImageData(img.imgdata,winx,winy);
 		return true;
 	}
 

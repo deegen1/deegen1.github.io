@@ -1,5 +1,5 @@
 """
-BlackBoxOptimizer.py - v1.02
+BlackBoxOptimizer.py - v1.03
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -11,11 +11,13 @@ def BBO(F,x,iters,params=(40,2000,4,5,0.644392,1.587432,1.5005519,1.0,1.0)):
 	# params=particles,lifespan,lifeinc,lifedec,w,c1,c2,posscale,velscale
 	def cauchy(): return math.tan((random.random()-0.5)*3.141592652)
 	def randvec(arr,dev):
-		norm=1e-20
-		for i in range(dim):
-			v=random.gauss(0.0,1.0)
-			arr[i]=v
-			norm+=v*v
+		norm=0
+		while norm<1e-9:
+			norm=0
+			for i in range(dim):
+				v=random.gauss(0.0,1.0)
+				arr[i]=v
+				norm+=v*v
 		norm=dev/math.sqrt(norm)
 		for i in range(dim): arr[i]*=norm
 	class Particle(object):
@@ -63,7 +65,7 @@ if __name__=="__main__":
 		return s/n
 	t0=timer()
 	x=BBO(Rastrigin,[0]*10,100000)
-	print(timer()-t0)
-	print("x={0}".format(x))
-	print("error={0}".format(Rastrigin(x)))
+	print("time: {0:.6f}".format(timer()-t0))
+	print("x   : {0}".format(x))
+	print("err : {0}".format(Rastrigin(x)))
 

@@ -413,13 +413,12 @@ class Input {
 
 
 //---------------------------------------------------------------------------------
-// PRNG - v1.06
+// Random - v1.08
 
 
 class Random {
 
 	constructor(seed) {
-		this.xmbarr=this.constructor.xmbarr;
 		this.acc=0;
 		this.inc=1;
 		this.seed(seed);
@@ -462,6 +461,7 @@ class Random {
 	getu32() {
 		let val=(this.acc+this.inc)>>>0;
 		this.acc=val;
+		val+=0x66daacfd;
 		val=Math.imul(val^(val>>>16),0xf8b7629f);
 		val=Math.imul(val^(val>>> 8),0xcbc5c2b5);
 		val=Math.imul(val^(val>>>24),0xf5a5bda5);
@@ -480,47 +480,47 @@ class Random {
 	}
 
 
-	getf64() {
+	getf() {
+		// Returns a float in [0,1).
 		return this.getu32()*(1.0/4294967296.0);
 	}
 
 
-	static xmbarr=[
-		0.0000000000,2.1105791e+05,-5.4199832e+00,0.0000056568,6.9695708e+03,-4.2654963e+00,
-		0.0000920071,7.7912181e+02,-3.6959312e+00,0.0007516877,1.6937928e+02,-3.2375953e+00,
-		0.0032102442,6.1190088e+01,-2.8902816e+00,0.0088150936,2.8470915e+01,-2.6018590e+00,
-		0.0176252084,1.8800444e+01,-2.4314149e+00,0.0283040851,1.2373531e+01,-2.2495070e+00,
-		0.0466319112,8.6534303e+00,-2.0760316e+00,0.0672857680,6.8979540e+00,-1.9579131e+00,
-		0.0910495504,5.3823501e+00,-1.8199180e+00,0.1221801449,4.5224728e+00,-1.7148581e+00,
-		0.1540346442,3.9141567e+00,-1.6211563e+00,0.1900229058,3.4575317e+00,-1.5343871e+00,
-		0.2564543024,2.8079448e+00,-1.3677978e+00,0.3543675790,2.6047685e+00,-1.2957987e+00,
-		0.4178358886,2.5233767e+00,-1.2617903e+00,0.5881852711,2.6379475e+00,-1.3291791e+00,
-		0.6397157999,2.7530438e+00,-1.4028080e+00,0.7303095074,3.3480131e+00,-1.8373198e+00,
-		0.7977016349,3.7812818e+00,-2.1829389e+00,0.8484734402,4.7872429e+00,-3.0364702e+00,
-		0.8939255135,6.2138677e+00,-4.3117665e+00,0.9239453541,7.8175201e+00,-5.7934537e+00,
-		0.9452687641,1.0404724e+01,-8.2390571e+00,0.9628624602,1.4564418e+01,-1.2244270e+01,
-		0.9772883839,2.3567788e+01,-2.1043159e+01,0.9881715750,4.4573121e+01,-4.1800032e+01,
-		0.9948144543,1.0046744e+02,-9.7404506e+01,0.9980488575,2.5934959e+02,-2.5597666e+02,
-		0.9994697975,1.0783868e+03,-1.0745796e+03,0.9999882905,1.3881171e+05,-1.3880629e+05
-	];
 	getnorm() {
-		// Returns a normally distributed random variable. This function uses a linear
-		// piecewise approximation of sqrt(2)*erfinv((x+1)*0.5) to quickly compute values.
-		// Find the greatest y[i]<=x, then return x*m[i]+b[i].
-		let x=this.getf64(),xmb=this.xmbarr,i=48;
-		i+=x<xmb[i]?-24:24;
-		i+=x<xmb[i]?-12:12;
-		i+=x<xmb[i]?-6:6;
-		i+=x<xmb[i]?-3:3;
-		i+=x<xmb[i]?-3:0;
-		return x*xmb[i+1]+xmb[i+2];
+		// Transform a uniform distribution to a normal one via sqrt(2)*erfinv(2*u-1).
+		// erfinv credit: njuffa, https://stackoverflow.com/a/49743348
+		let u=(this.getu32()-2147483647.5)*(1/2147483648);
+		let t=Math.log(1-u*u),p;
+		if (t<-6.125) {
+			p=    4.294932181e-10;
+			p=p*t+4.147083705e-8;
+			p=p*t+1.727466590e-6;
+			p=p*t+4.017907374e-5;
+			p=p*t+5.565679449e-4;
+			p=p*t+4.280807652e-3;
+			p=p*t+6.833279087e-3;
+			p=p*t-3.742661647e-1;
+			p=p*t+1.187962704e+0;
+		} else {
+			p=    7.691594063e-9;
+			p=p*t+2.026362239e-7;
+			p=p*t+1.736297774e-6;
+			p=p*t+1.597546919e-7;
+			p=p*t-7.941244165e-5;
+			p=p*t-2.088759943e-4;
+			p=p*t+3.273461437e-3;
+			p=p*t+1.631897530e-2;
+			p=p*t-3.281194328e-1;
+			p=p*t+1.253314090e+0;
+		}
+		return p*u;
 	}
 
 }
 
 
 //---------------------------------------------------------------------------------
-// Vector - v1.04
+// Vector - v1.05
 
 
 class Vector extends Array {
@@ -546,8 +546,9 @@ class Vector extends Array {
 
 
 	set(val) {
-		let l=this.length,i;
-		if (val.length!==undefined) {
+		let l=this.length,vl=val.length,i;
+		if (vl!==undefined) {
+			l=l<vl?l:vl;
 			for (i=0;i<l;i++) {this[i]=val[i];}
 		} else {
 			for (i=0;i<l;i++) {this[i]=val;}
@@ -662,9 +663,7 @@ class Vector extends Array {
 			}
 		} while (mag<1e-10);
 		mag=1.0/Math.sqrt(mag);
-		for (i=0;i<len;i++) {
-			u[i]*=mag;
-		}
+		for (i=0;i<len;i++) {u[i]*=mag;}
 		return this;
 	}
 
@@ -684,9 +683,7 @@ class Vector extends Array {
 			this.randomize();
 		} else {
 			mag=1.0/Math.sqrt(mag);
-			for (i=0;i<len;i++) {
-				u[i]*=mag;
-			}
+			for (i=0;i<len;i++) {u[i]*=mag;}
 		}
 		return this;
 	}
@@ -700,7 +697,7 @@ class Vector extends Array {
 
 
 //---------------------------------------------------------------------------------
-// Anti-aliased Image Drawing - v1.31
+// Drawing - v3.07
 
 
 class _DrawTransform {
@@ -720,22 +717,37 @@ class _DrawTransform {
 	static OFFY =12;
 
 
-	constructor(trans) {
-		if (trans!==undefined) {
-			this.data=trans.data.slice();
-		} else {
-			this.data=new Float64Array([1,0,0,0,1,0,1,1,0,1,0,0,0]);
-		}
+	constructor(params) {
+		this.data=new Float64Array([1,0,0,0,1,0,1,1,0,1,0,0,0]);
+		if (params!==undefined) {this.set(params);}
 	}
 
 
-	clear() {
+	reset() {
 		this.data.set([1,0,0,0,1,0,1,1,0,1,0,0,0]);
 	}
 
 
-	copy(t) {
-		this.data.set(t.data);
+	set(params) {
+		// Accepts: transforms, arrays, {x,y,angle,scale,xscale,yscale}
+		let data=this.data;
+		if (params instanceof _DrawTransform) {
+			data.set(params.data);
+		} else if (params.length) {
+			if (params.length!==data.length) {throw "param length";}
+			data.set(params);
+		} else {
+			data[11]=params.x??0;
+			data[12]=params.y??0;
+			let ang=(params.angle??0)%6.283185307;
+			data[ 8]=ang;
+			data[ 9]=Math.cos(ang);
+			data[10]=Math.sin(ang);
+			let scale=params.scale??1;
+			data[ 6]=params.xscale??scale;
+			data[ 7]=params.yscale??scale;
+			this.calcmatrix();
+		}
 		return this;
 	}
 
@@ -775,7 +787,10 @@ class _DrawTransform {
 
 
 	setscale(x,y) {
-		if (y===undefined) {y=x[1];x=x[0];}
+		if (y===undefined) {
+			if (!x.length) {y=x;}
+			else {y=x[1];x=x[0];}
+		}
 		this.data[6]=x;
 		this.data[7]=y;
 		this.calcmatrix();
@@ -784,7 +799,10 @@ class _DrawTransform {
 
 
 	mulscale(x,y) {
-		if (y===undefined) {y=x[1];x=x[0];}
+		if (y===undefined) {
+			if (!x.length) {y=x;}
+			else {y=x[1];x=x[0];}
+		}
 		this.data[6]*=x;
 		this.data[7]*=y;
 		this.calcmatrix();
@@ -962,9 +980,9 @@ class _DrawPoly {
 	}
 
 
-	tostring(precision) {
+	tostring(precision=6) {
 		// Converts the path to an SVG string.
-		let p=precision===undefined?6:precision;
+		let p=precision;
 		function tostring(x) {
 			let s=x.toFixed(p);
 			if (p>0) {
@@ -999,7 +1017,6 @@ class _DrawPoly {
 		this.begin();
 		let type,j,len=str.length;
 		let params=[2,0,2,6],v=[0,0,0,0,0,0];
-		let off=[0,0];
 		function isnum(c) {
 			c=c.length!==undefined?c.charCodeAt(0):c;
 			return c>42 && c<58 && c!==44 && c!==47;
@@ -1016,11 +1033,10 @@ class _DrawPoly {
 			else if (c==="c")  {type=7;}
 			else if (isnum(c)) {type=2;i--;}
 			else {continue;}
+			let off=[0,0];
 			if ((type&1) && this.vertidx) {
 				let l=this.vertarr[this.vertidx-1];
 				off=[l.x,l.y];
-			} else {
-				off=[0,0];
 			}
 			let p=params[type>>1];
 			for (let t=0;t<p;t++) {
@@ -1102,10 +1118,68 @@ class _DrawPoly {
 		return this;
 	}
 
+
+	trace(rad) {
+		throw "not implemented";
+		// Curve offseting. Project out based on tangent.
+		/*
+		c2x=(c2x-c1x)*3;c1x=(c1x-p0x)*3;c3x-=p0x+c2x;c2x-=c1x;
+		c2y=(c2y-c1y)*3;c1y=(c1y-p0y)*3;c3y-=p0y+c2y;c2y-=c1y;
+
+		// Point
+		ppx=p0x+u*(c1x+u*(c2x+u*c3x));
+		ppy=p0y+u*(c1y+u*(c2y+u*c3y));
+
+		// Tangent
+		dx=c1x+u*(2*c2x+u*3*c3x);
+		dy=c1y+u*(2*c2y+u*3*c3y);
+		norm=rad/Math.sqrt(dx*dx+dy*dy);
+
+		px=ppx-dy*rad;
+		py=ppy+dx*rad;
+		*/
+		/*let px=0,py=0,pdx=1,pdy=0;
+		for (let i=0;i<vertidx;) {
+			let v=vertarr[i];
+			let x=v.x,dx=x-px;
+			let y=v.y,dy=y-py;
+			let len=dx*dx+dy*dy;
+			if (len<1e-9) {continue;}
+			len=1/Math.sqrt(len);
+			dx*=len;
+			dy*=len;
+			let type=v.type;
+			let join=0;
+			if (pdx*dy-pdy*dx<=0) {
+				// facing inward
+				join=0;
+			}
+			if (type===_DrawPoly.CURVE) {
+				// Assume best tangents to offset points are at u=0,1/3,2/3,1.
+				let pt=[p0x,p0y,c1x,c1y,c2x,c2y,p1x,p1y];
+				for (let j=0;j<4;j++) {
+					let u=j/3;
+					let cdx=c1x+u*(2*c2x+u*3*c3x);
+					let cdy=c1y+u*(2*c2y+u*3*c3y);
+					let cn=1/Math.sqrt(cdx*cdx+cdy*cdy);
+					cdx*=cn;
+					cdy*=cn;
+					pt[j*2+0]-=cdy*rad;
+					pt[j*2+1]-=cdx*rad;
+				}
+			}
+			px=x;
+			py=y;
+			pdx=dx;
+			pdy=dy;
+		}*/
+	}
+
 }
 
 
 class _DrawImage {
+	// Pixel data is in R, G, B, A, R, G, B, A,... format.
 
 	constructor(width,height) {
 		let srcdata=null;
@@ -1147,6 +1221,16 @@ class _DrawImage {
 	}
 
 
+	savefile(name) {
+		// Save the image to a TGA file.
+		let blob=new Blob([this.totga()]);
+		let link=document.createElement("a");
+		link.href=window.URL.createObjectURL(blob);
+		link.download=name;
+		link.click();
+	}
+
+
 	fromtga(src) {
 		// Load a TGA image from an array.
 		let len=src.length;
@@ -1161,14 +1245,14 @@ class _DrawImage {
 		}
 		// Load the image data.
 		this.resize(w,h);
-		let dst=this.data8,didx=0,sidx=18;
+		let dst=this.data8,didx=0,sidx=18,a=255;
 		for (let y=0;y<h;y++) {
 			for (let x=0;x<w;x++) {
 				dst[didx++]=src[sidx++];
 				dst[didx++]=src[sidx++];
 				dst[didx++]=src[sidx++];
-				if (bytes===3) {dst[didx++]=255;}
-				else {dst[didx++]=src[sidx++];}
+				if (bytes===4) {a=src[sidx++];}
+				dst[didx++]=a;
 			}
 		}
 	}
@@ -1190,6 +1274,18 @@ class _DrawImage {
 			}
 		}
 		return dst;
+	}
+
+
+	todataurl() {
+		// Returns a data string for use in <img src="..."> objects.
+		let canv=document.createElement("canvas");
+		canv.width=this.width;
+		canv.height=this.height;
+		canv.getContext("2d").putImageData(this.imgdata);
+		let strdata=canv.toDataURL("image/png");
+		canv.remove();
+		return strdata;
 	}
 
 }
@@ -1300,8 +1396,8 @@ class _DrawFont {
 	// `
 
 
-	constructor(defscale) {
-		this.defscale=defscale===undefined?16:defscale;
+	constructor(defscale=16) {
+		this.defscale=defscale;
 		this.lineheight=1.1;
 		this.loadfont(this.constructor.deffont);
 	}
@@ -1445,12 +1541,20 @@ class Draw {
 
 
 	setcolor(r,g,b,a) {
-		if (g===undefined) {a=(r>>>0)&255;b=(r>>>8)&255;g=(r>>>16)&255;r>>>=24;}
-		if (a===undefined) {a=255;}
-		this.rgba[0]=r?Math.max(Math.min(Math.floor(r),255),0):0;
-		this.rgba[1]=g?Math.max(Math.min(Math.floor(g),255),0):0;
-		this.rgba[2]=b?Math.max(Math.min(Math.floor(b),255),0):0;
-		this.rgba[3]=a?Math.max(Math.min(Math.floor(a),255),0):0;
+		// Accepts: int, [r,g,b,a], {r,g,b,a}
+		if (g===undefined) {
+			if (r instanceof Array) {
+				a=r[3]??255;b=r[2]??255;g=r[1]??255;r=r[0]??255;
+			} else if (r instanceof Object) {
+				a=r.a??255;b=r.b??255;g=r.g??255;r=r.r??255;
+			} else {
+				a=(r>>>0)&255;b=(r>>>8)&255;g=(r>>>16)&255;r>>>=24;
+			}
+		}
+		this.rgba[0]=r>0?(r<255?(r|0):255):0;
+		this.rgba[1]=g>0?(g<255?(g|0):255):0;
+		this.rgba[2]=b>0?(b<255?(b|0):255):0;
+		this.rgba[3]=a>0?(a<255?(a|0):255):0;
 	}
 
 
@@ -1473,9 +1577,9 @@ class Draw {
 	// point -> scale -> rotate -> offset -> view offset -> view scale
 
 
-	clearstate() {
+	resetstate() {
 		this.rgba32[0]=0xffffffff;
-		this.deftrans.clear();
+		this.deftrans.reset();
 	}
 
 
@@ -1493,7 +1597,7 @@ class Draw {
 		}
 		mem.img =this.img;
 		mem.rgba=this.rgba32[0];
-		mem.trans.copy(this.deftrans);
+		mem.trans.set(this.deftrans);
 		mem.poly=this.defpoly;
 		mem.font=this.deffont;
 	}
@@ -1504,7 +1608,7 @@ class Draw {
 		let mem=this.stack[--this.stackidx];
 		this.img=mem.img;
 		this.rgba32[0]=mem.rgba;
-		this.deftrans.copy(mem.trans);
+		this.deftrans.set(mem.trans);
 		this.defpoly=mem.poly;
 		this.deffont=mem.font;
 	}
@@ -1530,7 +1634,7 @@ class Draw {
 	}
 
 
-	settransform(trans) {return this.deftrans.copy(trans);}
+	settransform(trans) {return this.deftrans.set(trans);}
 	setangle(ang)  {return this.deftrans.setangle(ang);}
 	addangle(ang)  {return this.deftrans.addangle(ang);}
 	getangle()     {return this.deftrans.getangle();}
@@ -1546,11 +1650,9 @@ class Draw {
 	// Images
 
 
-	fill(r,g,b,a) {
+	fill(r=0,g=0,b=0,a=255) {
 		// Fills the current image with a solid color.
 		// imgdata.fill(rgba) was ~25% slower during testing.
-		if (r===undefined) {r=g=b=0;}
-		if (a===undefined) {a=255;}
 		let rgba=this.rgbatoint(r,g,b,a);
 		let imgdata=this.img.data32;
 		let i=this.img.width*this.img.height;
@@ -1572,6 +1674,7 @@ class Draw {
 
 	drawimage(src,dx,dy,dw,dh) {
 		// Draw an image with alpha blending.
+		// Note << and imul() implicitly cast floor().
 		let dst=this.img;
 		dx=(dx===undefined)?0:(dx|0);
 		dy=(dy===undefined)?0:(dy|0);
@@ -1602,25 +1705,25 @@ class Draw {
 				sa=(src>>>ashift)&255;
 				src&=namask;
 				if (sa>=filllim) {
-					dstdata[drow++]=src|(Math.floor(sa*amul0)<<ashift);
+					dstdata[drow++]=src|((sa*amul0)<<ashift);
 					continue;
 				}
 				if (sa<=0) {drow++;continue;}
 				tmp=dstdata[drow];
 				da=(tmp>>>ashift)&255;
 				if (da===0) {
-					dstdata[drow++]=src|(Math.floor(sa*amul0)<<ashift);
+					dstdata[drow++]=src|((sa*amul0)<<ashift);
 					continue;
 				}
 				// Approximate blending by expanding sa from [0,255] to [0,256].
 				if (da===255) {
-					sa=Math.floor(sa*amul1);
+					sa*=amul1;
 					da=amask;
 				} else {
 					sa*=amul;
 					da=sa*255+da*(65025-sa);
-					sa=Math.floor((sa*0xff00+(da>>>1))/da);
-					da=Math.floor((da+32512)/65025)<<ashift;
+					sa=(sa*65280+(da>>>1))/da;
+					da=((da+32512)/65025)<<ashift;
 				}
 				l=tmp&0x00ff00ff;
 				h=tmp&0xff00ff00;
@@ -1660,7 +1763,7 @@ class Draw {
 
 	fillrect(x,y,w,h) {
 		let poly=this.tmppoly,trans=this.tmptrans;
-		trans.copy(this.deftrans).addoffset(x,y).mulscale(w,h);
+		trans.set(this.deftrans).addoffset(x,y).mulscale(w,h);
 		poly.begin();
 		poly.addrect(0,0,1,1);
 		this.fillpoly(poly,trans);
@@ -1674,7 +1777,7 @@ class Draw {
 
 	filloval(x,y,xrad,yrad) {
 		let poly=this.tmppoly,trans=this.tmptrans;
-		trans.copy(this.deftrans).addoffset(x,y).mulscale(xrad,yrad);
+		trans.set(this.deftrans).addoffset(x,y).mulscale(xrad,yrad);
 		poly.begin();
 		poly.addoval(0,0,1,1);
 		this.fillpoly(poly,trans);
@@ -1695,7 +1798,7 @@ class Draw {
 		let len=str.length;
 		let xpos=0,lh=font.lineheight;
 		let trans=this.tmptrans;
-		trans.copy(this.deftrans).addoffset(x,y).mulscale(scale,scale);
+		trans.set(this.deftrans).addoffset(x,y).mulscale(scale,scale);
 		for (let i=0;i<len;i++) {
 			let c=str.charCodeAt(i);
 			let g=glyphs[c];
@@ -1742,9 +1845,7 @@ class Draw {
 				x1:0,
 				y1:0,
 				dxy:0,
-				dyx:0,
-				maxy:0,
-				minx:0,
+				amul:0,
 				area:0,
 				areadx1:0,
 				areadx2:0
@@ -1759,10 +1860,14 @@ class Draw {
 		//
 		// Preprocess the lines and curves. Reject anything with a NaN, too narrow, or
 		// outside the image. Use a binary heap to dynamically sort lines.
-		if (poly ===undefined) {poly =this.defpoly ;}
-		if (trans===undefined) {trans=this.deftrans;}
-		let iw=this.img.width,ih=this.img.height,imgdata=this.img.data32;
-		if (poly.vertidx<3 || iw<1 || ih<1) {return;}
+		// Keep JS as simple as possible to be efficient. Keep micro optimization in WASM.
+		// ~~x = fast floor(x)
+		if (poly===undefined) {poly=this.defpoly;}
+		trans=trans===undefined?this.deftrans:this.tmptrans.set(trans);
+		const curvemaxdist2=0.01;
+		let iw=this.img.width,ih=this.img.height;
+		let alpha=this.rgba[3]/255.0;
+		if (poly.vertidx<3 || iw<1 || ih<1 || alpha<1e-4) {return;}
 		// Screenspace transformation.
 		let vmulx=this.viewmulx,voffx=this.viewoffx;
 		let vmuly=this.viewmuly,voffy=this.viewoffy;
@@ -1799,25 +1904,23 @@ class Draw {
 		if (bnddy1<0) {miny+=bnddy1;} else {maxy+=bnddy1;}
 		if (maxy<=0 || 0<=miny) {return;}
 		// Loop through the path nodes.
-		let l,i,j,tmp;
 		let lr=this.tmpline,lrcnt=lr.length,lcnt=0;
-		let splitlen=3;
-		let x0,y0,x1,y1;
+		let movex,movey;
 		let p0x,p0y,p1x,p1y;
-		let dx,dy;
 		let varr=poly.vertarr;
-		for (i=0;i<poly.vertidx;i++) {
+		let vidx=poly.vertidx;
+		for (let i=0;i<vidx;i++) {
 			let v=varr[i];
 			if (v.type===poly.CURVE) {v=varr[i+2];}
 			p0x=p1x; p1x=v.x*matxx+v.y*matxy+matx;
 			p0y=p1y; p1y=v.x*matyx+v.y*matyy+maty;
-			if (v.type===poly.MOVE) {continue;}
+			if (v.type===poly.MOVE) {movex=p1x;movey=p1y;continue;}
 			// Add a basic line.
 			if (lrcnt<=lcnt) {
 				lr=this.fillresize(lcnt+1);
 				lrcnt=lr.length;
 			}
-			l=lr[lcnt++];
+			let l=lr[lcnt++];
 			l.x0=p0x;
 			l.y0=p0y;
 			l.x1=p1x;
@@ -1827,85 +1930,121 @@ class Draw {
 				// Get the control points and check if the curve's on the screen.
 				v=varr[i++]; let c1x=v.x*matxx+v.y*matxy+matx,c1y=v.x*matyx+v.y*matyy+maty;
 				v=varr[i++]; let c2x=v.x*matxx+v.y*matxy+matx,c2y=v.x*matyx+v.y*matyy+maty;
-				let c3x=p1x,c3y=p1y;
-				x0=Math.min(p0x,Math.min(c1x,Math.min(c2x,c3x)));
-				x1=Math.max(p0x,Math.max(c1x,Math.max(c2x,c3x)));
-				y0=Math.min(p0y,Math.min(c1y,Math.min(c2y,c3y)));
-				y1=Math.max(p0y,Math.max(c1y,Math.max(c2y,c3y)));
-				if (x0>=iw || y0>=ih || y1<=0) {lcnt--;continue;}
-				if (x1<=0) {continue;}
-				// Estimate bezier length.
-				let dist;
-				dx=c1x-p0x;dy=c1y-p0y;dist =Math.sqrt(dx*dx+dy*dy);
-				dx=c2x-c1x;dy=c2y-c1y;dist+=Math.sqrt(dx*dx+dy*dy);
-				dx=c3x-c2x;dy=c3y-c2y;dist+=Math.sqrt(dx*dx+dy*dy);
-				dx=p0x-c3x;dy=p0y-c3y;dist+=Math.sqrt(dx*dx+dy*dy);
-				let segs=Math.ceil(dist*0.5/splitlen);
-				if (segs<=1) {continue;}
-				lcnt--;
-				if (lrcnt<=lcnt+segs) {
-					lr=this.fillresize(lcnt+segs+1);
-					lrcnt=lr.length;
+				if ((p0x<=0 && p1x<=0 && c1x<=0 && c2x<=0) || (p0x>=iw && p1x>=iw && c1x>=iw && c2x>=iw) ||
+				    (p0y<=0 && p1y<=0 && c1y<=0 && c2y<=0) || (p0y>=ih && p1y>=ih && c1y>=ih && c2y>=ih)) {
+					continue;
 				}
-				// Segment the curve.
-				c2x=(c2x-c1x)*3;c1x=(c1x-p0x)*3;c3x-=p0x+c2x;c2x-=c1x;
-				c2y=(c2y-c1y)*3;c1y=(c1y-p0y)*3;c3y-=p0y+c2y;c2y-=c1y;
-				let ppx=p0x,ppy=p0y,unorm=1.0/segs,u=0;
-				for (let s=0;s<segs;s++) {
-					l=lr[lcnt++];
-					l.x0=ppx;
-					l.y0=ppy;
-					u+=unorm;
-					ppx=p0x+u*(c1x+u*(c2x+u*c3x));
-					ppy=p0y+u*(c1y+u*(c2y+u*c3y));
-					l.x1=ppx;
-					l.y1=ppy;
+				l.amul=0;l.area=1;
+				c2x=(c2x-c1x)*3;c1x=(c1x-p0x)*3;let c3x=p1x-p0x-c2x;c2x-=c1x;
+				c2y=(c2y-c1y)*3;c1y=(c1y-p0y)*3;let c3y=p1y-p0y-c2y;c2y-=c1y;
+				for (let j=lcnt-1;j<lcnt;j++) {
+					// For each line segment between [u0,u1], sample the curve at 3 spots between
+					// u0 and u1 and measure the distance to the line. If it's too great, split.
+					//
+					//    u        .25     .50       .75
+					//                , - ~ ~ ~ - ,
+					//            , '       |       ' ,
+					//          ,   |       |        /
+					//         ,    |       |       /
+					//        ,     |       |      /
+					//        ,     |       |     /
+					// line   ------+-------+----+   clamped endpoint
+					l=lr[j];
+					let x0=l.x0,x1=l.x1,dx=x1-x0;
+					let y0=l.y0,y1=l.y1,dy=y1-y0;
+					let u0=l.amul,u1=l.area,du=(u1-u0)*0.25;
+					let den=dx*dx+dy*dy;
+					let maxdist=-Infinity,mu,mx,my;
+					for (let s=0;s<3;s++) {
+						// Project a point on the curve onto the line. Clamp to ends of line.
+						u0+=du;
+						let sx=p0x+u0*(c1x+u0*(c2x+u0*c3x)),lx=sx-x0;
+						let sy=p0y+u0*(c1y+u0*(c2y+u0*c3y)),ly=sy-y0;
+						let v=dx*lx+dy*ly;
+						v=v>0?(v<den?v/den:1):0;
+						lx-=dx*v;
+						ly-=dy*v;
+						let dist=lx*lx+ly*ly;
+						if (maxdist<dist) {
+							maxdist=dist;
+							mu=u0;
+							mx=sx;
+							my=sy;
+						}
+					}
+					if (maxdist>curvemaxdist2 && maxdist<Infinity) {
+						// The line is too far from the curve, so split it.
+						if (lrcnt<=lcnt) {
+							lr=this.fillresize(lcnt+1);
+							lrcnt=lr.length;
+						}
+						l.x1=mx;
+						l.y1=my;
+						l.area=mu;
+						l=lr[lcnt++];
+						l.x0=mx;
+						l.y0=my;
+						l.x1=x1;
+						l.y1=y1;
+						l.amul=mu;
+						l.area=u1;
+						j--;
+					}
 				}
 			}
 		}
+		// Close the path.
+		if (movex!==p1x || movey!==p1y) {
+			if (lrcnt<=lcnt) {
+				lr=this.fillresize(lcnt+1);
+				lrcnt=lr.length;
+			}
+			let l=lr[lcnt++];
+			l.x0=p1x;
+			l.y0=p1y;
+			l.x1=movex;
+			l.y1=movey;
+		}
 		// Prune lines.
 		minx=iw;maxx=0;miny=ih;maxy=0;
-		let amul=this.rgba[3]*(256.0/255.0);
-		if ((matxx<0)!==(matyy<0)) {amul=-amul;}
-		let y0x,y1x;
+		let amul=(matxx<0)!==(matyy<0)?-alpha:alpha;
 		let maxcnt=lcnt;
 		lcnt=0;
-		for (i=0;i<maxcnt;i++) {
-			l=lr[i];
-			// If we mirror the image, we need to flip the line direction.
-			x0=l.x0;y0=l.y0;
-			x1=l.x1;y1=l.y1;
-			dx=x1-x0;
-			dy=y1-y0;
+		for (let i=0;i<maxcnt;i++) {
+			let l=lr[i];
+			// Always point the line up to simplify math.
+			let x0=l.x0,x1=l.x1;
+			let y0=l.y0,y1=l.y1;
+			l.amul=amul;
+			if (y0>y1) {
+				l.x0=x1;l.x1=x0;x0=x1;x1=l.x1;
+				l.y0=y1;l.y1=y0;y0=y1;y1=l.y1;
+				l.amul=-amul;
+			}
+			let dx=x1-x0,dy=y1-y0;
 			// Too thin or NaN.
-			if (!(dx===dx) || !(Math.abs(dy)>1e-10)) {continue;}
+			if (!(dx===dx) || !(dy>1e-9)) {continue;}
 			// Clamp y to [0,imgheight), then clamp x so x<imgwidth.
 			l.dxy=dx/dy;
-			l.dyx=Math.abs(dx)>1e-10?dy/dx:0;
-			y0x=x0-y0*l.dxy;
+			let dyx=Math.abs(dx)>1e-9?dy/dx:0;
+			let y0x=x0-y0*l.dxy;
 			let yhx=x0+(ih-y0)*l.dxy;
-			let xwy=y0+(iw-x0)*l.dyx;
+			let xwy=y0+(iw-x0)*dyx;
 			if (y0<0 ) {y0=0 ;x0=y0x;}
-			if (y0>ih) {y0=ih;x0=yhx;}
-			if (y1<0 ) {y1=0 ;x1=y0x;}
 			if (y1>ih) {y1=ih;x1=yhx;}
-			if (Math.abs(y1-y0)<1e-20) {continue;}
+			if (y1-y0<1e-9) {continue;}
 			if (x0>=iw && x1>=iw) {maxx=iw;continue;}
-			let fx=y0<y1?x0:x1;
 			if (x0>=iw) {x0=iw;y0=xwy;}
 			if (x1>=iw) {x1=iw;y1=xwy;}
 			// Calculate the bounding box.
-			l.minx=Math.max(Math.floor(Math.min(x0,x1)),0);
-			let fy=Math.floor(Math.min(y0,y1));
-			l.maxy=Math.ceil(Math.max(y0,y1));
-			minx=Math.min(minx,l.minx);
+			minx=Math.min(minx,Math.min(x0,x1));
 			maxx=Math.max(maxx,Math.max(x0,x1));
-			miny=Math.min(miny,fy);
-			maxy=Math.max(maxy,l.maxy);
-			l.maxy*=iw;
-			l.area=NaN;
-			fx=Math.min(fx,(fy+1-l.y0)*l.dxy+l.x0);
-			l.sort=fy*iw+Math.max(Math.floor(fx),l.minx);
+			miny=miny<y0?miny:y0;
+			maxy=maxy>y1?maxy:y1;
+			let fy=~~y0;
+			if (x1<x0) {x0=Math.max(l.x0+(fy+1-l.y0)*l.dxy,x1);}
+			l.sort=fy*iw+(x0>0?~~x0:0);
+			l.next=0;
 			lr[i]=lr[lcnt];
 			lr[lcnt++]=l;
 		}
@@ -1915,8 +2054,8 @@ class Draw {
 		}
 		// Linear time heap construction.
 		for (let p=(lcnt>>1)-1;p>=0;p--) {
-			i=p;
-			l=lr[p];
+			let i=p,j;
+			let l=lr[p];
 			while ((j=i+i+1)<lcnt) {
 				if (j+1<lcnt && lr[j+1].sort<lr[j].sort) {j++;}
 				if (lr[j].sort>=l.sort) {break;}
@@ -1926,27 +2065,26 @@ class Draw {
 			lr[i]=l;
 		}
 		// Init blending.
-		let ashift=this.rgbashift[3],amask=(255<<ashift)>>>0,imask=1.0/amask;
+		let ashift=this.rgbashift[3],amask=(255<<ashift)>>>0;
 		let maskl=(0x00ff00ff&~amask)>>>0,maskh=(0xff00ff00&~amask)>>>0;
-		let sa,da;
-		let colrgb=(this.rgba32[0]&~amask)>>>0;
-		let coll=(colrgb&0x00ff00ff)>>>0,colh=(colrgb&0xff00ff00)>>>0,colh8=colh>>>8;
-		let filllim=255;
+		let colrgb=(this.rgba32[0]|amask)>>>0;
+		let coll=(colrgb&maskl)>>>0,colh=(colrgb&maskh)>>>0,colh8=colh>>>8;
 		// Process the lines row by row.
 		let x=lr[0].sort,y;
 		let xnext=x,xrow=-1;
-		let area,areadx1,areadx2;
+		let area,areadx1;
 		let pixels=iw*ih;
+		let imgdata=this.img.data32;
 		while (true) {
-			areadx2=0;
 			if (x>=xrow) {
-				if (xnext<x || xnext>=pixels) {break;}
+				if (xnext>=pixels) {break;}
 				x=xnext;
-				y=Math.floor(x/iw);
+				y=~~(x/iw);
 				xrow=(y+1)*iw;
 				area=0;
 				areadx1=0;
 			}
+			let areadx2=0;
 			while (x>=xnext) {
 				// fx0  fx0+1                          fx1  fx1+1
 				//  +-----+-----+-----+-----+-----+-----+-----+
@@ -1955,57 +2093,51 @@ class Draw {
 				//  | ....-----'''''                          |
 				//  +-----+-----+-----+-----+-----+-----+-----+
 				//   first  dyx   dyx   dyx   dyx   dyx  last   tail
-				l=lr[0];
-				if (isNaN(l.area)) {
-					x0=l.x0;y0=l.y0-y;
-					x1=l.x1;y1=l.y1-y;
-					let dyx=l.dyx,dxy=l.dxy;
-					y0x=x0-y0*dxy;
-					y1x=y0x+dxy;
+				let l=lr[0];
+				if (x>=l.next) {
+					let x0=l.x0,y0=l.y0-y;
+					let x1=l.x1,y1=l.y1-y;
+					let next=Infinity;
+					let dxy=l.dxy,y0x=x0-y0*dxy;
 					if (y0<0) {y0=0;x0=y0x;}
-					if (y0>1) {y0=1;x0=y1x;}
-					if (y1<0) {y1=0;x1=y0x;}
-					if (y1>1) {y1=1;x1=y1x;}
-					let next=Math.floor((y0>y1?x0:x1)+(dxy<0?dxy:0));
-					next=(next>l.minx?next:l.minx)+xrow;
-					if (next>=l.maxy) {next=pixels;}
-					if (x1<x0) {tmp=x0;x0=x1;x1=tmp;dyx=-dyx;}
-					let fx0=Math.floor(x0);
+					if (y1>1) {y1=1;x1=y0x+dxy;next=x1;}
+					if (x0>x1) {
+						let tmp=x0;x0=x1;x1=tmp;dxy=-dxy;
+						next-=dxy;next=next>l.x1?next:l.x1;
+					}
+					l.sort=next>=iw?pixels:(xrow+(next>0?~~next:0));
+					let dyx=l.amul/dxy,dyh=dyx*0.5;
+					let fx0=x-xrow+iw;
 					let fx1=Math.floor(x1);
 					x0-=fx0;
-					x1-=fx1;
-					if (fx0===fx1 || fx1<0) {
+					x1-=fx0>fx1?fx0:fx1;
+					let tmp=x1>0?-x1*x1*dyh:0;
+					if (fx0>=fx1) {
 						// Vertical line - avoid divisions.
-						dy=(y0-y1)*amul;
-						tmp=fx1>=0?(x0+x1)*dy*0.5:0;
+						let dy=(y0-y1)*l.amul;
+						tmp=x0>=0?(x0+x1)*dy*0.5:tmp;
 						area+=dy-tmp;
-						areadx2+=tmp;
-						l.sort=next;
 					} else {
-						dyx*=amul;
-						let mul=dyx*0.5,n0=x0-1,n1=x1-1;
-						if (fx0<0) {
-							area-=mul-(x0+fx0)*dyx;
-						} else {
-							area-=n0*n0*mul;
-							areadx2+=x0*x0*mul;
+						if (fx1<iw) {
+							l.area=dyh-x1*dyx-tmp;
+							l.areadx1=dyx;
+							l.areadx2=tmp;
+							l.next=l.sort;
+							l.sort=fx1+xrow-iw;
 						}
+						tmp=x0>0?x0*x0*dyh:0;
+						area-=dyh-x0*dyx+tmp;
 						areadx1-=dyx;
-						l.area=n1*n1*mul;
-						l.areadx1=dyx;
-						l.areadx2=x1*x1*mul;
-						l.next=next;
-						l.sort=fx1<iw?fx1+xrow-iw:next;
 					}
+					areadx2+=tmp;
 				} else {
-					area   +=l.area;
+					area+=l.area;
 					areadx1+=l.areadx1;
-					areadx2-=l.areadx2;
-					l.area  =NaN;
-					l.sort  =l.next;
+					areadx2+=l.areadx2;
+					l.sort=l.next;
 				}
 				// Heap sort down.
-				i=0;
+				let i=0,j;
 				while ((j=i+i+1)<lcnt) {
 					if (j+1<lcnt && lr[j+1].sort<lr[j].sort) {j++;}
 					if (lr[j].sort>=l.sort) {break;}
@@ -2015,302 +2147,52 @@ class Draw {
 				lr[i]=l;
 				xnext=lr[0].sort;
 			}
-			// Shade the pixels based on how much we're covering.
-			// If the area isn't changing much use the same area for multiple pixels.
-			let xdraw=x+1;
-			let sa1=Math.floor(area+0.5);
-			if (areadx2===0) {
-				tmp=Math.min(Math.max(sa1+(areadx1<0?-0.5:0.5),0.5),255.5);
-				tmp=(tmp-area)/areadx1+x;
-				xdraw=(tmp>x && tmp<xnext)?Math.ceil(tmp):xnext;
-				if (xdraw>xrow) {xdraw=xrow;}
+			// Calculate how much we can draw or skip.
+			const cutoff=0.00390625;
+			let astop=area+areadx1+areadx2;
+			let xstop=x+1,xdif=(xnext<xrow?xnext:xrow)-xstop;
+			if (xdif>0 && (area>=cutoff)===(astop>=cutoff)) {
+				let adif=(cutoff-astop)/areadx1+1;
+				xdif=(adif>=1 && adif<xdif)?~~adif:xdif;
+				astop+=xdif*areadx1;
+				xstop+=xdif;
 			}
-			areadx2+=(xdraw-x)*areadx1;
-			if (sa1>=filllim) {
-				tmp=colrgb|(Math.min(sa1,255)<<ashift);
-				do {imgdata[x++]=tmp;} while (x<xdraw);
-			} else if (sa1>0) {
-				// a = sa + da*(1-sa)
-				// c = (sc*sa + dc*da*(1-sa)) / a
-				sa1=256-sa1;
-				let sab=area/256,sai=(1-sab)*imask;
+			// Blend the pixel based on how much we're covering.
+			if (area>=cutoff) {
 				do {
+					// a = sa + da*(1-sa)
+					// c = (sc - dc)*sa/a + dc
+					let sa=area<alpha?area:alpha;
+					area+=areadx1+areadx2;
+					areadx2=0;
 					let dst=imgdata[x];
-					da=(dst&amask)>>>0;
-					if (da===amask) {
-						sa=sa1;
+					let da=(dst>>>ashift)&255;
+					if (da===255) {
+						sa=256.49-sa*256;
 					} else {
-						tmp=sab+da*sai;
-						sa=256-Math.floor(area/tmp+0.5);
-						da=Math.floor(tmp*255+0.5)<<ashift;
+						let tmp=sa*255+(1-sa)*da;
+						sa=256.49-sa*65280/tmp;
+						da=tmp+0.49;
 					}
-					imgdata[x++]=da|
-						(((Math.imul((dst&0x00ff00ff)-coll,sa)>>>8)+coll)&maskl)|
-						((Math.imul(((dst>>>8)&0x00ff00ff)-colh8,sa)+colh)&maskh);
-				} while (x<xdraw);
+					// imul() implicitly casts floor(sa).
+					let col=(da<<ashift)
+						|(((Math.imul((dst&0x00ff00ff)-coll,sa)>>>8)+coll)&maskl)
+						|((Math.imul(((dst>>>8)&0x00ff00ff)-colh8,sa)+colh)&maskh);
+					imgdata[x]=col;
+				} while (++x<xstop);
 			}
-			x=xdraw;
-			area+=areadx2;
+			x=xstop;
+			area=astop;
 		}
 	}
 
 
-	// trace(poly,trans) {
-	// 	// Traces the current path
-	// }
-
-}
-
-
-async function DrawWASMSetup() {
-	// Attempt to load the WebAssembly program.
-	// fill_wasm.c -> compile -> gzip -> base64
-	if (Draw.wasmloading) {return;}
-	Draw.wasmloading=1;
-	let wasmstr=`
-		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
-		4muXbuvJSxcu/RtAfRw72hEAAA==
-	`;
-	let gzipbytes=Uint8Array.from(atob(wasmstr),(c)=>c.codePointAt(0));
-	let gzipstream=new Blob([gzipbytes]).stream();
-	let decstream=gzipstream.pipeThrough(new DecompressionStream("gzip"));
-	let decblob=await new Response(decstream).blob();
-	let wasmbytes=new Uint8Array(await decblob.arrayBuffer());
-	// Compile module.
-	let module=new WebAssembly.Module(wasmbytes);
-	if (!module) {
-		console.log("could not load module");
-		Draw.wasmloading=2;
-		return;
+	tracepoly(poly,rad,trans) {
+		return this.fillpoly(poly.trace(rad),trans);
 	}
-	// console.log("loading module");
-	Draw.wasmmodule=module;
-	// Set up class functions.
-	Draw.prototype.wasmprinti64=function(h,l) {
-		let s="Debug: "+((BigInt(h>>>0)<<32n)+BigInt(l>>>0))+"\n";
-		console.log(s);
-	};
-	Draw.prototype.wasmprintf64=function(x) {
-		let s="Debug: "+x;
-		console.log(s);
-	};
-	Draw.prototype.wasmimage=function(img) {
-		// console.log("setting image");
-		let wasm=this.wasm,old=wasm.img;
-		if (old!==null && !Object.is(old,img)) {
-			// Generate a new copy for the old image.
-			let width=old.width,height=old.height,copy=true;
-			if (width<1 || height<1) {
-				width=1;
-				height=1;
-				copy=false;
-			}
-			old.data8  =new Uint8Array(width*height*4);
-			old.datac8 =new Uint8ClampedArray(old.data8.buffer);
-			old.data32 =new Uint32Array(old.data8.buffer);
-			old.imgdata=new ImageData(old.datac8,width,height);
-			if (copy) {old.data32.set(wasm.imgdata);}
-		}
-		wasm.img=img||null;
-		this.wasmresize(0);
-	};
-	Draw.prototype.wasmresize=function(bytes) {
-		// console.log("resizing to: "+bytes);
-		if (!bytes) {bytes=0;}
-		let wasm=this.wasm;
-		let img=wasm.img;
-		if (img!==null) {
-			wasm.width=img.width;
-			wasm.height=img.height;
-		} else {
-			wasm.width=0;
-			wasm.height=0;
-		}
-		let align=15;
-		let imglen=(12+wasm.width*wasm.height*4+align)&~align;
-		let pathlen=(6*8+4+4+24*wasm.vertmax+align)&~align;
-		let heaplen=(wasm.heaplen+align)&~align;
-		let sumlen=heaplen+imglen+pathlen;
-		if (bytes && sumlen<bytes) {sumlen=bytes;}
-		let newlen=1;
-		while (newlen<sumlen) {newlen+=newlen;}
-		let pagebytes=65536;
-		let wasmmem=wasm.instance.exports.memory;
-		let pages=Math.ceil((newlen-wasmmem.buffer.byteLength)/pagebytes);
-		if (pages>0) {wasmmem.grow(pages);}
-		let memu32=new Uint32Array(wasmmem.buffer,heaplen);
-		wasm.memu32=memu32;
-		memu32[0]=wasmmem.buffer.byteLength;
-		memu32[1]=wasm.width;
-		memu32[2]=wasm.height;
-		wasm.imgdata=null;
-		if (img!==null) {
-			// Rebind the image pixel buffer.
-			let width=img.width;
-			let height=img.height;
-			if (width<1 || height<1) {
-				width=1;
-				height=1;
-			}
-			let pixels=width*height;
-			let buf=wasmmem.buffer,off=heaplen+12;
-			wasm.imgdata=new Uint32Array(buf,off,pixels);
-			if (img.data32.buffer.byteLength>0) {
-				wasm.imgdata.set(img.data32);
-			}
-			img.data8  =new Uint8Array(buf,off,pixels*4);
-			img.datac8 =new Uint8ClampedArray(buf,off,pixels*4);
-			img.data32 =wasm.imgdata;
-			img.imgdata=new ImageData(img.datac8,width,height);
-		}
-		wasm.tmpu32=new Uint32Array(wasmmem.buffer,heaplen+imglen);
-		wasm.tmpf64=new Float64Array(wasmmem.buffer,heaplen+imglen);
-		let dif=wasmmem.buffer.byteLength-wasm.tmpu32.byteOffset;
-		wasm.vertmax=Math.floor((dif-(6*8+4+4))/24);
-	};
-	Draw.prototype.wasminit=function() {
-		let con=this.constructor;
-		let state=this;
-		function wasmprinti64(h,l) {state.wasmprinti64(h,l);}
-		function wasmprintf64(x)   {state.wasmprintf64(x);}
-		function wasmresize(bytes) {state.wasmresize(bytes);}
-		let imports={env:{wasmprinti64,wasmprintf64,wasmresize}};
-		let inst=new WebAssembly.Instance(con.wasmmodule,imports);
-		this.wasm={
-			instance:inst,
-			exports :inst.exports,
-			heaplen :inst.exports.getheapbase(),
-			memu32  :null,
-			img     :null,
-			imgdata :null,
-			width   :0,
-			height  :0,
-			tmpu32  :null,
-			tmpf64  :null,
-			vertmax :0,
-			fill    :inst.exports.fillpoly
-		};
-		this.wasmresize(0);
-		return this.wasm;
-	};
-	Draw.prototype.fillpoly=function(poly,trans) {
-		// Copy the path and image to webassembly memory for faster rendering.
-		if (poly ===undefined) {poly =this.defpoly ;}
-		if (trans===undefined) {trans=this.deftrans;}
-		let iw=this.img.width,ih=this.img.height,imgdata=this.img.data32;
-		if (poly.vertidx<3 || iw<1 || ih<1) {return;}
-		// Screenspace transformation.
-		let vmulx=this.viewmulx,voffx=this.viewoffx;
-		let vmuly=this.viewmuly,voffy=this.viewoffy;
-		let matxx=trans.data[0]*vmulx,matxy=trans.data[1]*vmulx,matx=(trans.data[2]-voffx)*vmulx;
-		let matyx=trans.data[3]*vmuly,matyy=trans.data[4]*vmuly,maty=(trans.data[5]-voffy)*vmuly;
-		// Perform a quick AABB-OBB overlap test.
-		// Define the transformed bounding box.
-		let aabb=poly.aabb;
-		let bndx=aabb.minx*matxx+aabb.miny*matxy+matx;
-		let bndy=aabb.minx*matyx+aabb.miny*matyy+maty;
-		let bnddx0=aabb.dx*matxx,bnddy0=aabb.dx*matyx;
-		let bnddx1=aabb.dy*matxy,bnddy1=aabb.dy*matyy;
-		// Test if the image AABB has a separating axis.
-		let minx=bndx-iw,maxx=bndx;
-		if (bnddx0<0) {minx+=bnddx0;} else {maxx+=bnddx0;}
-		if (bnddx1<0) {minx+=bnddx1;} else {maxx+=bnddx1;}
-		if (maxx<=0 || 0<=minx) {return;}
-		let miny=bndy-ih,maxy=bndy;
-		if (bnddy0<0) {miny+=bnddy0;} else {maxy+=bnddy0;}
-		if (bnddy1<0) {miny+=bnddy1;} else {maxy+=bnddy1;}
-		if (maxy<=0 || 0<=miny) {return;}
-		// Test if the poly OBB has a separating axis.
-		let cross=bnddx0*bnddy1-bnddy0*bnddx1;
-		minx=bndy*bnddx0-bndx*bnddy0;
-		maxx=minx;bnddx0*=ih;bnddy0*=iw;
-		if (cross <0) {minx+=cross ;} else {maxx+=cross ;}
-		if (bnddx0<0) {maxx-=bnddx0;} else {minx-=bnddx0;}
-		if (bnddy0<0) {minx+=bnddy0;} else {maxx+=bnddy0;}
-		if (maxx<=0 || 0<=minx) {return;}
-		miny=bndy*bnddx1-bndx*bnddy1;
-		maxy=miny;bnddx1*=ih;bnddy1*=iw;
-		if (cross <0) {maxy-=cross ;} else {miny-=cross ;}
-		if (bnddx1<0) {maxy-=bnddx1;} else {miny-=bnddx1;}
-		if (bnddy1<0) {miny+=bnddy1;} else {maxy+=bnddy1;}
-		if (maxy<=0 || 0<=miny) {return;}
-		// Copy to webassembly.
-		let wasm=this.wasm;
-		if (wasm===undefined) {
-			wasm=this.wasminit();
-		}
-		if (!Object.is(imgdata,wasm.imgdata) || iw!==wasm.width || ih!==wasm.height) {
-			this.wasmimage(this.img);
-		}
-		let vidx=poly.vertidx,varr=poly.vertarr;
-		if (vidx>wasm.vertmax) {
-			wasm.vertmax=vidx;
-			this.wasmresize(0);
-		}
-		let tmpf64=wasm.tmpf64;
-		let tmpu32=wasm.tmpu32;
-		// transform [0-48]
-		tmpf64[0]=matxx;
-		tmpf64[1]=matxy;
-		tmpf64[2]=matx;
-		tmpf64[3]=matyx;
-		tmpf64[4]=matyy;
-		tmpf64[5]=maty;
-		// color [48-52]
-		tmpu32[12]=this.rgba32[0];
-		// path [52-...]
-		tmpu32[13]=vidx;
-		let idx=7;
-		for (let i=0;i<vidx;i++) {
-			let v=varr[i];
-			tmpu32[(idx++)<<1]=v.type;
-			tmpf64[idx++]=v.x;
-			tmpf64[idx++]=v.y;
-		}
-		wasm.fill();
-	};
-	Draw.wasmloading=3;
-	// console.log("wasm done");
+
 }
-DrawWASMSetup();
+
 
 
 //---------------------------------------------------------------------------------
@@ -2403,46 +2285,56 @@ class PhyScene {
 		let canvas=document.getElementById(divid);
 		canvas.width=drawwidth;
 		canvas.height=drawheight;
+		this.canvas=canvas;
+		this.ctx=this.canvas.getContext("2d");
+		this.draw=new Draw(drawwidth,drawheight);
 		this.input=new Input(canvas);
 		this.input.disablenav();
 		this.mouse=new Vector(2);
 		this.frames=0;
-		this.frametime=0;
 		this.fps=0;
-		this.fpsstr="0 ms";
+		this.fpsstr="0.0 ms";
+		this.frametime=1/60;
+		this.proctime=0;
 		this.promptshow=1;
 		this.promptframe=0;
-		// Setup the UI.
-		this.canvas=canvas;
-		this.ctx=this.canvas.getContext("2d");
-		this.draw=new Draw(drawwidth,drawheight);
-		// Reassigning the buffer data is faster for some reason.
 		this.initworld();
 		let state=this;
-		function update() {
-			setTimeout(update,1000/60);
-			state.update();
-		}
-		update();
-		/*let state=this;
-		let statetime=0;
-		let stateden=-1;
+		function resize() {state.resize();}
+		window.addEventListener("resize",resize);
+		resize();
+		this.prevtime=0;
 		function update(time) {
-			requestAnimationFrame(update);
-			if (++stateden>0) {
-				let dif=time-statetime;
-				if (dif+dif/stateden>=16) {
-					statetime=time;
-					stateden=0;
-					console.log(dif);
-					state.update(dif);
-				}
-			} else {
-				statetime=time;
-				state.update(1/60);
+			if (state.update(time)) {
+				requestAnimationFrame(update);
 			}
 		}
-		requestAnimationFrame(update);*/
+		update(0);
+	}
+
+
+	resize() {
+		// Properly resize the canvas
+		let canvas =this.canvas;
+		let ratio  =canvas.height/canvas.width;
+		let elem   =canvas;
+		let offleft=elem.clientLeft;
+		let offtop =elem.clientTop;
+		while (elem!==null) {
+			offleft+=elem.offsetLeft;
+			offtop +=elem.offsetTop;
+			elem=elem.offsetParent;
+		}
+		let pscale =1;// window.devicePixelRatio;
+		let width  =Math.floor(pscale*(window.innerWidth));// -offleft));
+		let height =Math.floor(pscale*(window.innerHeight-offtop));
+		if (width*ratio<height) {
+			height=Math.floor(width*ratio);
+		} else {
+			width =Math.floor(height/ratio);
+		}
+		canvas.style.width =width +"px";
+		canvas.style.height=height+"px";
 	}
 
 
@@ -2450,7 +2342,7 @@ class PhyScene {
 		this.world=new PhyWorld(2);
 		let canvas=this.canvas;
 		let world=this.world;
-		world.steps=3;
+		world.maxsteptime=1/180;
 		world.gravity.set([0,0.1]);
 		let viewheight=1.0,viewwidth=canvas.width/canvas.height;
 		let walltype=world.createatomtype(1.0,Infinity,1.0);
@@ -2459,8 +2351,8 @@ class PhyScene {
 		let rnd=new Random(2);
 		let pos=new Vector(world.dim);
 		for (let p=0;p<3000;p++) {
-			pos[0]=rnd.getf64()*viewwidth;
-			pos[1]=rnd.getf64()*viewheight;
+			pos[0]=rnd.getf()*viewwidth;
+			pos[1]=rnd.getf()*viewheight;
 			world.createatom(pos,0.004,normtype);
 		}
 		world.createbox([0.3*viewwidth,0.3],5,0.007,boxtype);
@@ -2474,18 +2366,22 @@ class PhyScene {
 		pos.set([viewwidth*0.5,viewheight*0.33]);
 		this.playeratom=world.createatom(pos,0.035,playertype);
 		this.mouse.set(pos);
-		this.frametime=performance.now();
 	}
 
 
-	update() {
-		let frametime=performance.now();
+	update(time) {
+		// Restrict our FPS to [fps/2,fps].
+		let delta=(time-this.prevtime)/1000;
+		if (delta>this.frametime || !(delta>0)) {delta=this.frametime;}
+		else if (delta<0.5*this.frametime) {return true;}
+		this.prevtime=time;
+		let proctime=performance.now();
 		let input=this.input;
 		input.update();
 		let draw=this.draw;
 		let scale=this.draw.img.height;
 		let world=this.world;
-		world.update();
+		world.update(delta);
 		draw.fill(0,0,0,255);
 		// Convert mouse to world space.
 		let mpos=input.getmousepos();
@@ -2498,11 +2394,7 @@ class PhyScene {
 		let mag=dir.sqr();
 		if (mag<Infinity) {
 			this.promptshow=0;
-			if (mag>1e-6) {
-				player.vel=dir.mul(0.2/world.deltatime);
-			} else {
-				player.vel.set(0);
-			}
+			player.vel=dir.mul(mag>1e-6?0.2/delta:0);
 		}
 		let link=world.atomlist.head;
 		while (link!==null) {
@@ -2551,51 +2443,23 @@ class PhyScene {
 			draw.setcolor(u,u,255,255);
 			draw.filloval(px,py,rad,rad);
 		}
-		// Draw the HUD
+		// Draw the HUD.
 		draw.setcolor(255,255,255,255);
 		draw.filltext(5,20,"FPS: "+this.fpsstr,20);
 		draw.filltext(5,44,"Cnt: "+world.atomlist.count,20);
+		this.ctx.putImageData(draw.img.imgdata,0,0);
 		// Calculate the frame time.
-		this.frametime+=performance.now()-frametime;
+		this.proctime+=performance.now()-proctime;
 		this.frames++;
 		if (this.frames>=60) {
-			this.fps=this.frametime/this.frames;
+			this.fps=this.proctime/this.frames;
 			this.frames=0;
-			this.frametime=0;
+			this.proctime=0;
 			this.fpsstr=this.fps.toFixed(1)+" ms";
 		}
-		this.ctx.putImageData(draw.img.imgdata,0,0);
+		return true;
 	}
 
 }
 
-
-function DemoInit() {
-	let phy=new PhyScene("democanv");
-	function resize() {
-		// Properly resize the canvas
-		let canvas =phy.canvas;
-		let ratio  =canvas.height/canvas.width;
-		let elem   =canvas;
-		let offleft=elem.clientLeft;
-		let offtop =elem.clientTop;
-		while (elem!==null) {
-			offleft+=elem.offsetLeft;
-			offtop +=elem.offsetTop;
-			elem=elem.offsetParent;
-		}
-		let pscale =1;// window.devicePixelRatio;
-		let width  =Math.floor(pscale*(window.innerWidth));// -offleft));
-		let height =Math.floor(pscale*(window.innerHeight-offtop));
-		if (width*ratio<height) {
-			height=Math.floor(width*ratio);
-		} else {
-			width =Math.floor(height/ratio);
-		}
-		canvas.style.width =width +"px";
-		canvas.style.height=height+"px";
-	}
-	window.addEventListener("resize",resize);
-	resize();
-}
-window.addEventListener("load",DemoInit);
+window.addEventListener("load",()=>{new PhyScene("democanv")});

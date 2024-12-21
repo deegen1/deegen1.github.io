@@ -31,6 +31,7 @@ Waveguides
 	Use excitation wave and comb filters. Don't add them together.
 	Splitting into N bands and adding them together increases the gain by N.
 	Or subtract from signal as different filters process the sample.
+Remove Biquad.getq().
 
 
 */

@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.03
+demo.js - v1.04
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -635,12 +635,12 @@ class StringSim {
 		}
 		this.fretdots=fretdots;
 		let strings=[
-			{name:"e",freq:329.63},
-			{name:"B",freq:246.94},
-			{name:"G",freq:196.00},
-			{name:"D",freq:146.83},
-			{name:"A",freq:110.00},
-			{name:"E",freq:82.41}
+			{name:"e",freq:329.63,vol:0.40},
+			{name:"B",freq:246.94,vol:0.50},
+			{name:"G",freq:196.00,vol:0.60},
+			{name:"D",freq:146.83,vol:0.70},
+			{name:"A",freq:110.00,vol:0.80},
+			{name:"E",freq: 82.41,vol:0.90}
 		];
 		for (let i=0;i<strings.length;i++) {
 			let u=i/(strings.length-1),v=1-u,n=255.99/Math.sqrt(u*u+v*v);
@@ -685,7 +685,7 @@ class StringSim {
 		let x=lx0+fret*(lx1-lx0);
 		fret=(1-fret)*(len-min)+min;
 		let pluck=1-(len-this.pluckpos)/fret;
-		Audio.createguitar(0.4,str.freq*len/fret,pluck).play();
+		Audio.createguitar(str.vol,str.freq*len/fret,pluck).play();
 		this.pluckarr[this.plucks++]={time:performance.now(),x:x,y:(id+0.75)*pad,str:str};
 	}
 

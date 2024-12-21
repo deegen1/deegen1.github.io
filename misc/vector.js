@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-vector.js - v1.04
+vector.js - v1.05
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -26,7 +26,7 @@ TODO
 
 
 //---------------------------------------------------------------------------------
-// Vector - v1.04
+// Vector - v1.05
 
 
 class Vector extends Array {
@@ -52,8 +52,9 @@ class Vector extends Array {
 
 
 	set(val) {
-		let l=this.length,i;
-		if (val.length!==undefined) {
+		let l=this.length,vl=val.length,i;
+		if (vl!==undefined) {
+			l=l<vl?l:vl;
 			for (i=0;i<l;i++) {this[i]=val[i];}
 		} else {
 			for (i=0;i<l;i++) {this[i]=val;}
@@ -168,9 +169,7 @@ class Vector extends Array {
 			}
 		} while (mag<1e-10);
 		mag=1.0/Math.sqrt(mag);
-		for (i=0;i<len;i++) {
-			u[i]*=mag;
-		}
+		for (i=0;i<len;i++) {u[i]*=mag;}
 		return this;
 	}
 
@@ -190,9 +189,7 @@ class Vector extends Array {
 			this.randomize();
 		} else {
 			mag=1.0/Math.sqrt(mag);
-			for (i=0;i<len;i++) {
-				u[i]*=mag;
-			}
+			for (i=0;i<len;i++) {u[i]*=mag;}
 		}
 		return this;
 	}

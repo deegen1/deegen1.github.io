@@ -1,10 +1,29 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v1.21
+physics.js - v1.22
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
+
+
+--------------------------------------------------------------------------------
+Notes
+
+
+With enough atoms and enough bonds, anything can be simulated.
+
+
+--------------------------------------------------------------------------------
+History
+
+
+1.00
+     Initial version. Copied from C engine.
+1.21
+     Tweaks for performance improvement in javascript.
+1.22
+     The simulation can now use a variable timestep.
 
 
 --------------------------------------------------------------------------------
@@ -12,6 +31,8 @@ TODO
 
 
 divide pvmul by timestep, since it's acceleration
+Bonds that break when stretched
+Bondtypes
 groups
 	center
 	set vel
@@ -21,16 +42,6 @@ groups
 	scale
 	move
 	copy
-variable timestep
-	firefox on windows setTimeout() isn't running at 60fps.
-	maxframetime = 1/15
-	maxsteptime = 1/180
-	steps = ceil(dt/maxsteptime)
-	if steps<=0: return
-	dt /= steps
-	if dt<=1e-10: return
-	for s in steps:
-		...
 
 
 */
@@ -50,11 +61,7 @@ function PhyAssert(condition,data) {
 
 
 //---------------------------------------------------------------------------------
-// Physics - v1.21
-
-
-// ----------------------------------------
-// Linked Lists
+// Physics - v1.22
 
 
 class PhyLink {
@@ -192,10 +199,6 @@ class PhyList {
 }
 
 
-// ----------------------------------------
-// AtomTypes
-
-
 class PhyAtomInteraction {
 
 	constructor(a,b) {
@@ -242,13 +245,13 @@ class PhyAtomType {
 		this.vpmul=1.0;
 		this.bound=true;
 		this.callback=null;
+		this.dt =NaN;
 		this.dt0=0;
 		this.dt1=0;
 		this.dt2=0;
 		this.gravity=null;
 		this.intarr=[];
 		this.collide=true;
-		this.updateconstants();
 	}
 
 
@@ -264,7 +267,7 @@ class PhyAtomType {
 	}
 
 
-	updateconstants() {
+	updateconstants(dt) {
 		// We want to solve for dt0, dt1, dt2, and dt3 in our integration equations.
 		//
 		//      pos+=vel*dt2+accel*dt3
@@ -323,7 +326,7 @@ class PhyAtomType {
 		//      dt2=dt1
 		//      dt3=(dt1-dt)/ln(1-damp)
 		//
-		let dt=this.world.deltatime/this.world.steps;
+		this.dt=dt;
 		let damp=this.damp,idamp=1.0-damp,dt0,dt1,dt2;
 		if (damp<=1e-10) {
 			// Special case damping=0: just integrate.
@@ -366,10 +369,6 @@ class PhyAtomType {
 	}
 
 }
-
-
-// ----------------------------------------
-// Atoms
 
 
 class PhyAtom {
@@ -420,7 +419,7 @@ class PhyAtom {
 	}
 
 
-	update() {
+	update(dt) {
 		// Move the particle and apply damping to the velocity.
 		// acc+=gravity
 		// pos+=vel*dt1+acc*dt2
@@ -442,6 +441,7 @@ class PhyAtom {
 		let bndmax=world.bndmax;
 		let pe=this.pos,ve=this.vel;
 		let dim=pe.length,type=this.type;
+		if (type.dt!==dt) {type.updateconstants(dt);}
 		let bound=type.bound;
 		let ae=this.acc,ge=type.gravity;
 		ge=(ge===null?this.world.gravity:ge);
@@ -535,10 +535,6 @@ class PhyAtom {
 }
 
 
-// ----------------------------------------
-// Bonds
-
-
 class PhyBond {
 
 	constructor(world,a,b,dist,tension) {
@@ -550,13 +546,11 @@ class PhyBond {
 		this.b=b;
 		this.dist=dist;
 		this.tension=tension;
-		this.dttension=0.0;
 		this.alink=new PhyLink(this);
 		this.blink=new PhyLink(this);
 		this.a.bondlist.add(this.alink);
 		this.b.bondlist.add(this.blink);
 		this.userdata=null;
-		this.updateconstants();
 	}
 
 
@@ -567,20 +561,7 @@ class PhyBond {
 	}
 
 
-	updateconstants() {
-		let dt=this.world.deltatime/this.world.steps;
-		this.dttension=dt*this.tension;
-		if (this.dttension>1.0) {this.dttension=1.0;}
-		// dttension = tension ^ 1/dt
-		/*if (dt<1e-10) {
-			dttension=0.0;
-		} else {
-			dttension=pow(tension,1.0/dt);
-		}*/
-	}
-
-
-	update() {
+	update(dt) {
 		// Pull two atoms toward eachother based on the distance and bond strength.
 		// Vector operations are unrolled to use constant memory.
 		let a=this.a,b=this.b;
@@ -611,7 +592,8 @@ class PhyBond {
 			a.world.tmpvec.randomize();
 		}
 		// Apply equal and opposite forces.
-		let force=(this.dist-dist)*this.dttension*dif;
+		let tension=dt*this.tension;
+		let force=(this.dist-dist)*(tension<1?tension:1)*dif;
 		let amul=force*bmass,bmul=force*amass;
 		let avel=a.vel,bvel=b.vel;
 		for (i=0;i<dim;i++) {
@@ -624,10 +606,6 @@ class PhyBond {
 	}
 
 }
-
-
-// ----------------------------------------
-// Hashmap
 
 
 class PhyCell {
@@ -907,17 +885,11 @@ class PhyBroadphase {
 }
 
 
-// ----------------------------------------
-// World
-
-
 class PhyWorld {
 
 	constructor(dim) {
-		this.updateflag=true;
 		this.dim=dim;
-		this.steps=8;
-		this.deltatime=1.0/60.0;
+		this.maxsteptime=1/180;
 		this.rnd=new Random();
 		this.gravity=new Vector(dim);
 		this.gravity[dim-1]=0.24;
@@ -948,11 +920,6 @@ class PhyWorld {
 			this.tmpmem=tmp;
 		}
 		return tmp;
-	}
-
-
-	updateconstants() {
-		this.updateflag=false;
 	}
 
 
@@ -1017,7 +984,6 @@ class PhyWorld {
 		if (bond!==null) {
 			bond.dist=dist;
 			bond.tension=tension;
-			bond.updateconstants();
 		} else {
 			bond=new PhyBond(this,a,b,dist,tension);
 		}
@@ -1029,18 +995,17 @@ class PhyWorld {
 		// Balance distance, mass, # of bonds, direction.
 		let count=atomarr.length;
 		if (count===0) {return;}
-		let i,j;
 		let infoarr=new Array(count);
-		for (i=0;i<count;i++) {
+		for (let i=0;i<count;i++) {
 			let info={
 				atom:atomarr[i]
 			};
 			infoarr[i]=info;
 		}
-		for (i=0;i<count;i++) {
+		for (let i=0;i<count;i++) {
 			let mainatom=infoarr[i].atom;
 			let rad=mainatom.rad*5.1;
-			for (j=0;j<count;j++) {
+			for (let j=0;j<count;j++) {
 				let atom=infoarr[j].atom;
 				if (Object.is(atom,mainatom)) {continue;}
 				let dist=atom.pos.dist(mainatom.pos);
@@ -1055,14 +1020,14 @@ class PhyWorld {
 	createbox(cen,side,rad,type) {
 		let pos=new Vector(cen);
 		let atomcombos=1;
-		let i,x,dim=this.dim;
-		for (i=0;i<dim;i++) {atomcombos*=side;}
+		let dim=this.dim;
+		for (let i=0;i<dim;i++) {atomcombos*=side;}
 		let atomarr=new Array(atomcombos);
 		for (let atomcombo=0;atomcombo<atomcombos;atomcombo++) {
 			// Find the coordinates of the atom.
 			let atomtmp=atomcombo;
-			for (i=0;i<dim;i++) {
-				x=atomtmp%side;
+			for (let i=0;i<dim;i++) {
+				let x=atomtmp%side;
 				atomtmp=Math.floor(atomtmp/side);
 				pos[i]=cen[i]+(x*2-side+1)*rad;
 			}
@@ -1072,33 +1037,33 @@ class PhyWorld {
 	}
 
 
-	update() {
-		let next,link,steps=this.steps;
+	update(time) {
+		// Process the simulation in multiple steps if time is too large.
+		if (time<1e-9 || isNaN(time)) {return;}
+		let steps=Math.ceil(time/this.maxsteptime);
+		let dt=steps<Infinity?time/steps:this.maxsteptime;
+		let next,link;
 		let bondcount,bondarr;
 		let rnd=this.rnd;
-		let i,j;
 		for (let step=0;step<steps;step++) {
-			if (this.updateflag) {
-				this.updateconstants();
-			}
 			// Integrate atoms.
 			next=this.atomlist.head;
 			while ((link=next)!==null) {
 				next=next.next;
-				link.obj.update();
+				link.obj.update(dt);
 			}
 			// Integrate bonds. Randomizing the order minimizes oscillations.
 			bondcount=this.bondlist.count;
 			bondarr=this.gettmpmem(bondcount);
 			link=this.bondlist.head;
-			for (i=0;i<bondcount;i++) {
-				j=rnd.getu32()%(i+1);
+			for (let i=0;i<bondcount;i++) {
+				let j=rnd.getu32()%(i+1);
 				bondarr[i]=bondarr[j];
 				bondarr[j]=link;
 				link=link.next;
 			}
-			for (i=0;i<bondcount;i++) {
-				bondarr[i].obj.update();
+			for (let i=0;i<bondcount;i++) {
+				bondarr[i].obj.update(dt);
 			}
 			// Collide atoms.
 			this.broad.build();
