@@ -49,6 +49,7 @@ bomb that deletes things
 enemy that spins and sheds its outer lining
 boss room, filled with objects, boss spins around and hits them
 laser that heats up atoms and makes them vibrate
+bullet that transfers momentum sideways
 
 particles are constantly falling down
 you need to protect a ship below
@@ -56,7 +57,7 @@ you need to protect a ship below
 dash attack
 spin attack
 
-Knights of Sidonia: Wind of Stars
+Knights of Sidonia: Wind of the Stars
 cutting wind?
 
      /\

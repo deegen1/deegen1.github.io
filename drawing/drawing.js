@@ -120,7 +120,7 @@ polyfill
 	while (floor(area*256)==con) like in WASM. Use alpha as max, not 256.
 	f32 in WASM.
 	Allow for different blend modes.
-	Approximate blending with 1-sa/a ~= da*(1-sa)+(1-da)*sa
+	If we call moveto(), close the previous subpath.
 DrawPoly
 	closestpoint()
 	pointinside()
@@ -141,7 +141,7 @@ filltext/textrect
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v3.07
+// Drawing - v3.08
 
 
 class _DrawTransform {
