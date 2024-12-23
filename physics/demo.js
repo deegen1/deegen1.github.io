@@ -120,8 +120,8 @@ class PhyScene {
 		this.promptshow=1;
 		this.promptframe=0;
 		this.frames=0;
-		this.sumtime=0;
-		this.timestr="0.0 ms";
+		this.framesum=0;
+		this.framestr="0.0 ms";
 		this.frametime=1/60;
 		this.frameprev=0;
 		this.initworld();
@@ -271,15 +271,15 @@ class PhyScene {
 		}
 		// Draw the HUD.
 		draw.setcolor(255,255,255,255);
-		draw.filltext(5,5,"time : "+this.timestr+"\ncount: "+world.atomlist.count,20);
+		draw.filltext(5,5,"time : "+this.framestr+"\ncount: "+world.atomlist.count,20);
 		this.ctx.putImageData(draw.img.imgdata,0,0);
 		// Calculate the frame time.
-		this.sumtime+=performance.now()-starttime;
+		this.framesum+=performance.now()-starttime;
 		if (++this.frames>=60) {
-			let avg=this.sumtime/this.frames;
-			this.timestr=avg.toFixed(1)+" ms";
+			let avg=this.framesum/this.frames;
+			this.framestr=avg.toFixed(1)+" ms";
 			this.frames=0;
-			this.sumtime=0;
+			this.framesum=0;
 		}
 		return true;
 	}

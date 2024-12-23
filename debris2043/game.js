@@ -93,11 +93,10 @@ class Game {
 		this.rnd=new Random();
 		this.mouse=new Vector(2);
 		this.frames=0;
-		this.fps=0;
-		this.fpsstr="0.0 ms";
+		this.framesum=0;
+		this.framestr="0.0 ms";
 		this.frametime=1/60;
-		this.prevtime=0;
-		this.proctime=0;
+		this.frameprev=0;
 		this.initworld();
 		let state=this;
 		function resize() {state.resize();}
@@ -180,11 +179,11 @@ class Game {
 
 	update(time) {
 		// Restrict our FPS to [fps/2,fps].
-		let delta=(time-this.prevtime)/1000;
+		let delta=(time-this.frameprev)/1000;
 		if (delta>this.frametime || !(delta>0)) {delta=this.frametime;}
 		else if (delta<0.5*this.frametime) {return true;}
-		this.prevtime=time;
-		let proctime=performance.now();
+		this.frameprev=time;
+		let starttime=performance.now();
 		let input=this.input;
 		input.update();
 		let rnd=this.rnd;
@@ -219,17 +218,15 @@ class Game {
 		world.update(delta);
 		// Draw the HUD.
 		draw.setcolor(255,255,255,255);
-		draw.filltext(5,20,"FPS: "+this.fpsstr,20);
-		draw.filltext(5,44,"Cnt: "+world.atomlist.count,20);
+		draw.filltext(5,20,"time : "+this.framestr+"\ncount: "+world.atomlist.count,20);
 		this.ctx.putImageData(draw.img.imgdata,0,0);
 		// Calculate the frame time.
-		this.proctime+=performance.now()-proctime;
-		this.frames++;
-		if (this.frames>=60) {
-			this.fps=this.proctime/this.frames;
+		this.framesum+=performance.now()-starttime;
+		if (++this.frames>=60) {
+			let avg=this.framesum/this.frames;
+			this.framestr=avg.toFixed(1)+" ms";
 			this.frames=0;
-			this.proctime=0;
-			this.fpsstr=this.fps.toFixed(1)+" ms";
+			this.framesum=0;
 		}
 		return true;
 	}
