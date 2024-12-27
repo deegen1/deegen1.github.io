@@ -16,9 +16,6 @@ The Space Force needs YOU to clear a path and get supplies to our lunarnauts.
 
 Intro cutscene shows ship plowing through obstacles.
 
-putImageData() slow.
-
-
 +mass
 +accel
 +size
@@ -97,6 +94,7 @@ class Game {
 		this.framestr="0.0 ms";
 		this.frametime=1/60;
 		this.frameprev=0;
+		this.initaudio();
 		this.initworld();
 		let state=this;
 		function resize() {state.resize();}
@@ -133,6 +131,52 @@ class Game {
 		}
 		canvas.style.width =width +"px";
 		canvas.style.height=height+"px";
+	}
+
+
+	initaudio() {
+		let audio=new Audio();
+		this.audio=audio;
+		let snd=new Audio.Sound();
+		let bpm=60/180;
+		let vol=0.1;
+		let guitar=[
+			{name:"e",freq:329.63,vol:0.40},
+			{name:"B",freq:246.94,vol:0.50},
+			{name:"G",freq:196.00,vol:0.60},
+			{name:"D",freq:146.83,vol:0.70},
+			{name:"A",freq:110.00,vol:0.80},
+			{name:"E",freq: 82.41,vol:0.90}
+		];
+		/*for (let i=0;i<192;i++) {
+			let time=bpm*i;
+			let t=Math.floor(i/8)%3,n=i&1;
+			let s=guitar[5-n*2-t];
+			let g=Audio.createguitar(vol,s.freq*[0.8,0.7][n],0.25);
+			snd.add(g,time);
+			if (i%1===0) {
+				g=Audio.createdrumsnare(vol*0.15);
+				snd.add(g,time);
+			}
+			if (i%1===0) {
+				g=Audio.createdrumkick(vol);
+				snd.add(g,time);
+			}
+		}*/
+		for (let i=0;i<192;i++) {
+			let time=bpm*i;
+			let t=Math.floor(i/8)%3,n=i&1;
+			let s=guitar[5-n*2-t];
+			let g=Audio.createguitar(vol,s.freq*[0.8,0.7][n],0.25);
+			snd.add(g,time);
+			g=Audio.createdrumsnare(vol*0.15);
+			//snd.add(g,time);
+			g=Audio.createdrumkick(vol);
+			snd.add(g,time*0.25);
+		}
+		this.bgsnd=snd;
+		this.audio.play(this.bgsnd);
+		//snd.savefile("bg.wav");
 	}
 
 
@@ -184,6 +228,7 @@ class Game {
 		else if (delta<0.5*this.frametime) {return true;}
 		this.frameprev=time;
 		let starttime=performance.now();
+		this.audio.update();
 		let input=this.input;
 		input.update();
 		let rnd=this.rnd;

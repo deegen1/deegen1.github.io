@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v1.03
+library.js - v1.04
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -15,7 +15,7 @@ Input   - v1.14
 Random  - v1.08
 Vector  - v1.05
 Drawing - v3.08
-Audio   - v1.06
+Audio   - v1.08
 Physics - v1.21
 
 
@@ -2222,7 +2222,7 @@ class Draw {
 
 
 //---------------------------------------------------------------------------------
-// Audio - v1.06
+// Audio - v1.08
 
 
 class _AudioSound {
@@ -2520,8 +2520,8 @@ class _AudioSound {
 	}
 
 
-	add(snd,offset=0,vol=1.0) {
-		return this.addindex(snd,Math.round(offset*this.freq),vol);
+	add(snd,time=0,vol=1.0) {
+		return this.addindex(snd,Math.round(time*this.freq),vol);
 	}
 
 
@@ -2998,11 +2998,11 @@ class _AudioBiquad {
 
 class Audio {
 
-	static Sound   =_AudioSound;
-	static Instance=_AudioInstance;
-	static Delay   =_AudioDelay;
-	static Envelope=_AudioEnvelope;
-	static Biquad  =_AudioBiquad;
+	static Sound    =_AudioSound;
+	static Instance =_AudioInstance;
+	static Delay    =_AudioDelay;
+	static Envelope =_AudioEnvelope;
+	static Biquad   =_AudioBiquad;
 
 	// The default context used for audio functions.
 	static def=null;
@@ -3016,7 +3016,7 @@ class Audio {
 		this.queue=null;
 		let ctx=new AudioContext({latencyHint:"interactive",sampleRate:freq});
 		this.ctx=ctx;
-		if (!Audio.def) {Audio.initdef(this);}
+		if (!Audio.def) {Audio.initdef(this).wakeup();}
 	}
 
 
@@ -3030,6 +3030,14 @@ class Audio {
 
 	play(snd,volume,pan,freq) {
 		return new _AudioInstance(snd,volume,pan,freq);
+	}
+
+
+	update() {
+		// Audio is silenced until a sound is played after user interaction.
+		if (!this.ctx.currentTime) {
+			this.ctx.resume();
+		}
 	}
 
 

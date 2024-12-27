@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-audio.js - v1.06
+audio.js - v1.08
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -19,6 +19,16 @@ References
 
 
 --------------------------------------------------------------------------------
+History
+
+
+1.07
+     Changed Sound.add(offset) to add(time).
+1.08
+     Added Audio.update() to resume after user interaction.
+
+
+--------------------------------------------------------------------------------
 TODO
 
 
@@ -32,6 +42,34 @@ Waveguides
 	Splitting into N bands and adding them together increases the gain by N.
 	Or subtract from signal as different filters process the sample.
 Remove Biquad.getq().
+rolling rolling rolling rawhide
+sequencer
+	https://www.youtube.com/watch?v=JPyaFR7poL4
+	https://tabs.ultimate-guitar.com/tab/misc-computer-games/outer-wilds-main-title-tabs-3245003
+	static sequencer(seq) {
+		// Converts shorthand strings into music.
+		//
+		//      AG     acoustic guitar
+		//      BD     bass drum
+		//      SD     snare drum
+		//      HH     hihat
+		//      XY     Xylophone
+		//      GS     Glockenspiel
+		//      MB     Musicbox
+		//      ,      next beat
+		//      ,X     next X beats
+		//      #bass: define a sequence named "bass"
+		//      #bass  reference a sequence named "bass"
+		//      #out:  special sequence for the output
+		//
+		// Example
+		//
+		//      #bpm: 100
+		//      #strumlo: AG E7
+		//      #strumhi:
+		//      #hihat:   HH HH HH
+		//      #out: #strumlo, 8 #strumhi, 8 #strumlo #hihat, 8 #strumhi #hihat
+	}
 
 
 */
@@ -42,7 +80,7 @@ Remove Biquad.getq().
 
 
 //---------------------------------------------------------------------------------
-// Audio - v1.06
+// Audio - v1.08
 
 
 class _AudioSound {
@@ -340,8 +378,8 @@ class _AudioSound {
 	}
 
 
-	add(snd,offset=0,vol=1.0) {
-		return this.addindex(snd,Math.round(offset*this.freq),vol);
+	add(snd,time=0,vol=1.0) {
+		return this.addindex(snd,Math.round(time*this.freq),vol);
 	}
 
 
@@ -818,11 +856,11 @@ class _AudioBiquad {
 
 class Audio {
 
-	static Sound   =_AudioSound;
-	static Instance=_AudioInstance;
-	static Delay   =_AudioDelay;
-	static Envelope=_AudioEnvelope;
-	static Biquad  =_AudioBiquad;
+	static Sound    =_AudioSound;
+	static Instance =_AudioInstance;
+	static Delay    =_AudioDelay;
+	static Envelope =_AudioEnvelope;
+	static Biquad   =_AudioBiquad;
 
 	// The default context used for audio functions.
 	static def=null;
@@ -836,7 +874,7 @@ class Audio {
 		this.queue=null;
 		let ctx=new AudioContext({latencyHint:"interactive",sampleRate:freq});
 		this.ctx=ctx;
-		if (!Audio.def) {Audio.initdef(this);}
+		if (!Audio.def) {Audio.initdef(this).wakeup();}
 	}
 
 
@@ -850,6 +888,14 @@ class Audio {
 
 	play(snd,volume,pan,freq) {
 		return new _AudioInstance(snd,volume,pan,freq);
+	}
+
+
+	update() {
+		// Audio is silenced until a sound is played after user interaction.
+		if (!this.ctx.currentTime) {
+			this.ctx.resume();
+		}
 	}
 
 
