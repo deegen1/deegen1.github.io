@@ -17,36 +17,36 @@
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~ Online Interpreter ~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <h1>SICO Online Editor</h1>
-	<div style="text-align:center;">
-		<button id="sico_run">&#9654;&nbsp;&nbsp;&nbsp;Run</button>
-		<button id="sico_reset">&#8634;&nbsp;&nbsp;&nbsp;Reset</button>
-		<button id="sico_advanced">&#9776;&nbsp;&nbsp;&nbsp;Advanced</button>
-		<label>Demos:
-			<select id="sico_demo">
-				<option value="./demos/demo_hello.sico">Hello World</option>
-				<option value="./demos/demo_string.sico">String Printing</option>
-				<option value="./demos/demo_uint.sico">Unsigned Math</option>
-				<option value="./demos/demo_random.sico">Random Numbers</option>
-				<option value="./demos/demo_memory.sico">Memory</option>
-				<option value="./demos/demo_graphics.sico">Graphics</option>
-				<option value="">Blank</option>
-			</select>
-		</label>
-	</div>
-	<div id="sico_menu" class="codeblock" style="box-sizing:border-box;width:100%;display:none;font-family:sans-serif;white-space:normal;">
-		<p>Advanced Settings</p>
-		<input type="checkbox" id="sico_keyboard" checked>
-		<label for="sico_keyboard"> Grab Keyboard:<br>
-			<br>
-			<span style="padding-left:2rem;">&bull;</span> Enables tab key<br>
-			<span style="padding-left:2rem;">&bull;</span> F9: run<br>
-			<span style="padding-left:2rem;">&bull;</span> F10: reset<br>
-			<span style="padding-left:2rem;">&bull;</span> F11: release keyboard
-		</label>
-	</div>
-	<canvas id="sico_canvas" style="display:none;width:100%;margin-top:1rem;margin-bottom:1rem;"></canvas>
-	<textarea id="sico_output" style="box-sizing:border-box;width:100%;height:14rem;" class="consoleblock" spellcheck="false" readonly>Please enable javascript to run</textarea>
-	<textarea id="sico_editor" style="box-sizing:border-box;width:100%;height:40rem;" class="codeblock" spellcheck="false">loop: 0-2  txt  ?+1         # Print a letter.
+<div style="text-align:center;">
+	<button id="sico_run">&#9654;&nbsp;&nbsp;&nbsp;Run</button>
+	<button id="sico_reset">&#8634;&nbsp;&nbsp;&nbsp;Reset</button>
+	<button id="sico_advanced">&#9776;&nbsp;&nbsp;&nbsp;Advanced</button>
+	<label>Demos:
+		<select id="sico_demo">
+			<option value="./demos/demo_hello.sico">Hello World</option>
+			<option value="./demos/demo_string.sico">String Printing</option>
+			<option value="./demos/demo_uint.sico">Unsigned Math</option>
+			<option value="./demos/demo_random.sico">Random Numbers</option>
+			<option value="./demos/demo_memory.sico">Memory</option>
+			<option value="./demos/demo_graphics.sico">Graphics</option>
+			<option value="">Blank</option>
+		</select>
+	</label>
+</div>
+<div id="sico_menu" class="codeblock" style="box-sizing:border-box;width:100%;display:none;font-family:sans-serif;white-space:normal;">
+	<p>Advanced Settings</p>
+	<input type="checkbox" id="sico_keyboard" checked>
+	<label for="sico_keyboard"> Grab Keyboard:<br>
+		<br>
+		<span style="padding-left:2rem;">&bull;</span> Enables tab key<br>
+		<span style="padding-left:2rem;">&bull;</span> F9: run<br>
+		<span style="padding-left:2rem;">&bull;</span> F10: reset<br>
+		<span style="padding-left:2rem;">&bull;</span> F11: release keyboard
+	</label>
+</div>
+<canvas id="sico_canvas" style="display:none;width:100%;margin-top:1rem;margin-bottom:1rem;"></canvas>
+<textarea id="sico_output" style="box-sizing:border-box;width:100%;height:14rem;" class="consoleblock" spellcheck="false" readonly>Please enable javascript to run</textarea>
+<textarea id="sico_editor" style="box-sizing:border-box;width:100%;height:40rem;" class="codeblock" spellcheck="false">loop: 0-2  txt  ?+1         # Print a letter.
       len  one  exit        # Decrement [len]. If [len]&lt;=1, exit.
       ?-5  neg  loop        # Increment letter pointer.
 
@@ -257,7 +257,7 @@ interpreters.</p>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-</div><div id="footer">Created on 9 Apr 2020 - Modified on 10 Feb 2024<br>
+</div><div id="footer">Created on 9 Apr 2020 - Modified on 27 Dec 2024<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>

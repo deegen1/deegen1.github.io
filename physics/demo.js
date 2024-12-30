@@ -7,7 +7,7 @@ Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
 
 
----------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 Notes
 
 
@@ -170,7 +170,7 @@ class PhyScene {
 		world.maxsteptime=1/180;
 		world.gravity.set([0,0.1]);
 		let viewheight=1.0,viewwidth=canvas.width/canvas.height;
-		//let walltype=world.createatomtype(1.0,Infinity,1.0);
+		// let walltype=world.createatomtype(1.0,Infinity,1.0);
 		let normtype=world.createatomtype(0.01,1.0,0.98);
 		let boxtype=world.createatomtype(0.0,2.0,1.0);
 		boxtype.isbox=true;

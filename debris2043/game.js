@@ -54,8 +54,6 @@ you need to protect a ship below
 dash attack
 spin attack
 
-Knights of Sidonia: Wind of the Stars
-cutting wind?
 
      /\
     /  \
@@ -170,13 +168,13 @@ class Game {
 			let g=Audio.createguitar(vol,s.freq*[0.8,0.7][n],0.25);
 			snd.add(g,time);
 			g=Audio.createdrumsnare(vol*0.15);
-			//snd.add(g,time);
+			// snd.add(g,time);
 			g=Audio.createdrumkick(vol);
 			snd.add(g,time*0.25);
 		}
 		this.bgsnd=snd;
 		this.audio.play(this.bgsnd);
-		//snd.savefile("bg.wav");
+		// snd.savefile("bg.wav");
 	}
 
 

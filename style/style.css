@@ -166,13 +166,13 @@ sub {
 	margin:auto;
 	margin-bottom:3rem;
 }
-#content canvas, #content img {
+canvas, img {
 	display:block;
 	margin:auto;
 	margin-top:3rem;
 	margin-bottom:3rem;
 }
-#content h1 {
+h1 {
 	display:block;
 	width:100%;
 	margin:0;
@@ -185,7 +185,7 @@ sub {
 	font-size:200%;
 	font-weight:bold;
 }
-#content h2 {
+h2 {
 	display:block;
 	width:100%;
 	margin-top:3rem;
@@ -194,14 +194,14 @@ sub {
 	font-weight:bold;
 	color:var(--main-title2);
 }
-#content .codeblock, #content .consoleblock, #content i, .diagram {
+.codeblock, .consoleblock, i, .diagram {
 	font-family:Consolas,monospace,monospace;
 	-moz-tab-size:5;
 	-o-tab-size:5;
 	tab-size:5;
 	white-space:pre;
 }
-#content .codeblock, #content .consoleblock {
+.codeblock, .consoleblock {
 	display:block;
 	width:90%;
 	padding:0.5775rem;
@@ -213,13 +213,13 @@ sub {
 	color:var(--code-text);
 	overflow:auto;
 }
-#content .consoleblock {
+.consoleblock {
 	background-color:#000000;
 	color:#cccccc;
 	word-wrap:break-word;
 	white-space:pre-wrap;
 }
-#content i {
+i {
 	display:inline-block;
 	padding-left:1pt;
 	padding-right:1pt;
@@ -227,7 +227,7 @@ sub {
 	font-style:normal;
 	color:var(--code-text);
 }
-#content p {
+p {
 	/* border:1px solid black; */
 	display:block;
 	/*text-align:justify;*/
@@ -240,7 +240,7 @@ button, select {
 	/* margin-right:0.0825rem; */
 	color:#ffffff;
 	border:1px solid;
-	border-color:#8080af;
+	border-color:#4040cc;
 	background-color:#6060ff;
 	padding:0.2rem;
 	padding-left:0.4rem;

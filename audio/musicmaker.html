@@ -1,0 +1,191 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Music Maker</title>
+	<link rel="stylesheet" href="../style/style.css" type="text/css">
+	<script src="../style/style.js"></script>
+	<script src="./audio.js"></script>
+	<style>
+	.musiceditor {
+		max-width:100%;
+		width:100%;
+		margin-top:0.5rem;
+	}
+	i {
+		padding:0;
+		background-color:transparent;
+	}
+	</style>
+	<script>
+	/* jshint esversion: 11  */
+	/* jshint bitwise: false */
+	/* jshint eqeqeq: true   */
+	/* jshint curly: true    */
+
+	class MusicMaker {
+
+		constructor(inputid,playid,outputid,downid) {
+			function getid(id) {
+				let elem=id?document.getElementById(id):null;
+				return (elem?elem:null);
+			}
+			let st=this;
+			this.uiinput=getid(inputid);
+			this.uioutput=getid(outputid);
+			this.uiplay=getid(playid);
+			if (!this.uiinput) {throw "could not find "+inputid;}
+			if (!this.uiplay ) {throw "could not find "+playid;}
+			let input=this.uiinput;
+			if (input.clientHeight<input.scrollHeight+2) {
+				input.style.height=input.scrollHeight+2+"px";
+			}
+			this.uiplay.onclick=function() {st.play();return false;};
+			if (this.uioutput) {this.uioutput.value="";}
+			let down=getid(downid);
+			if (down) {
+				down.onclick=function() {try {
+					let snd=Audio.sequencer(st.uiinput.value);
+					snd.savefile("musicmaker.wav");
+				} catch {}};
+			}
+			this.audio=Audio.initdef();
+			this.snd=null;
+			this.inst=null;
+		}
+
+
+		log(str) {
+			if (this.uioutput) {this.uioutput.value+=str+"\n";}
+		}
+
+
+		play() {
+			if (this.inst && this.inst.playing) {
+				this.log("stopping");
+				this.inst.remove();
+				this.inst=null;
+				this.uiplay.innerHTML="&#9658; play";
+				return;
+			}
+			if (this.uioutput) {this.uioutput.value="";}
+			try {
+				this.snd=Audio.sequencer(this.uiinput.value);
+			} catch(error) {
+				this.snd=null;
+				this.log(error);
+			}
+			if (!this.snd) {
+				this.log("unable to create song");
+				return;
+			}
+			this.log("created song "+this.snd.time.toFixed(2)+" seconds long");
+			this.inst=this.snd.play();
+			if (this.inst) {
+				this.uiplay.innerHTML="&#9632; stop";
+				this.log("playing");
+				let st=this;
+				function update() {
+					if (st.update()) {requestAnimationFrame(update);}
+				}
+				update();
+			} else {
+				this.inst=null;
+				this.log("unable to play song");
+			}
+		}
+
+
+		update() {
+			if (!this.inst) {return false;}
+			if (!this.inst.playing) {
+				this.log("finished");
+				this.inst=null;
+				this.uiplay.innerHTML="&#9658; play";
+				return false;
+			}
+			this.audio.update();
+			return true;
+		}
+
+	}
+	</script>
+</head>
+<body>
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<div id="header"><a href="../index.html">Alec Dee's General Site</a></div>
+<div id="content">
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Music Maker ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Music Maker</h1>
+<button id="editor_play">&#9658; play</button>
+<button id="editor_download">download</button>
+<textarea id="editor_out" style="height:7rem;margin-bottom:0" class="consoleblock musiceditor" spellcheck="false" readonly>Please enable javascript to run</textarea>
+<textarea id="editor_editor" style="height:20rem;" class="codeblock musiceditor" spellcheck="false">BPM 180
+#strumlo: AG E 4 ; AG D 6 ; AG E 4 ; AG D 6 ; AG E 4 ; AG D 6 ; AG E 4 ; AG D 6
+#strumhi: AG A 4 ; AG G 6 ; AG A 4 ; AG G 6 ; AG A 4 ; AG G 6 ; AG A 4 ; AG G 6
+#hihat  : VOL 0.25, HH ; HH ; HH ; HH ; HH ; HH ; HH ; HH
+#out    : VOL 0.25, #strumlo ; 8, #strumhi ; 8, #strumlo, #hihat ; 8, #strumhi, #hihat, CUT -6
+</textarea>
+<script>new MusicMaker("editor_editor","editor_play","editor_out","editor_download");</script>
+<p>See the <a href="./index.html">Sound Effects</a> page for how the sounds are
+generated.</p>
+<p>Everything is processed top to bottom, left to right. Notation:</p>
+<table class="datatable headerrow">
+<tr><td>Symbol</td><td>Description</td><td>Parameters</td></tr>
+<tr><td><i>AG</i></td><td>Acoustic Guitar</td>
+<td><i>&lt;eBGDAE&gt; [fret=0-22]</i></td></tr>
+<tr><td><i>XY</i></td><td>Xylophone</td><td><i>[bar=0-24]</i></td></tr>
+<tr><td><i>MR</i></td><td>Marimba</td><td><i>[bar=0-24]</i></td></tr>
+<tr><td><i>GS</i></td><td>Glockenspiel</td><td><i>[bar=0-24]</i></td></tr>
+<tr><td><i>KD</i></td><td>Kick Drum</td><td><i>[freq=120]</i></td></tr>
+<tr><td><i>SD</i></td><td>Snare Drum</td><td><i>[freq=100]</i></td></tr>
+<tr><td><i>HH</i></td><td>Hihat</td><td><i>[freq=7000]</i></td></tr>
+<tr><td><i>VOL</i></td><td>Sets the volume. Resets every sequence.</td>
+<td><i>[1.0]</i></td></tr>
+<tr><td><i>BPM</i></td><td>Beats per minute.</td><td><i>[120]</i></td></tr>
+<tr><td><i>CUT</i></td><td>Cuts off sequence at time+delta.</td>
+<td><i>[delta=0]</i></td></tr>
+<tr><td><i>,</i></td><td>Separator. Doesn't affect time.</td><td></td></tr>
+<tr><td><i>;</i></td><td>Separate and advance time by 1 BPM.</td><td></td></tr>
+<tr><td><i>; X,</i></td><td>Separate and advance time by X BPMs.</td>
+<td></td></tr>
+<tr><td><i>'</i></td><td>Line comment.</td><td></td></tr>
+<tr><td><i>#bass:</i></td><td>Define a sequence named <i>#bass</i>.</td>
+<td></td></tr>
+<tr><td><i>#bass</i></td><td>Reference a sequence named <i>#bass</i>.</td>
+<td></td></tr>
+<tr><td><i>#out:</i></td><td>Final output sequence.</td><td></td></tr>
+</table>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Samples ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Samples</h1>
+<button id="sample1_play">&#9658; play</button>
+<textarea id="sample1_editor" class="codeblock musiceditor" spellcheck="false">' Enter Sandman - Metallica
+BPM 246
+#strum: VOL 0.5, AG E 0 ; 2 AG A 7 ; AG D 5 ; AG E 6 ; AG E 5 ; AG A 7
+#out  : #strum ; 8 #strum ; 8 #strum, CUT -5</textarea>
+<script>new MusicMaker("sample1_editor","sample1_play","editor_out");</script>
+
+<button id="sample2_play">&#9658; play</button>
+<textarea id="sample2_editor" class="codeblock musiceditor" spellcheck="false">' Soak Up the Sun - Sheryl Crow
+BPM 240
+#strum: AG A 7, AG D 9 ; AG A 7, AG D 7 ; AG A 7, AG D 9 ; AG B 9 ; 2, AG G 9 ; AG A 9, AG D 9, AG E 7 ; 2, AG A 9, AG D 9, AG E 7 ; 2, AG A 7, AG E 5 ; AG A 7, AG E 5, AG D 9, CUT -2 '14 beats
+#out: VOL 0.5, #strum ; 14 #strum</textarea>
+<script>new MusicMaker("sample2_editor","sample2_play","editor_out");</script>
+
+<button id="sample3_play">&#9658; play</button>
+<textarea id="sample3_editor" class="codeblock musiceditor" spellcheck="false">' Drum loop
+BPM 240
+#out: KD ; 2, KD ; 2, KD ; 2, KD ; VOL 0.75, KD, VOL ; KD ; 2, KD ; 2, KD</textarea>
+<script>new MusicMaker("sample3_editor","sample3_play","editor_out");</script>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+</div><div id="footer">Created on 26 Dec 2024 - Modified on 29 Dec 2024<br>
+Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
+<a href="../index.html">Alec Dee's General Site</a></div>
+</body>
+</html>
