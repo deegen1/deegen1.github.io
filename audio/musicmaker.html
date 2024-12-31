@@ -79,6 +79,10 @@
 				this.log("unable to create song");
 				return;
 			}
+			let data=this.snd.data,len=this.snd.len;
+			let cut=0,mag=0;
+			for (let i=0;i<len;i++) {let a=Math.abs(data[i]);if (a>1) {cut++;mag+=a-1}}
+			console.log("cut:",cut,mag);
 			this.log("created song "+this.snd.time.toFixed(2)+" seconds long");
 			this.inst=this.snd.play();
 			if (this.inst) {
@@ -136,9 +140,9 @@ generated.</p>
 <tr><td>Symbol</td><td>Description</td><td>Parameters</td></tr>
 <tr><td><i>AG</i></td><td>Acoustic Guitar</td>
 <td><i>&lt;eBGDAE&gt; [fret=0-22]</i></td></tr>
-<tr><td><i>XY</i></td><td>Xylophone</td><td><i>[bar=0-24]</i></td></tr>
-<tr><td><i>MR</i></td><td>Marimba</td><td><i>[bar=0-24]</i></td></tr>
-<tr><td><i>GS</i></td><td>Glockenspiel</td><td><i>[bar=0-24]</i></td></tr>
+<tr><td><i>XY</i></td><td>Xylophone</td><td><i>[freq=250]</i></td></tr>
+<tr><td><i>MR</i></td><td>Marimba</td><td><i>[freq=250]</i></td></tr>
+<tr><td><i>GS</i></td><td>Glockenspiel</td><td><i>[freq=1867]</i></td></tr>
 <tr><td><i>KD</i></td><td>Kick Drum</td><td><i>[freq=120]</i></td></tr>
 <tr><td><i>SD</i></td><td>Snare Drum</td><td><i>[freq=100]</i></td></tr>
 <tr><td><i>HH</i></td><td>Hihat</td><td><i>[freq=7000]</i></td></tr>
@@ -165,14 +169,14 @@ generated.</p>
 <button id="sample1_play">&#9658; play</button>
 <textarea id="sample1_editor" class="codeblock musiceditor" spellcheck="false">' Enter Sandman - Metallica
 BPM 246
-#strum: VOL 0.5, AG E 0 ; 2 AG A 7 ; AG D 5 ; AG E 6 ; AG E 5 ; AG A 7
+#strum: VOL 0.75, AG E 0 ; 2 AG A 7 ; AG D 5 ; AG E 6 ; AG E 5 ; AG A 7
 #out  : #strum ; 8 #strum ; 8 #strum, CUT -5</textarea>
 <script>new MusicMaker("sample1_editor","sample1_play","editor_out");</script>
 
 <button id="sample2_play">&#9658; play</button>
 <textarea id="sample2_editor" class="codeblock musiceditor" spellcheck="false">' Soak Up the Sun - Sheryl Crow
 BPM 240
-#strum: AG A 7, AG D 9 ; AG A 7, AG D 7 ; AG A 7, AG D 9 ; AG B 9 ; 2, AG G 9 ; AG A 9, AG D 9, AG E 7 ; 2, AG A 9, AG D 9, AG E 7 ; 2, AG A 7, AG E 5 ; AG A 7, AG E 5, AG D 9, CUT -2 '14 beats
+#strum: AG A 7, AG D 9 ; AG A 7, AG D 7 ; AG A 7, AG D 9 ; AG B 9 ; 2, AG G 9 ; 2, AG A 9, AG D 9, AG E 7 ; 2, AG A 9, AG D 9, AG E 7 ; 2, AG A 7, AG E 5 ; AG A 7, AG E 5, AG D 9, CUT -2 '14 beats
 #out: VOL 0.5, #strum ; 14 #strum</textarea>
 <script>new MusicMaker("sample2_editor","sample2_play","editor_out");</script>
 
@@ -182,9 +186,18 @@ BPM 240
 #out: KD ; 2, KD ; 2, KD ; 2, KD ; VOL 0.75, KD, VOL ; KD ; 2, KD ; 2, KD</textarea>
 <script>new MusicMaker("sample3_editor","sample3_play","editor_out");</script>
 
+<button id="sample4_play">&#9658; play</button>
+<textarea id="sample4_editor" class="codeblock musiceditor" spellcheck="false">' Twinkle Twinkle Little Star
+BPM 180
+#out: VOL 0.5,
+GS 400 ; GS 400 ; GS 750 ; GS 750 ; GS 1000 ; GS 1000 ; GS 750 ; ;
+GS 600 ; GS 600 ; GS 550 ; GS 550 ; GS 500 ; GS 500 ; GS 400 ; </textarea>
+<script>new MusicMaker("sample4_editor","sample4_play","editor_out");</script>
+
+
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-</div><div id="footer">Created on 26 Dec 2024 - Modified on 29 Dec 2024<br>
+</div><div id="footer">Created on 26 Dec 2024 - Modified on 30 Dec 2024<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>

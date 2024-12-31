@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-audio.js - v1.08
+audio.js - v2.00
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -26,6 +26,9 @@ History
      Changed Sound.add(offset) to add(time).
 1.08
      Added Audio.update() to resume after user interaction.
+2.00
+     Added Audio.sequencer() to make music editing easier.
+     Premade sounds use randomized phases to reduce aliasing.
 
 
 --------------------------------------------------------------------------------
@@ -33,6 +36,7 @@ TODO
 
 
 Add resonance factor to generatestring().
+Calculate Biquad.response for a given frequency.
 Remove scalevol() for sound effect normalization.
 Use biquad updatecoefs() for snare.
 Waveguides
@@ -43,12 +47,6 @@ Waveguides
 	Or subtract from signal as different filters process the sample.
 Audio.update
 	If a song was played while silenced, skip to it's current time upon resume.
-Sequencer
-	sequence vs compose?
-	use frequencies vs bar lengths?
-	copy notation table
-	https://www.youtube.com/watch?v=JPyaFR7poL4
-	https://tabs.ultimate-guitar.com/tab/misc-computer-games/outer-wilds-main-title-tabs-3245003
 
 
 */
@@ -59,7 +57,7 @@ Sequencer
 
 
 //---------------------------------------------------------------------------------
-// Audio - v1.08
+// Audio - v2.00
 
 
 class _AudioSound {
@@ -841,6 +839,7 @@ class Audio {
 
 	// The default context used for audio functions.
 	static def=null;
+	static randstate=0;
 
 
 	constructor(freq=44100) {
@@ -945,7 +944,12 @@ class Audio {
 
 
 	static noise1(x) {
-		// PRNG noise with interpolation for different frequencies.
+		// Noise with interpolation. If undefined, acts as a PRNG.
+		// Returns a value in [0,1].
+		if (x===undefined) {
+			x=Audio.randstate;
+			Audio.randstate=(x+1)>>>0;
+		}
 		let v=x%1;
 		if (v<0) {v+=1;}
 		else if (isNaN(v)) {v=0;x=0;}
@@ -1003,9 +1007,9 @@ class Audio {
 		//   Symbol |               Description               |  Parameters
 		//  --------+-----------------------------------------+-----------------
 		//   AG     | Acoustic Guitar                         | <eBGDAE> [0-22]
-		//   XY     | Xylophone                               | [bar=0-24]
-		//   MR     | Marimba                                 | [bar=0-24]
-		//   GS     | Glockenspiel                            | [bar=0-24]
+		//   XY     | Xylophone                               | [freq=250]
+		//   MR     | Marimba                                 | [freq=250]
+		//   GS     | Glockenspiel                            | [freq=1867]
 		//   KD     | Kick Drum                               | [freq=120]
 		//   SD     | Snare Drum                              | [freq=100]
 		//   HH     | Hihat                                   | [freq=7000]
@@ -1094,20 +1098,18 @@ class Audio {
 						pluckpos=1-(1-pluckpos/stringlen)/(1-fretpos);
 						snd=Audio.createguitar(1,freq,pluckpos);
 					} else if (name==="XY") {
-						let bar=paramnum(1,0);
-						if (bar<0 || bar>24) {throw "invalid bar: "+error;}
-						let len=22.2-0.614285*bar;
-						snd=Audio.createxylophone(1,98568/(len*len));
+						//let bar=paramnum(1,0);
+						//if (bar<0 || bar>24) {throw "invalid bar: "+error;}
+						//let len=22.2-0.614285*bar;
+						//snd=Audio.createxylophone(1,98568/(len*len));
+						let freq=paramnum(1,250);
+						snd=Audio.createxylophone(1,freq);
 					} else if (name==="MR") {
-						let bar=paramnum(1,0);
-						if (bar<0 || bar>24) {throw "invalid bar: "+error;}
-						let len=22.2-0.614285*bar;
-						snd=Audio.createmarimba(1,98568/(len*len));
+						let freq=paramnum(1,250);
+						snd=Audio.createmarimba(1,freq);
 					} else if (name==="GS") {
-						let bar=paramnum(1,0);
-						if (bar<0 || bar>24) {throw "invalid bar: "+error;}
-						let len=22.2-0.614285*bar;
-						snd=Audio.createglockenspiel(1,736105/(len*len));
+						let freq=paramnum(1,1867);
+						snd=Audio.createglockenspiel(1,freq);
 					} else if (name==="KD") {
 						let freq=paramnum(1,120);
 						snd=Audio.createdrumkick(1,freq);
@@ -1185,7 +1187,8 @@ class Audio {
 			let harmlen=Math.ceil(Math.log(cutoff/Math.abs(harmvol))/harmdecay);
 			if (harmlen>sndlen) {harmlen=sndlen;}
 			let harmfreq=c2*ihscale;
-			let harmphase=0;
+			// Randomize the phase to prevent aliasing.
+			let harmphase=Audio.noise()*3.141592654;
 			// Generate the waveform.
 			for (let i=0;i<harmlen;i++) {
 				data[i]+=harmvol*Math.sin(harmphase);
@@ -1238,10 +1241,11 @@ class Audio {
 		let gain=new Audio.Envelope([Audio.Envelope.LIN,0.01,volume,Audio.Envelope.EXP,time-0.01,0]);
 		let hp=new Audio.Biquad(Audio.Biquad.HIGHPASS,freq/sndfreq);
 		let bp=new Audio.Biquad(Audio.Biquad.BANDPASS,freq*1.4/sndfreq);
+		let seed=Math.floor(Audio.noise1()*0xffffff);
 		let data=snd.data;
 		for (let i=0;i<len;i++) {
 			let t=i/sndfreq;
-			let x=Audio.noise(i);
+			let x=Audio.noise(seed+i);
 			x=bp.process(x);
 			x=hp.process(x);
 			x=Audio.clip(x,-1,1);
@@ -1258,7 +1262,7 @@ class Audio {
 		let freq1=freq/sndfreq,freq2=freq1*0.41;
 		let osc1=new Audio.Envelope([Audio.Envelope.CON,0,freq1,Audio.Envelope.LIN,0.01,freq1,Audio.Envelope.LIN,time-0.01,freq1*0.2]);
 		let osc2=new Audio.Envelope([Audio.Envelope.CON,0,freq2,Audio.Envelope.LIN,0.01,freq2,Audio.Envelope.LIN,time-0.01,freq2*0.2]);
-		let phase1=0,phase2=0;
+		let phase1=Audio.noise()*3.141592654,phase2=Audio.noise()*3.141592654;
 		let data=snd.data;
 		for (let i=0;i<len;i++) {
 			let t=i/sndfreq;
@@ -1279,13 +1283,14 @@ class Audio {
 		let osc1=new Audio.Envelope([Audio.Envelope.CON,0,freq1,Audio.Envelope.LIN,0.01,freq1,Audio.Envelope.LIN,time-0.01,freq1*0.2]);
 		let osc2=new Audio.Envelope([Audio.Envelope.CON,0,freq2,Audio.Envelope.LIN,0.01,freq2,Audio.Envelope.LIN,time-0.01,freq2*0.2]);
 		let oscn=new Audio.Envelope([Audio.Envelope.LIN,time,1]);
-		let phase1=0,phase2=0;
+		let seed=Math.floor(Audio.noise1()*0xffffff);
+		let phase1=Audio.noise()*3.141592654,phase2=Audio.noise()*3.141592654;
 		let hp0=new Audio.Biquad(Audio.Biquad.HIGHPASS,freq/sndfreq);
 		let hp1=new Audio.Biquad(Audio.Biquad.HIGHPASS,10*freq/sndfreq);
 		let data=snd.data;
 		for (let i=0;i<len;i++) {
 			let t=i/sndfreq;
-			let n=Audio.noise(i);
+			let n=Audio.noise(seed+i);
 			let n0=hp0.process(n);
 			let n1=hp1.process(n);
 			n=n0+oscn.get(t)*(n1-n0);
@@ -1312,7 +1317,7 @@ class Audio {
 		for (let i=0;i<len;i++) {
 			let t=i/sndfreq;
 			// let mul=Math.exp(voldecay*t);
-			let x=t<0.5?(Math.random()*2-1):0;
+			let x=t<0.5?Audio.noise(i):0;
 			x=filter.process(x)+delay.get()*delaygain;
 			delay.add(x);
 			data[i]=x;
@@ -1355,13 +1360,14 @@ class Audio {
 		let bp1=new Audio.Biquad(Audio.Biquad.BANDPASS,freq/sndfreq,6*scale);
 		// let bp2=new Audio.Biquad(Audio.Biquad.BANDPASS, 700/sndfreq,3*scale);
 		// let del=new Audio.Delay(sndfreq,time*0.25);
+		let seed=Math.floor(Audio.noise1()*0xffffff);
 		for (let i=0;i<len;i++) {
 			let t=i/sndfreq;
 			let x=0;
 			if (t<attack) {x=t/attack;}
 			else if (t-attack<sustain) {x=1-(t-attack)/sustain;}
 			x*=x;
-			x*=bp1.process(Audio.tri(t*freq)*(1-noise)+Audio.noise(i)*noise);
+			x*=bp1.process(Audio.tri(t*freq)*(1-noise)+Audio.noise(seed+i)*noise);
 			// x+=del.get();
 			// This bandpass adds low frequency vibrations from the hypothetical console.
 			// del.add(bp2.process(x)*0.25);
@@ -1409,11 +1415,12 @@ class Audio {
 		let data=snd.data;
 		let vmul=Math.exp(decay),vtmp=1;
 		freq/=sndfreq;
+		let seed=Math.floor(Audio.noise1()*0xffffff);
 		let bp1=new Audio.Biquad(Audio.Biquad.BANDPASS,freq,2);
 		let bp2=new Audio.Biquad(Audio.Biquad.BANDPASS,freq,2);
 		let del=new Audio.Delay(sndfreq,0.003),delmul=0.9;
 		for (let i=0;i<len;i++) {
-			let x=Audio.noise(i)*vtmp;
+			let x=Audio.noise(seed+i)*vtmp;
 			vtmp*=vmul;
 			x=bp1.process(x);
 			x=bp2.process(x);
@@ -1440,10 +1447,11 @@ class Audio {
 		let ramp=0.01*sndfreq,rampden=1/ramp,tail=len-ramp;
 		let snd=new Audio.Sound(sndfreq,len);
 		let data=snd.data;
+		let seed=Math.floor(Audio.noise1()*0xffffff);
 		let freq0=freq/sndfreq,freq1=freq0*1.002;
 		let lp3=new Audio.Biquad(Audio.Biquad.LOWPASS,3000/sndfreq);
 		for (let i=0;i<len;i++) {
-			let x=Audio.saw1(i*freq0)+Audio.saw1(i*freq1);
+			let x=Audio.saw1((seed+i)*freq0)+Audio.saw1((seed+i)*freq1);
 			x=Audio.clip(x-1,-0.5,0.5);
 			x=lp3.process(x);
 			if (i<ramp || i>tail) {x*=(i<ramp?i:len-1-i)*rampden;}
@@ -1460,13 +1468,14 @@ class Audio {
 		let snd=new Audio.Sound(sndfreq,len);
 		let data=snd.data;
 		freq*=Math.PI*2/sndfreq;
+		let phase=Audio.noise()*3.141592654;
 		let vmul=Math.exp(Math.log(1e-4)/len),vol=1;
 		// Instead of a delay constant, use a delay multiplier. Scales sum < 1.
 		// Array format: delay, scale, delay, scale, ...
 		let deltable=[0.99,-0.35,0.90,-0.28,0.80,-0.21,0.40,-0.13];
 		let delays=deltable.length;
 		for (let i=0;i<len;i++) {
-			let x=Math.sin(i*freq)*vol;
+			let x=Math.sin(phase+i*freq)*vol;
 			if (i<ramp) {x*=i*rampden;}
 			vol*=vmul;
 			for (let j=0;j<delays;j+=2) {
@@ -1492,10 +1501,11 @@ class Audio {
 		let vmul=Math.exp(Math.log(1e-4)*3/len),vol=1;
 		let f=freq/(freq+1000);
 		let lpcoef=1-f,bpcoef=f,del=0.75+0.15*f,delmul=-0.9+0.5*f;
+		let seed=Math.floor(Audio.noise1()*0xffffff);
 		let lp=new Audio.Biquad(Audio.Biquad.LOWPASS,freq/sndfreq,1);
 		let bp=new Audio.Biquad(Audio.Biquad.BANDPASS,freq/sndfreq,2);
 		for (let i=0;i<len;i++) {
-			let x=Audio.noise(i)*vol;
+			let x=Audio.noise(seed+i)*vol;
 			vol*=vmul;
 			x=lp.process(x)*lpcoef+bp.process(x)*bpcoef;
 			let u=i*del,k=Math.floor(u);
