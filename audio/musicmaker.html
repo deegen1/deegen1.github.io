@@ -79,10 +79,6 @@
 				this.log("unable to create song");
 				return;
 			}
-			let data=this.snd.data,len=this.snd.len;
-			let cut=0,mag=0;
-			for (let i=0;i<len;i++) {let a=Math.abs(data[i]);if (a>1) {cut++;mag+=a-1}}
-			console.log("cut:",cut,mag);
 			this.log("created song "+this.snd.time.toFixed(2)+" seconds long");
 			this.inst=this.snd.play();
 			if (this.inst) {
