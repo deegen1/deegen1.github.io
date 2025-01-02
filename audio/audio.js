@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-audio.js - v2.00
+audio.js - v2.01
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -29,6 +29,8 @@ History
 2.00
      Added Audio.sequencer() to make music editing easier.
      Premade sounds use randomized phases to reduce aliasing.
+2.01
+     Changed sequencer to use piano / scientific pitch notation.
 
 
 --------------------------------------------------------------------------------
@@ -47,6 +49,14 @@ Waveguides
 	Or subtract from signal as different filters process the sample.
 Audio.update
 	If a song was played while silenced, skip to it's current time upon resume.
+noise at a frequency
+	dx=(cos((x+1)*freq)-cos(x*freq))*harmvol
+	data[i]+=dx*(Audio.noise1()*0.02+0.99);
+	...
+	for i...
+		data[i]=clamp(data[i]+data[i-1],-bnd,bnd)
+		bnd=e^decay*t
+	randomly increase the phase by +-20/44100
 
 
 */
@@ -57,7 +67,7 @@ Audio.update
 
 
 //---------------------------------------------------------------------------------
-// Audio - v2.00
+// Audio - v2.01
 
 
 class _AudioSound {
@@ -1004,149 +1014,173 @@ class Audio {
 		// Converts a shorthand string into music.
 		// Everything is processed top to bottom, left to right.
 		//
-		//   Symbol |               Description               |  Parameters
-		//  --------+-----------------------------------------+-----------------
-		//   AG     | Acoustic Guitar                         | <eBGDAE> [0-22]
-		//   XY     | Xylophone                               | [freq=250]
-		//   MR     | Marimba                                 | [freq=250]
-		//   GS     | Glockenspiel                            | [freq=1867]
-		//   KD     | Kick Drum                               | [freq=120]
-		//   SD     | Snare Drum                              | [freq=100]
-		//   HH     | Hihat                                   | [freq=7000]
-		//   VOL    | Sets the volume. Resets every sequence. | [1.0]
-		//   BPM    | Beats per minute.                       | [120]
-		//   CUT    | Cuts off sequence at time+delta.        | [delta=0]
-		//   ,      | Separator. Doesn't affect time.         |
-		//   ;      | Separate and advance time by 1 BPM.     |
-		//   ; X,   | Separate and advance time by X BPMs.    |
-		//   '      | Line Comment                            |
-		//   #bass: | Define a sequence named #bass.          |
-		//   #bass  | Reference a sequence named #bass.       |
-		//   #out:  | Final output sequence.                  |
+		//   Symbol |             Description             |  Parameters
+		//  --------+-------------------------------------+-----------------
+		//   AG     | Acoustic Guitar                     | <note> [len]
+		//   XY     | Xylophone                           | <note> [len]
+		//   MR     | Marimba                             | <note> [len]
+		//   GS     | Glockenspiel                        | <note> [len]
+		//   KD     | Kick Drum                           | [note=B2] [len]
+		//   SD     | Snare Drum                          | [note=G2] [len]
+		//   HH     | Hihat                               | [note=A8] [len]
+		//   VOL    | Sets volume. Resets every sequence. | [1.0]
+		//   BPM    | Beats per minute.                   | [240]
+		//   CUT    | Cuts off sequence at time+delta.    | [delta=0]
+		//   ;      | Separator. Doesn't affect time.     |
+		//   ,      | Advance time by 1 BPM               |
+		//   , X    | Advance time by X BPMs.             |
+		//   '      | Line Comment                        |
+		//   "      | Block comment. Terminate with "     |
+		//   #bass: | Define a sequence named #bass.      |
+		//   #bass  | Reference a sequence named #bass.   |
+		//   #out:  | Final output sequence.              |
 		//
-		let bpm=120,vol=1.0;
+		// notes = B, b, A#, A, a, G#, G, g, F#, F, f, E, e, D#, D, d, C#, C
 		let seqpos=0,seqlen=seq.length;
-		let parammax=10;
+		let parammax=5;
 		let paramstr=new Array(parammax);
 		let params=0;
-		let time=0,delta=0;
-		let sep=true,c;
-		let subsnd=new Audio.Sound();
-		let subseq={"":subsnd};
-		function paramnum(i,def=NaN) {
-			let x=i<params?Number(paramstr[i]):NaN;
-			return !isNaN(x)?x:def;
+		let bpm=240,time=0,vol=1;
+		let sepdelta=0;
+		// ,:'"
+		let stoptoken={44:true,58:true,39:true,34:true};
+		// freq = 440*2^(-note/12+octave)
+		let notearr=[
+			["B" ,46],["b",47],
+			["A#",47],["A",48],["a",49],
+			["G#",49],["G",50],["g",51],
+			["F#",51],["F",52],
+			["E" ,53],["e",54],
+			["D#",54],["D",55],["d",56],
+			["C#",56],["C",57]
+		];
+		let sequences={
+			"BPM":1,"VOL":2,"CUT":3,
+			"AG":10,"XY":11,"MR":12,"GS":13,"KD":14,"SD":15,"HH":16
+		};
+		let subsnd=null,nextsnd=null;
+		function parsenum(str) {
+			// Parse numbers in format: [+-]\d*\.?\d*
+			let len=str.length,i=0;
+			let c=i<len?str.charCodeAt(i):0;
+			let neg=0;
+			if (c===45) {i++;neg=1;}
+			else if (c===43) {i++;}
+			else if ((c<48 || c>57) && c!==46) {return NaN;}
+			let num=0;
+			while (i<len && (c=str.charCodeAt(i))>=48 && c<=57) {
+				i++;
+				num=num*10+(c-48);
+			}
+			if (c===46) {
+				let den=1;
+				while (i<len && (c=str.charCodeAt(++i))>=48 && c<=57) {
+					den/=10;
+					num+=(c-48)*den;
+				}
+			}
+			return neg?-num:num;
+		}
+		function parsenote(str) {
+			// Convert a piano note to a frequency. Ex: A4 = 440hz
+			let slen=str.length;
+			let pick=null;
+			for (let note of notearr) {
+				let nstr=note[0],nlen=nstr.length,i=0;
+				while (i<nlen && i<slen && nstr[i]===str[i]) {i++;}
+				if (i===nlen) {pick=note;break;}
+			}
+			let freq=NaN;
+			if (pick) {
+				let oct=parsenum(str.substring(pick[0].length));
+				freq=440*Math.pow(2,-pick[1]/12+oct);
+			}
+			return freq;
 		}
 		while (true) {
-			// See if we're processing a comment or need to parse tokens.
-			while (seqpos<seqlen && (c=seq.charCodeAt(seqpos))<33 && c!==10) {seqpos++;}
-			if (seqpos>=seqlen && !params) {break;}
-			c=seqpos<seqlen?seq[seqpos]:"\n";
-			let parse=true;
-			if (c==="'") {
-				while (seqpos<seqlen && seq.charCodeAt(seqpos)!==10) {seqpos++;}
-				continue;
-			} else if (c==="," || c===";" || c==="\n") {
-				time+=delta*60/bpm;
-				delta=c===";"?1:0;
-				sep=true;
-				seqpos++;
-			} else if (c===":") {
+			// We've changed sequences.
+			if (!Object.is(subsnd,nextsnd)) {
+				subsnd=nextsnd;
 				time=0;
 				vol=1;
-				sep=true;
+				sepdelta=0;
+			}
+			// Read through whitespace and comments.
+			let c=0;
+			while (seqpos<seqlen && (c=seq.charCodeAt(seqpos))<33) {seqpos++;}
+			if (c===39 || c===34) {
+				// If " stop at ". If ' stop at \n.
+				let eoc=c===34?34:10;
+				while (seqpos<seqlen && seq.charCodeAt(++seqpos)!==eoc) {}
 				seqpos++;
-				if (params!==1) {throw "invalid label: '"+paramstr.slice(0,params).join(" ")+"'";}
-				let name=paramstr[0];
-				if (subseq[name]) {throw "'"+name+"' already defined";}
-				params=0;
-				subsnd=new Audio.Sound();
-				subseq[name]=subsnd;
 				continue;
-			} else {
-				parse=false;
 			}
-			if (parse) {
-				// Parse current tokens.
-				if (!(time>0)) {time=0;}
-				if (params===0) {continue;}
-				let name=paramstr[0];
-				let error=paramstr.slice(0,params).join(", ");
-				let snd=null;
-				if (name && name[0]!=="#") {
-					// Predefined labels.
-					if (name==="BPM") {
-						bpm=paramnum(1,120);
-						if (!(bpm>0.01)) {throw "invalid BPM: "+bpm;}
-					} else if (name==="VOL") {
-						vol=paramnum(1,1);
-					} else if (name==="CUT") {
-						time-=paramnum(1,0);
-						time=time>0?time:0;
-						subsnd.resizetime(time);
-					} else if (name==="AG") {
-						if (params<2) {throw "no string defined: "+error;}
-						let gstrings=[["e",329.63],["B",246.94],["G",196.00],["D",146.83],["A",110.00],["E",82.41]];
-						let str=null;
-						for (let s of gstrings) {if (s[0]===paramstr[1]) {str=s;break;}}
-						if (str===null) {throw "invalid string: "+error;}
-						let fret=paramnum(2,0),frets=22;
-						if (fret<0 || fret>frets) {throw "invalid fret: "+error;}
-						let fretpos=0;
-						for (let f=0;f<fret;f++) {fretpos=fretpos+(1-fretpos)/18;}
-						let freq=str[1]/(1-fretpos),pluckpos=51.53,stringlen=63.00;
-						pluckpos=1-(1-pluckpos/stringlen)/(1-fretpos);
-						snd=Audio.createguitar(1,freq,pluckpos);
-					} else if (name==="XY") {
-						//let bar=paramnum(1,0);
-						//if (bar<0 || bar>24) {throw "invalid bar: "+error;}
-						//let len=22.2-0.614285*bar;
-						//snd=Audio.createxylophone(1,98568/(len*len));
-						let freq=paramnum(1,250);
-						snd=Audio.createxylophone(1,freq);
-					} else if (name==="MR") {
-						let freq=paramnum(1,250);
-						snd=Audio.createmarimba(1,freq);
-					} else if (name==="GS") {
-						let freq=paramnum(1,1867);
-						snd=Audio.createglockenspiel(1,freq);
-					} else if (name==="KD") {
-						let freq=paramnum(1,120);
-						snd=Audio.createdrumkick(1,freq);
-					} else if (name==="SD") {
-						let freq=paramnum(1,100);
-						snd=Audio.createdrumsnare(1,freq);
-					} else if (name==="HH") {
-						let freq=paramnum(1,7000);
-						snd=Audio.createdrumhihat(1,freq);
-					} else {
-						throw "unrecognized instrument: "+error;
-					}
-				} else if (name) {
-					snd=subseq[name];
-					if (!snd) {throw "unrecognized sequence: "+error;}
-				}
-				if (snd) {subsnd.add(snd,time,vol);}
-				params=0;
-			} else {
-				// Read next token.
-				if (params>=parammax) {throw "too many parameters: "+paramstr.join(", ");}
-				let tok="";
-				while (seqpos<seqlen) {
-					c=seq[seqpos];
-					if (c.charCodeAt(0)<33 || c==="," || c===";" || c===":" || c==="'") {break;}
-					tok+=c;
-					seqpos++;
-				}
-				paramstr[params++]=tok;
-				if (sep && !isNaN(paramnum(0))) {
-					delta=paramnum(0);
-					params=0;
-				}
-				sep=false;
+			if (seqpos>=seqlen && !params) {break;}
+			c=seqpos<seqlen?seq[seqpos]:"\n";
+			if (c===",") {
+				seqpos++;
+			} else if (c===":") {
+				// Sequence definition.
+				seqpos++;
+				if (!params) {throw "Invalid label: '"+paramstr.slice(0,params).join(", ")+"'";}
+				let name=paramstr[--params];
+				paramstr[params]="";
+				if (!name || sequences[name]) {throw "'"+name+"' already defined";}
+				nextsnd=new Audio.Sound();
+				sequences[name]=nextsnd;
+			} else if (seqpos<seqlen) {
+				// Read the next token.
+				if (params>=parammax) {throw "too many parameters: "+paramstr.slice(0,params).join(", ");}
+				let start=seqpos;
+				while (seqpos<seqlen && (c=seq.charCodeAt(seqpos))>32 && !stoptoken[c]) {seqpos++;}
+				paramstr[params++]=seq.substring(start,seqpos);
+				continue;
 			}
+			// Parse current tokens.
+			if (!params) {continue;}
+			let p=0;
+			// Check for a time delta.
+			let delta=parsenum(paramstr[p]);
+			if (isNaN(delta)) {delta=sepdelta;} else {p++;}
+			sepdelta=1;
+			time+=delta*60/bpm;
+			if (!(time>0)) {time=0;}
+			// Find the instrument or sequence to play.
+			let error="";
+			let inst=sequences[paramstr[p++]];
+			let snd=null;
+			if (!inst) {
+				error="Unrecognized instrument";
+			} else if ((typeof inst)!=="number") {
+				// Load a sequence.
+				snd=inst;
+			} else if (inst===1) {
+				bpm=parsenum(paramstr[p]);
+				if (!(bpm>0.01)) {error="Invalid BPM";}
+			} else if (inst===2) {
+				vol=parsenum(paramstr[p]);
+			} else if (inst===3) {
+				time-=parsenum(paramstr[p]);
+				if (subsnd) {subsnd.resizetime(time);}
+			} else {
+				// Load a predefined instrument.
+				let freq=parsenote(paramstr[p]);
+				//let time=parsenum(p++,4);
+				//let nvol=parsenum(p++,vol);
+				if (isNaN(freq)) {error="Invalid note";}
+				else if (inst===10) {snd=Audio.createguitar(1,freq,0.2);}
+				else if (inst===11) {snd=Audio.createxylophone(1,freq);}
+				else if (inst===12) {snd=Audio.createmarimba(1,freq);}
+				else if (inst===13) {snd=Audio.createglockenspiel(1,freq);}
+				else if (inst===14) {snd=Audio.createdrumkick(1,freq);}
+				else if (inst===15) {snd=Audio.createdrumsnare(1,freq);}
+				else if (inst===16) {snd=Audio.createdrumhihat(1,freq);}
+			}
+			if (error) {throw error+": "+paramstr.slice(0,params).join(", ");}
+			if (snd && subsnd) {subsnd.add(snd,time,vol);}
+			while (params>0) {paramstr[--params]="";}
 		}
-		subsnd=subseq["#out"];
+		subsnd=sequences["#out"];
 		if (!subsnd) {throw "#out not defined";}
 		return subsnd;
 	}
@@ -1186,8 +1220,8 @@ class Audio {
 			let harmmul=Math.exp(harmdecay);
 			let harmlen=Math.ceil(Math.log(cutoff/Math.abs(harmvol))/harmdecay);
 			if (harmlen>sndlen) {harmlen=sndlen;}
-			let harmfreq=c2*ihscale;
 			// Randomize the phase to prevent aliasing.
+			let harmfreq=c2*ihscale;
 			let harmphase=Audio.noise()*3.141592654;
 			// Generate the waveform.
 			for (let i=0;i<harmlen;i++) {
