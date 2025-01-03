@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-audio.js - v2.01
+audio.js - v2.02
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -11,11 +11,9 @@ deegen1.github.io - akdee144@gmail.com
 Notes
 
 
-To transfer energy between two systems: energy0 * freq0 = energy1 * freq1
-References
-	NSynth (magenta) library
-	https://csounds.com/manual/html/MiscModalFreq.html
-	http://aspress.co.uk/sd/index.html
+NSynth (magenta) library
+https://csounds.com/manual/html/MiscModalFreq.html
+http://aspress.co.uk/sd/index.html
 
 
 --------------------------------------------------------------------------------
@@ -31,16 +29,15 @@ History
      Premade sounds use randomized phases to reduce aliasing.
 2.01
      Changed sequencer to use piano / scientific pitch notation.
+2.02
+     Cleaned up Biquad.calccoefs() and sequencer parser.
 
 
 --------------------------------------------------------------------------------
 TODO
 
 
-Add resonance factor to generatestring().
-Calculate Biquad.response for a given frequency.
 Remove scalevol() for sound effect normalization.
-Use biquad updatecoefs() for snare.
 Waveguides
 	https://www.osar.fr/notes/waveguides/
 	https://www.ee.columbia.edu/~ronw/dsp/
@@ -49,14 +46,8 @@ Waveguides
 	Or subtract from signal as different filters process the sample.
 Audio.update
 	If a song was played while silenced, skip to it's current time upon resume.
-noise at a frequency
-	dx=(cos((x+1)*freq)-cos(x*freq))*harmvol
-	data[i]+=dx*(Audio.noise1()*0.02+0.99);
-	...
-	for i...
-		data[i]=clamp(data[i]+data[i-1],-bnd,bnd)
-		bnd=e^decay*t
-	randomly increase the phase by +-20/44100
+Calculate Biquad.response for a given frequency.
+Use biquad updatecoefs() for snare.
 
 
 */
@@ -67,7 +58,7 @@ noise at a frequency
 
 
 //---------------------------------------------------------------------------------
-// Audio - v2.01
+// Audio - v2.02
 
 
 class _AudioSound {
@@ -743,12 +734,12 @@ class _AudioBiquad {
 			this.rate=rate;
 			this.peakgain=peakgain;
 			this.bandwidth=bandwidth;
-			this.calccoefs(false);
+			this.calccoefs();
 		}
 	}
 
 
-	calccoefs(reset=true) {
+	calccoefs() {
 		let b0=1,b1=0,b2=0;
 		let a0=1,a1=0,a2=0;
 		let v  =Math.exp(this.peakgain/(Math.log(10)*40));
@@ -819,16 +810,6 @@ class _AudioBiquad {
 		} else {
 			throw "Biquad type not recognized: "+type;
 		}
-		// Rescale running constants.
-		if (reset) {
-			this.a0=0;
-			this.x1=0;
-			this.x2=0;
-		}
-		let norm=this.a0/a0;
-		this.y1*=norm;
-		this.y2*=norm;
-		this.a0=a0;
 		this.a1=a1/a0;
 		this.a2=a2/a0;
 		this.b0=b0/a0;
@@ -1016,20 +997,19 @@ class Audio {
 		//
 		//   Symbol |             Description             |  Parameters
 		//  --------+-------------------------------------+-----------------
-		//   AG     | Acoustic Guitar                     | <note> [len]
-		//   XY     | Xylophone                           | <note> [len]
-		//   MR     | Marimba                             | <note> [len]
-		//   GS     | Glockenspiel                        | <note> [len]
-		//   KD     | Kick Drum                           | [note=B2] [len]
-		//   SD     | Snare Drum                          | [note=G2] [len]
-		//   HH     | Hihat                               | [note=A8] [len]
+		//   AG     | Acoustic Guitar                     | <note~A3> [len]
+		//   XY     | Xylophone                           | <note~C4> [len]
+		//   MR     | Marimba                             | <note~C4> [len]
+		//   GS     | Glockenspiel                        | <note~A6> [len]
+		//   KD     | Kick Drum                           | <note~B2> [len]
+		//   SD     | Snare Drum                          | <note~G2> [len]
+		//   HH     | Hihat                               | <note~A8> [len]
 		//   VOL    | Sets volume. Resets every sequence. | [1.0]
 		//   BPM    | Beats per minute.                   | [240]
 		//   CUT    | Cuts off sequence at time+delta.    | [delta=0]
-		//   ;      | Separator. Doesn't affect time.     |
-		//   ,      | Advance time by 1 BPM               |
-		//   , X    | Advance time by X BPMs.             |
-		//   '      | Line Comment                        |
+		//   ,      | Separate and advance time by 1 BPM. |
+		//   , X    | Separate and advance time by X BPM. |
+		//   '      | Line Comment.                       |
 		//   "      | Block comment. Terminate with "     |
 		//   #bass: | Define a sequence named #bass.      |
 		//   #bass  | Reference a sequence named #bass.   |
@@ -1097,7 +1077,7 @@ class Audio {
 			}
 			return freq;
 		}
-		while (true) {
+		while (seqpos<seqlen || params>0) {
 			// We've changed sequences.
 			if (!Object.is(subsnd,nextsnd)) {
 				subsnd=nextsnd;
@@ -1115,14 +1095,13 @@ class Audio {
 				seqpos++;
 				continue;
 			}
-			if (seqpos>=seqlen && !params) {break;}
 			c=seqpos<seqlen?seq[seqpos]:"\n";
 			if (c===",") {
 				seqpos++;
 			} else if (c===":") {
 				// Sequence definition.
 				seqpos++;
-				if (!params) {throw "Invalid label: '"+paramstr.slice(0,params).join(", ")+"'";}
+				if (!params) {throw "Invalid label: '"+paramstr.slice(0,params).join(" ")+"'";}
 				let name=paramstr[--params];
 				paramstr[params]="";
 				if (!name || sequences[name]) {throw "'"+name+"' already defined";}
@@ -1130,21 +1109,20 @@ class Audio {
 				sequences[name]=nextsnd;
 			} else if (seqpos<seqlen) {
 				// Read the next token.
-				if (params>=parammax) {throw "too many parameters: "+paramstr.slice(0,params).join(", ");}
+				if (params>=parammax) {throw "too many parameters: "+paramstr.slice(0,params).join(" ");}
 				let start=seqpos;
 				while (seqpos<seqlen && (c=seq.charCodeAt(seqpos))>32 && !stoptoken[c]) {seqpos++;}
 				paramstr[params++]=seq.substring(start,seqpos);
 				continue;
 			}
-			// Parse current tokens.
-			if (!params) {continue;}
+			// Parse current tokens. Check for a time delta.
 			let p=0;
-			// Check for a time delta.
-			let delta=parsenum(paramstr[p]);
-			if (isNaN(delta)) {delta=sepdelta;} else {p++;}
+			let delta=parsenum(paramstr[p++]);
+			if (isNaN(delta)) {delta=sepdelta;p--;}
 			sepdelta=1;
 			time+=delta*60/bpm;
 			if (!(time>0)) {time=0;}
+			if (!params) {continue;}
 			// Find the instrument or sequence to play.
 			let error="";
 			let inst=sequences[paramstr[p++]];
@@ -1176,7 +1154,7 @@ class Audio {
 				else if (inst===15) {snd=Audio.createdrumsnare(1,freq);}
 				else if (inst===16) {snd=Audio.createdrumhihat(1,freq);}
 			}
-			if (error) {throw error+": "+paramstr.slice(0,params).join(", ");}
+			if (error) {throw error+": "+paramstr.slice(0,params).join(" ");}
 			if (snd && subsnd) {subsnd.add(snd,time,vol);}
 			while (params>0) {paramstr[--params]="";}
 		}
