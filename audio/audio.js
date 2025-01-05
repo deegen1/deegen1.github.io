@@ -14,6 +14,8 @@ Notes
 NSynth (magenta) library
 https://csounds.com/manual/html/MiscModalFreq.html
 http://aspress.co.uk/sd/index.html
+https://petersalomonsen.com/articles/assemblyscriptphysicalmodelingsynthesis/
+assemblyscriptphysicalmodelingsynthesis.html
 
 
 --------------------------------------------------------------------------------
@@ -25,12 +27,17 @@ History
 1.08
      Added Audio.update() to resume after user interaction.
 2.00
-     Added Audio.sequencer() to make music editing easier.
-     Premade sounds use randomized phases to reduce aliasing.
+     Added Audio.sequencer() to make scripting music easier.
+     Premade sounds now use randomized phases to reduce aliasing.
 2.01
      Changed sequencer to use piano / scientific pitch notation.
 2.02
      Cleaned up Biquad.calccoefs() and sequencer parser.
+2.03
+     Improved the sequencer: added default notes to instruments to make it
+     easier to start scripting.
+     Changed flat note notation from abc to AbBbCb etc.
+     Added line numbers to errors.
 
 
 --------------------------------------------------------------------------------
@@ -44,10 +51,27 @@ Waveguides
 	Use excitation wave and comb filters. Don't add them together.
 	Splitting into N bands and adding them together increases the gain by N.
 	Or subtract from signal as different filters process the sample.
+	https://petersalomonsen.com/articles/assemblyscriptphysicalmodelingsynthesis/assemblyscriptphysicalmodelingsynthesis.html
 Audio.update
 	If a song was played while silenced, skip to it's current time upon resume.
-Calculate Biquad.response for a given frequency.
-Use biquad updatecoefs() for snare.
+Drums
+	Use biquad updatecoefs() for snare.
+	snare:
+		energy level, scale freq and noise off of it
+		noise: simulate frequency of wires hitting based on energy
+	kick:
+		random noise and down freq, like thud
+	hihat:
+		random noise and up freq
+Make a comparison between new and old versions.
+See if response() phase is correct. Compare against intermediate values in
+calccoefs()?
+editor
+	deegen.org/audio/beatrix.html
+	deegen.org/beatrix
+	Name for music maker: beatrix
+	anime music girl on drums
+https://www.youtube.com/watch?v=Nrs8fPdi82w
 
 
 */
@@ -222,8 +246,7 @@ class _AudioSound {
 			let blockid=read32(i);
 			let blocklen=read32(i+4)+8;
 			if (blocklen<=0) {
-				console.log("corrupt block");
-				return this;
+				throw "corrupt block";
 			} else if (blockid===0x20746d66) {
 				fmtidx=i;
 				fmtlen=blocklen;
@@ -234,8 +257,7 @@ class _AudioSound {
 			i+=blocklen;
 		}
 		if (fmtlen<24 || datlen<0) {
-			console.log("could not find format or data blocks");
-			return this;
+			throw "could not find format or data blocks";
 		}
 		// Read the format block.
 		let fmt =read16(fmtidx+ 8);
@@ -694,7 +716,7 @@ class _AudioBiquad {
 
 
 	constructor(type,rate,bandwidth=1,peakgain=0) {
-		// bandwidth in kHz
+		// Bandwidth in kHz.
 		// rate = freq / sample rate
 		this.type=type;
 		this.rate=rate;
@@ -726,6 +748,25 @@ class _AudioBiquad {
 
 
 	prev() {return this.y1;}
+
+
+	response(rate) {
+		// Return the magnitude,phase response to a given frequency.
+		// rate = freq / sample rate
+		let w=Math.PI*2*rate;
+		let cos1=Math.cos(-w),cos2=Math.cos(-2*w);
+		let sin1=Math.sin(-w),sin2=Math.sin(-2*w);
+		let realzero=this.b1*cos1+this.b2*cos2+this.b0;
+		let imagzero=this.b1*sin1+this.b2*sin2;
+		let realpole=this.a1*cos1+this.a2*cos2+1;
+		let imagpole=this.a1*sin1+this.a2*sin2;
+		let den=realpole*realpole+imagpole*imagpole;
+		let realw=(realzero*realpole+imagzero*imagpole)/den;
+		let imagw=(imagzero*realpole-realzero*imagpole)/den;
+		let mag=Math.sqrt(realw*realw+imagw*imagw);
+		let phase=-Math.atan2(imagw,realw)/rate;
+		return [mag,phase];
+	}
 
 
 	updatecoefs(type,rate,bandwidth=1,peakgain=0) {
@@ -997,13 +1038,13 @@ class Audio {
 		//
 		//   Symbol |             Description             |  Parameters
 		//  --------+-------------------------------------+-----------------
-		//   AG     | Acoustic Guitar                     | <note~A3> [len]
-		//   XY     | Xylophone                           | <note~C4> [len]
-		//   MR     | Marimba                             | <note~C4> [len]
-		//   GS     | Glockenspiel                        | <note~A6> [len]
-		//   KD     | Kick Drum                           | <note~B2> [len]
-		//   SD     | Snare Drum                          | <note~G2> [len]
-		//   HH     | Hihat                               | <note~A8> [len]
+		//   AG     | Acoustic Guitar                     | [note=A3] [len]
+		//   XY     | Xylophone                           | [note=C4] [len]
+		//   MR     | Marimba                             | [note=C4] [len]
+		//   GS     | Glockenspiel                        | [note=A6] [len]
+		//   KD     | Kick Drum                           | [note=B2] [len]
+		//   SD     | Snare Drum                          | [note=G2] [len]
+		//   HH     | Hihat                               | [note=A8] [len]
 		//   VOL    | Sets volume. Resets every sequence. | [1.0]
 		//   BPM    | Beats per minute.                   | [240]
 		//   CUT    | Cuts off sequence at time+delta.    | [delta=0]
@@ -1015,7 +1056,8 @@ class Audio {
 		//   #bass  | Reference a sequence named #bass.   |
 		//   #out:  | Final output sequence.              |
 		//
-		// notes = B, b, A#, A, a, G#, G, g, F#, F, f, E, e, D#, D, d, C#, C
+		// notes = B, Bb, A#, A, Ab, G#, G, Gb, F#, F, Fb, E, Eb, D#, D, Db, C#, C
+		// Ex: A4, B#12.5, C-1
 		let seqpos=0,seqlen=seq.length;
 		let parammax=5;
 		let paramstr=new Array(parammax);
@@ -1026,21 +1068,30 @@ class Audio {
 		let stoptoken={44:true,58:true,39:true,34:true};
 		// freq = 440*2^(-note/12+octave)
 		let notearr=[
-			["B" ,46],["b",47],
-			["A#",47],["A",48],["a",49],
-			["G#",49],["G",50],["g",51],
+			["Bb",47],["B",46],
+			["A#",47],["Ab",49],["A",48],
+			["G#",49],["Gb",51],["G",50],
 			["F#",51],["F",52],
-			["E" ,53],["e",54],
-			["D#",54],["D",55],["d",56],
+			["Eb",54],["E",53],
+			["D#",54],["Db",56],["D",55],
 			["C#",56],["C",57]
 		];
 		let sequences={
-			"BPM":1,"VOL":2,"CUT":3,
-			"AG":10,"XY":11,"MR":12,"GS":13,"KD":14,"SD":15,"HH":16
+			"BPM": {id: 1, max:2, def:240},
+			"VOL": {id: 2, max:2, def:1},
+			"CUT": {id: 3, max:2, def:0},
+			"AG" : {id:10, max:2, freq:"A3"},
+			"XY" : {id:11, max:2, freq:"C4"},
+			"MR" : {id:12, max:2, freq:"C4"},
+			"GS" : {id:13, max:2, freq:"A6"},
+			"KD" : {id:14, max:2, freq:"B2"},
+			"SD" : {id:15, max:2, freq:"G2"},
+			"HH" : {id:16, max:2, freq:"A8"}
 		};
 		let subsnd=null,nextsnd=null;
-		function parsenum(str) {
+		function parsenum(str,def) {
 			// Parse numbers in format: [+-]\d*\.?\d*
+			if (!str) {str=def;}
 			let len=str.length,i=0;
 			let c=i<len?str.charCodeAt(i):0;
 			let neg=0;
@@ -1059,10 +1110,12 @@ class Audio {
 					num+=(c-48)*den;
 				}
 			}
+			if (i<len) {return NaN;}
 			return neg?-num:num;
 		}
-		function parsenote(str) {
+		function parsenote(str,def) {
 			// Convert a piano note to a frequency. Ex: A4 = 440hz
+			if (!str) {str=def;}
 			let slen=str.length;
 			let pick=null;
 			for (let note of notearr) {
@@ -1076,6 +1129,11 @@ class Audio {
 				freq=440*Math.pow(2,-pick[1]/12+oct);
 			}
 			return freq;
+		}
+		function error(msg) {
+			let line=1;
+			for (let i=0;i<seqpos;i++) {line+=seq.charCodeAt(i)===10;}
+			throw msg+":\nLine  : "+line+"\nParams: "+paramstr.slice(0,params).join(" ");
 		}
 		while (seqpos<seqlen || params>0) {
 			// We've changed sequences.
@@ -1095,21 +1153,21 @@ class Audio {
 				seqpos++;
 				continue;
 			}
-			c=seqpos<seqlen?seq[seqpos]:"\n";
+			c=seqpos<seqlen?seq[seqpos]:"";
 			if (c===",") {
 				seqpos++;
 			} else if (c===":") {
 				// Sequence definition.
 				seqpos++;
-				if (!params) {throw "Invalid label: '"+paramstr.slice(0,params).join(" ")+"'";}
+				if (!params) {error("Invalid label");}
 				let name=paramstr[--params];
 				paramstr[params]="";
-				if (!name || sequences[name]) {throw "'"+name+"' already defined";}
+				if (!name || sequences[name]) {error("'"+name+"' already defined");}
 				nextsnd=new Audio.Sound();
 				sequences[name]=nextsnd;
 			} else if (seqpos<seqlen) {
 				// Read the next token.
-				if (params>=parammax) {throw "too many parameters: "+paramstr.slice(0,params).join(" ");}
+				if (params>=parammax) {error("Too many parameters");}
 				let start=seqpos;
 				while (seqpos<seqlen && (c=seq.charCodeAt(seqpos))>32 && !stoptoken[c]) {seqpos++;}
 				paramstr[params++]=seq.substring(start,seqpos);
@@ -1124,37 +1182,39 @@ class Audio {
 			if (!(time>0)) {time=0;}
 			if (!params) {continue;}
 			// Find the instrument or sequence to play.
-			let error="";
 			let inst=sequences[paramstr[p++]];
+			let type=inst?inst.id:undefined;
+			let pmax=p-1+(inst.max?inst.max:1);
+			if (params>pmax) {error("Too many parameters");}
 			let snd=null;
-			if (!inst) {
-				error="Unrecognized instrument";
-			} else if ((typeof inst)!=="number") {
-				// Load a sequence.
+			if (inst===undefined) {
+				error("Unrecognized instrument");
+			} else if (type===undefined) {
+				// Load a sound.
 				snd=inst;
-			} else if (inst===1) {
-				bpm=parsenum(paramstr[p]);
-				if (!(bpm>0.01)) {error="Invalid BPM";}
-			} else if (inst===2) {
-				vol=parsenum(paramstr[p]);
-			} else if (inst===3) {
-				time-=parsenum(paramstr[p]);
+			} else if (type===1) {
+				bpm=parsenum(paramstr[p],inst.def);
+				if (!(bpm>0.01)) {error("Invalid BPM");}
+			} else if (type===2) {
+				vol=parsenum(paramstr[p],inst.def);
+				if (isNaN(vol)) {error("Invalid volume");}
+			} else if (type===3) {
+				time-=parsenum(paramstr[p],inst.def);
 				if (subsnd) {subsnd.resizetime(time);}
 			} else {
 				// Load a predefined instrument.
-				let freq=parsenote(paramstr[p]);
-				//let time=parsenum(p++,4);
-				//let nvol=parsenum(p++,vol);
-				if (isNaN(freq)) {error="Invalid note";}
-				else if (inst===10) {snd=Audio.createguitar(1,freq,0.2);}
-				else if (inst===11) {snd=Audio.createxylophone(1,freq);}
-				else if (inst===12) {snd=Audio.createmarimba(1,freq);}
-				else if (inst===13) {snd=Audio.createglockenspiel(1,freq);}
-				else if (inst===14) {snd=Audio.createdrumkick(1,freq);}
-				else if (inst===15) {snd=Audio.createdrumsnare(1,freq);}
-				else if (inst===16) {snd=Audio.createdrumhihat(1,freq);}
+				let freq=parsenote(paramstr[p],inst.freq);
+				// let time=parsenum(p++,4);
+				// let nvol=parsenum(p++,vol);
+				if (isNaN(freq)) {error("Invalid note");}
+				else if (type===10) {snd=Audio.createguitar(1,freq,0.2);}
+				else if (type===11) {snd=Audio.createxylophone(1,freq);}
+				else if (type===12) {snd=Audio.createmarimba(1,freq);}
+				else if (type===13) {snd=Audio.createglockenspiel(1,freq);}
+				else if (type===14) {snd=Audio.createdrumkick(1,freq);}
+				else if (type===15) {snd=Audio.createdrumsnare(1,freq);}
+				else if (type===16) {snd=Audio.createdrumhihat(1,freq);}
 			}
-			if (error) {throw error+": "+paramstr.slice(0,params).join(" ");}
 			if (snd && subsnd) {subsnd.add(snd,time,vol);}
 			while (params>0) {paramstr[--params]="";}
 		}

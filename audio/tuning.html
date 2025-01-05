@@ -1,0 +1,80 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Instrument Tuning</title>
+	<link rel="stylesheet" href="../style/style.css" type="text/css">
+	<script src="../style/style.js"></script>
+	<script src="./audio.js"></script>
+	<script>
+	/* jshint esversion: 11  */
+	/* jshint bitwise: false */
+	/* jshint eqeqeq: true   */
+	/* jshint curly: true    */
+
+
+	function createdrumhihat_old(volume=1.0,freq=7000,time=0.1,sndfreq=44100) {
+		let len=Math.ceil(time*sndfreq);
+		let snd=new Audio.Sound(sndfreq,len);
+		let gain=new Audio.Envelope([Audio.Envelope.LIN,0.01,volume,Audio.Envelope.EXP,time-0.01,0]);
+		let hp=new Audio.Biquad(Audio.Biquad.HIGHPASS,freq/sndfreq);
+		let bp=new Audio.Biquad(Audio.Biquad.BANDPASS,freq*1.4/sndfreq);
+		let seed=Math.floor(Audio.noise1()*0xffffff);
+		let data=snd.data;
+		for (let i=0;i<len;i++) {
+			let t=i/sndfreq;
+			let x=Audio.noise(seed+i);
+			x=bp.process(x);
+			x=hp.process(x);
+			x=Audio.clip(x,-1,1);
+			data[i]=x*gain.get(t);
+		}
+		snd.play();
+		return false;
+	}
+
+
+	function createdrumhihat_new(volume=1.0,freq=10000,time=0.5,sndfreq=44100) {
+		let len=Math.ceil(time*sndfreq);
+		let snd=new Audio.Sound(sndfreq,len);
+		let gain=new Audio.Envelope([Audio.Envelope.LIN,0.01,volume,Audio.Envelope.EXP,time-0.01,0]);
+		let fenv=new Audio.Envelope([Audio.Envelope.CON,0.00,freq/sndfreq,Audio.Envelope.LIN,time*0.5,freq*2.5/sndfreq]);
+		let hp=new Audio.Biquad(Audio.Biquad.HIGHPASS,freq/sndfreq);
+		let bp=new Audio.Biquad(Audio.Biquad.BANDPASS,freq*1.4/sndfreq);
+		let data=snd.data;
+		for (let i=0;i<len;i++) {
+			let t=i/sndfreq;
+			let f=fenv.get(t);
+			hp.updatecoefs(Audio.Biquad.HIGHPASS,f);
+			bp.updatecoefs(Audio.Biquad.BANDPASS,f*1.4);
+			let x=Audio.noise();
+			x=bp.process(x);
+			x=hp.process(x);
+			x=Audio.clip(x,-1,1);
+			data[i]=x*gain.get(t);
+		}
+		snd.play();
+		return false;
+	}
+
+	</script>
+</head>
+<body>
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<div id="header"><a href="../index.html">Alec Dee's General Site</a></div>
+<div id="content">
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Music Maker ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Instrument Tuning</h1>
+<h2>Hi Hat</h2>
+<a href="#" onclick="return createdrumhihat_old()">hihat old</a>
+<a href="#" onclick="return createdrumhihat_new()">hihat new</a>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+</div><div id="footer">Created on 4 Jan 2025 - Modified on 4 Jan 2025<br>
+Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
+<a href="../index.html">Alec Dee's General Site</a></div>
+</body>
+</html>

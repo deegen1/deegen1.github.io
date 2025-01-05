@@ -1242,12 +1242,139 @@ function PlayWaveguide() {
 
 
 //---------------------------------------------------------------------------------
-// Main
+// Music Maker
 
 
-function LoadJS() {
-	new XylophoneSim("xylosim");
-	new StringSim("guitarsim","gttext","gtplay");
-	FilterDiagrams();
+class MusicMaker {
+
+	constructor(inputid,playid,outputid,downid,urlid) {
+		function getid(id) {
+			let elem=id?document.getElementById(id):null;
+			return (elem?elem:null);
+		}
+		let st=this;
+		this.uiinput=getid(inputid);
+		this.uioutput=getid(outputid);
+		this.uiplay=getid(playid);
+		if (!this.uiinput) {throw "could not find "+inputid;}
+		if (!this.uiplay ) {throw "could not find "+playid;}
+		let input=this.uiinput;
+		if (input.clientHeight<input.scrollHeight+2) {
+			input.style.height=input.scrollHeight+2+"px";
+		}
+		this.uiplay.onclick=function() {st.play();return false;};
+		let down=getid(downid);
+		if (down) {down.onclick=function(){st.download();};}
+		let url=getid(urlid);
+		if (url) {url.onclick=function(){st.tourl();};}
+		this.audio=Audio.initdef();
+		this.snd=null;
+		this.inst=null;
+	}
+
+
+	clear() {if (this.uioutput) {this.uioutput.value="";}}
+
+
+	log(str) {
+		let out=this.uioutput;
+		if (out) {
+			out.value+=str+"\n";
+			out.scrollTop=out.scrollHeight;
+		}
+	}
+
+
+	download() {
+		this.clear();
+		this.log("processing sequence");
+		let snd=Audio.sequencer(this.uiinput.value);
+		this.log("saving to musicmaker.wav");
+		snd.savefile("musicmaker.wav");
+	}
+
+
+	async tourl() {
+		this.clear();
+		let str   =this.uiinput.value;
+		let stream=new Blob([str]).stream();
+		let comp  =stream.pipeThrough(new CompressionStream("gzip"));
+		let chunks=[];for await (let c of comp) {chunks.push(c);}
+		let bytes =new Uint8Array(await new Blob(chunks).arrayBuffer());
+		let str64 =btoa(String.fromCharCode.apply(null,bytes));
+		let loc   =window.location;
+		let url   =loc.origin+loc.pathname.split("?")[0]+"?beat="+str64;
+		this.log(url+"\n");
+		navigator.clipboard.writeText(url);
+		this.log("copied to clipboard");
+	}
+
+
+	async fromurl() {
+		let split=decodeURI(window.location.href).split("?beat=");
+		if (split.length!==2) {return;}
+		this.clear();
+		this.log("found beat in URL");
+		try {
+			let bytes=Uint8Array.from(atob(split[1]),(c)=>c.charCodeAt(0));
+			let stream=new Blob([bytes]).stream();
+			let decomp=stream.pipeThrough(new DecompressionStream("gzip"));
+			let deblob=await new Response(decomp).blob();
+			let destr =await deblob.text();
+			this.uiinput.value=destr;
+			this.log("parsed");
+		} catch(error) {
+			this.log("failed to parse: "+error);
+		}
+	}
+
+
+	play() {
+		if (this.inst && this.inst.playing) {
+			this.log("stopping");
+			this.inst.remove();
+			this.inst=null;
+			this.uiplay.innerHTML="&#9658; play";
+			return;
+		}
+		this.clear();
+		try {
+			this.snd=Audio.sequencer(this.uiinput.value);
+		} catch(error) {
+			this.snd=null;
+			this.log(error);
+		}
+		if (!this.snd) {
+			this.log("unable to create song");
+			return;
+		}
+		this.log("created song "+this.snd.time.toFixed(2)+" seconds long");
+		this.inst=this.snd.play();
+		if (this.inst) {
+			this.uiplay.innerHTML="&#9632; stop";
+			this.log("playing");
+			let st=this;
+			function update() {
+				if (st.update()) {requestAnimationFrame(update);}
+			}
+			update();
+		} else {
+			this.inst=null;
+			this.log("unable to play song");
+		}
+	}
+
+
+	update() {
+		if (!this.inst) {return false;}
+		if (!this.inst.playing) {
+			this.log("finished");
+			this.inst=null;
+			this.uiplay.innerHTML="&#9658; play";
+			return false;
+		}
+		this.audio.update();
+		return true;
+	}
+
 }
-window.addEventListener("load",LoadJS,true);

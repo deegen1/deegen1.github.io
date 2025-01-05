@@ -6,6 +6,7 @@
 	<link rel="stylesheet" href="../style/style.css" type="text/css">
 	<script src="../style/style.js"></script>
 	<script src="./audio.js"></script>
+	<script src="./demo.js"></script>
 	<style>
 	.musiceditor {
 		max-width:100%;
@@ -17,146 +18,6 @@
 		background-color:transparent;
 	}
 	</style>
-	<script>
-	/* jshint esversion: 11  */
-	/* jshint bitwise: false */
-	/* jshint eqeqeq: true   */
-	/* jshint curly: true    */
-
-	class MusicMaker {
-
-		constructor(inputid,playid,outputid,downid,urlid) {
-			function getid(id) {
-				let elem=id?document.getElementById(id):null;
-				return (elem?elem:null);
-			}
-			let st=this;
-			this.uiinput=getid(inputid);
-			this.uioutput=getid(outputid);
-			this.uiplay=getid(playid);
-			if (!this.uiinput) {throw "could not find "+inputid;}
-			if (!this.uiplay ) {throw "could not find "+playid;}
-			let input=this.uiinput;
-			if (input.clientHeight<input.scrollHeight+2) {
-				input.style.height=input.scrollHeight+2+"px";
-			}
-			this.uiplay.onclick=function() {st.play();return false;};
-			let down=getid(downid);
-			if (down) {down.onclick=function(){st.download();};}
-			let url=getid(urlid);
-			if (url) {url.onclick=function(){st.tourl();};}
-			this.audio=Audio.initdef();
-			this.snd=null;
-			this.inst=null;
-		}
-
-
-		clear() {if (this.uioutput) {this.uioutput.value="";}}
-
-
-		log(str) {
-			let out=this.uioutput;
-			if (out) {
-				out.value+=str+"\n";
-				out.scrollTop=out.scrollHeight;
-			}
-		}
-
-
-		download() {
-			this.clear();
-			this.log("processing sequence");
-			let snd=Audio.sequencer(this.uiinput.value);
-			this.log("saving to musicmaker.wav");
-			snd.savefile("musicmaker.wav");
-		}
-
-
-		async tourl() {
-			this.clear();
-			let str   =this.uiinput.value;
-			let stream=new Blob([str]).stream();
-			let comp  =stream.pipeThrough(new CompressionStream("gzip"));
-			let chunks=[];for await (let c of comp) {chunks.push(c);}
-			let bytes =new Uint8Array(await new Blob(chunks).arrayBuffer());
-			let str64 =btoa(String.fromCharCode.apply(null,bytes));
-			let loc   =window.location;
-			let url   =loc.origin+loc.pathname.split("?")[0]+"?beat="+str64;
-			this.log(url+"\n");
-			navigator.clipboard.writeText(url);
-			this.log("copied to clipboard");
-		}
-
-
-		async fromurl() {
-			let split=decodeURI(window.location.href).split("?beat=");
-			if (split.length!==2) {return;}
-			this.clear();
-			this.log("found beat in URL");
-			try {
-				let bytes=Uint8Array.from(atob(split[1]),(c)=>c.charCodeAt(0));
-				let stream=new Blob([bytes]).stream();
-				let decomp=stream.pipeThrough(new DecompressionStream("gzip"));
-				let deblob=await new Response(decomp).blob();
-				let destr =await deblob.text();
-				this.uiinput.value=destr;
-				this.log("parsed");
-			} catch(error) {
-				this.log("failed to parse: "+error);
-			}
-		}
-
-
-		play() {
-			if (this.inst && this.inst.playing) {
-				this.log("stopping");
-				this.inst.remove();
-				this.inst=null;
-				this.uiplay.innerHTML="&#9658; play";
-				return;
-			}
-			this.clear();
-			try {
-				this.snd=Audio.sequencer(this.uiinput.value);
-			} catch(error) {
-				this.snd=null;
-				this.log(error);
-			}
-			if (!this.snd) {
-				this.log("unable to create song");
-				return;
-			}
-			this.log("created song "+this.snd.time.toFixed(2)+" seconds long");
-			this.inst=this.snd.play();
-			if (this.inst) {
-				this.uiplay.innerHTML="&#9632; stop";
-				this.log("playing");
-				let st=this;
-				function update() {
-					if (st.update()) {requestAnimationFrame(update);}
-				}
-				update();
-			} else {
-				this.inst=null;
-				this.log("unable to play song");
-			}
-		}
-
-
-		update() {
-			if (!this.inst) {return false;}
-			if (!this.inst.playing) {
-				this.log("finished");
-				this.inst=null;
-				this.uiplay.innerHTML="&#9658; play";
-				return false;
-			}
-			this.audio.update();
-			return true;
-		}
-
-	}
-	</script>
 </head>
 <body>
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
@@ -174,7 +35,7 @@
 BPM 180
 #strumlo: AG G#2, AG G#3, AG G#2, AG G#3, AG G#2, AG G#3, AG G#2, AG G#3
 #strumhi: AG C#3, AG C#4, AG C#3, AG C#4, AG C#3, AG C#4, AG C#3, AG C#4
-#hihat  : VOL 0.5, 0 HH A8, HH A8, 0.5 HH A8, 0.5 HH A8, HH A8, HH A8, 0.5 HH A8, 0.5 HH A8, HH A8, HH A8
+#hihat  : VOL 0.5, 0 HH, HH, 0.5 HH, 0.5 HH, HH, HH, 0.5 HH, 0.5 HH, HH, HH
 #out    : VOL 0.5, 0 #strumlo, 8 #strumhi, 8 #strumlo, 0 #hihat, 8 #strumhi, 0 #hihat, 8 CUT -5
 </textarea>
 <script>
@@ -182,23 +43,23 @@ let main=new MusicMaker("editor_editor","editor_play","editor_out","editor_downl
 main.fromurl();
 </script>
 <p>See my <a href="./index.html">Sound Effects</a> page for how the sounds are
-generated.</p>
+generated and the <a href="./tuning.html">Tuning</a> page instrument tuning.</p>
 <p>Scripts are processed top to bottom, left to right. Notation:</p>
 <table class="datatable headerrow">
 <tr><td>Symbol</td><td>Description</td><td>Parameters</td></tr>
 <tr><td><i>AG</i></td><td>Acoustic Guitar</td>
-<td><i>&lt;note ~ A3&gt;</i></td></tr>
-<tr><td><i>XY</i></td><td>Xylophone</td><td><i>&lt;note ~ C4&gt;</i></td></tr>
-<tr><td><i>MR</i></td><td>Marimba</td><td><i>&lt;note ~ C4&gt;</i></td></tr>
-<tr><td><i>GS</i></td><td>Glockenspiel</td><td><i>&lt;note ~ A6&gt;</i></td></tr>
-<tr><td><i>KD</i></td><td>Kick Drum</td><td><i>&lt;note ~ B2&gt;</i></td></tr>
-<tr><td><i>SD</i></td><td>Snare Drum</td><td><i>&lt;note ~ G2&gt;</i></td></tr>
-<tr><td><i>HH</i></td><td>Hihat</td><td><i>&lt;note ~ A8&gt;</i></td></tr>
+<td><i>[note = A3]</i></td></tr>
+<tr><td><i>XY</i></td><td>Xylophone</td><td><i>[note = C4]</i></td></tr>
+<tr><td><i>MR</i></td><td>Marimba</td><td><i>[note = C4]</i></td></tr>
+<tr><td><i>GS</i></td><td>Glockenspiel</td><td><i>[note = A6]</i></td></tr>
+<tr><td><i>KD</i></td><td>Kick Drum</td><td><i>[note = B2]</i></td></tr>
+<tr><td><i>SD</i></td><td>Snare Drum</td><td><i>[note = G2]</i></td></tr>
+<tr><td><i>HH</i></td><td>Hihat</td><td><i>[note = A8]</i></td></tr>
 <tr><td><i>VOL</i></td><td>Sets volume. Resets every sequence.</td>
 <td><i>[1.0]</i></td></tr>
 <tr><td><i>BPM</i></td><td>Beats per minute.</td><td><i>[240]</i></td></tr>
 <tr><td><i>CUT</i></td><td>Cuts off sequence at time+delta.</td>
-<td><i>[delta=0]</i></td></tr>
+<td><i>[delta = 0]</i></td></tr>
 <tr><td><i>,</i></td><td>Separate and advance time by 1 BPM.</td><td></td></tr>
 <tr><td><i>, X</i></td><td>Separate and advance time by X BPM.</td>
 <td></td></tr>
@@ -210,9 +71,11 @@ generated.</p>
 <td></td></tr>
 <tr><td><i>#out:</i></td><td>Final output sequence.</td><td></td></tr>
 </table>
-<p>Allowed notes are: B, b, A#, A, a, G#, G, g, F#, F, f, E, e, D#, D, d, C#, C,
-and any octave. Ex: A4, B#12.5, C-1. To map a note to a specific frequency, see
-<a href="https://en.wikipedia.org/wiki/Scientific_pitch_notation">this</a>
+<p>Allowed notes are: <i>B</i>, <i>Bb</i>, <i>A#</i>, <i>A</i>, <i>Ab</i>,
+<i>G#</i>, <i>G</i>, <i>Gb</i>, <i>F#</i>, <i>F</i>, <i>Fb</i>, <i>E</i>,
+<i>Eb</i>, <i>D#</i>, <i>D</i>, <i>Db</i>, <i>C#</i>, <i>C</i>, and any octave.
+Ex: <i>A4</i>, <i>B#12.5</i>, <i>C-1</i>. To map a note to a specific frequency,
+see <a href="https://en.wikipedia.org/wiki/Scientific_pitch_notation">this</a>
 page.</p>
 <p>To map guitar frets to piano notes (source
 <a href="https://reddit.com/r/guitarlessons/comments/cp7dg5">patmusic77</a>):</p>
@@ -267,7 +130,7 @@ BPM 240
 <button id="sample3_play">&#9658; play</button>
 <textarea id="sample3_editor" class="codeblock musiceditor" spellcheck="false">' Drum loop
 BPM 240
-#out: KD B2, 2 KD B2, 2 KD B2, 2 KD B2, KD B2, KD B2, 2 KD B2, 2 KD B2</textarea>
+#out: KD, 2 KD, 2 KD, 2 KD, KD A2, KD A2, 2 KD, 2 KD</textarea>
 <script>new MusicMaker("sample3_editor","sample3_play","editor_out");</script>
 
 <button id="sample4_play">&#9658; play</button>
@@ -280,7 +143,7 @@ BPM 100
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-</div><div id="footer">Created on 26 Dec 2024 - Modified on 2 Jan 2025<br>
+</div><div id="footer">Created on 26 Dec 2024 - Modified on 5 Jan 2025<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>

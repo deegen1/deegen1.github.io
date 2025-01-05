@@ -68,6 +68,8 @@ style="display:inline;margin:0;width:100%" value="E0----A7--D5--E6--E5----A7--E0
 <td style="width:20%;"><a href="#" onclick="PlayUI();return false;"><img src="game_menu.png"></a></td>
 </tr>
 </table>
+<script>new XylophoneSim("xylosim");</script>
+<script>new StringSim("guitarsim","gttext","gtplay");</script>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Sound Examples ~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
@@ -283,7 +285,14 @@ affect some white noise:</p>
 <tr id="bq_lowshelf" ><td><a href="#">low-shelf</a>  </td><td></td></tr>
 <tr id="bq_highshelf"><td><a href="#">high-shelf</a>  </td><td></td></tr>
 -->
+<!--
+If you've studied biquads and you're concerned about the signal going out of
+sync while updating coefficients, it turns out that can be safely ignored. Just
+update the coefficients with the new frequency, leave the IO variables alone,
+and continue processing.
+-->
 </table>
+<script>FilterDiagrams();</script>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Delay Filters ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
