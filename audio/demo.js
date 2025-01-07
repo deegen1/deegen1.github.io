@@ -1279,7 +1279,7 @@ class MusicMaker {
 	log(str) {
 		let out=this.uioutput;
 		if (out) {
-			out.value+=str+"\n";
+			out.value+=(out.value?"\n":"")+str;
 			out.scrollTop=out.scrollHeight;
 		}
 	}

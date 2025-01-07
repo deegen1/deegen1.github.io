@@ -13,32 +13,32 @@
 	/* jshint curly: true    */
 
 
-	function createdrumhihat_old(volume=1.0,freq=7000,time=0.1,sndfreq=44100) {
+	function createdrumhihat1(time=0.1,freq=7000,volume=1.0,sndfreq=44100) {
 		let len=Math.ceil(time*sndfreq);
 		let snd=new Audio.Sound(sndfreq,len);
 		let gain=new Audio.Envelope([Audio.Envelope.LIN,0.01,volume,Audio.Envelope.EXP,time-0.01,0]);
 		let hp=new Audio.Biquad(Audio.Biquad.HIGHPASS,freq/sndfreq);
 		let bp=new Audio.Biquad(Audio.Biquad.BANDPASS,freq*1.4/sndfreq);
-		let seed=Math.floor(Audio.noise1()*0xffffff);
 		let data=snd.data;
 		for (let i=0;i<len;i++) {
 			let t=i/sndfreq;
-			let x=Audio.noise(seed+i);
+			let x=Audio.noise();
 			x=bp.process(x);
 			x=hp.process(x);
 			x=Audio.clip(x,-1,1);
 			data[i]=x*gain.get(t);
 		}
+		//snd.savefile("snd.wav");
 		snd.play();
 		return false;
 	}
 
 
-	function createdrumhihat_new(volume=1.0,freq=10000,time=0.5,sndfreq=44100) {
+	function createdrumhihat2(time=0.5,freq=7000,volume=1.0,sndfreq=44100) {
 		let len=Math.ceil(time*sndfreq);
 		let snd=new Audio.Sound(sndfreq,len);
 		let gain=new Audio.Envelope([Audio.Envelope.LIN,0.01,volume,Audio.Envelope.EXP,time-0.01,0]);
-		let fenv=new Audio.Envelope([Audio.Envelope.CON,0.00,freq/sndfreq,Audio.Envelope.LIN,time*0.5,freq*2.5/sndfreq]);
+		let fenv=new Audio.Envelope([Audio.Envelope.CON,0.00,freq/sndfreq,Audio.Envelope.LIN,time*0.5,freq*1.5/sndfreq]);
 		let hp=new Audio.Biquad(Audio.Biquad.HIGHPASS,freq/sndfreq);
 		let bp=new Audio.Biquad(Audio.Biquad.BANDPASS,freq*1.4/sndfreq);
 		let data=snd.data;
@@ -57,6 +57,57 @@
 		return false;
 	}
 
+
+	function createdrumhihat3(time=0.1,freq=7000,volume=1.0,sndfreq=44100) {
+		let len=Math.ceil(time*sndfreq);
+		let snd=new Audio.Sound(sndfreq,len);
+		let gain=new Audio.Envelope([Audio.Envelope.LIN,0.02,volume,Audio.Envelope.EXP,time-0.01,0]);
+		let hp=new Audio.Biquad(Audio.Biquad.HIGHPASS,freq/sndfreq);
+		let bp=new Audio.Biquad(Audio.Biquad.BANDPASS,freq*1.4/sndfreq);
+		let freqs=[2,3,4.16,5.43,6.79,8.21];
+		let data=snd.data;
+		for (let i=0;i<len;i++) {
+			let t=i/sndfreq;
+			//let f=fenv.get(t);
+			//hp.updatecoefs(Audio.Biquad.HIGHPASS,f);
+			//bp.updatecoefs(Audio.Biquad.BANDPASS,f*1.4);
+			//let x=Audio.noise();
+			let x=0;
+			for (let f of freqs) {
+				x+=Audio.sqr(t*f*100);
+			}
+			x=Audio.clip(x,-1,1);
+			x=bp.process(x);
+			x=hp.process(x);
+			//x=Audio.clip(x,-1,1);
+			data[i]=x*gain.get(t);
+		}
+		snd.play();
+		return false;
+	}
+
+
+	function createdrumhihat4(time=0.1,freq=7000,volume=1.0,sndfreq=44100) {
+		let len=Math.ceil(time*sndfreq);
+		let snd=new Audio.Sound(sndfreq,len);
+		let gain=new Audio.Envelope([Audio.Envelope.LIN,0.001,volume,Audio.Envelope.LIN,0.011,volume,Audio.Envelope.EXP,time-0.01,0]);
+		let hp=new Audio.Biquad(Audio.Biquad.HIGHPASS,freq/sndfreq);
+		let bp=new Audio.Biquad(Audio.Biquad.BANDPASS,freq*1.4/sndfreq);
+		let data=snd.data;
+		for (let i=0;i<len;i++) {
+			let t=i/sndfreq;
+			let x=Audio.noise()<0?-0.586:0.586;
+			x=bp.process(x);
+			x=hp.process(x);
+			//x=Audio.clip(x,-1,1);
+			data[i]=x*gain.get(t);
+		}
+		console.log(snd.getvol());
+		snd.play();
+		//snd.savefile("snd.wav");
+		return false;
+	}
+
 	</script>
 </head>
 <body>
@@ -68,8 +119,27 @@
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Music Maker ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <h1>Instrument Tuning</h1>
 <h2>Hi Hat</h2>
-<a href="#" onclick="return createdrumhihat_old()">hihat old</a>
-<a href="#" onclick="return createdrumhihat_new()">hihat new</a>
+<table class="datatable headerrow">
+<tr><td>Version</td><td>Samples</td><td>Description</td></tr>
+<tr><td>1</td><td><a href="#" onclick="return createdrumhihat1(0.2)">.2 sec</a>
+- <a href="#" onclick="return createdrumhihat1(1)">1 sec</a></td><td>Noise -
+bandpass 10khz - highpass 7khz</td></tr>
+<tr><td>2</td><td><a href="#" onclick="return createdrumhihat2(0.2)">.2 sec</a>
+- <a href="#" onclick="return createdrumhihat2(1)">1 sec</a></td><td>Noise -
+bandpass 10khz - highpass 7khz<br>increase pass frequencies over time</td></tr>
+<tr><td>3</td><td><a href="#" onclick="return createdrumhihat3(0.2)">.2 sec</a>
+- <a href="#" onclick="return createdrumhihat3(1)">1 sec</a></td><td>Square
+waves - bandpass 10khz - highpass 7khz</td></tr>
+<tr><td>4</td><td><a href="#" onclick="return createdrumhihat4(0.2)">.2 sec</a>
+- <a href="#" onclick="return createdrumhihat4(1)">1 sec</a></td><td>Square
+waves - bandpass 10khz - highpass 7khz</td></tr>
+<tr><td>4.1</td><td><a href="#" onclick="return createdrumhihat4(0.2,10000)">.2
+sec</a> - <a href="#" onclick="return createdrumhihat4(1,10000)">1 sec</a></td>
+<td>Square waves - bandpass 14khz - highpass 10khz</td></tr>
+<tr><td>4.2</td><td><a href="#" onclick="return createdrumhihat4(0.2,1000)">.2
+sec</a> - <a href="#" onclick="return createdrumhihat4(1,1000)">1 sec</a></td>
+<td>Square waves - bandpass 1400hz - highpass 1000hz</td></tr>
+</table>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->

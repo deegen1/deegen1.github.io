@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-audio.js - v2.02
+audio.js - v2.03
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -44,7 +44,6 @@ History
 TODO
 
 
-Remove scalevol() for sound effect normalization.
 Waveguides
 	https://www.osar.fr/notes/waveguides/
 	https://www.ee.columbia.edu/~ronw/dsp/
@@ -52,6 +51,9 @@ Waveguides
 	Splitting into N bands and adding them together increases the gain by N.
 	Or subtract from signal as different filters process the sample.
 	https://petersalomonsen.com/articles/assemblyscriptphysicalmodelingsynthesis/assemblyscriptphysicalmodelingsynthesis.html
+	https://github.com/petersalomonsen/javascriptmusic/blob/master/wasmaudioworklet/synth1/assembly/instruments/snare.class.ts
+	https://github.com/petersalomonsen/javascriptmusic/blob/master/wasmaudioworklet/synth1/assembly/instruments/kick.class.ts
+	https://github.com/petersalomonsen/javascriptmusic/blob/master/wasmaudioworklet/synth1/assembly/instruments/hihat.class.ts
 Audio.update
 	If a song was played while silenced, skip to it's current time upon resume.
 Drums
@@ -63,6 +65,8 @@ Drums
 		random noise and down freq, like thud
 	hihat:
 		random noise and up freq
+		square waves
+		square waves modulating square waves
 Make a comparison between new and old versions.
 See if response() phase is correct. Compare against intermediate values in
 calccoefs()?
@@ -71,6 +75,10 @@ editor
 	deegen.org/beatrix
 	Name for music maker: beatrix
 	anime music girl on drums
+	Are midi note lengths scaled by BPM?
+	Remove scalevol() for sound effect normalization.
+	Use noise() instead of noise(seed).
+	Redo strings to use time instead of decay. Add to sequencer.
 https://www.youtube.com/watch?v=Nrs8fPdi82w
 
 
@@ -82,7 +90,7 @@ https://www.youtube.com/watch?v=Nrs8fPdi82w
 
 
 //---------------------------------------------------------------------------------
-// Audio - v2.02
+// Audio - v2.03
 
 
 class _AudioSound {
@@ -1036,15 +1044,15 @@ class Audio {
 		// Converts a shorthand string into music.
 		// Everything is processed top to bottom, left to right.
 		//
-		//   Symbol |             Description             |  Parameters
-		//  --------+-------------------------------------+-----------------
-		//   AG     | Acoustic Guitar                     | [note=A3] [len]
-		//   XY     | Xylophone                           | [note=C4] [len]
-		//   MR     | Marimba                             | [note=C4] [len]
-		//   GS     | Glockenspiel                        | [note=A6] [len]
-		//   KD     | Kick Drum                           | [note=B2] [len]
-		//   SD     | Snare Drum                          | [note=G2] [len]
-		//   HH     | Hihat                               | [note=A8] [len]
+		//   Symbol |             Description             |         Parameters
+		//  --------+-------------------------------------+----------------------------
+		//   AG     | Acoustic Guitar                     | [note=A3] [vol=1] [len=2]
+		//   XY     | Xylophone                           | [note=C4] [vol=1] [len=2]
+		//   MR     | Marimba                             | [note=C4] [vol=1] [len=2]
+		//   GS     | Glockenspiel                        | [note=A6] [vol=1] [len=2]
+		//   KD     | Kick Drum                           | [note=B2] [vol=1] [len=.5]
+		//   SD     | Snare Drum                          | [note=G2] [vol=1] [len=.5]
+		//   HH     | Hi-hat                              | [note=A8] [vol=1] [len=.5]
 		//   VOL    | Sets volume. Resets every sequence. | [1.0]
 		//   BPM    | Beats per minute.                   | [240]
 		//   CUT    | Cuts off sequence at time+delta.    | [delta=0]
@@ -1053,7 +1061,7 @@ class Audio {
 		//   '      | Line Comment.                       |
 		//   "      | Block comment. Terminate with "     |
 		//   #bass: | Define a sequence named #bass.      |
-		//   #bass  | Reference a sequence named #bass.   |
+		//   #bass  | Reference a sequence named #bass.   | [vol=1]
 		//   #out:  | Final output sequence.              |
 		//
 		// notes = B, Bb, A#, A, Ab, G#, G, Gb, F#, F, Fb, E, Eb, D#, D, Db, C#, C
@@ -1080,18 +1088,18 @@ class Audio {
 			"BPM": {id: 1, max:2, def:240},
 			"VOL": {id: 2, max:2, def:1},
 			"CUT": {id: 3, max:2, def:0},
-			"AG" : {id:10, max:2, freq:"A3"},
-			"XY" : {id:11, max:2, freq:"C4"},
-			"MR" : {id:12, max:2, freq:"C4"},
-			"GS" : {id:13, max:2, freq:"A6"},
-			"KD" : {id:14, max:2, freq:"B2"},
-			"SD" : {id:15, max:2, freq:"G2"},
-			"HH" : {id:16, max:2, freq:"A8"}
+			"AG" : {id:10, max:4, freq:"A3", vol:1, len:4},
+			"XY" : {id:11, max:4, freq:"C4", vol:1, len:2},
+			"MR" : {id:12, max:4, freq:"C4", vol:1, len:2},
+			"GS" : {id:13, max:4, freq:"A6", vol:1, len:1},
+			"KD" : {id:14, max:4, freq:"B2", vol:1, len:0.2},
+			"SD" : {id:15, max:4, freq:"G2", vol:1, len:0.2},
+			"HH" : {id:16, max:4, freq:"A8", vol:1, len:0.1}
 		};
 		let subsnd=null,nextsnd=null;
 		function parsenum(str,def) {
 			// Parse numbers in format: [+-]\d*\.?\d*
-			if (!str) {str=def;}
+			if (!str && def!==undefined) {return def;}
 			let len=str.length,i=0;
 			let c=i<len?str.charCodeAt(i):0;
 			let neg=0;
@@ -1133,7 +1141,7 @@ class Audio {
 		function error(msg) {
 			let line=1;
 			for (let i=0;i<seqpos;i++) {line+=seq.charCodeAt(i)===10;}
-			throw msg+":\nLine  : "+line+"\nParams: "+paramstr.slice(0,params).join(" ");
+			throw "Sequencer error:\n\tError : "+msg+"\n\tLine  : "+line+"\n\tParams: "+paramstr.slice(0,params).join(" ");
 		}
 		while (seqpos<seqlen || params>0) {
 			// We've changed sequences.
@@ -1183,14 +1191,16 @@ class Audio {
 			if (!params) {continue;}
 			// Find the instrument or sequence to play.
 			let inst=sequences[paramstr[p++]];
-			let type=inst?inst.id:undefined;
-			let pmax=p-1+(inst.max?inst.max:1);
+			if (inst===undefined) {error("Unrecognized instrument");}
+			let type=inst.id;
+			let pmax=p-1+(inst.max?inst.max:2);
 			if (params>pmax) {error("Too many parameters");}
 			let snd=null;
-			if (inst===undefined) {
-				error("Unrecognized instrument");
-			} else if (type===undefined) {
+			let nvol=1;
+			if (type===undefined) {
 				// Load a sound.
+				nvol=parsenum(paramstr[p++],1);
+				if (isNaN(nvol)) {error("Invalid volume");}
 				snd=inst;
 			} else if (type===1) {
 				bpm=parsenum(paramstr[p],inst.def);
@@ -1203,19 +1213,21 @@ class Audio {
 				if (subsnd) {subsnd.resizetime(time);}
 			} else {
 				// Load a predefined instrument.
-				let freq=parsenote(paramstr[p],inst.freq);
-				// let time=parsenum(p++,4);
-				// let nvol=parsenum(p++,vol);
+				let freq=parsenote(paramstr[p++],inst.freq);
 				if (isNaN(freq)) {error("Invalid note");}
-				else if (type===10) {snd=Audio.createguitar(1,freq,0.2);}
+				nvol=parsenum(paramstr[p++],inst.vol);
+				if (isNaN(nvol)) {error("Invalid volume");}
+				let nlen=parsenum(paramstr[p],inst.len);
+				if (isNaN(nvol)) {error("Invalid length");}
+				if      (type===10) {snd=Audio.createguitar(1,freq,0.2);}
 				else if (type===11) {snd=Audio.createxylophone(1,freq);}
 				else if (type===12) {snd=Audio.createmarimba(1,freq);}
 				else if (type===13) {snd=Audio.createglockenspiel(1,freq);}
-				else if (type===14) {snd=Audio.createdrumkick(1,freq);}
-				else if (type===15) {snd=Audio.createdrumsnare(1,freq);}
-				else if (type===16) {snd=Audio.createdrumhihat(1,freq);}
+				else if (type===14) {snd=Audio.createdrumkick(1,freq,nlen);}
+				else if (type===15) {snd=Audio.createdrumsnare(1,freq,nlen);}
+				else if (type===16) {snd=Audio.createdrumhihat(1,freq,nlen);}
 			}
-			if (snd && subsnd) {subsnd.add(snd,time,vol);}
+			if (snd && subsnd) {subsnd.add(snd,time,vol*nvol);}
 			while (params>0) {paramstr[--params]="";}
 		}
 		subsnd=sequences["#out"];
