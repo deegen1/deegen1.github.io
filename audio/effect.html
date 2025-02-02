@@ -1,0 +1,69 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>SFX Editor</title>
+	<link rel="stylesheet" href="../style/style.css" type="text/css">
+	<script src="../style/style.js"></script>
+	<script src="./audio.js"></script>
+	<script src="./demo.js"></script>
+	<style>
+	.musiceditor {
+		max-width:100%;
+		width:100%;
+		margin-top:0.5rem;
+	}
+	i {
+		padding:0;
+		background-color:transparent;
+	}
+	</style>
+</head>
+<body>
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<div id="header"><a href="../index.html">Alec Dee's General Site</a></div>
+<div id="content">
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ SFX Maker ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>SFX Maker</h1>
+<svg id="main_display" viewBox="0 0 800 120" class="diagram"
+style='width:100%;height:9rem;background:#000000;margin:auto'>
+<line class="forestroke" x1=0 y1=60 x2=1000 y2=60 />
+</svg>
+<textarea id="main_out" class="consoleblock musiceditor" spellcheck="false"
+style="height:8rem;margin-bottom:0.5rem;" readonly></textarea>
+<button id="main_play">&#9658; Play</button>&nbsp;&nbsp;
+<button id="main_compile">Compile</button>&nbsp;&nbsp;
+<button id="main_download" onclick="main.download()">.WAV</button>&nbsp;&nbsp;
+<button id="main_url" onclick="main.tourl()">URL</button>&nbsp;&nbsp;
+<label>Samples:&nbsp;
+	<select onchange="main.changedropdown(this)">
+	</select>
+</label>
+<textarea id="main_editor" class="codeblock musiceditor" style="height:20rem;"
+spellcheck="false">// Crunchy harddrive
+function Node() {return new Audio.Node.constructor.apply(this,arguments);}
+</textarea>
+<script>
+let main=new SFXMaker("main_editor","main_play","main_out","main_display",
+"main_compile");
+main.fromurl();
+main.compile();
+function sfxplay() {
+	console.log("playing");
+	function Node() {return new Audio.Node.constructor.apply(this,arguments);}
+	//Node("sin",r=
+}
+document.getElementById("main_play").onclick=sfxplay;
+</script>
+<p>A previous version of the scripting language also allowed for waveform
+editing for sound effects.</p>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+</div><div id="footer">Created on 27 Jan 2025 - Modified on 27 Jan 2025<br>
+Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
+<a href="../index.html">Alec Dee's General Site</a></div>
+</body>
+</html>

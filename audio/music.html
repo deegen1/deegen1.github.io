@@ -27,55 +27,69 @@
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Music Maker ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <h1>Music Maker</h1>
-<button id="editor_play">&#9658; play</button>
-<button id="editor_download">.wav</button>
-<button id="editor_url">to url</button>
-<textarea id="editor_out" style="height:7rem;margin-bottom:0" class="consoleblock musiceditor" spellcheck="false" readonly></textarea>
-<textarea id="editor_editor" style="height:20rem;" class="codeblock musiceditor" spellcheck="false">' Demo Song
+<svg id="main_display" viewBox="0 0 800 120" class="diagram"
+style='width:100%;height:9rem;background:#000000;margin:auto'>
+<line class="forestroke" x1=0 y1=60 x2=1000 y2=60 />
+</svg>
+<textarea id="main_out" class="consoleblock musiceditor" spellcheck="false"
+style="height:8rem;margin-bottom:0.5rem;" readonly></textarea>
+<button id="main_play">&#9658; Play</button>&nbsp;&nbsp;
+<button id="main_compile">Compile</button>&nbsp;&nbsp;
+<button id="main_download" onclick="main.download()">.WAV</button>&nbsp;&nbsp;
+<button id="main_url" onclick="main.tourl()">URL</button>&nbsp;&nbsp;
+<textarea id="main_editor" class="codeblock musiceditor" style="height:20rem;"
+spellcheck="false">' Demo Song
 BPM 180
-#strumlo: AG G#2, AG G#3, AG G#2, AG G#3, AG G#2, AG G#3, AG G#2, AG G#3
-#strumhi: AG C#3, AG C#4, AG C#3, AG C#4, AG C#3, AG C#4, AG C#3, AG C#4
-#hihat  : VOL 0.5, 0 HH, HH, 0.5 HH, 0.5 HH, HH, HH, 0.5 HH, 0.5 HH, HH, HH
-#out    : VOL 0.5, 0 #strumlo, 8 #strumhi, 8 #strumlo, 0 #hihat, 8 #strumhi, 0 #hihat, 8 CUT -5
+strumlo: AG G#2, AG G#3, AG G#2, AG G#3, AG G#2, AG G#3, AG G#2, AG G#3
+strumhi: AG C#3, AG C#4, AG C#3, AG C#4, AG C#3, AG C#4, AG C#3, AG C#4
+hihat  : VOL 0.5, HH, HH, 0.5 HH, 0.5 HH, HH, HH, 0.5 HH, 0.5 HH, HH, HH
+OUT    : VOL 0.5, strumlo, 8 strumhi, 8 strumlo, 0 hihat, 8 strumhi, 0 hihat, 8 CUT 4
 </textarea>
 <script>
-let main=new MusicMaker("editor_editor","editor_play","editor_out","editor_download","editor_url");
+let main=new MusicMaker("main_editor","main_play","main_out","main_display",
+"main_compile");
 main.fromurl();
+main.compile();
 </script>
 <p>See my <a href="./index.html">Sound Effects</a> page for how the sounds are
-generated and the <a href="./tuning.html">Tuning</a> page instrument tuning.</p>
-<p>Scripts are processed top to bottom, left to right. Notation:</p>
+generated.</p>
+<h2>Rules</h2>
+<p>Note format: <i>[CDEFGAB][#b][octave]</i>. Ex: <i>A4</i>, <i>B#12</i>,
+<i>C-1.2</i></p>
 <table class="datatable headerrow">
 <tr><td>Symbol</td><td>Description</td><td>Parameters</td></tr>
-<tr><td><i>AG</i></td><td>Acoustic Guitar</td>
-<td><i>[note = A3]</i></td></tr>
-<tr><td><i>XY</i></td><td>Xylophone</td><td><i>[note = C4]</i></td></tr>
-<tr><td><i>MR</i></td><td>Marimba</td><td><i>[note = C4]</i></td></tr>
-<tr><td><i>GS</i></td><td>Glockenspiel</td><td><i>[note = A6]</i></td></tr>
-<tr><td><i>KD</i></td><td>Kick Drum</td><td><i>[note = B2]</i></td></tr>
-<tr><td><i>SD</i></td><td>Snare Drum</td><td><i>[note = G2]</i></td></tr>
-<tr><td><i>HH</i></td><td>Hi-hat</td><td><i>[note = A8]</i></td></tr>
-<tr><td><i>VOL</i></td><td>Sets volume. Resets every sequence.</td>
-<td><i>[1.0]</i></td></tr>
-<tr><td><i>BPM</i></td><td>Beats per minute.</td><td><i>[240]</i></td></tr>
-<tr><td><i>CUT</i></td><td>Cuts off sequence at time+delta.</td>
-<td><i>[delta = 0]</i></td></tr>
 <tr><td><i>,</i></td><td>Separate and advance time by 1 BPM.</td><td></td></tr>
-<tr><td><i>, X</i></td><td>Separate and advance time by X BPM.</td>
+<tr><td><i>, X</i></td><td>Separate and advance time by <i>X</i> BPM.</td>
 <td></td></tr>
 <tr><td><i>'</i></td><td>Line comment.</td><td></td></tr>
 <tr><td><i>"</i></td><td>Block comment. Terminate with "</td><td></td></tr>
-<tr><td><i>#bass:</i></td><td>Define a sequence named <i>#bass</i>.</td>
+<tr><td><i>bass:</i></td><td>Define a sequence named <i>bass</i>.</td>
 <td></td></tr>
-<tr><td><i>#bass</i></td><td>Reference a sequence named <i>#bass</i>.</td>
-<td></td></tr>
-<tr><td><i>#out:</i></td><td>Final output sequence.</td><td></td></tr>
+<tr><td><i>bass</i></td><td>Reference a sequence named <i>bass</i>.</td>
+<td>[vol=1]</td></tr>
+<tr><td><i>OUT:</i></td><td>Final output sequence.</td><td></td></tr>
+<tr><td><i>BPM</i></td><td>Beats per minute.</td><td><i>[240]</i></td></tr>
+<tr><td><i>VOL</i></td><td>Sets volume. Resets every sequence.</td>
+<td><i>[1.0]</i></td></tr>
+<tr><td><i>CUT</i></td><td>Cuts off sequence at <i>time+delta</i>.</td>
+<td><i>[0]</i></td></tr>
+<tr><td><i>AG</i></td><td>Acoustic Guitar</td>
+<td><i>[note=A3] [vol~=1] [len=4]</i></td></tr>
+<tr><td><i>XY</i></td><td>Xylophone</td>
+<td><i>[note=C4] [vol~=1] [len=2]</i></td></tr>
+<tr><td><i>MR</i></td><td>Marimba</td>
+<td><i>[note=C4] [vol~=1] [len=2]</i></td></tr>
+<tr><td><i>GS</i></td><td>Glockenspiel</td>
+<td><i>[note=A6] [vol~=1] [len=1]</i></td></tr>
+<tr><td><i>HH</i></td><td>Hi-hat</td>
+<td><i>[note=A8] [vol~=1] [len=.1]</i></td></tr>
+<tr><td><i>KD</i></td><td>Kick Drum</td>
+<td><i>[note=B2] [vol~=1] [len=.2]</i></td></tr>
+<tr><td><i>SD</i></td><td>Snare Drum</td>
+<td><i>[note=G3] [vol~=1] [len=.2]</i></td></tr>
 </table>
-<p>Allowed notes are: <i>B</i>, <i>Bb</i>, <i>A#</i>, <i>A</i>, <i>Ab</i>,
-<i>G#</i>, <i>G</i>, <i>Gb</i>, <i>F#</i>, <i>F</i>, <i>Fb</i>, <i>E</i>,
-<i>Eb</i>, <i>D#</i>, <i>D</i>, <i>Db</i>, <i>C#</i>, <i>C</i>, and any octave.
-Ex: <i>A4</i>, <i>B#12.5</i>, <i>C-1</i>. To map a note to a specific frequency,
-see <a href="https://en.wikipedia.org/wiki/Scientific_pitch_notation">this</a>
+<p>To map a note to a specific frequency, see
+<a href="https://en.wikipedia.org/wiki/Scientific_pitch_notation">this</a>
 page.</p>
 <p>To map guitar frets to piano notes (source
 <a href="https://reddit.com/r/guitarlessons/comments/cp7dg5">patmusic77</a>):</p>
@@ -113,37 +127,43 @@ page.</p>
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Samples ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <h1>Samples</h1>
-<button id="sample1_play">&#9658; play</button>
+<button id="sample1_play">&#9658; Play</button>
 <textarea id="sample1_editor" class="codeblock musiceditor" spellcheck="false">' Enter Sandman - Metallica
 BPM 246
-#strum: VOL 0.75, 0 AG E2, 2 AG E3, AG G3, AG A#2, AG A2, AG E3
-#out  : #strum, 8 #strum, 8 #strum, 0 CUT -5</textarea>
-<script>new MusicMaker("sample1_editor","sample1_play","editor_out");</script>
+strum: VOL 0.75, AG E2, 2 AG E3, AG G3, AG A#2, AG A2, AG E3
+OUT  : strum, 8 strum, 8 strum, 0 CUT 5</textarea>
+<script>new MusicMaker("sample1_editor","sample1_play","main_out",
+"main_display");</script>
 
-<button id="sample2_play">&#9658; play</button>
+<button id="sample2_play">&#9658; Play</button>
 <textarea id="sample2_editor" class="codeblock musiceditor" spellcheck="false">' Soak Up the Sun - Sheryl Crow
 BPM 240
-#strum: AG E3, 0 AG B3, AG E3, 0 AG A3, AG E3, 0 AG B3, AG G#4, 2 AG E4, 2 AG F#3, 0 AG B3, 0 AG B2, 2 AG F#3, 0 AG B3, 0 AG B2, 2 AG E3, 0 AG A2, AG E3, 0 AG A2, 0 AG B3, 0 CUT -2 '14 beats
-#out: VOL 0.5, 0 #strum, 14 #strum</textarea>
-<script>new MusicMaker("sample2_editor","sample2_play","editor_out");</script>
+strum: AG E3, 0 AG B3, AG E3, 0 AG A3, AG E3, 0 AG B3, AG G#4, 2 AG E4,
+       2 AG F#3, 0 AG B3, 0 AG B2, 2 AG F#3, 0 AG B3, 0 AG B2, 2 AG E3,
+       0 AG A2, AG E3, 0 AG A2, 0 AG B3, 0 CUT 2 '14 beats
+OUT  : VOL 0.5, strum, 14 strum</textarea>
+<script>new MusicMaker("sample2_editor","sample2_play","main_out",
+"main_display");</script>
 
-<button id="sample3_play">&#9658; play</button>
+<button id="sample3_play">&#9658; Play</button>
 <textarea id="sample3_editor" class="codeblock musiceditor" spellcheck="false">' Drum loop
 BPM 240
-#out: KD, 2 KD, 2 KD, 2 KD, KD A2, KD A2, 2 KD, 2 KD</textarea>
-<script>new MusicMaker("sample3_editor","sample3_play","editor_out");</script>
+OUT: KD, 2 KD, 2 KD, 2 KD, KD A2, KD A2, 2 KD, 2 KD</textarea>
+<script>new MusicMaker("sample3_editor","sample3_play","main_out",
+"main_display");</script>
 
-<button id="sample4_play">&#9658; play</button>
+<button id="sample4_play">&#9658; Play</button>
 <textarea id="sample4_editor" class="codeblock musiceditor" spellcheck="false">' Twinkle Twinkle Little Star
 BPM 100
-#out: VOL 0.5,
+OUT: VOL 0.5,
 0 GS C4, GS C4, GS G4, GS G4, GS A4, GS A4, GS G4,
 2 GS F4, GS F4, GS E4, GS E4, GS D4, GS D4, GS C4</textarea>
-<script>new MusicMaker("sample4_editor","sample4_play","editor_out");</script>
+<script>new MusicMaker("sample4_editor","sample4_play","main_out",
+"main_display");</script>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-</div><div id="footer">Created on 26 Dec 2024 - Modified on 5 Jan 2025<br>
+</div><div id="footer">Created on 26 Dec 2024 - Modified on 2 Feb 2025<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>

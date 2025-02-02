@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.04
+demo.js - v1.05
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 deegen1.github.io - akdee144@gmail.com
@@ -1041,12 +1041,12 @@ function FilterDiagrams() {
 	Audio.initdef();
 	let freq=44100,len=1<<16;
 	let bqparams=[
-		{id:"bq_none"     ,type:Audio.Biquad.NONE     ,freq:440,bw:1,gain:0 },
-		{id:"bq_lowpass"  ,type:Audio.Biquad.LOWPASS  ,freq:440,bw:1,gain:0 },
-		{id:"bq_highpass" ,type:Audio.Biquad.HIGHPASS ,freq:440,bw:1,gain:0 },
-		{id:"bq_bandpass" ,type:Audio.Biquad.BANDPASS ,freq:440,bw:1,gain:0 },
-		{id:"bq_notch"    ,type:Audio.Biquad.NOTCH    ,freq:440,bw:5,gain:0 },
-		{id:"bq_allpass"  ,type:Audio.Biquad.ALLPASS  ,freq:440,bw:1,gain:0 },
+		{id:"bq_none"     ,type:Audio.Biquad.NONE     ,freq:440,bw:1,gain:1 },
+		{id:"bq_lowpass"  ,type:Audio.Biquad.LOWPASS  ,freq:440,bw:1,gain:1 },
+		{id:"bq_highpass" ,type:Audio.Biquad.HIGHPASS ,freq:440,bw:1,gain:1 },
+		{id:"bq_bandpass" ,type:Audio.Biquad.BANDPASS ,freq:440,bw:1,gain:1 },
+		{id:"bq_notch"    ,type:Audio.Biquad.NOTCH    ,freq:440,bw:5,gain:1 },
+		{id:"bq_allpass"  ,type:Audio.Biquad.ALLPASS  ,freq:440,bw:1,gain:1 },
 		{id:"bq_peak"     ,type:Audio.Biquad.PEAK     ,freq:440,bw:5,gain:40},
 		{id:"bq_lowshelf" ,type:Audio.Biquad.LOWSHELF ,freq:440,bw:1,gain:40},
 		{id:"bq_highshelf",type:Audio.Biquad.HIGHSHELF,freq:440,bw:1,gain:40}
@@ -1162,14 +1162,6 @@ function PlayUI() {
 	snd.add(Audio.createuiincrease(vol),t); t+=0.3;
 	snd.add(Audio.createuiincrease(vol),t); t+=0.3;
 	snd.add(Audio.createuiincrease(vol),t); t+=0.5;
-	snd.add(Audio.createuidecrease(vol),t); t+=0.3;
-	snd.add(Audio.createuidecrease(vol),t); t+=0.3;
-	snd.add(Audio.createuidecrease(vol),t); t+=0.5;
-	snd.add(Audio.createuiclick(vol),t); t+=0.2;
-	snd.add(Audio.createuiclick(vol),t); t+=0.2;
-	snd.add(Audio.createuiclick(vol),t); t+=0.5;
-	// snd.add(Audio.createuiconfirm(vol),t); t+=1.2;
-	// snd.add(Audio.createuierror(vol),t); t+=1.2;
 	snd.play();
 }
 
@@ -1247,10 +1239,10 @@ function PlayWaveguide() {
 
 class MusicMaker {
 
-	constructor(inputid,playid,outputid,downid,urlid) {
+	constructor(inputid,playid,outputid,displayid,compileid) {
 		function getid(id) {
 			let elem=id?document.getElementById(id):null;
-			return (elem?elem:null);
+			return elem?elem:null;
 		}
 		let st=this;
 		this.uiinput=getid(inputid);
@@ -1263,10 +1255,9 @@ class MusicMaker {
 			input.style.height=input.scrollHeight+2+"px";
 		}
 		this.uiplay.onclick=function() {st.play();return false;};
-		let down=getid(downid);
-		if (down) {down.onclick=function(){st.download();};}
-		let url=getid(urlid);
-		if (url) {url.onclick=function(){st.tourl();};}
+		this.uidisplay=getid(displayid);
+		let compile=getid(compileid);
+		if (compile) {compile.onclick=function(){st.compile();};}
 		this.audio=Audio.initdef();
 		this.snd=null;
 		this.inst=null;
@@ -1285,12 +1276,103 @@ class MusicMaker {
 	}
 
 
+	compile() {
+		// Skip recompiling if the source is the same.
+		let str=this.uiinput.value;
+		this.clear();
+		let time=0;
+		let compilecache=MusicMaker.compilecache;
+		if (!compilecache || compilecache.str!==str) {
+			try {
+				time=performance.now();
+				let snd=Audio.sequencer(str);
+				time=performance.now()-time;
+				this.snd=snd;
+				this.render(snd,str);
+			} catch(error) {
+				this.log(error);
+				return false;
+			}
+		}
+		this.log("compile time: "+(time/1000).toFixed(3)+"s");
+		this.log("song length : "+this.snd.time.toFixed(3)+"s");
+		return true;
+	}
+
+
+	render(snd,str) {
+		let svgobj=this.uidisplay;
+		if (!svgobj) {return;}
+		// Remake the SVG on window resize.
+		let compilecache=MusicMaker.compilecache;
+		if (!compilecache) {
+			compilecache={snd:null,str:null};
+			MusicMaker.compilecache=compilecache;
+			let st=this;
+			window.addEventListener("resize",()=>{st.render();});
+		}
+		if (!snd) {
+			snd=compilecache.snd;
+			str=compilecache.str;
+		} else {
+			compilecache.snd=snd;
+			compilecache.str=str;
+		}
+		// If the sound is playing we won't be able to access the data.
+		if (snd.data.length<snd.len) {
+			snd=Audio.sequencer(str);
+			compilecache.snd=snd;
+		}
+		let sh=svgobj.viewBox.baseVal.height,smid=sh*0.5;
+		let sw=Math.round(sh*svgobj.clientWidth/svgobj.clientHeight);
+		svgobj.viewBox.baseVal.width=sw;
+		let sndlen=snd.len;
+		let snddata=snd.data;
+		let path="";
+		if (sndlen<=sw) {
+			let xmul=(sw-1)/(sndlen-1),ymul=0.5*sh;
+			for (let i=0;i<sndlen;i++) {
+				let x=i*xmul,y=smid-snddata[i]*ymul;
+				path+=`${i?"L":"M"} ${x.toFixed(3)} ${y.toFixed(3)} `;
+			}
+			path=`<path class="highstroke" fill="none" d="${path}" />`;
+		} else {
+			// Shrink by summing and averaging.
+			let xmul=(sndlen-1)/sw,ymul=0.5*sh;
+			let top=`M 0 ${smid} `,bot="Z";
+			for (let x=0;x<sw;x++) {
+				let x0=x*xmul,x1=x0+xmul;
+				x1=x1<=sndlen-1?x1:(sndlen-1);
+				let min=Infinity,max=-Infinity;
+				while (true) {
+					let lx=Math.floor(x0),rx=lx+1;
+					rx=rx<sndlen-1?rx:(sndlen-1);
+					let u=x0-lx;
+					let y=snddata[lx]*(1-u)+snddata[rx]*u;
+					min=min<y?min:y;
+					max=max>y?max:y;
+					if (x0===x1) {break;}
+					x0=rx<x1?rx:x1;
+				}
+				min=smid-min*ymul+0.5;
+				max=smid-max*ymul-0.5;
+				top=top+`V ${max.toFixed(3)} h 1 `;
+				bot=`V ${min.toFixed(3)} h -1 `+bot;
+			}
+			path=`<path class="highfill" stroke="none" d="${top+bot}" />`;
+		}
+		svgobj.innerHTML=`<line class="forestroke" x1=0 y1=${smid} x2=${sw} y2=${smid} />\n${path}`;
+	}
+
+
 	download() {
 		this.clear();
-		this.log("processing sequence");
-		let snd=Audio.sequencer(this.uiinput.value);
-		this.log("saving to musicmaker.wav");
-		snd.savefile("musicmaker.wav");
+		if (!this.snd) {
+			this.log("no sound to save");
+		} else {
+			this.log("saving to musicmaker.wav");
+			this.snd.savefile("musicmaker.wav");
+		}
 	}
 
 
@@ -1303,7 +1385,7 @@ class MusicMaker {
 		let bytes =new Uint8Array(await new Blob(chunks).arrayBuffer());
 		let str64 =btoa(String.fromCharCode.apply(null,bytes));
 		let loc   =window.location;
-		let url   =loc.origin+loc.pathname.split("?")[0]+"?beat="+str64;
+		let url   =loc.origin+loc.pathname.split("?")[0]+"?"+str64;
 		this.log(url+"\n");
 		navigator.clipboard.writeText(url);
 		this.log("copied to clipboard");
@@ -1311,7 +1393,7 @@ class MusicMaker {
 
 
 	async fromurl() {
-		let split=decodeURI(window.location.href).split("?beat=");
+		let split=decodeURI(window.location.href).split("?");
 		if (split.length!==2) {return;}
 		this.clear();
 		this.log("found beat in URL");
@@ -1334,24 +1416,16 @@ class MusicMaker {
 			this.log("stopping");
 			this.inst.remove();
 			this.inst=null;
-			this.uiplay.innerHTML="&#9658; play";
+			this.uiplay.innerHTML="&#9658; Play";
 			return;
 		}
-		this.clear();
-		try {
-			this.snd=Audio.sequencer(this.uiinput.value);
-		} catch(error) {
-			this.snd=null;
-			this.log(error);
-		}
-		if (!this.snd) {
+		if (!this.compile()) {
 			this.log("unable to create song");
 			return;
 		}
-		this.log("created song "+this.snd.time.toFixed(2)+" seconds long");
 		this.inst=this.snd.play();
 		if (this.inst) {
-			this.uiplay.innerHTML="&#9632; stop";
+			this.uiplay.innerHTML="&#9632; Stop";
 			this.log("playing");
 			let st=this;
 			function update() {
@@ -1370,11 +1444,338 @@ class MusicMaker {
 		if (!this.inst.playing) {
 			this.log("finished");
 			this.inst=null;
-			this.uiplay.innerHTML="&#9658; play";
+			this.uiplay.innerHTML="&#9658; Play";
 			return false;
 		}
 		this.audio.update();
 		return true;
+	}
+
+}
+
+
+//---------------------------------------------------------------------------------
+// SFX Maker
+
+
+class SFXMaker {
+
+	constructor(inputid,playid,outputid,displayid,compileid) {
+		function getid(id) {
+			let elem=id?document.getElementById(id):null;
+			return elem?elem:null;
+		}
+		let st=this;
+		this.uiinput=getid(inputid);
+		this.uioutput=getid(outputid);
+		this.uiplay=getid(playid);
+		if (!this.uiinput) {throw "could not find "+inputid;}
+		if (!this.uiplay ) {throw "could not find "+playid;}
+		let input=this.uiinput;
+		if (input.clientHeight<input.scrollHeight+2) {
+			input.style.height=input.scrollHeight+2+"px";
+		}
+		this.uiplay.onclick=function() {st.play();return false;};
+		this.uidisplay=getid(displayid);
+		let compile=getid(compileid);
+		if (compile) {compile.onclick=function(){st.compile();};}
+		this.audio=Audio.initdef();
+		this.snd=null;
+		this.inst=null;
+	}
+
+
+	clear() {if (this.uioutput) {this.uioutput.value="";}}
+
+
+	log(str) {
+		let out=this.uioutput;
+		if (out) {
+			out.value+=(out.value?"\n":"")+str;
+			out.scrollTop=out.scrollHeight;
+		}
+	}
+
+
+	compile() {
+		let str=this.uiinput.value;
+		this.clear();
+		let time=performance.now();
+		try {
+			let func=new Function("",str);
+			let snd=func();
+			if (!snd || !snd.len || !snd.data) {
+				throw "invalid sound returned";
+			}
+			this.snd=snd;
+			this.log("compile time: "+((performance.now()-time)/1000).toFixed(3)+"s");
+			this.log("effect length : "+snd.time.toFixed(3)+"s");
+			this.render(snd,str);
+			return true;
+		} catch(error) {
+			this.log(error);
+			return false;
+		}
+	}
+
+
+	render(snd,str) {
+		let svgobj=this.uidisplay;
+		if (!svgobj) {return;}
+		// Remake the SVG on window resize.
+		let compilecache=SFXMaker.compilecache;
+		if (!compilecache) {
+			compilecache={snd:null,str:null};
+			SFXMaker.compilecache=compilecache;
+			let st=this;
+			window.addEventListener("resize",()=>{st.render();});
+		}
+		if (!snd) {
+			snd=compilecache.snd;
+			str=compilecache.str;
+		} else {
+			compilecache.snd=snd;
+			compilecache.str=str;
+		}
+		// If the sound is playing we won't be able to access the data.
+		if (snd.data.length<snd.len) {
+			snd=Audio.sequencer(str);
+			compilecache.snd=snd;
+		}
+		let sh=svgobj.viewBox.baseVal.height,smid=sh*0.5;
+		let sw=Math.round(sh*svgobj.clientWidth/svgobj.clientHeight);
+		svgobj.viewBox.baseVal.width=sw;
+		let sndlen=snd.len;
+		let snddata=snd.data;
+		let path="";
+		if (sndlen<=sw) {
+			let xmul=(sw-1)/(sndlen-1),ymul=0.5*sh;
+			for (let i=0;i<sndlen;i++) {
+				let x=i*xmul,y=smid-snddata[i]*ymul;
+				path+=`${i?"L":"M"} ${x.toFixed(3)} ${y.toFixed(3)} `;
+			}
+			path=`<path class="highstroke" fill="none" d="${path}" />`;
+		} else {
+			// Shrink by summing and averaging.
+			let xmul=(sndlen-1)/sw,ymul=0.5*sh;
+			let top=`M 0 ${smid} `,bot="Z";
+			for (let x=0;x<sw;x++) {
+				let x0=x*xmul,x1=x0+xmul;
+				x1=x1<=sndlen-1?x1:(sndlen-1);
+				let min=Infinity,max=-Infinity;
+				while (true) {
+					let lx=Math.floor(x0),rx=lx+1;
+					rx=rx<sndlen-1?rx:(sndlen-1);
+					let u=x0-lx;
+					let y=snddata[lx]*(1-u)+snddata[rx]*u;
+					min=min<y?min:y;
+					max=max>y?max:y;
+					if (x0===x1) {break;}
+					x0=rx<x1?rx:x1;
+				}
+				min=smid-min*ymul+0.5;
+				max=smid-max*ymul-0.5;
+				top=top+`V ${max.toFixed(3)} h 1 `;
+				bot=`V ${min.toFixed(3)} h -1 `+bot;
+			}
+			path=`<path class="highfill" stroke="none" d="${top+bot}" />`;
+		}
+		svgobj.innerHTML=`<line class="forestroke" x1=0 y1=${smid} x2=${sw} y2=${smid} />\n${path}`;
+	}
+
+
+	download() {
+		this.clear();
+		this.log("processing sequence");
+		try {
+			let snd=Audio.sequencer(this.uiinput.value);
+			this.log("saving to sfxmaker.wav");
+			snd.savefile("sfxmaker.wav");
+		} catch(error) {
+			this.snd=null;
+			this.log(error);
+		}
+	}
+
+
+	async tourl() {
+		this.clear();
+		let str   =this.uiinput.value;
+		let stream=new Blob([str]).stream();
+		let comp  =stream.pipeThrough(new CompressionStream("gzip"));
+		let chunks=[];for await (let c of comp) {chunks.push(c);}
+		let bytes =new Uint8Array(await new Blob(chunks).arrayBuffer());
+		let str64 =btoa(String.fromCharCode.apply(null,bytes));
+		let loc   =window.location;
+		let url   =loc.origin+loc.pathname.split("?")[0]+"?"+str64;
+		this.log(url+"\n");
+		navigator.clipboard.writeText(url);
+		this.log("copied to clipboard");
+	}
+
+
+	async fromurl() {
+		let split=decodeURI(window.location.href).split("?");
+		if (split.length!==2) {return;}
+		this.clear();
+		this.log("found beat in URL");
+		try {
+			let bytes=Uint8Array.from(atob(split[1]),(c)=>c.charCodeAt(0));
+			let stream=new Blob([bytes]).stream();
+			let decomp=stream.pipeThrough(new DecompressionStream("gzip"));
+			let deblob=await new Response(decomp).blob();
+			let destr =await deblob.text();
+			this.uiinput.value=destr;
+			this.log("parsed");
+		} catch(error) {
+			this.log("failed to parse: "+error);
+		}
+	}
+
+
+	play() {
+		if (this.inst && this.inst.playing) {
+			this.log("stopping");
+			this.inst.remove();
+			this.inst=null;
+			this.uiplay.innerHTML="&#9658; Play";
+			return;
+		}
+		if (!this.compile()) {
+			this.log("unable to create effect");
+			return;
+		}
+		this.inst=this.snd.play();
+		if (this.inst) {
+			this.uiplay.innerHTML="&#9632; Stop";
+			this.log("playing");
+			let st=this;
+			function update() {
+				if (st.update()) {requestAnimationFrame(update);}
+			}
+			update();
+		} else {
+			this.inst=null;
+			this.log("unable to play effect");
+		}
+	}
+
+
+	update() {
+		if (!this.inst) {return false;}
+		if (!this.inst.playing) {
+			this.log("finished");
+			this.inst=null;
+			this.uiplay.innerHTML="&#9658; Play";
+			return false;
+		}
+		this.audio.update();
+		return true;
+	}
+
+
+	changedropdown(dropdown) {
+		this.clear();
+		let option=dropdown[dropdown.selectedIndex];
+		this.log("loading "+option.label);
+		let library={
+			"demo_song":
+				"' Demo Song\n"+
+				"BPM 180\n"+
+				"strumlo: AG G#2, AG G#3, AG G#2, AG G#3, AG G#2, AG G#3, AG G#2, AG G#3\n"+
+				"strumhi: AG C#3, AG C#4, AG C#3, AG C#4, AG C#3, AG C#4, AG C#3, AG C#4\n"+
+				"hihat  : HH, HH, 0.5 HH, 0.5 HH, HH, HH, 0.5 HH, 0.5 HH, HH, HH, MUL 0.5\n"+
+				"OUT    : strumlo, 8 strumhi, 8 strumlo, 0 hihat, 8 strumhi, 0 hihat, 8 CUT 5, MUL 0.5",
+			"rim_shot":
+				"' Rimshot\n"+
+				"OUT: HH A7.5 1 0.5, 0.09 HH A7.5 1 0.5, 0.31 HH A8 1 1",
+			"phone_dial":
+				"' Phone Dial\n"+
+				"len : NUM 1\n"+
+				"vol : NUM 0.75\n"+
+				"v1  : vol, MUL 1.35\n"+
+				"f0  : NUM 440\n"+
+				"f1  : NUM 350\n"+
+				"sig1: SIN len f0, 0 SIN len f1, CLIP 0.9, BPF 2000 12\n"+
+				"sig2: sig1 0.5, BPF 400 3\n"+
+				"OUT : sig1 0.15, 0 CLIP 0.06, 0 sig2, HPF 90, HPF 90, MUL v1",
+			"phone_ring":
+				"' Phone Ring\n"+
+				"len : NUM 1\n"+
+				"vol : NUM 0.75\n"+
+				"v1  : vol, MUL 1.35\n"+
+				"f0  : NUM 440\n"+
+				"f1  : NUM 480\n"+
+				"sig1: SIN len f0, 0 SIN len f1, CLIP 0.9, BPF 2000 12\n"+
+				"sig2: sig1 0.5, BPF 400 3\n"+
+				"OUT : sig1 0.15, 0 CLIP 0.06, 0 sig2, HPF 90, HPF 90, MUL v1",
+			"harddrive":
+				"' Crunchy Harddrive\n"+
+				"env: LIN 0.01 1, LIN 1.9, EXP 0.09 0\n"+
+				"f1 : TRI 1 9 0 -0.9\n"+
+				"f2 : TRI 1 7 0.001 0.1\n"+
+				"OUT: TRI 2 80, COMB f2 f1, BPF 300, MUL env",
+			"missile":
+				"' Plasma Missile\n"+
+				"env : LIN 0.015 0.5, EXP 0.985 0\n"+
+				"sig : NOI 1 1000, CLIP\n"+
+				"freq: TRI 1 20 1000 100\n"+
+				"sigl: sig, LPF freq 1\n"+
+				"sigb: sig, BPF freq 2\n"+
+				"OUT : sigl, 0 sigb, 0 OUT -0.65 0.985, 0 CUT 1, MUL env\n",
+			"hi_hat":
+				"' Hi-hat\n"+
+				"len : NUM 0.1\n"+
+				"vol : NUM 1.0\n"+
+				"freq: NUM 9000\n"+
+				"elen: len, 0 NUM -0.005, MAX 0\n"+
+				"env : LIN 0.005 1, EXP elen 0\n"+
+				"sig : NOI len env, MUL vol\n"+
+				"f0  : env, MUL 0.2, ADD 1, MUL freq\n"+
+				"OUT : sig, HPF f0\n",
+			"explosion":
+				"' Explosion\n"+
+				"freq: NUM 300\n"+
+				"vol : NUM 1.0\n"+
+				"env : LIN 0.005 vol, EXP 1.995 0, LIN 2\n"+
+				"sig : NOI 4 3, MUL env\n"+
+				"sigl: sig, LPF freq 1 0.77\n"+
+				"sigb: sig, BPF freq 2 0.23\n"+
+				"OUT : sigl, 0 sigb, 0 OUT -0.685 0.785, -10 CUT 4",
+			"gunshot":
+				"' Gunshot\n"+
+				"freq: NUM 1000\n"+
+				"vol : NUM 0.5\n"+
+				"env : LIN 0.005 vol, EXP 0.295 0, LIN 0.7\n"+
+				"sig : NOI 1 3, MUL env\n"+
+				"sigl: sig, LPF freq 1 0.5\n"+
+				"sigb: sig, BPF freq 2 0.5\n"+
+				"OUT : sigl, 0 sigb, 0 OUT -0.65 0.825, -10 CUT 1",
+			"knocking":
+				"' Knocking\n"+
+				"env: LIN 0.001 10, EXP 0.199 0\n"+
+				"knock: NOI 0.2, 0 MUL env, 0 BPF 100 2, 0 BPF 100 2, 0.003 knock -0.1\n"+
+				"OUT: knock, 0.3 knock, 0.3 knock\n",
+			"electricity":
+				"' Electricity\n"+
+				"f0 : NUM 159\n"+
+				"f1 : f0, MUL 1.002\n"+
+				"OUT: SAW 1 f0, 0 SAW 1 f1, CLIP 0.5, LPF 3000\n",
+			"ui_beep":
+				"' UI Beep\n"+
+				"vol : NUM 0.5\n"+
+				"freq: NUM 2000\n"+
+				"bw  : freq, MUL 0.0012\n"+
+				"len : NUM 0.2\n"+
+				"env : LIN 0.01 vol, LIN 0.02, EXP 0.18 0, MUL env\n"+
+				"OUT : TRI len freq 0.7, 0 NOI len 0.3, BPF freq bw, MUL env",
+			"envelope":
+				"' Envelope - ADSR Example\n"+
+				"env: LIN 0.01 1, LIN 0.01 0.8, LIN 0.02, EXP 0.2 0\n"+
+				"OUT: env"
+		};
+		this.uiinput.value=library[option.value];
+		this.compile();
 	}
 
 }

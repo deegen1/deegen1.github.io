@@ -282,13 +282,13 @@ button:hover, select:hover {
 	border:1px solid var(--table-border);
 	/* border-collapse:separate; */
 	/* border-spacing:0.2rem; */
+	background-color:var(--table-cell);
 }
 .datatable > tr > td, .datatable > tbody > tr > td {
 	padding:0.4rem;
 	padding-left:0.75rem;
 	padding-right:0.75rem;
 	border:1px solid var(--table-border);
-	background-color:var(--table-cell);
 	vertical-align:top;
 }
 .nobordercells {
@@ -301,7 +301,7 @@ button:hover, select:hover {
 	background-color:var(--table-header);
 	font-weight:bold;
 }
-.headerrow > tr:nth-child(1) > td, .headerrow > tbody > tr:nth-child(1) > td {
+.headerrow > tr:nth-child(1) > td, .headerrow > tbody > tr:nth-child(1) > td, .headerrow > td {
 	background-color:var(--table-header);
 	font-weight:bold;
 	text-align:center;
@@ -322,7 +322,7 @@ button:hover, select:hover {
 	/* border:2px dashed var(--diag-fore); */
 	font-family:Consolas,monospace,monospace;
 	font-size:1.1rem;
-	stroke-width:2px;
+	stroke-width:1.5px;
 	stroke:var(--diag-fore);
 	stroke-linecap:round;
 	fill:var(--diag-fore);
