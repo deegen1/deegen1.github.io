@@ -50,21 +50,6 @@ History
 TODO
 
 
-capital = must be number
-	{id:"con"  ,size: 1,params:"x"},
-	{id:"expr" ,size: 1,params:"+-/*^<>~%"},
-	{id:"tri"  ,size: 4,params:"fhlx"},
-	{id:"saw"  ,size: 4,params:"fhlx"},
-	{id:"sqr"  ,size: 4,params:"fhlx"},
-	{id:"pulse",size: 4,params:"fhlxW"},
-	{id:"sin"  ,size: 4,params:"fhlx"},
-	{id:"osc"  ,size: 4,params:"fhlxP"},
-	{id:"noise",size: 4,params:"hl"},
-	{id:"del"  ,size: 1,params:"tM"},
-	{id:"env"  ,size: 1,params:"LE"},
-	{id:"bpf"  ,size:14,params:"fbg"},
-	{id:"lpf"  ,size:14,params:"fbg"},
-
 Generic oscillator, mod by largest X, don't assume it's 1
 Can make an expression based oscillator by plugging saw into an expr
 expressions
@@ -546,7 +531,8 @@ class _AudioSFX {
 	//  outprev, outnext
 	//  dst
 
-	constructor(type,params) {
+	constructor(str) {
+		this.parse(str);
 		// con, expr (+-*/^tanh,min,max,clip), table, env, biquad, delay
 		/*this.typestr=type;
 		this.clock=-1;
@@ -614,6 +600,47 @@ class _AudioSFX {
 	}
 
 
+	parse(str) {
+		// Last node is returned. Node names must start with #.
+		// Node format:
+		// outputs
+		//      0 [f64 output]
+		// inputs
+		//      8 [u32 dst 1] [u32 src 1] [u32 src 2] ... [0]
+		//      x [u32 dst 2] [u32 src 1] [u32 src 2] ... [0]
+		//      x [u32 0    ]
+		// data
+		//      0 [u32 type]
+		//      4 ...
+str=`
+#osc: CON 1
+`;
+		console.log("parsing:",str);
+		// capital = special
+		let types=[
+			{str:"con"  ,id: 0,size: 1,params:""},
+			{str:"expr" ,id: 1,size: 1,params:""}, //+-/*^<>~%
+			{str:"tri"  ,id: 2,size: 4,params:"fxhl"},
+			{str:"saw"  ,id: 3,size: 4,params:"fxhl"},
+			{str:"sqr"  ,id: 4,size: 4,params:"fxhl"},
+			{str:"pulse",id: 5,size: 4,params:"fxhlW"},
+			{str:"sin"  ,id: 6,size: 4,params:"fxhl"},
+			{str:"osc"  ,id: 7,size: 4,params:"fxhlP"},
+			{str:"noise",id: 8,size: 4,params:"hl"},
+			{str:"del"  ,id: 9,size: 1,params:"tM"},
+			{str:"env"  ,id:10,size: 1,params:""},
+			{str:"lpf"  ,id:11,size:14,params:"fbg"},
+			{str:"hpf"  ,id:12,size:14,params:"fbg"},
+			{str:"bpf"  ,id:13,size:14,params:"fbg"},
+			{str:"npf"  ,id:14,size:14,params:"fbg"},
+			{str:"apf"  ,id:15,size:14,params:"fbg"},
+			{str:"pkf"  ,id:16,size:14,params:"fbg"},
+			{str:"lsf"  ,id:17,size:14,params:"fbg"},
+			{str:"hsf"  ,id:18,size:14,params:"fbg"}
+		];
+	}
+
+
 	/*disconnect(dst,dstnum) {
 		let src=this;
 		let inarr=dst.inarr,inlen=inarr.length,i=0;
@@ -629,23 +656,23 @@ class _AudioSFX {
 	}*/
 
 
-	connect(dst,dstnum) {
-		let src=this;
-		src.outarr.push(dst);
-		let inarr=dst.inarr,inlen=inarr.length,i=0;
-		while (i<inlen && dstnum>0) {
-			let n=inarr[i++];
-			dstnum-=n===null;
-		}
-		dst.inarr=inarr.slice(0,i)+[src]+inarr.slice(i);
-	}
-
-
 	reset() {
 	}
 
 
-	next(x,clock) {
+	next(x) {
+		let dst=[0];
+		this.fill(dst);
+		return dst[0];
+	}
+
+
+	fill(snd) {
+		let data=snd.data;
+		let len=snd.len;
+		this.reset();
+		for (let i=0;i<len;i++) {data[i]=this.next();}
+/*
 		if (clock===undefined) {clock=this.clock+1;}
 		if (clock<=this.clock) {return this.value;}
 		this.clock=clock;
@@ -697,14 +724,7 @@ class _AudioSFX {
 			// Delay
 		}
 		this.value=val;
-	}
-
-
-	fill(snd) {
-		let data=snd.data;
-		let len=snd.len;
-		this.reset();
-		for (let i=0;i<len;i++) {data[i]=this.next();}
+*/
 	}
 
 }
@@ -1121,6 +1141,7 @@ class _AudioBiquad {
 class Audio {
 
 	static Sound    =_AudioSound;
+	static SFX      =_AudioSFX;
 	static Instance =_AudioInstance;
 	static Delay    =_AudioDelay;
 	static Envelope =_AudioEnvelope;
@@ -1274,6 +1295,7 @@ class Audio {
 
 	static sequencer(seq) {
 		// Converts a shorthand script into music.
+		// The last sequence is returned as the sound.
 		// Note format: [CDEFGAB][#b][octave]. Ex: A4  B#12  C-1.2
 		//
 		//  Symbol |             Description             |         Parameters
@@ -1284,7 +1306,6 @@ class Audio {
 		//   "     | Block comment. Terminate with "     |
 		//   bass: | Define a sequence named bass.       |
 		//   bass  | Reference a sequence named bass.    | [vol=1]
-		//   OUT:  | Final output sequence.              |
 		//   BPM   | Beats per minute.                   | [240]
 		//   VOL   | Sets volume. Resets every sequence. | [1.0]
 		//   CUT   | Cuts off sequence at time+delta.    | [delta=0]
@@ -1301,7 +1322,7 @@ class Audio {
 		let argmax=7,args=0;
 		let argstr=new Array(argmax);
 		for (let i=0;i<argmax;i++) {argstr[i]="";}
-		let subsnd=null,nextsnd=subsnd;
+		let subsnd=null,nextsnd=new Audio.Sound(sndfreq);
 		let rand=[Audio.randacc,Audio.randinc];
 		[Audio.randacc,Audio.randinc]=[0,0xcadffab1];
 		// ,:'"
@@ -1310,7 +1331,8 @@ class Audio {
 			"BPM": 1,"VOL": 2,"CUT": 3,
 			"AG": 10,
 			"XY": 11,"MR": 12,"GS": 13,
-			"HH": 14,"KD": 15,"SD": 16
+			"HH": 14,"KD": 15,"SD": 16,
+			"":nextsnd
 		};
 		function error(msg) {
 			[Audio.randacc,Audio.randinc]=rand;
@@ -1413,7 +1435,7 @@ class Audio {
 			} else if (type===3) {
 				time+=parsenum(argstr[a],0,"delta");
 				time=time>0?time:0;
-				if (subsnd) {subsnd.resizetime(time);}
+				subsnd.resizetime(time);
 			} else {
 				// Instruments
 				type-=10;
@@ -1432,13 +1454,11 @@ class Audio {
 			}
 			// Add the new sound to the sub sequence.
 			if (!snd) {sepdelta=0;}
-			else if (subsnd) {subsnd.add(snd,time,subvol*vol);}
+			else {subsnd.add(snd,time,subvol*vol);}
 			while (args>0) {argstr[--args]="";}
 		}
 		[Audio.randacc,Audio.randinc]=rand;
-		subsnd=sequences["OUT"];
-		if (!subsnd) {throw "OUT not defined";}
-		return subsnd;
+		return nextsnd;
 	}
 
 

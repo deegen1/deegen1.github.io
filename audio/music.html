@@ -43,7 +43,7 @@ BPM 180
 strumlo: AG G#2, AG G#3, AG G#2, AG G#3, AG G#2, AG G#3, AG G#2, AG G#3
 strumhi: AG C#3, AG C#4, AG C#3, AG C#4, AG C#3, AG C#4, AG C#3, AG C#4
 hihat  : VOL 0.5, HH, HH, 0.5 HH, 0.5 HH, HH, HH, 0.5 HH, 0.5 HH, HH, HH
-OUT    : VOL 0.5, strumlo, 8 strumhi, 8 strumlo, 0 hihat, 8 strumhi, 0 hihat, 8 CUT 4
+out    : VOL 0.5, strumlo, 8 strumhi, 8 strumlo, 0 hihat, 8 strumhi, 0 hihat, 8 CUT 4
 </textarea>
 <script>
 let main=new MusicMaker("main_editor","main_play","main_out","main_display",
@@ -54,6 +54,8 @@ main.compile();
 <p>See my <a href="./index.html">Sound Effects</a> page for how the sounds are
 generated.</p>
 <h2>Rules</h2>
+<p>Sequences must be declared before they're used. The last sequence is returned
+as the sound.</p>
 <p>Note format: <i>[CDEFGAB][#b][octave]</i>. Ex: <i>A4</i>, <i>B#12</i>,
 <i>C-1.2</i></p>
 <table class="datatable headerrow">
@@ -67,7 +69,6 @@ generated.</p>
 <td></td></tr>
 <tr><td><i>bass</i></td><td>Reference a sequence named <i>bass</i>.</td>
 <td>[vol=1]</td></tr>
-<tr><td><i>OUT:</i></td><td>Final output sequence.</td><td></td></tr>
 <tr><td><i>BPM</i></td><td>Beats per minute.</td><td><i>[240]</i></td></tr>
 <tr><td><i>VOL</i></td><td>Sets volume. Resets every sequence.</td>
 <td><i>[1.0]</i></td></tr>
@@ -131,7 +132,7 @@ page.</p>
 <textarea id="sample1_editor" class="codeblock musiceditor" spellcheck="false">' Enter Sandman - Metallica
 BPM 246
 strum: VOL 0.75, AG E2, 2 AG E3, AG G3, AG A#2, AG A2, AG E3
-OUT  : strum, 8 strum, 8 strum, 0 CUT 5</textarea>
+out  : strum, 8 strum, 8 strum, 0 CUT 5</textarea>
 <script>new MusicMaker("sample1_editor","sample1_play","main_out",
 "main_display");</script>
 
@@ -141,21 +142,21 @@ BPM 240
 strum: AG E3, 0 AG B3, AG E3, 0 AG A3, AG E3, 0 AG B3, AG G#4, 2 AG E4,
        2 AG F#3, 0 AG B3, 0 AG B2, 2 AG F#3, 0 AG B3, 0 AG B2, 2 AG E3,
        0 AG A2, AG E3, 0 AG A2, 0 AG B3, 0 CUT 2 '14 beats
-OUT  : VOL 0.5, strum, 14 strum</textarea>
+out  : VOL 0.5, strum, 14 strum</textarea>
 <script>new MusicMaker("sample2_editor","sample2_play","main_out",
 "main_display");</script>
 
 <button id="sample3_play">&#9658; Play</button>
 <textarea id="sample3_editor" class="codeblock musiceditor" spellcheck="false">' Drum loop
 BPM 240
-OUT: KD, 2 KD, 2 KD, 2 KD, KD A2, KD A2, 2 KD, 2 KD</textarea>
+out: KD, 2 KD, 2 KD, 2 KD, KD A2, KD A2, 2 KD, 2 KD</textarea>
 <script>new MusicMaker("sample3_editor","sample3_play","main_out",
 "main_display");</script>
 
 <button id="sample4_play">&#9658; Play</button>
 <textarea id="sample4_editor" class="codeblock musiceditor" spellcheck="false">' Twinkle Twinkle Little Star
 BPM 100
-OUT: VOL 0.5,
+out: VOL 0.5,
 0 GS C4, GS C4, GS G4, GS G4, GS A4, GS A4, GS G4,
 2 GS F4, GS F4, GS E4, GS E4, GS D4, GS D4, GS C4</textarea>
 <script>new MusicMaker("sample4_editor","sample4_play","main_out",

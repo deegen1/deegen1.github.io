@@ -1501,16 +1501,11 @@ class SFXMaker {
 		let str=this.uiinput.value;
 		this.clear();
 		let time=performance.now();
+		let node=new Audio.SFX(str);
 		try {
-			let func=new Function("",str);
-			let snd=func();
-			if (!snd || !snd.len || !snd.data) {
-				throw "invalid sound returned";
-			}
-			this.snd=snd;
 			this.log("compile time: "+((performance.now()-time)/1000).toFixed(3)+"s");
-			this.log("effect length : "+snd.time.toFixed(3)+"s");
-			this.render(snd,str);
+			//this.log("effect length : "+snd.time.toFixed(3)+"s");
+			//this.render(snd,str);
 			return true;
 		} catch(error) {
 			this.log(error);
