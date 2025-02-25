@@ -5,8 +5,10 @@
 	<title>Music Maker</title>
 	<link rel="stylesheet" href="../style/style.css" type="text/css">
 	<script src="../style/style.js"></script>
+	<script src="./library.js"></script>
 	<script src="./audio.js"></script>
 	<script src="./demo.js"></script>
+	<!--<script src="./extra/test.js"></script>-->
 	<style>
 	.musiceditor {
 		max-width:100%;
@@ -45,12 +47,8 @@ strumhi: AG C#3, AG C#4, AG C#3, AG C#4, AG C#3, AG C#4, AG C#3, AG C#4
 hihat  : VOL 0.5, HH, HH, 0.5 HH, 0.5 HH, HH, HH, 0.5 HH, 0.5 HH, HH, HH
 out    : VOL 0.5, strumlo, 8 strumhi, 8 strumlo, 0 hihat, 8 strumhi, 0 hihat, 8 CUT 4
 </textarea>
-<script>
-let main=new MusicMaker("main_editor","main_play","main_out","main_display",
-"main_compile");
-main.fromurl();
-main.compile();
-</script>
+<script>MusicMaker.init("music","main_editor","main_play","main_out",
+"main_display","main_compile");</script>
 <p>See my <a href="./index.html">Sound Effects</a> page for how the sounds are
 generated.</p>
 <h2>Rules</h2>
@@ -75,19 +73,21 @@ as the sound.</p>
 <tr><td><i>CUT</i></td><td>Cuts off sequence at <i>time+delta</i>.</td>
 <td><i>[0]</i></td></tr>
 <tr><td><i>AG</i></td><td>Acoustic Guitar</td>
-<td><i>[note=A3] [vol~=1] [len=4]</i></td></tr>
+<td><i>[note=A3] [vol=1] [len=5.0]</i></td></tr>
 <tr><td><i>XY</i></td><td>Xylophone</td>
-<td><i>[note=C4] [vol~=1] [len=2]</i></td></tr>
+<td><i>[note=C4] [vol=1] [len=2.2]</i></td></tr>
 <tr><td><i>MR</i></td><td>Marimba</td>
-<td><i>[note=C4] [vol~=1] [len=2]</i></td></tr>
+<td><i>[note=C4] [vol=1] [len=2.2]</i></td></tr>
 <tr><td><i>GS</i></td><td>Glockenspiel</td>
-<td><i>[note=A6] [vol~=1] [len=1]</i></td></tr>
+<td><i>[note=A6] [vol=1] [len=5.3]</i></td></tr>
+<tr><td><i>MB</i></td><td>Music Box</td>
+<td><i>[note=A5] [vol=1] [len=3.0]</i></td></tr>
 <tr><td><i>HH</i></td><td>Hi-hat</td>
-<td><i>[note=A8] [vol~=1] [len=.1]</i></td></tr>
+<td><i>[note=A8] [vol=1] [len=0.1]</i></td></tr>
 <tr><td><i>KD</i></td><td>Kick Drum</td>
-<td><i>[note=B2] [vol~=1] [len=.2]</i></td></tr>
+<td><i>[note=B2] [vol=1] [len=0.2]</i></td></tr>
 <tr><td><i>SD</i></td><td>Snare Drum</td>
-<td><i>[note=G3] [vol~=1] [len=.2]</i></td></tr>
+<td><i>[note=G3] [vol=1] [len=0.2]</i></td></tr>
 </table>
 <p>To map a note to a specific frequency, see
 <a href="https://en.wikipedia.org/wiki/Scientific_pitch_notation">this</a>
@@ -133,8 +133,7 @@ page.</p>
 BPM 246
 strum: VOL 0.75, AG E2, 2 AG E3, AG G3, AG A#2, AG A2, AG E3
 out  : strum, 8 strum, 8 strum, 0 CUT 5</textarea>
-<script>new MusicMaker("sample1_editor","sample1_play","main_out",
-"main_display");</script>
+<script>MusicMaker.initsub("sample1_play","sample1_editor");</script>
 
 <button id="sample2_play">&#9658; Play</button>
 <textarea id="sample2_editor" class="codeblock musiceditor" spellcheck="false">' Soak Up the Sun - Sheryl Crow
@@ -143,15 +142,13 @@ strum: AG E3, 0 AG B3, AG E3, 0 AG A3, AG E3, 0 AG B3, AG G#4, 2 AG E4,
        2 AG F#3, 0 AG B3, 0 AG B2, 2 AG F#3, 0 AG B3, 0 AG B2, 2 AG E3,
        0 AG A2, AG E3, 0 AG A2, 0 AG B3, 0 CUT 2 '14 beats
 out  : VOL 0.5, strum, 14 strum</textarea>
-<script>new MusicMaker("sample2_editor","sample2_play","main_out",
-"main_display");</script>
+<script>MusicMaker.initsub("sample2_play","sample2_editor");</script>
 
 <button id="sample3_play">&#9658; Play</button>
 <textarea id="sample3_editor" class="codeblock musiceditor" spellcheck="false">' Drum loop
 BPM 240
 out: KD, 2 KD, 2 KD, 2 KD, KD A2, KD A2, 2 KD, 2 KD</textarea>
-<script>new MusicMaker("sample3_editor","sample3_play","main_out",
-"main_display");</script>
+<script>MusicMaker.initsub("sample3_play","sample3_editor");</script>
 
 <button id="sample4_play">&#9658; Play</button>
 <textarea id="sample4_editor" class="codeblock musiceditor" spellcheck="false">' Twinkle Twinkle Little Star
@@ -159,12 +156,11 @@ BPM 100
 out: VOL 0.5,
 0 GS C4, GS C4, GS G4, GS G4, GS A4, GS A4, GS G4,
 2 GS F4, GS F4, GS E4, GS E4, GS D4, GS D4, GS C4</textarea>
-<script>new MusicMaker("sample4_editor","sample4_play","main_out",
-"main_display");</script>
+<script>MusicMaker.initsub("sample4_play","sample4_editor");</script>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-</div><div id="footer">Created on 26 Dec 2024 - Modified on 2 Feb 2025<br>
+</div><div id="footer">Created on 26 Dec 2024 - Modified on 23 Feb 2025<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>

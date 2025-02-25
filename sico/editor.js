@@ -4,7 +4,7 @@
 editor.js - v1.08
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
-deegen1.github.io - akdee144@gmail.com
+2dee.net - akdee144@gmail.com
 
 
 --------------------------------------------------------------------------------

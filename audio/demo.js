@@ -4,7 +4,7 @@
 demo.js - v1.05
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
-deegen1.github.io - akdee144@gmail.com
+2dee.net - akdee144@gmail.com
 
 
 --------------------------------------------------------------------------------
@@ -12,591 +12,11 @@ TODO
 
 
 */
-/* jshint esversion: 11  */
-/* jshint bitwise: false */
-/* jshint eqeqeq: true   */
-/* jshint curly: true    */
+/* npx eslint demo.js -c ../../standards/eslint.js */
+/* global Input, Random */
 
 
-//---------------------------------------------------------------------------------
-// Input - v1.13
-
-
-class Input {
-
-	static KEY={
-		A: 65, B: 66, C: 67, D: 68, E: 69, F: 70, G: 71, H: 72, I: 73, J: 74,
-		K: 75, L: 76, M: 77, N: 78, O: 79, P: 80, Q: 81, R: 82, S: 83, T: 84,
-		U: 85, V: 86, W: 87, X: 88, Y: 89, Z: 90,
-		0: 48, 1: 49, 2: 50, 3: 51, 4: 52, 5: 53, 6: 54, 7: 55, 8: 56, 9: 57,
-		SPACE: 32,
-		LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40
-	};
-
-
-	static MOUSE={
-		LEFT: 256, MID: 257, RIGHT: 258
-	};
-
-
-	constructor(focus) {
-		this.focus=null;
-		this.focustab=null;
-		this.focustouch=null;
-		if (focus!==undefined && focus!==null) {
-			this.focus=focus;
-			// An element needs to have a tabIndex to be focusable.
-			this.focustab=focus.tabIndex;
-			this.focustouch=focus.style.touchAction;
-			if (focus.tabIndex<0) {
-				focus.tabIndex=1;
-			}
-		}
-		this.active=null;
-		this.scrollupdate=false;
-		this.scroll=[window.scrollX,window.scrollY];
-		this.mousepos=[-Infinity,-Infinity];
-		this.mouseraw=[-Infinity,-Infinity];
-		this.mousez=0;
-		this.touchfocus=0;
-		this.clickpos=[0,0];
-		this.repeatdelay=0.5;
-		this.repeatrate=0.05;
-		this.navkeys={32:1,37:1,38:1,39:1,40:1};
-		this.stopnav=0;
-		this.stopnavfocus=0;
-		this.keystate={};
-		this.listeners=[];
-		this.initmouse();
-		this.initkeyboard();
-		this.reset();
-		for (let i=0;i<this.listeners.length;i++) {
-			let list=this.listeners[i];
-			document.addEventListener(list[0],list[1],list[2]);
-		}
-	}
-
-
-	release() {
-		if (this.focus!==null) {
-			this.focus.tabIndex=this.focustab;
-		}
-		this.enablenav();
-		for (let i=0;i<this.listeners.length;i++) {
-			let list=this.listeners[i];
-			document.removeEventListener(list[0],list[1],list[2]);
-		}
-		this.listeners=[];
-		this.reset();
-	}
-
-
-	reset() {
-		this.mousez=0;
-		let statearr=Object.values(this.keystate);
-		let statelen=statearr.length;
-		for (let i=0;i<statelen;i++) {
-			let state=statearr[i];
-			state.down=0;
-			state.hit=0;
-			state.repeat=0;
-			state.time=null;
-			state.active=null;
-			state.isactive=0;
-		}
-		this.active=null;
-	}
-
-
-	update() {
-		// Process keys that are active.
-		let focus=this.focus===null?document.hasFocus():Object.is(document.activeElement,this.focus);
-		if (this.touchfocus!==0) {focus=true;}
-		this.stopnavfocus=focus?this.stopnav:0;
-		let time=performance.now()/1000.0;
-		let delay=time-this.repeatdelay;
-		let rate=1.0/this.repeatrate;
-		let state=this.active;
-		let active=null;
-		let down,next;
-		while (state!==null) {
-			next=state.active;
-			down=focus?state.down:0;
-			state.down=down;
-			if (down>0) {
-				let repeat=Math.floor((delay-state.time)*rate);
-				state.repeat=(repeat>0 && (repeat&1)===0)?state.repeat+1:0;
-			} else {
-				state.repeat=0;
-				state.hit=0;
-			}
-			state.isactive=down?1:0;
-			if (state.isactive!==0) {
-				state.active=active;
-				active=state;
-			}
-			state=next;
-		}
-		this.active=active;
-	}
-
-
-	disablenav() {
-		this.stopnav=1;
-		if (this.focus!==null) {
-			this.focus.style.touchAction="pinch-zoom";
-		}
-	}
-
-
-	enablenav() {
-		this.stopnav=0;
-		if (this.focus!==null) {
-			this.focus.style.touchAction=this.focustouch;
-		}
-	}
-
-
-	makeactive(code) {
-		let state=this.keystate[code];
-		if (state===null || state===undefined) {
-			state=null;
-		} else if (state.isactive===0) {
-			state.isactive=1;
-			state.active=this.active;
-			this.active=state;
-		}
-		return state;
-	}
-
-
-	// ----------------------------------------
-	// Mouse
-
-
-	initmouse() {
-		let state=this;
-		this.MOUSE=this.constructor.MOUSE;
-		let keys=Object.keys(this.MOUSE);
-		for (let i=0;i<keys.length;i++) {
-			let code=this.MOUSE[keys[i]];
-			this.keystate[code]={
-				name: "MOUSE."+keys[i],
-				code: code
-			};
-		}
-		// Mouse controls.
-		function mousemove(evt) {
-			state.setmousepos(evt.pageX,evt.pageY);
-		}
-		function mousewheel(evt) {
-			state.addmousez(evt.deltaY<0?-1:1);
-		}
-		function mousedown(evt) {
-			if (evt.button===0) {
-				state.setkeydown(state.MOUSE.LEFT);
-				state.clickpos=state.mousepos.slice();
-			}
-		}
-		function mouseup(evt) {
-			if (evt.button===0) {
-				state.setkeyup(state.MOUSE.LEFT);
-			}
-		}
-		function onscroll(evt) {
-			// Update relative position on scroll.
-			if (state.scrollupdate) {
-				let difx=window.scrollX-state.scroll[0];
-				let dify=window.scrollY-state.scroll[1];
-				state.setmousepos(state.mouseraw[0]+difx,state.mouseraw[1]+dify);
-			}
-		}
-		// Touch controls.
-		function touchmove(evt) {
-			let touch=evt.touches;
-			if (touch.length===1) {
-				touch=touch.item(0);
-				state.setkeydown(state.MOUSE.LEFT);
-				state.setmousepos(touch.pageX,touch.pageY);
-			} else {
-				// This is probably a gesture.
-				state.setkeyup(state.MOUSE.LEFT);
-			}
-		}
-		function touchstart(evt) {
-			// We need to manually determine if the user has touched our focused object.
-			state.touchfocus=1;
-			let focus=state.focus;
-			if (focus!==null) {
-				let touch=evt.touches.item(0);
-				let rect=state.getrect(focus);
-				let x=touch.pageX-rect.x;
-				let y=touch.pageY-rect.y;
-				if (x<0 || x>=rect.w || y<0 || y>=rect.h) {
-					state.touchfocus=0;
-				}
-			}
-			// touchstart doesn't generate a separate mousemove event.
-			touchmove(evt);
-			state.clickpos=state.mousepos.slice();
-		}
-		function touchend(evt) {
-			state.touchfocus=0;
-			state.setkeyup(state.MOUSE.LEFT);
-		}
-		function touchcancel(evt) {
-			state.touchfocus=0;
-			state.setkeyup(state.MOUSE.LEFT);
-		}
-		this.listeners=this.listeners.concat([
-			["mousemove"  ,mousemove  ,false],
-			["mousewheel" ,mousewheel ,false],
-			["mousedown"  ,mousedown  ,false],
-			["mouseup"    ,mouseup    ,false],
-			["scroll"     ,onscroll   ,false],
-			["touchstart" ,touchstart ,false],
-			["touchmove"  ,touchmove  ,false],
-			["touchend"   ,touchend   ,false],
-			["touchcancel",touchcancel,false]
-		]);
-	}
-
-
-	getrect(elem) {
-		let width  =elem.scrollWidth;
-		let height =elem.scrollHeight;
-		let offleft=elem.clientLeft;
-		let offtop =elem.clientTop;
-		while (elem) {
-			offleft+=elem.offsetLeft;
-			offtop +=elem.offsetTop;
-			elem=elem.offsetParent;
-		}
-		return {x:offleft,y:offtop,w:width,h:height};
-	}
-
-
-	setmousepos(x,y) {
-		this.mouseraw[0]=x;
-		this.mouseraw[1]=y;
-		this.scroll[0]=window.scrollX;
-		this.scroll[1]=window.scrollY;
-		let focus=this.focus;
-		if (focus!==null) {
-			let rect=this.getrect(focus);
-			// If the focus is a canvas, scroll size can differ from pixel size.
-			x=(x-rect.x)*((focus.width||focus.scrollWidth)/rect.w);
-			y=(y-rect.y)*((focus.height||focus.scrollHeight)/rect.h);
-		}
-		this.mousepos[0]=x;
-		this.mousepos[1]=y;
-	}
-
-
-	getmousepos() {
-		return this.mousepos.slice();
-	}
-
-
-	getclickpos() {
-		return this.clickpos.slice();
-	}
-
-
-	addmousez(dif) {
-		this.mousez+=dif;
-	}
-
-
-	getmousez() {
-		let z=this.mousez;
-		this.mousez=0;
-		return z;
-	}
-
-
-	// ----------------------------------------
-	// Keyboard
-
-
-	initkeyboard() {
-		let state=this;
-		this.KEY=this.constructor.KEY;
-		let keys=Object.keys(this.KEY);
-		for (let i=0;i<keys.length;i++) {
-			let code=this.KEY[keys[i]];
-			this.keystate[code]={
-				name: "KEY."+keys[i],
-				code: code
-			};
-		}
-		function keydown(evt) {
-			state.setkeydown(evt.keyCode);
-			if (state.stopnavfocus!==0 && state.navkeys[evt.keyCode]) {evt.preventDefault();}
-		}
-		function keyup(evt) {
-			state.setkeyup(evt.keyCode);
-		}
-		this.listeners=this.listeners.concat([
-			["keydown",keydown,false],
-			["keyup"  ,keyup  ,false]
-		]);
-	}
-
-
-	setkeydown(code) {
-		let state=this.makeactive(code);
-		if (state!==null) {
-			if (state.down===0) {
-				state.down=1;
-				state.hit=1;
-				state.repeat=0;
-				state.time=performance.now()/1000.0;
-			}
-		}
-	}
-
-
-	setkeyup(code) {
-		let state=this.makeactive(code);
-		if (state!==null) {
-			state.down=0;
-			state.hit=0;
-			state.repeat=0;
-			state.time=null;
-		}
-	}
-
-
-	getkeydown(code) {
-		// code can be an array of key codes.
-		if (code===null || code===undefined) {return 0;}
-		if (code.length===undefined) {code=[code];}
-		let keystate=this.keystate;
-		for (let i=0;i<code.length;i++) {
-			let state=keystate[code[i]];
-			if (state!==null && state!==undefined && state.down>0) {
-				return 1;
-			}
-		}
-		return 0;
-	}
-
-
-	getkeyhit(code) {
-		// code can be an array of key codes.
-		if (code===null || code===undefined) {return 0;}
-		if (code.length===undefined) {code=[code];}
-		let keystate=this.keystate;
-		for (let i=0;i<code.length;i++) {
-			let state=keystate[code[i]];
-			if (state!==null && state!==undefined && state.hit>0) {
-				state.hit=0;
-				return 1;
-			}
-		}
-		return 0;
-	}
-
-
-	getkeyrepeat(code) {
-		// code can be an array of key codes.
-		if (code===null || code===undefined) {return 0;}
-		if (code.length===undefined) {code=[code];}
-		let keystate=this.keystate;
-		for (let i=0;i<code.length;i++) {
-			let state=keystate[code[i]];
-			if (state!==null && state!==undefined && state.repeat===1) {
-				return 1;
-			}
-		}
-		return 0;
-	}
-
-}
-
-
-//---------------------------------------------------------------------------------
-// Bebop Music Box
-
-
-class Bebop {
-
-	// Music box notes are all at the same volume.
-	// time, freq
-	static notes=[
-		[ 0.188, 1158],
-		[ 0.941,  337],
-		[ 1.099,  464],
-		[ 1.099,  618],
-		[ 1.148, 1382],
-		[ 2.722, 1158],
-		[ 3.465,  611],
-		[ 3.465,  678],
-		[ 3.490,  425],
-		[ 5.355, 1158],
-		[ 6.058,  337],
-		[ 6.198,  612],
-		[ 6.239,  765],
-		[ 6.307, 1382],
-		[ 7.893, 1158],
-		[ 8.779,  425],
-		[ 8.779,  614],
-		[ 8.779,  765],
-		[ 8.779, 1158],
-		[ 8.779, 1382],
-		[ 9.221, 1657],
-		[ 9.592, 1381],
-		[11.096, 1106],
-		[12.031,  464],
-		[12.088,  544],
-		[12.212,  678],
-		[12.212, 1158],
-		[14.059,  725],
-		[15.504,  464],
-		[15.592,  544],
-		[15.623,  765],
-		[16.108, 1030],
-		[16.596, 1030],
-		[17.036,  930],
-		[17.606,  813],
-		[17.616, 1030],
-		[18.006, 1158],
-		[18.440, 1030],
-		[19.223,  930],
-		[20.359,  297],
-		[20.441,  365],
-		[20.478,  678],
-		[20.519,  550],
-		[21.622,  550],
-		[21.984,  606],
-		[22.761,  205],
-		[22.825,  368],
-		[22.964,  414],
-		[23.008,  507],
-		[23.008,  678],
-		[25.307,  368],
-		[25.360,  205],
-		[25.360,  480],
-		[26.038,  678],
-		[26.610,  814],
-		[27.006,  931],
-		[27.716,  205],
-		[27.782,  414],
-		[27.782,  629],
-		[28.149, 1106],
-		[28.639,  678],
-		[28.660,  930],
-		[30.224,  931],
-		[31.028,  295],
-		[31.065,  550],
-		[31.065,  683],
-		[31.080, 1106],
-		[32.159,  380],
-		[32.728,  931],
-		[33.461,  368],
-		[33.461,  461],
-		[33.461,  548],
-		[34.732,  205],
-		[34.732,  380],
-		[34.732,  508],
-		[34.732,  643],
-		[35.116,  614],
-		[36.145,  335],
-		[36.145,  461],
-		[36.145,  550]
-	];
-	static volume=0.1;
-	static notepos=100000;
-	static time=0;
-	static img=null;
-	static imgset=false;
-	static imgorig="";
-	static imgstop="";
-
-
-	constructor() {
-	}
-
-
-	static toggle(linkobj) {
-		let len=Bebop.notes.length;
-		if (Bebop.notepos<len) {
-			Bebop.notepos=len;
-		} else {
-			Bebop.notepos=0;
-			Bebop.time=performance.now();
-		}
-		if (linkobj && Bebop.img===null) {
-			let img=linkobj.firstChild;
-			if (img && img.localName==="img") {
-				Bebop.img=img;
-				Bebop.imgorig=img.src;
-				let canv=document.createElement("canvas");
-				let w=img.naturalWidth,h=img.naturalHeight;
-				canv.width=w;
-				canv.height=h;
-				let ctx=canv.getContext("2d");
-				ctx.drawImage(img,0,0,w,h);
-				ctx.fillStyle="#000000";
-				let ratioh=0.7,ratiow=0.25;
-				let rh=h*ratioh,rw=rh*ratiow;
-				if (rw*2.5>w) {rw=w*ratioh/2.5;rh=rw/ratiow;}
-				let offx=(w-rw*2.5)*0.5,offy=(h-rh)*0.5;
-				ctx.fillRect(offx       ,offy,rw,rh);
-				ctx.fillRect(offx+1.5*rw,offy,rw,rh);
-				Bebop.imgstop=canv.toDataURL();
-				canv.remove();
-			}
-		}
-		Bebop.update();
-	}
-
-
-	static update() {
-		let time=(performance.now()-Bebop.time)/1000;
-		let notes=Bebop.notes;
-		let notelen=notes.length;
-		let notepos=Bebop.notepos;
-		while (notepos<notelen && notes[notepos][0]<=time) {
-			let note=notes[notepos++];
-			Audio.createmusicbox(Bebop.volume,note[1]).play();
-		}
-		Bebop.notepos=notepos;
-		let playing=notepos<notelen;
-		if (playing) {setTimeout(Bebop.update,1);}
-		if (Bebop.img!==null && Bebop.imgset!==playing) {
-			Bebop.imgset=playing;
-			Bebop.img.src=playing?Bebop.imgstop:Bebop.imgorig;
-		}
-	}
-
-
-	static download() {
-		let notes=Bebop.notes;
-		let sndfreq=44100;
-		let snddata=new Float64Array(0);
-		for (let i=notes.length-1;i>=0;i--) {
-			let note=notes[i];
-			let idx=Math.floor(note[0]*sndfreq);
-			let sub=Audio.createmusicbox(Bebop.volume,note[1]);
-			let sublen=sub.len;
-			if (idx+sublen>snddata.length) {
-				let newdata=new Float64Array(idx+sublen);
-				newdata.set(snddata,0);
-				snddata=newdata;
-			}
-			let subdata=sub.data;
-			for (let i=0;i<sublen;i++) {
-				snddata[idx++]+=subdata[i];
-			}
-		}
-		let snd=new Audio.Sound(sndfreq,snddata.length);
-		snd.data.set(snddata);
-		snd.savefile("bebop_memory.wav");
-	}
-
-}
+Audio.initdef().autounmute();
 
 
 //---------------------------------------------------------------------------------
@@ -969,6 +389,329 @@ class XylophoneSim {
 
 
 //---------------------------------------------------------------------------------
+// Misc Sounds
+
+
+function PlayUI(name) {
+	let str="";
+	if (name==="phone") {
+		str=`
+			'Phone Ring + Dial
+			#toggle: SQR F 0.5 H 480 L 350
+			#sin1: SIN F 440
+			#sin2: SIN F #toggle
+			#sig1: BPF F 2000 B 12 I #sin1 #sin2 + .9 < -.9 >
+			#sig2: BPF F 400 B 3 I #sig1
+			#hpf1: HPF F 90 I #sig1 .15 * .06 < -.06 > #sig2
+			#hpf2: HPF F 90 I #hpf1 G .75
+			#out : ENV A .01 S 1.98 R .01 I #hpf2
+		`;
+	} else if (name==="explosion") {
+		str=`
+			#vol: 5
+			#freq: 300
+			#time: 2
+			#u: #freq #freq 1000 + /
+			#noi: NOISE
+			#lpf: LPF F #freq B 1 G 1 #u - I #noi
+			#bpf: BPF F #freq B 2 G #u I #noi
+			#del: DEL T 0.15 #u * 0.75 + M 0.9 I 0.5 #u * 0.9 - #sig *
+			#sig: #del #lpf #bpf
+			#out: ENV A 0.01 R #time 0.01 - I #sig #vol *
+		`;
+	} else if (name==="hihat") {
+		Audio.createdrumhihat(1).play();
+	} else if (name==="kick") {
+		Audio.createdrumkick(2).play();
+	} else if (name==="marble") {
+		str=`
+			#vol : 2
+			#freq: 7000
+			#time: .02
+			#noi : NOISE
+			#bpf1: BPF F #freq B 2 I #noi
+			#bpf2: BPF F #freq B 2 I #bpf1
+			#sig : #bpf2 #del
+			#del : DEL T 0.003 I #bpf2 0.9 *
+			#out : ENV R #time I #sig #vol *
+		`;
+	} else if (name==="knock") {
+		str=`
+			#sig  : NOISE H 12
+			#bpf1 : BPF F 100 B 2 I #sig
+			#bpf2 : BPF F 100 B 2 I #bpf1
+			#knock: ENV A 0.001 R 0.199 I #bpf2
+			#del  : DEL T 0.3 I #knock #del
+			#alive: NOISE H 0.001
+			#out  : ENV A 0 S 0.9 R 0 I #alive #knock #del
+		`;
+	} else if (name==="laser") {
+		str=`
+			#vol : 2
+			#freq: 10000
+			#time: .25
+			#t   : SAW F 1 #time / L 0 H #time
+			#del1: DEL T #t .01 * M .5 I #sig -.35 *
+			#del2: DEL T #t .10 * M .5 I #sig -.28 *
+			#del3: DEL T #t .20 * M .5 I #sig -.21 *
+			#del4: DEL T #t .60 * M .5 I #sig -.13 *
+			#osc : SIN F #freq H 0.7
+			#sig : #osc #del1 #del2 #del3 #del4
+			#out : ENV A 0.01 R #time .01 - I #sig #vol *
+		`;
+	} else if (name==="electric") {
+		str=`
+			#freq: 159
+			#saw0: SAW F #freq
+			#saw1: SAW F #freq 1.002 *
+			#sig: LPF F 3000 I #saw0 #saw1 + 0.5 < -0.5 >
+			#out : ENV S 2 I #sig
+		`;
+	} else if (name==="beep") {
+		str=`
+			#vol : .5
+			#freq: 1500
+			#time: 0.1
+			#osc1: NOISE H .4
+			#osc2: TRI F #freq
+			#bpf : BPF F #freq B .0012 #freq * I #osc1 #osc2
+			#sig : ENV A .01 S #time .01 - .5 * R #time .01 - .5 * I #bpf #vol *
+			#del  : DEL T 0.3 I #sig #del
+			#alive: NOISE H 0.001
+			#out  : ENV A 0 S 0.9 R 0 I #alive #sig #del
+		`;
+	}
+	if (str!=="") {
+		let sfx=new Audio.SFX(str);
+		sfx.tosound(5,0.1).play();
+	}
+	return false;
+}
+
+
+function PlayWaveguide() {
+	let sndfreq=44100,sndtime=3,sndlen=Math.floor(sndfreq*sndtime);
+	let snd=new Audio.Sound(sndfreq,sndlen);
+	let pluckheight=1.0,pluckpos=0.25;
+	let freq=200;
+	let wavelen=Math.round(0.5*sndfreq/freq),wavepos=0;
+	let wave=new Float64Array(wavelen);
+	let wavemul=-0.995;
+	for (let i=0;i<wavelen;i++) {
+		let u=i/(wavelen-1);
+		let v=u<pluckpos?u/pluckpos:(1-u)/(1-pluckpos);
+		// let v=u<0.5?1:0;
+		wave[i]=v*pluckheight;
+	}
+	let data=snd.data;
+	let inharm=0.00006;
+	let bands=Math.floor(sndfreq/(4*freq));
+	let bandarr=new Array(bands);
+	let nbands=0;
+	let mnorm=0;
+	for (let b=0;b<bands;b++) {
+		let n=b+1,n2=n*n;
+		let harmfreq=n*Math.sqrt(1+(n2-1)*inharm)*freq/sndfreq;
+		let harmmul=1/n2;
+		let len=Math.round(1/harmfreq);
+		if (len<2) {break;}
+		mnorm+=harmmul;
+		bandarr[nbands++]={
+			filter:new Audio.Biquad(Audio.Biquad.BANDPASS,harmfreq,1),
+			len:len,
+			pos:0,
+			data:new Float64Array(len),
+			mul:harmmul
+		};
+	}
+	bands=nbands;
+	let volume=1;
+	mnorm=(mnorm>1?1/mnorm:1)*volume;
+	for (let b=0;b<bands;b++) {
+		let band=bandarr[b];
+		band.mul*=mnorm;
+	}
+	let insum=0;
+	for (let i=0;i<sndlen;i++) {
+		// let t=i/sndfreq;
+		let w=wave[wavepos];
+		wave[wavepos]=w*wavemul;
+		if (++wavepos>=wavelen) {wavepos=0;}
+		w=(w+insum);// /(bands+1);
+		insum=0;
+		let outsum=0;
+		for (let b=0;b<bands;b++) {
+			let band=bandarr[b];
+			let x=band.data[band.pos];
+			insum+=x*band.mul;
+			outsum+=x*band.mul;
+			band.data[band.pos]=band.filter.process(w);
+			if (++band.pos>=band.len) {band.pos=0;}
+		}
+		data[i]=outsum;
+	}
+	snd.scalevol(1,true);
+	// snd.savefile("wve.wav");
+	snd.play();
+}
+
+
+class Bebop {
+
+	// Music box notes are all at the same volume.
+	// time, freq
+	static notes=[
+		[ 0.188, 1158],
+		[ 0.941,  337],
+		[ 1.099,  464],
+		[ 1.099,  618],
+		[ 1.148, 1382],
+		[ 2.722, 1158],
+		[ 3.465,  611],
+		[ 3.465,  678],
+		[ 3.490,  425],
+		[ 5.355, 1158],
+		[ 6.058,  337],
+		[ 6.198,  612],
+		[ 6.239,  765],
+		[ 6.307, 1382],
+		[ 7.893, 1158],
+		[ 8.779,  425],
+		[ 8.779,  614],
+		[ 8.779,  765],
+		[ 8.779, 1158],
+		[ 8.779, 1382],
+		[ 9.221, 1657],
+		[ 9.592, 1381],
+		[11.096, 1106],
+		[12.031,  464],
+		[12.088,  544],
+		[12.212,  678],
+		[12.212, 1158],
+		[14.059,  725],
+		[15.504,  464],
+		[15.592,  544],
+		[15.623,  765],
+		[16.108, 1030],
+		[16.596, 1030],
+		[17.036,  930],
+		[17.606,  813],
+		[17.616, 1030],
+		[18.006, 1158],
+		[18.440, 1030],
+		[19.223,  930],
+		[20.359,  297],
+		[20.441,  365],
+		[20.478,  678],
+		[20.519,  550],
+		[21.622,  550],
+		[21.984,  606],
+		[22.761,  205],
+		[22.825,  368],
+		[22.964,  414],
+		[23.008,  507],
+		[23.008,  678],
+		[25.307,  368],
+		[25.360,  205],
+		[25.360,  480],
+		[26.038,  678],
+		[26.610,  814],
+		[27.006,  931],
+		[27.716,  205],
+		[27.782,  414],
+		[27.782,  629],
+		[28.149, 1106],
+		[28.639,  678],
+		[28.660,  930],
+		[30.224,  931],
+		[31.028,  295],
+		[31.065,  550],
+		[31.065,  683],
+		[31.080, 1106],
+		[32.159,  380],
+		[32.728,  931],
+		[33.461,  368],
+		[33.461,  461],
+		[33.461,  548],
+		[34.732,  205],
+		[34.732,  380],
+		[34.732,  508],
+		[34.732,  643],
+		[35.116,  614],
+		[36.145,  335],
+		[36.145,  461],
+		[36.145,  550]
+	];
+	static volume=0.1;
+	static notepos=100000;
+	static time=0;
+	static img=null;
+	static imgset=false;
+	static imgorig="";
+	static imgstop="";
+
+
+	constructor() {
+	}
+
+
+	static toggle(linkobj) {
+		let len=Bebop.notes.length;
+		if (Bebop.notepos<len) {
+			Bebop.notepos=len;
+		} else {
+			Bebop.notepos=0;
+			Bebop.time=performance.now();
+		}
+		if (linkobj && Bebop.img===null) {
+			let img=linkobj.firstChild;
+			if (img && img.localName==="img") {
+				Bebop.img=img;
+				Bebop.imgorig=img.src;
+				let canv=document.createElement("canvas");
+				let w=img.naturalWidth,h=img.naturalHeight;
+				canv.width=w;
+				canv.height=h;
+				let ctx=canv.getContext("2d");
+				ctx.drawImage(img,0,0,w,h);
+				ctx.fillStyle="#000000";
+				let ratioh=0.7,ratiow=0.25;
+				let rh=h*ratioh,rw=rh*ratiow;
+				if (rw*2.5>w) {rw=w*ratioh/2.5;rh=rw/ratiow;}
+				let offx=(w-rw*2.5)*0.5,offy=(h-rh)*0.5;
+				ctx.fillRect(offx       ,offy,rw,rh);
+				ctx.fillRect(offx+1.5*rw,offy,rw,rh);
+				Bebop.imgstop=canv.toDataURL();
+				canv.remove();
+			}
+		}
+		Bebop.update();
+		return false;
+	}
+
+
+	static update() {
+		let time=(performance.now()-Bebop.time)/1000;
+		let notes=Bebop.notes;
+		let notelen=notes.length;
+		let notepos=Bebop.notepos;
+		while (notepos<notelen && notes[notepos][0]<=time) {
+			let note=notes[notepos++];
+			Audio.createmusicbox(Bebop.volume,note[1]).play();
+		}
+		Bebop.notepos=notepos;
+		let playing=notepos<notelen;
+		if (playing) {setTimeout(Bebop.update,1);}
+		if (Bebop.img!==null && Bebop.imgset!==playing) {
+			Bebop.imgset=playing;
+			Bebop.img.src=playing?Bebop.imgstop:Bebop.imgorig;
+		}
+	}
+
+}
+
+
+//---------------------------------------------------------------------------------
 // Biquad Filters
 
 
@@ -1102,394 +845,53 @@ function FilterDiagrams() {
 
 
 //---------------------------------------------------------------------------------
-// Misc Sounds
-
-
-function PlayPhone() {
-	let freq=44100,len=Math.floor(freq*1.0);
-	let snd=new Audio.Sound(freq,len*2);
-	let data=snd.data;
-	// Dial tone.
-	let bp2 =new Audio.Biquad(Audio.Biquad.BANDPASS,2000/freq,12);
-	let bp4 =new Audio.Biquad(Audio.Biquad.BANDPASS, 400/freq,3);
-	let hp90=new Audio.Biquad(Audio.Biquad.HIGHPASS,  90/freq);
-	let hp91=new Audio.Biquad(Audio.Biquad.HIGHPASS,  90/freq);
-	for (let i=0;i<len;i++) {
-		let t=i/freq;
-		let n0 =Audio.sin(t*350)+Audio.sin(t*440);
-		let n1 =Audio.clip(n0,-0.9,0.9);
-		let n2 =bp2.process(n1);
-		let n30=bp4.process(n2*0.5);
-		let n31=Audio.clip(n2,-0.4,0.4)*0.15;
-		let n4 =hp90.process(n30+n31);
-		let n5 =hp91.process(n4);
-		data[i]+=n5;
-	}
-	// Ring tone.
-	bp2 =new Audio.Biquad(Audio.Biquad.BANDPASS,2000/freq,12);
-	bp4 =new Audio.Biquad(Audio.Biquad.BANDPASS, 400/freq,3);
-	hp90=new Audio.Biquad(Audio.Biquad.HIGHPASS,  90/freq);
-	hp91=new Audio.Biquad(Audio.Biquad.HIGHPASS,  90/freq);
-	for (let i=0;i<len;i++) {
-		let t=i/freq;
-		let n0 =Audio.sin(t*440)+Audio.sin(t*480);
-		let n1 =Audio.clip(n0,-0.9,0.9);
-		let n2 =bp2.process(n1);
-		let n30=bp4.process(n2*0.5);
-		let n31=Audio.clip(n2,-0.4,0.4)*0.15;
-		let n4 =hp90.process(n30+n31);
-		let n5 =hp91.process(n4);
-		data[i+len]+=n5;
-	}
-	snd.scalevol(0.18,true);
-	snd.play();
-}
-
-
-function PlayKnock() {
-	let snd=new Audio.Sound(44100,0);
-	let knock=Audio.createthud();
-	snd.add(knock,0.0);
-	snd.add(knock,0.3);
-	snd.add(knock,0.6);
-	snd.play();
-}
-
-
-function PlayUI() {
-	let snd=new Audio.Sound(44100,0);
-	let t=0,vol=0.5;
-	snd.add(Audio.createuiincrease(vol),t); t+=0.3;
-	snd.add(Audio.createuiincrease(vol),t); t+=0.3;
-	snd.add(Audio.createuiincrease(vol),t); t+=0.5;
-	snd.play();
-}
-
-
-function PlayWaveguide() {
-	let sndfreq=44100,sndtime=3,sndlen=Math.floor(sndfreq*sndtime);
-	let snd=new Audio.Sound(sndfreq,sndlen);
-	let pluckheight=1.0,pluckpos=0.25;
-	let freq=200;
-	let wavelen=Math.round(0.5*sndfreq/freq),wavepos=0;
-	let wave=new Float64Array(wavelen);
-	let wavemul=-0.995;
-	for (let i=0;i<wavelen;i++) {
-		let u=i/(wavelen-1);
-		let v=u<pluckpos?u/pluckpos:(1-u)/(1-pluckpos);
-		// let v=u<0.5?1:0;
-		wave[i]=v*pluckheight;
-	}
-	let data=snd.data;
-	let inharm=0.00006;
-	let bands=Math.floor(sndfreq/(4*freq));
-	let bandarr=new Array(bands);
-	let nbands=0;
-	let mnorm=0;
-	for (let b=0;b<bands;b++) {
-		let n=b+1,n2=n*n;
-		let harmfreq=n*Math.sqrt(1+(n2-1)*inharm)*freq/sndfreq;
-		let harmmul=1/n2;
-		let len=Math.round(1/harmfreq);
-		if (len<2) {break;}
-		mnorm+=harmmul;
-		bandarr[nbands++]={
-			filter:new Audio.Biquad(Audio.Biquad.BANDPASS,harmfreq,1),
-			len:len,
-			pos:0,
-			data:new Float64Array(len),
-			mul:harmmul
-		};
-	}
-	bands=nbands;
-	let volume=1;
-	mnorm=(mnorm>1?1/mnorm:1)*volume;
-	for (let b=0;b<bands;b++) {
-		let band=bandarr[b];
-		band.mul*=mnorm;
-	}
-	let insum=0;
-	for (let i=0;i<sndlen;i++) {
-		// let t=i/sndfreq;
-		let w=wave[wavepos];
-		wave[wavepos]=w*wavemul;
-		if (++wavepos>=wavelen) {wavepos=0;}
-		w=(w+insum);// /(bands+1);
-		insum=0;
-		let outsum=0;
-		for (let b=0;b<bands;b++) {
-			let band=bandarr[b];
-			let x=band.data[band.pos];
-			insum+=x*band.mul;
-			outsum+=x*band.mul;
-			band.data[band.pos]=band.filter.process(w);
-			if (++band.pos>=band.len) {band.pos=0;}
-		}
-		data[i]=outsum;
-	}
-	snd.scalevol(1,true);
-	// snd.savefile("wve.wav");
-	snd.play();
-}
-
-
-//---------------------------------------------------------------------------------
 // Music Maker
 
 
 class MusicMaker {
 
-	constructor(inputid,playid,outputid,displayid,compileid) {
-		function getid(id) {
-			let elem=id?document.getElementById(id):null;
-			return elem?elem:null;
-		}
-		let st=this;
-		this.uiinput=getid(inputid);
-		this.uioutput=getid(outputid);
-		this.uiplay=getid(playid);
-		if (!this.uiinput) {throw "could not find "+inputid;}
-		if (!this.uiplay ) {throw "could not find "+playid;}
-		let input=this.uiinput;
-		if (input.clientHeight<input.scrollHeight+2) {
-			input.style.height=input.scrollHeight+2+"px";
-		}
-		this.uiplay.onclick=function() {st.play();return false;};
-		this.uidisplay=getid(displayid);
-		let compile=getid(compileid);
-		if (compile) {compile.onclick=function(){st.compile();};}
+	static init(mode,inputid,playid,outputid,displayid,compileid) {
+		this.mode=mode;
+		this.sfx=null;
+		this.snd=new Audio.Sound(44100,0);
+		this.str="";
+		this.cachesnd=this.snd.copy();
+		this.cachestr=this.str;
+		this.sfx=null;
 		this.audio=Audio.initdef();
-		this.snd=null;
-		this.inst=null;
-	}
-
-
-	clear() {if (this.uioutput) {this.uioutput.value="";}}
-
-
-	log(str) {
-		let out=this.uioutput;
-		if (out) {
-			out.value+=(out.value?"\n":"")+str;
-			out.scrollTop=out.scrollHeight;
-		}
-	}
-
-
-	compile() {
-		// Skip recompiling if the source is the same.
-		let str=this.uiinput.value;
-		this.clear();
-		let time=0;
-		let compilecache=MusicMaker.compilecache;
-		if (!compilecache || compilecache.str!==str) {
-			try {
-				time=performance.now();
-				let snd=Audio.sequencer(str);
-				time=performance.now()-time;
-				this.snd=snd;
-				this.render(snd,str);
-			} catch(error) {
-				this.log(error);
-				return false;
-			}
-		}
-		this.log("compile time: "+(time/1000).toFixed(3)+"s");
-		this.log("song length : "+this.snd.time.toFixed(3)+"s");
-		return true;
-	}
-
-
-	render(snd,str) {
-		let svgobj=this.uidisplay;
-		if (!svgobj) {return;}
+		this.mainedit=document.getElementById(inputid);
+		this.mainout =document.getElementById(outputid);
+		this.maindisp=document.getElementById(displayid);
+		let st=this;
+		let play=document.getElementById(playid);
+		let edit=this.mainedit;
+		play.onclick=function() {st.play(play,edit);};
+		let comp=document.getElementById(compileid);
+		comp.onclick=function() {st.compile();};
 		// Remake the SVG on window resize.
-		let compilecache=MusicMaker.compilecache;
-		if (!compilecache) {
-			compilecache={snd:null,str:null};
-			MusicMaker.compilecache=compilecache;
-			let st=this;
-			window.addEventListener("resize",()=>{st.render();});
-		}
-		if (!snd) {
-			snd=compilecache.snd;
-			str=compilecache.str;
-		} else {
-			compilecache.snd=snd;
-			compilecache.str=str;
-		}
-		// If the sound is playing we won't be able to access the data.
-		if (snd.data.length<snd.len) {
-			snd=Audio.sequencer(str);
-			compilecache.snd=snd;
-		}
-		let sh=svgobj.viewBox.baseVal.height,smid=sh*0.5;
-		let sw=Math.round(sh*svgobj.clientWidth/svgobj.clientHeight);
-		svgobj.viewBox.baseVal.width=sw;
-		let sndlen=snd.len;
-		let snddata=snd.data;
-		let path="";
-		if (sndlen<=sw) {
-			let xmul=(sw-1)/(sndlen-1),ymul=0.5*sh;
-			for (let i=0;i<sndlen;i++) {
-				let x=i*xmul,y=smid-snddata[i]*ymul;
-				path+=`${i?"L":"M"} ${x.toFixed(3)} ${y.toFixed(3)} `;
-			}
-			path=`<path class="highstroke" fill="none" d="${path}" />`;
-		} else {
-			// Shrink by summing and averaging.
-			let xmul=(sndlen-1)/sw,ymul=0.5*sh;
-			let top=`M 0 ${smid} `,bot="Z";
-			for (let x=0;x<sw;x++) {
-				let x0=x*xmul,x1=x0+xmul;
-				x1=x1<=sndlen-1?x1:(sndlen-1);
-				let min=Infinity,max=-Infinity;
-				while (true) {
-					let lx=Math.floor(x0),rx=lx+1;
-					rx=rx<sndlen-1?rx:(sndlen-1);
-					let u=x0-lx;
-					let y=snddata[lx]*(1-u)+snddata[rx]*u;
-					min=min<y?min:y;
-					max=max>y?max:y;
-					if (x0===x1) {break;}
-					x0=rx<x1?rx:x1;
-				}
-				min=smid-min*ymul+0.5;
-				max=smid-max*ymul-0.5;
-				top=top+`V ${max.toFixed(3)} h 1 `;
-				bot=`V ${min.toFixed(3)} h -1 `+bot;
-			}
-			path=`<path class="highfill" stroke="none" d="${top+bot}" />`;
-		}
-		svgobj.innerHTML=`<line class="forestroke" x1=0 y1=${smid} x2=${sw} y2=${smid} />\n${path}`;
+		window.addEventListener("resize",()=>{st.render();});
+		this.fromurl();
+		this.compile();
 	}
 
 
-	download() {
-		this.clear();
-		if (!this.snd) {
-			this.log("no sound to save");
-		} else {
-			this.log("saving to musicmaker.wav");
-			this.snd.savefile("musicmaker.wav");
+	static initsub(idplay,ideditor) {
+		// Sets up the non-main play/edit combos.
+		let edit=document.getElementById(ideditor);
+		if (edit.clientHeight<edit.scrollHeight+4) {
+			edit.style.height=edit.scrollHeight+4+"px";
 		}
-	}
-
-
-	async tourl() {
-		this.clear();
-		let str   =this.uiinput.value;
-		let stream=new Blob([str]).stream();
-		let comp  =stream.pipeThrough(new CompressionStream("gzip"));
-		let chunks=[];for await (let c of comp) {chunks.push(c);}
-		let bytes =new Uint8Array(await new Blob(chunks).arrayBuffer());
-		let str64 =btoa(String.fromCharCode.apply(null,bytes));
-		let loc   =window.location;
-		let url   =loc.origin+loc.pathname.split("?")[0]+"?"+str64;
-		this.log(url+"\n");
-		navigator.clipboard.writeText(url);
-		this.log("copied to clipboard");
-	}
-
-
-	async fromurl() {
-		let split=decodeURI(window.location.href).split("?");
-		if (split.length!==2) {return;}
-		this.clear();
-		this.log("found beat in URL");
-		try {
-			let bytes=Uint8Array.from(atob(split[1]),(c)=>c.charCodeAt(0));
-			let stream=new Blob([bytes]).stream();
-			let decomp=stream.pipeThrough(new DecompressionStream("gzip"));
-			let deblob=await new Response(decomp).blob();
-			let destr =await deblob.text();
-			this.uiinput.value=destr;
-			this.log("parsed");
-		} catch(error) {
-			this.log("failed to parse: "+error);
-		}
-	}
-
-
-	play() {
-		if (this.inst && this.inst.playing) {
-			this.log("stopping");
-			this.inst.remove();
-			this.inst=null;
-			this.uiplay.innerHTML="&#9658; Play";
-			return;
-		}
-		if (!this.compile()) {
-			this.log("unable to create song");
-			return;
-		}
-		this.inst=this.snd.play();
-		if (this.inst) {
-			this.uiplay.innerHTML="&#9632; Stop";
-			this.log("playing");
-			let st=this;
-			function update() {
-				if (st.update()) {requestAnimationFrame(update);}
-			}
-			update();
-		} else {
-			this.inst=null;
-			this.log("unable to play song");
-		}
-	}
-
-
-	update() {
-		if (!this.inst) {return false;}
-		if (!this.inst.playing) {
-			this.log("finished");
-			this.inst=null;
-			this.uiplay.innerHTML="&#9658; Play";
-			return false;
-		}
-		this.audio.update();
-		return true;
-	}
-
-}
-
-
-//---------------------------------------------------------------------------------
-// SFX Maker
-
-
-class SFXMaker {
-
-	constructor(inputid,playid,outputid,displayid,compileid) {
-		function getid(id) {
-			let elem=id?document.getElementById(id):null;
-			return elem?elem:null;
-		}
+		let play=document.getElementById(idplay);
 		let st=this;
-		this.uiinput=getid(inputid);
-		this.uioutput=getid(outputid);
-		this.uiplay=getid(playid);
-		if (!this.uiinput) {throw "could not find "+inputid;}
-		if (!this.uiplay ) {throw "could not find "+playid;}
-		let input=this.uiinput;
-		if (input.clientHeight<input.scrollHeight+2) {
-			input.style.height=input.scrollHeight+2+"px";
-		}
-		this.uiplay.onclick=function() {st.play();return false;};
-		this.uidisplay=getid(displayid);
-		let compile=getid(compileid);
-		if (compile) {compile.onclick=function(){st.compile();};}
-		this.audio=Audio.initdef();
-		this.snd=null;
-		this.inst=null;
+		play.onclick=function() {st.play(play,edit);};
 	}
 
 
-	clear() {if (this.uioutput) {this.uioutput.value="";}}
+	static clear() {if (this.mainout) {this.mainout.value="";}}
 
 
-	log(str) {
-		let out=this.uioutput;
+	static log(str) {
+		let out=this.mainout;
 		if (out) {
 			out.value+=(out.value?"\n":"")+str;
 			out.scrollTop=out.scrollHeight;
@@ -1497,15 +899,34 @@ class SFXMaker {
 	}
 
 
-	compile() {
-		let str=this.uiinput.value;
+	static compile(str) {
+		if (str===undefined) {str=this.mainedit.value;}
 		this.clear();
+		if (str===this.cachestr) {
+			this.log("already compiled");
+			this.log("length: "+this.snd.time.toFixed(3)+"s");
+			return true;
+		}
 		let time=performance.now();
-		let node=new Audio.SFX(str);
 		try {
-			this.log("compile time: "+((performance.now()-time)/1000).toFixed(3)+"s");
-			//this.log("effect length : "+snd.time.toFixed(3)+"s");
-			//this.render(snd,str);
+			let snd=null;
+			if (this.mode==="music") {
+				snd=Audio.sequencer(str);
+				this.log("compile: "+((performance.now()-time)/1000).toFixed(3)+"s");
+			} else {
+				// Generate 5 seconds of audio, or until there's 0.1s of silence.
+				let sfx=new Audio.SFX(str);
+				this.log("compile: "+((performance.now()-time)/1000).toFixed(3)+"s");
+				time=performance.now();
+				snd=sfx.tosound(5,0.1);
+				this.log("fill   : "+((performance.now()-time)/1000).toFixed(3)+"s");
+				this.sfx=sfx;
+			}
+			this.log("length : "+snd.time.toFixed(3)+"s");
+			this.snd=snd;
+			this.cachestr=str;
+			this.cachesnd=snd.copy();
+			this.render();
 			return true;
 		} catch(error) {
 			this.log(error);
@@ -1514,29 +935,10 @@ class SFXMaker {
 	}
 
 
-	render(snd,str) {
-		let svgobj=this.uidisplay;
-		if (!svgobj) {return;}
-		// Remake the SVG on window resize.
-		let compilecache=SFXMaker.compilecache;
-		if (!compilecache) {
-			compilecache={snd:null,str:null};
-			SFXMaker.compilecache=compilecache;
-			let st=this;
-			window.addEventListener("resize",()=>{st.render();});
-		}
-		if (!snd) {
-			snd=compilecache.snd;
-			str=compilecache.str;
-		} else {
-			compilecache.snd=snd;
-			compilecache.str=str;
-		}
-		// If the sound is playing we won't be able to access the data.
-		if (snd.data.length<snd.len) {
-			snd=Audio.sequencer(str);
-			compilecache.snd=snd;
-		}
+	static render() {
+		// Render the sound as an SVG path for best clarity.
+		let svgobj=this.maindisp;
+		let snd=this.cachesnd;
 		let sh=svgobj.viewBox.baseVal.height,smid=sh*0.5;
 		let sw=Math.round(sh*svgobj.clientWidth/svgobj.clientHeight);
 		svgobj.viewBox.baseVal.width=sw;
@@ -1575,27 +977,21 @@ class SFXMaker {
 			}
 			path=`<path class="highfill" stroke="none" d="${top+bot}" />`;
 		}
-		svgobj.innerHTML=`<line class="forestroke" x1=0 y1=${smid} x2=${sw} y2=${smid} />\n${path}`;
+		svgobj.innerHTML=`<line class="forestroke" style="stroke-width:1px"
+		                  x1=0 y1=${smid} x2=${sw} y2=${smid} />\n${path}`;
 	}
 
 
-	download() {
-		this.clear();
-		this.log("processing sequence");
-		try {
-			let snd=Audio.sequencer(this.uiinput.value);
-			this.log("saving to sfxmaker.wav");
-			snd.savefile("sfxmaker.wav");
-		} catch(error) {
-			this.snd=null;
-			this.log(error);
-		}
+	static download() {
+		this.log("saving to MusicMaker.wav");
+		let snd=this.cachesnd;
+		snd.savefile("MusicMaker.wav");
 	}
 
 
-	async tourl() {
+	static async tourl() {
 		this.clear();
-		let str   =this.uiinput.value;
+		let str   =this.mainedit.value;
 		let stream=new Blob([str]).stream();
 		let comp  =stream.pipeThrough(new CompressionStream("gzip"));
 		let chunks=[];for await (let c of comp) {chunks.push(c);}
@@ -1609,7 +1005,7 @@ class SFXMaker {
 	}
 
 
-	async fromurl() {
+	static async fromurl() {
 		let split=decodeURI(window.location.href).split("?");
 		if (split.length!==2) {return;}
 		this.clear();
@@ -1620,7 +1016,7 @@ class SFXMaker {
 			let decomp=stream.pipeThrough(new DecompressionStream("gzip"));
 			let deblob=await new Response(decomp).blob();
 			let destr =await deblob.text();
-			this.uiinput.value=destr;
+			this.mainedit.value=destr;
 			this.log("parsed");
 		} catch(error) {
 			this.log("failed to parse: "+error);
@@ -1628,23 +1024,41 @@ class SFXMaker {
 	}
 
 
-	play() {
-		if (this.inst && this.inst.playing) {
-			this.log("stopping");
-			this.inst.remove();
+	static stop() {
+		// Stop the current sound and reset the play button.
+		let play=this.lastplay;
+		if (play) {
+			let inst=this.inst;
+			if (inst && inst.playing) {
+				this.log("stopping");
+				inst.remove();
+			} else {
+				this.log("finished");
+			}
 			this.inst=null;
-			this.uiplay.innerHTML="&#9658; Play";
-			return;
+			this.lastplay=null;
+			play.innerHTML="&#9658; Play";
+			let edit=this.lastedit;
+			let st=this;
+			play.onclick=function() {st.play(play,edit);};
 		}
-		if (!this.compile()) {
+	}
+
+
+	static play(play,edit) {
+		this.stop();
+		if (!this.compile(edit.value)) {
 			this.log("unable to create effect");
 			return;
 		}
 		this.inst=this.snd.play();
 		if (this.inst) {
-			this.uiplay.innerHTML="&#9632; Stop";
-			this.log("playing");
+			this.lastplay=play;
+			this.lastedit=edit;
 			let st=this;
+			play.innerHTML="&#9632; Stop";
+			play.onclick=function() {st.stop();};
+			this.log("playing");
 			function update() {
 				if (st.update()) {requestAnimationFrame(update);}
 			}
@@ -1656,121 +1070,12 @@ class SFXMaker {
 	}
 
 
-	update() {
-		if (!this.inst) {return false;}
-		if (!this.inst.playing) {
-			this.log("finished");
-			this.inst=null;
-			this.uiplay.innerHTML="&#9658; Play";
+	static update() {
+		if (!this.inst || !this.inst.playing) {
+			this.stop();
 			return false;
 		}
-		this.audio.update();
 		return true;
-	}
-
-
-	changedropdown(dropdown) {
-		this.clear();
-		let option=dropdown[dropdown.selectedIndex];
-		this.log("loading "+option.label);
-		let library={
-			"demo_song":
-				"' Demo Song\n"+
-				"BPM 180\n"+
-				"strumlo: AG G#2, AG G#3, AG G#2, AG G#3, AG G#2, AG G#3, AG G#2, AG G#3\n"+
-				"strumhi: AG C#3, AG C#4, AG C#3, AG C#4, AG C#3, AG C#4, AG C#3, AG C#4\n"+
-				"hihat  : HH, HH, 0.5 HH, 0.5 HH, HH, HH, 0.5 HH, 0.5 HH, HH, HH, MUL 0.5\n"+
-				"OUT    : strumlo, 8 strumhi, 8 strumlo, 0 hihat, 8 strumhi, 0 hihat, 8 CUT 5, MUL 0.5",
-			"rim_shot":
-				"' Rimshot\n"+
-				"OUT: HH A7.5 1 0.5, 0.09 HH A7.5 1 0.5, 0.31 HH A8 1 1",
-			"phone_dial":
-				"' Phone Dial\n"+
-				"len : NUM 1\n"+
-				"vol : NUM 0.75\n"+
-				"v1  : vol, MUL 1.35\n"+
-				"f0  : NUM 440\n"+
-				"f1  : NUM 350\n"+
-				"sig1: SIN len f0, 0 SIN len f1, CLIP 0.9, BPF 2000 12\n"+
-				"sig2: sig1 0.5, BPF 400 3\n"+
-				"OUT : sig1 0.15, 0 CLIP 0.06, 0 sig2, HPF 90, HPF 90, MUL v1",
-			"phone_ring":
-				"' Phone Ring\n"+
-				"len : NUM 1\n"+
-				"vol : NUM 0.75\n"+
-				"v1  : vol, MUL 1.35\n"+
-				"f0  : NUM 440\n"+
-				"f1  : NUM 480\n"+
-				"sig1: SIN len f0, 0 SIN len f1, CLIP 0.9, BPF 2000 12\n"+
-				"sig2: sig1 0.5, BPF 400 3\n"+
-				"OUT : sig1 0.15, 0 CLIP 0.06, 0 sig2, HPF 90, HPF 90, MUL v1",
-			"harddrive":
-				"' Crunchy Harddrive\n"+
-				"env: LIN 0.01 1, LIN 1.9, EXP 0.09 0\n"+
-				"f1 : TRI 1 9 0 -0.9\n"+
-				"f2 : TRI 1 7 0.001 0.1\n"+
-				"OUT: TRI 2 80, COMB f2 f1, BPF 300, MUL env",
-			"missile":
-				"' Plasma Missile\n"+
-				"env : LIN 0.015 0.5, EXP 0.985 0\n"+
-				"sig : NOI 1 1000, CLIP\n"+
-				"freq: TRI 1 20 1000 100\n"+
-				"sigl: sig, LPF freq 1\n"+
-				"sigb: sig, BPF freq 2\n"+
-				"OUT : sigl, 0 sigb, 0 OUT -0.65 0.985, 0 CUT 1, MUL env\n",
-			"hi_hat":
-				"' Hi-hat\n"+
-				"len : NUM 0.1\n"+
-				"vol : NUM 1.0\n"+
-				"freq: NUM 9000\n"+
-				"elen: len, 0 NUM -0.005, MAX 0\n"+
-				"env : LIN 0.005 1, EXP elen 0\n"+
-				"sig : NOI len env, MUL vol\n"+
-				"f0  : env, MUL 0.2, ADD 1, MUL freq\n"+
-				"OUT : sig, HPF f0\n",
-			"explosion":
-				"' Explosion\n"+
-				"freq: NUM 300\n"+
-				"vol : NUM 1.0\n"+
-				"env : LIN 0.005 vol, EXP 1.995 0, LIN 2\n"+
-				"sig : NOI 4 3, MUL env\n"+
-				"sigl: sig, LPF freq 1 0.77\n"+
-				"sigb: sig, BPF freq 2 0.23\n"+
-				"OUT : sigl, 0 sigb, 0 OUT -0.685 0.785, -10 CUT 4",
-			"gunshot":
-				"' Gunshot\n"+
-				"freq: NUM 1000\n"+
-				"vol : NUM 0.5\n"+
-				"env : LIN 0.005 vol, EXP 0.295 0, LIN 0.7\n"+
-				"sig : NOI 1 3, MUL env\n"+
-				"sigl: sig, LPF freq 1 0.5\n"+
-				"sigb: sig, BPF freq 2 0.5\n"+
-				"OUT : sigl, 0 sigb, 0 OUT -0.65 0.825, -10 CUT 1",
-			"knocking":
-				"' Knocking\n"+
-				"env: LIN 0.001 10, EXP 0.199 0\n"+
-				"knock: NOI 0.2, 0 MUL env, 0 BPF 100 2, 0 BPF 100 2, 0.003 knock -0.1\n"+
-				"OUT: knock, 0.3 knock, 0.3 knock\n",
-			"electricity":
-				"' Electricity\n"+
-				"f0 : NUM 159\n"+
-				"f1 : f0, MUL 1.002\n"+
-				"OUT: SAW 1 f0, 0 SAW 1 f1, CLIP 0.5, LPF 3000\n",
-			"ui_beep":
-				"' UI Beep\n"+
-				"vol : NUM 0.5\n"+
-				"freq: NUM 2000\n"+
-				"bw  : freq, MUL 0.0012\n"+
-				"len : NUM 0.2\n"+
-				"env : LIN 0.01 vol, LIN 0.02, EXP 0.18 0, MUL env\n"+
-				"OUT : TRI len freq 0.7, 0 NOI len 0.3, BPF freq bw, MUL env",
-			"envelope":
-				"' Envelope - ADSR Example\n"+
-				"env: LIN 0.01 1, LIN 0.01 0.8, LIN 0.02, EXP 0.2 0\n"+
-				"OUT: env"
-		};
-		this.uiinput.value=library[option.value];
-		this.compile();
 	}
 
 }

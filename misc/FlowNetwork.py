@@ -2,7 +2,7 @@
 FlowNetwork.py - v1.02
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
-deegen1.github.io - akdee144@gmail.com
+2dee.net - akdee144@gmail.com
 
 --------------------------------------------------------------------------------
 Uses Dinic's Blocking Flow.

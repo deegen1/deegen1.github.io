@@ -4,7 +4,7 @@
 vector.js - v1.05
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
-deegen1.github.io - akdee144@gmail.com
+2dee.net - akdee144@gmail.com
 
 
 --------------------------------------------------------------------------------
@@ -19,10 +19,7 @@ TODO
 
 
 */
-/* jshint esversion: 11  */
-/* jshint bitwise: false */
-/* jshint eqeqeq: true   */
-/* jshint curly: true    */
+/* npx eslint vector.js -c ../../standards/eslint.js */
 
 
 //---------------------------------------------------------------------------------

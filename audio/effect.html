@@ -5,8 +5,10 @@
 	<title>SFX Editor</title>
 	<link rel="stylesheet" href="../style/style.css" type="text/css">
 	<script src="../style/style.js"></script>
+	<script src="./library.js"></script>
 	<script src="./audio.js"></script>
 	<script src="./demo.js"></script>
+	<!--<script src="./extra/test.js"></script>-->
 	<style>
 	.musiceditor {
 		max-width:100%;
@@ -34,28 +36,245 @@ style='width:100%;height:9rem;background:#000000;margin:auto'>
 <textarea id="main_out" class="consoleblock musiceditor" spellcheck="false"
 style="height:8rem;margin-bottom:0.5rem;" readonly></textarea>
 <button id="main_play">&#9658; Play</button>&nbsp;&nbsp;
-<button id="main_compile">Compile</button>&nbsp;&nbsp;
-<button id="main_download" onclick="main.download()">.WAV</button>&nbsp;&nbsp;
-<button id="main_url" onclick="main.tourl()">URL</button>&nbsp;&nbsp;
-<label>Samples:&nbsp;
-	<select onchange="main.changedropdown(this)">
-	</select>
-</label>
+<button id="main_comp">Compile</button>&nbsp;&nbsp;
+<button id="main_download" onclick="MusicMaker.download()">.WAV</button>&nbsp;&nbsp;
+<button id="main_url" onclick="MusicMaker.tourl()">URL</button>&nbsp;&nbsp;
 <textarea id="main_editor" class="codeblock musiceditor" style="height:20rem;"
-spellcheck="false">
+spellcheck="false">'Crunchy Harddrive
+#f1  : TRI F 9 L 0 H -0.9
+#f2  : TRI F 7 H 0.001 L 0.1
+#f3  : TRI F 78
+#comb: DEL T #f2 M 0.1 I #comb #f1 * #f3 +
+#bpf : BPF F 300 I #comb #f3
+#out : ENV A 0.01 S 1.9 R 0.09 I #bpf
 </textarea>
-<script>
-let main=new SFXMaker("main_editor","main_play","main_out","main_display",
-"main_compile");
-main.fromurl();
-main.compile();
-</script>
-<p>A previous version of the scripting language also allowed for waveform
-editing for sound effects.</p>
+<script>MusicMaker.init("effect","main_editor","main_play","main_out",
+"main_display","main_comp");</script>
+<p>The sound effect scripting language is a shorthand way to make practical
+sound effects.</p>
+<h2>Rules</h2>
+<table class="listtable">
+<tr><td>1.</td><td>Node names begin with a <i>#</i> symbol. The last node is
+used as output.</td></tr>
+<tr><td>2.</td><td>Node outputs can be used as inputs for most
+parameters.</td></tr>
+<tr><td></td><td>Ex: a square wave modulated by a sine wave:
+<i>#osc: SIN F 200 #out: SQR F #osc</i></td></tr>
+<tr><td>3.</td><td>Combine inputs with reverse polish notation. Leftover
+terms are summed.</td></tr>
+<tr><td></td><td>Ex: <i>(#osca*2)+(#oscb-1)</i>:
+<i>#out: SQR F #osca 2 * #oscb 1 -</i></td></tr>
+</table>
+<table class="datatable headerrow">
+<tr><td>Symbol</td><td>Description</td><td>Parameters</td></tr>
+<tr><td><i>'</i></td><td>Line comment.</td><td></td></tr>
+<tr><td><i>"</i></td><td>Block comment. Terminate with "</td><td></td></tr>
+<tr><td><i>#bass:</i></td><td>Define a node named <i>#bass</i>.</td>
+<td></td></tr>
+<tr><td><i>#bass</i></td><td>Reference a node named <i>#bass</i>.</td>
+<td></td></tr>
+<tr><td><i>EXPR</i></td><td>Generic math expression. This is the default node
+type.</td><td>Any equation</td></tr>
+<tr><td><i>ENV</i></td><td>Envelope filter.</td>
+<td><i>[a]ttack = 0<br>[s]sustain = 0<br>[r]elease = 0<br>[i]nput = 1</i></td>
+</tr>
+<tr><td><i>TRI SAW<br>SIN SQR</i></td><td>Common oscillators.
+</td><td><i>[f]req<br>[p]hase = 0<br>[h]igh = 1<br>[l]ow = -high</i></td></tr>
+<tr><td><i>PULSE</i></td><td>Pulse oscillator.</td>
+<td><i>[w]idth = 0.5<br>and osc params</i></td></tr>
+<tr><td><i>TBL</i></td><td>Wave table oscillator. List x,y points in order like
+<i>t 0 1 0.5 -1 1 1</i></td><td><i>[t]able<br>and osc params</i></td></tr>
+<tr><td><i>NOISE</i></td><td>White noise.</td>
+<td><i>[h]igh = 1<br>[l]ow = -high</i></td></tr>
+<tr><td><i>DEL</i></td><td>Delay filter. Max must be constant.</td>
+<td><i>[t]ime = 0<br>[m]ax<br>[i]nput = 0</i></td></tr>
+<tr><td><i>LPF HPF<br>BPF NPF<br>APF PKF<br>LSF HSF</i></td><td>Biquad filters:
+lowpass, highpass, etc. Gain is linear.</td>
+<td><i>[f]req<br>[b]andwidth = 1<br>[g]ain = 1<br>[i]nput = 0</i></td></tr>
+</table>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Samples ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Samples</h1>
+<button id="sub1_play">&#9658; Play</button>
+<textarea id="sub1_editor" class="codeblock musiceditor"
+spellcheck="false">'Simple sine wave with an envelope
+#osc: SIN F 150
+#out: ENV A 0.01 S 0.9 R 0.09 I #osc</textarea>
+<script>MusicMaker.initsub("sub1_play","sub1_editor");</script>
+<button id="sub2_play">&#9658; Play</button>
+<textarea id="sub2_editor" class="codeblock musiceditor"
+spellcheck="false">'Hi-hat
+#freq: 7000
+#time: 0.1
+#sig: NOISE
+#hpf: HPF F #freq I #sig G 0.7
+#bpf: BPF F #freq 1.4 * I #sig G 0.7
+#out: ENV A 0.005 R #time 0.005 - I #hpf #bpf</textarea>
+<script>MusicMaker.initsub("sub2_play","sub2_editor");</script>
+<button id="sub3_play">&#9658; Play</button>
+<textarea id="sub3_editor" class="codeblock musiceditor"
+spellcheck="false">'Plasma Missile
+#noi1: NOISE H 1000
+#noi2: #noi1 1 < -1 >
+#freq: TRI F 20 H 1000 L 100
+#sigl: LPF F #freq I #noi2 B 1
+#sigb: BPF F #freq I #noi2 B 2
+#out : ENV A .015 R .985 I #sigl #sigb</textarea>
+<script>MusicMaker.initsub("sub3_play","sub3_editor");</script>
+<button id="sub4_play">&#9658; Play</button>
+<textarea id="sub4_editor" class="codeblock musiceditor"
+spellcheck="false">'Knocking
+#sig  : NOISE H 12
+#bpf1 : BPF F 100 B 2 I #sig
+#bpf2 : BPF F 100 B 2 I #bpf1
+#knock: ENV A 0.001 R 0.199 I #bpf2
+#del  : DEL T 0.3 I #knock #del
+#alive: NOISE H 0.001
+#out  : ENV A 0 S 0.9 R 0 I #alive #knock #del</textarea>
+<script>MusicMaker.initsub("sub4_play","sub4_editor");</script>
+<button id="sub5_play">&#9658; Play</button>
+<textarea id="sub5_editor" class="codeblock musiceditor"
+spellcheck="false">'Electricity
+#f0  : 159
+#f1  : #f0 1.002 *
+#saw0: SAW F #f0
+#saw1: SAW F #f1
+#sig : LPF F 3000 I #saw0 #saw1 + 0.5 < -0.5 >
+#out : ENV S 2 I #sig</textarea>
+<script>MusicMaker.initsub("sub5_play","sub5_editor");</script>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Motivation ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Motivation</h1>
+<p>The sound effect scripting language is a simple, shorthand way to write
+sound effects. Like my <a href="./music.html">music editor</a>, I needed an easy
+way to create effects - explosions, beeps, etc. With the tools I had available I
+could create those effects, but it was very tedious and non portable. A simple
+hi-hat in my old notation took 658 bytes, whereas the same effect is only 144
+bytes now.</p>
+<table class="listtable headerrow" style="table-layout:fixed">
+<tr><td>Old</td><td>New</td></tr>
+<tr><td style="width:50%;padding:1rem"><div class="codeblock"
+style="width:100%;margin:0">function createdrumhihat(volume=1.0,freq=7000,time=0.1,sndfreq=44100) {
+	let len=Math.ceil(time*sndfreq);
+	let snd=new Audio.Sound(sndfreq,len);
+	let gain=new Audio.Envelope([Audio.Envelope.LIN,0.005,volume*0.7,Audio.Envelope.EXP,time-0.005,0]);
+	let hp=new Audio.Biquad(Audio.Biquad.HIGHPASS,freq/sndfreq);
+	let bp=new Audio.Biquad(Audio.Biquad.BANDPASS,freq*1.4/sndfreq);
+	let data=snd.data;
+	for (let i=0;i&lt;len;i++) {
+		let t=i/sndfreq,u=(1-0.2*i/len)*freq/sndfreq;
+		let x=Audio.noise();
+		hp.updatecoefs(Audio.Biquad.HIGHPASS,u);
+		bp.updatecoefs(Audio.Biquad.BANDPASS,u*1.4);
+		x=bp.process(x)+hp.process(x);
+		data[i]=x*gain.get(t);
+	}
+	return snd;
+}</div></td>
+<td style="width:50%;padding:1rem"><div class="codeblock"
+style="width:100%;margin:0">#freq: 7000
+#time: 0.1
+#sig: NOISE
+#hpf: HPF F #freq I #sig G 0.7
+#bpf: BPF F #freq 1.4 * I #sig G 0.7
+#out: ENV A 0.005 R #time 0.005 - I #hpf #bpf
+
+
+
+
+
+
+
+
+
+
+
+</div></td>
+</tr></table>
+<p>There were several attempts before settling on the current notation. The
+first being to rework my music sequencer to also allow waveform editing. This
+"worked", but the static nature of rendering everything to sounds made it
+difficult to work with.</p>
+<p>One of the things I didn't realize was that working with time dependent
+data (as opposed to images) required a different way of thinking. For example:
+if we draw a rectangle with <i>draw.fillrect(0,0,10,10)</i>, any data it needs
+can be contained in that one function call. There's no need to tweak the size or
+color while it's drawing, but if a sound is playing we may need to change the
+frequency as it moves away from us.</p>
+<p>I decided to go with the dynamic, node-based nature that most editors and
+DAWs have. Effects can be built up from nodes, and multiple node inputs can be
+fed into a parameter and combined with reverse polish notation, like if we want
+to vary an oscillator's frequency. This notation is not only easier to parse,
+but lets us works better with the plugin nature of nodes.</p>
+<div class="codeblock">'100hz square wave
+#out : SQR F 100
+
+'Square wave modulated by a sine wave
+#osc1: SIN F 100
+#out : SQR F #osc1
+
+'Square wave modulated by two sine waves multiplied
+#osc1: SIN F 100
+#osc2: SIN F 200
+#out : SQR F #osc1 #osc2 *</div>
+<p>Sound effects generate a lot of raw data, so to make it performant these
+effects would also be compiled down to a simple program. I created a decompiler
+to double check my audio programs - this is what peak hi-hat performance looks
+like:</p>
+<div class="codeblock" style="font-size:50%;width:fit-content">  Addr  |    Data    |  *  |  Description
+--------+------------+-----+-------------------------------------------------
+     0  |  00000004  |     |  #freq          =  4            -&gt;  #time
+     1  |  00000002  |     |  #freq.in_stop  =  2            -&gt;  #freq.type
+     2  |  00000000  |     |  #freq.type     =  expr       
+     3  |  45dac000  |     |  #freq.out      =  7000.000000
+     4  |  00000008  |     |  #time          =  8            -&gt;  #sig
+     5  |  00000006  |     |  #time.in_stop  =  6            -&gt;  #time.type
+     6  |  00000000  |     |  #time.type     =  expr       
+     7  |  3dcccccd  |     |  #time.out      =  0.100000   
+     8  |  00000010  |     |  #sig           =  16           -&gt;  #hpf
+     9  |  0000000a  |     |  #sig.in_stop   =  10           -&gt;  #sig.type
+    10  |  00000008  |     |  #sig.type      =  noise      
+    11  |  3f510fe2  |  *  |  #sig.out       =  0.816649   
+    12  |  3f800000  |     |  #sig.h         =  1.000000   
+    13  |  bf800000  |     |  #sig.l         =  -1.000000  
+    14  |  0d43363c  |  *  |  #sig.acc       =  222508604  
+    15  |  7690614d  |     |  #sig.inc       =  1989173581 
+    16  |  00000029  |     |  #hpf           =  41           -&gt;  #bpf
+    17  |  00000018  |     |  #hpf.in_stop   =  24           -&gt;  #hpf.type
+    18  |  00000014  |     |  #hpf.src_0     =  20           -&gt;  #hpf.dst_0
+    19  |  00000003  |     |  #hpf.src_0_0   =  [NOP,3]      -&gt;  #freq.out
+    20  |  0000001a  |     |  #hpf.dst_0     =  26           -&gt;  #hpf.f
+    21  |  00000017  |     |  #hpf.src_1     =  23           -&gt;  #hpf.dst_1
+    22  |  0000000b  |     |  #hpf.src_1_0   =  [NOP,11]     -&gt;  #sig.out
+    23  |  0000001d  |     |  #hpf.dst_1     =  29           -&gt;  #hpf.i
+    24  |  0000000b  |     |  #hpf.type      =  hpf        
+    25  |  3f22a5e5  |  *  |  #hpf.out       =  0.635344   
+    26  |  45dac000  |  *  |  #hpf.f         =  7000.000000
+    27  |  3f800000  |     |  #hpf.b         =  1.000000   
+    28  |  3f333333  |     |  #hpf.g         =  0.700000   
+    29  |  3f510fe2  |  *  |  #hpf.i         =  0.816649   
+   ...
+</div>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Notes ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Notes</h1>
+<p>I'm really happy with how this turned out. Compared to the mangled music
+editor notation I was attempting to make, this allows for simple AND efficient
+handling of sound effects.</p>
+<p>Among other failed attempts was an assembly-like notation and basically
+remaking LISP. My attempts to make a general purpose sound effect language were
+leading me to remake entire programming languages. Luckily I've worked my way
+out of that to create something purely focused on living time-dependent
+sounds.</p>
+<p>Work remains to simplify the parser and handle a few situations (like delay
+filters) I chose to ignore to get something out the door.</p>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-</div><div id="footer">Created on 27 Jan 2025 - Modified on 2 Feb 2025<br>
+</div><div id="footer">Created on 27 Jan 2025 - Modified on 24 Feb 2025<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>

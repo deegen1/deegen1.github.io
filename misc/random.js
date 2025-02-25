@@ -4,7 +4,7 @@
 random.js - v1.08
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
-deegen1.github.io - akdee144@gmail.com
+2dee.net - akdee144@gmail.com
 
 
 --------------------------------------------------------------------------------
@@ -32,10 +32,7 @@ Use https://github.com/stdlib-js/math-base-special-erfinv/blob/main/src/main.c
 
 
 */
-/* jshint esversion: 11  */
-/* jshint bitwise: false */
-/* jshint eqeqeq: true   */
-/* jshint curly: true    */
+/* npx eslint random.js -c ../../standards/eslint.js */
 
 
 //---------------------------------------------------------------------------------

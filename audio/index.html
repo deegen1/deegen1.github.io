@@ -5,6 +5,7 @@
 	<title>Sound Effects</title>
 	<link rel="stylesheet" href="../style/style.css" type="text/css">
 	<script src="../style/style.js"></script>
+	<script src="./library.js"></script>
 	<script src="./audio.js"></script>
 	<script src="./demo.js"></script>
 	<!--<script src="./extra/test.js"></script>-->
@@ -55,17 +56,17 @@ style="display:inline;margin:0;width:100%" value="E0----A7--D5--E6--E5----A7--E0
 </table>
 <table class="listtable padtable">
 <tr>
-<td style="width:20%;"><a href="#" onclick="Bebop.toggle(this);return false;"><img src="bebop_bang.png"></a></td>
-<td style="width:20%;"><a href="#" onclick="PlayPhone();return false;"><img src="old_phone.png"></a></td>
-<td style="width:20%;"><a href="#" onclick="Audio.createexplosion2(0.7).play();return false;"><img src="explosion.png"></a></td>
-<td style="width:20%;"><a href="#" onclick="Audio.createdrumhihat(1.1).play();return false;"><img src="hithat_blues_brothers.png"></a></td>
-<td style="width:20%;"><a href="#" onclick="Audio.createdrumkick(1.1).play();return false;"><img src="kick_step_brothers.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="return Bebop.toggle(this);"><img src="bebop_bang.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="return PlayUI('phone');"><img src="old_phone.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="return PlayUI('explosion');"><img src="explosion.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="return PlayUI('hihat');"><img src="hithat_blues_brothers.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="return PlayUI('kick');"><img src="kick_step_brothers.png"></a></td>
 </tr><tr>
-<td style="width:20%;"><a href="#" onclick="Audio.createmarble(0.6).play();return false;"><img src="galaxy_marbles.png"></a></td>
-<td style="width:20%;"><a href="#" onclick="PlayKnock();return false;"><img src="door_knock.png"></a></td>
-<td style="width:20%;"><a href="#" onclick="Audio.createlaser(0.7).play();return false;"><img src="laser.png"></a></td>
-<td style="width:20%;"><a href="#" onclick="Audio.createelectricity().play();return false;"><img src="electric_arc.png"></a></td>
-<td style="width:20%;"><a href="#" onclick="PlayUI();return false;"><img src="game_menu.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="return PlayUI('marble');"><img src="galaxy_marbles.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="return PlayUI('knock');"><img src="door_knock.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="return PlayUI('laser');"><img src="laser.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="return PlayUI('electric');"><img src="electric_arc.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="return PlayUI('beep');"><img src="game_menu.png"></a></td>
 </tr>
 </table>
 <script>new XylophoneSim("xylosim");</script>
@@ -428,7 +429,7 @@ you're an alien who's only studied human anatomy".</p>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-</div><div id="footer">Created on 22 Oct 2024 - Modified on 22 Oct 2024<br>
+</div><div id="footer">Created on 22 Oct 2024 - Modified on 23 Feb 2025<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>
