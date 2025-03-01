@@ -16,7 +16,7 @@ TODO
 /* global Input, Random */
 
 
-Audio.initdef().autounmute();
+Audio.initdef().mute(0);
 
 
 //---------------------------------------------------------------------------------

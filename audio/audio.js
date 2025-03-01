@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-audio.js - v3.00
+audio.js - v3.01
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -51,6 +51,10 @@ History
      Remade all sound effects and most instruments as SFX scripts.
      Audio now tracks if browser audio is suspended (like in new tabs) and
      resumes audio.
+3.01
+     Sound instances now stop and start properly by recreating the audio node.
+     Browser audio now gets muted and unmuted properly.
+     Cleaned up SFX.parse() error reporting.
 
 
 --------------------------------------------------------------------------------
@@ -66,19 +70,16 @@ Convert Bebop song to beat.
 Allow inst to play effects
 	https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Using_AudioWorklet
 Sound effects
-	Create a large SFX stress test.
-	Print full line on error.
+	Optimize %mod lines in sfx.fill().
 	Simplify attribute naming in namemap[].
 	Configure delay filter to cache at a static frequency. If rate is too
 	small accumulate till we have enough. If too large, split up and fill
 	multiple values. fill=delay_freq/play_freq
 	WASM fill.
-	Turn RPN into an AST and optimize for stack height.
 	Convert oscillator table to AVL tree. Allow vars for points.
 	If node=last, return node.y. Otherwise lerp node and next(node).
 	Store {parent,weight},{prev,next},{left,right},{x},{y} = 20 bytes
-	Go through sound design book.
-	Thunder clap.
+	Go through sound design book. Thunder clap, etc.
 Add a piano roll editor.
 
 
@@ -88,7 +89,7 @@ Add a piano roll editor.
 
 
 //---------------------------------------------------------------------------------
-// Audio - v3.00
+// Audio - v3.01
 
 
 class _AudioSound {
@@ -374,6 +375,7 @@ class _AudioSound {
 
 	addindex(snd,dstoff=0,vol=1.0) {
 		// Add sound samples to the current sound.
+		dstoff=Math.floor(dstoff);
 		let srcoff=0,srclen=snd.len;
 		if (dstoff<0) {
 			srcoff=-dstoff;
@@ -631,8 +633,9 @@ class _AudioSFX {
 		let di32=new Int32Array(0);
 		let df32=new Float32Array(di32.buffer);
 		function error(msg,s0,s1) {
-			let line=1;
-			for (let i=0;i<s0;i++) {line+=seqstr.charCodeAt(i)===10;}
+			let line=1,start=0;
+			for (let i=0;i<s0;i++) {if (seqstr.charCodeAt(i)===10) {start=i+1;line++;}}
+			if (s1===undefined) {s1=s0+1;s0=start;}
 			let argsum=seqstr.substring(s0,s1);
 			throw "Sequencer error:\n\tError: "+msg+"\n\tLine : "+line+"\n\targs : "+argsum;
 		}
@@ -720,7 +723,7 @@ class _AudioSFX {
 					let h=0;
 					for (let p of stack) {
 						h+=p.type!==OP?1:(p.val<2?0:-1);
-						if (h<=0) {error("not enough operands: "+node.str);}
+						if (h<=0) {error("not enough operands in expression: "+node.str,s0-1);}
 					}
 					// Sum everything left in the stack.
 					while (h-->1) {
@@ -777,15 +780,16 @@ class _AudioSFX {
 					def=[NaN,0,1,-1,0,0.5];
 					negp=3;
 					if (type===TBL) {
-						if (!iscon[5]) {error("table points must be constants");}
+						if (!iscon[5]) {error("table points must be constants",s0-1);}
 						let p=param[5],len=p.length;
-						if (len<4 || (len&1)) {error("table must have an even number of values: "+len);}
+						if (len<4) {error("table must have at least 2 points",s0-1);}
+						if (len&1) {error("table must have an even number of values: "+len,s0-1);}
 						for (let i=2;i<len;i+=2) {
 							let j=i,x=p[j],y=p[j+1];
 							while (j>0 && p[j-2].val>x.val) {p[j]=p[j-2];p[j+1]=p[j-1];j-=2;}
 							p[j]=x;p[j+1]=y;
 						}
-						if (p[0].val!==0) {error("table must start at x=0");}
+						if (p[0].val!==0) {error("table must start at x=0",s0-1);}
 						for (let i=1;i<len;i+=2) {p[i].val=p[i].val*0.5+0.5;}
 						size+=len-1;
 					}
@@ -796,18 +800,18 @@ class _AudioSFX {
 					negp=1;
 				} else if (type===DEL) {
 					// delay
-					if (!param[0].length) {error("delay must have a time");}
+					if (!param[0].length) {error("delay must have a time",s0-1);}
 					if (!param[1].length && iscon[0]) {param[1].push({type:CON,val:param[0][0].val});}
 					let max=(param[1].length===1 && iscon[1])?param[1][0].val:NaN;
 					let len=Math.floor(sndfreq*max)+2;
-					if (len<2 || len>VMASK || isNaN(len)) {error("max delay must be constant");}
+					if (isNaN(len)) {error("max delay must be constant",s0-1);}
 					def=[NaN,NaN,0,0];
 					size+=len;
 				} else if (type>=FIL0 && type<=FIL1) {
 					size+=11;
 					def=[NaN,1,1,NaN];
 				} else {
-					error("unknown known type: "+type);
+					error("unknown known type: "+type,s0-1);
 				}
 				if (negp>0 && !param[negp].length && param[negp-1].length) {
 					// set to -[h]
@@ -818,13 +822,16 @@ class _AudioSFX {
 				}
 				for (let p=0;p<params;p++) {
 					if (!param[p].length) {
-						if (isNaN(def[p])) {error(node.params[p]+" must have a value");}
+						if (isNaN(def[p])) {error(node.params[p]+" must have a value",s0-1);}
 						param[p].push({type:CON,val:def[p]});
 					}
 				}
 				// Overallocate to fit our data.
 				let resize=dpos+4+size;
 				for (let p=0;p<params;p++) {resize+=!iscon[p]?param[p].length*2+2:0;}
+				if (resize>resize || resize>VMASK) {
+					error("not enough memory: "+resize,s0-1);
+				}
 				if (resize>di32.length) {
 					let newlen=resize*2;
 					let tmp=new Int32Array(newlen);
@@ -864,7 +871,7 @@ class _AudioSFX {
 				// Allocate state values and fill in constants.
 				let dpos1=dpos+size+1;
 				if (dpos1>resize || dpos1>VMASK) {
-					error("not enough memory "+dpos1+" > "+resize);
+					error("out of bounds: "+dpos1+" > "+resize,s0-1);
 				}
 				for (let p=0;p<params;p++) {
 					if (!iscon[p]) {continue;}
@@ -1230,6 +1237,9 @@ class _AudioSFX {
 
 class _AudioInstance {
 
+	// We can only call start/stop once. In order to pause a buffer node, we need to
+	// destroy and recreate the node.
+
 	constructor(snd,vol=1.0,pan=0.0) {
 		let audio=snd.audio;
 		// Audio player link
@@ -1243,6 +1253,7 @@ class _AudioInstance {
 		this.sndnext=snd.queue;
 		snd.queue   =this;
 		// Misc
+		this.volume =vol;
 		this.rate   =1.0;
 		this.playing=false;
 		this.done   =false;
@@ -1258,14 +1269,15 @@ class _AudioInstance {
 		this.ctxgain.connect(this.ctxpan);
 		let ctxsrc=ctx.createBufferSource();
 		this.ctxsrc=ctxsrc;
-		ctxsrc.addEventListener("ended",()=>{this.remove();});
+		let st=this;
+		ctxsrc.onended=function(){st.remove();};
 		ctxsrc.buffer=snd.ctxbuf;
 		ctxsrc.connect(this.ctxgain);
 		if (snd.ctxbuf) {
 			if (!this.muted) {ctxsrc.start(0,0,snd.time);}
 			this.playing=true;
 		}
-		this.time=performance.now()*0.001;
+		this.time=-performance.now()*0.001;
 	}
 
 
@@ -1286,7 +1298,6 @@ class _AudioInstance {
 			audnext.audprev=audprev;
 			this.audnext=null;
 		}
-		// this.audio=null;
 		let sndprev=this.sndprev;
 		let sndnext=this.sndnext;
 		if (sndprev===null) {
@@ -1299,7 +1310,8 @@ class _AudioInstance {
 			sndnext.sndprev=sndprev;
 			this.sndnext=null;
 		}
-		// this.snd=null;
+		this.ctxsrc.onended=undefined;
+		try {this.ctxsrc.stop();} catch {}
 		this.ctxsrc.disconnect();
 		this.ctxgain.disconnect();
 		this.ctxpan.disconnect();
@@ -1307,9 +1319,21 @@ class _AudioInstance {
 
 
 	stop() {
+		// Audio nodes can't start and stop, so recreate the node.
 		if (!this.done && this.playing) {
 			this.playing=false;
-			this.ctxsrc.stop();
+			this.muted=this.audio.muted;
+			let src=this.ctxsrc;
+			let endfunc=src.onended;
+			src.onended=undefined;
+			try {src.stop();} catch {}
+			src.disconnect();
+			this.time+=performance.now()*0.001;
+			src=this.ctx.createBufferSource();
+			src.onended=endfunc;
+			src.buffer=this.snd.ctxbuf;
+			src.connect(this.ctxgain);
+			this.ctxsrc=src;
 		}
 	}
 
@@ -1317,8 +1341,11 @@ class _AudioInstance {
 	start() {
 		if (!this.done && !this.playing) {
 			this.playing=true;
-			if (!this.muted) {this.ctxsrc.start();}
-			else {this.time=performance.now()*0.001-this.ctxsrc.context.currentTime;}
+			this.muted=this.audio.muted;
+			let rem=this.snd.time-this.time;
+			if (rem<=0) {this.remove();}
+			else if (!this.muted) {this.ctxsrc.start(0,this.time,rem);}
+			this.time-=performance.now()*0.001;
 		}
 	}
 
@@ -1332,7 +1359,7 @@ class _AudioInstance {
 		else if (isNaN(pan)) {pan=0;}
 		this.pan=pan;
 		if (!this.done) {
-			this.ctxpan.pan.setValueAtTime(this.pan,this.ctx.currentTime);
+			this.ctxpan.pan.value=this.pan;
 		}
 	}
 
@@ -1341,7 +1368,8 @@ class _AudioInstance {
 		if (isNaN(vol)) {vol=1;}
 		this.volume=vol;
 		if (!this.done) {
-			this.ctxgain.gain.setValueAtTime(this.volume,this.ctx.currentTime);
+			vol*=this.audio.volume;
+			this.ctxgain.gain.value=vol;
 		}
 	}
 
@@ -1656,18 +1684,19 @@ class Audio {
 
 
 	constructor(freq=44100) {
-		let con=this.constructor;
-		Object.assign(this,con);
-		if (con.def===null) {con.def=this;}
+		Object.assign(this,this.constructor);
 		this.freq=freq;
 		this.queue=null;
+		this.volume=1;
 		let ctx=new AudioContext({latencyHint:"interactive",sampleRate:freq});
 		this.ctx=ctx;
-		this.muted=ctx.state!=="running";
-		this.muteevent=null;
+		// 2 = Audio mute, 1 = browser mute
+		this.muted=2;
+		this.mutefunc=function(){ctx.resume();};
+		this.updatetime=NaN;
 		if (!Audio.def) {Audio.initdef(this);}
 		let st=this;
-		function update() {setTimeout(update,16);st.update();}
+		function update() {if (st.update()) {requestAnimationFrame(update);}}
 		update();
 	}
 
@@ -1691,52 +1720,45 @@ class Audio {
 	}
 
 
-	autounmute() {
-		// Audio is silenced until a sound is played after user interaction.
-		this.muted=this.ctx.state!=="running";
-		if (this.muted && !this.muteevent) {
-			let st=this;
-			function unmute() {st.ctx.resume().then(()=>st.autounmute());}
-			document.addEventListener("click",unmute);
-			document.addEventListener("mousedown",unmute);
-			document.addEventListener("touchstart",unmute);
-			this.muteevent=unmute;
-		}
-		if (!this.muted && this.muteevent) {
-			document.removeEventListener("click",this.muteevent);
-			document.removeEventListener("mousedown",this.muteevent);
-			document.removeEventListener("touchstart",this.muteevent);
-			this.muteevent=null;
-		}
-	}
-
-
-	muted(val) {
-		val=val?true:false;
-		if (!val) {this.ctx.resume();}
+	mute(val) {
+		if (val!==undefined) {this.muted=(val?2:0)|(this.muted&1);}
+		return (this.muted&2)?true:false;
 	}
 
 
 	update() {
+		// Audio is silenced until a sound is played after user interaction.
+		// https://html.spec.whatwg.org/#activation-triggering-input-event
+		let muted=(this.muted&2)|(this.ctx.state!=="running");
+		if ((muted^this.muted)&1) {
+			let events=["keydown","mousedown","pointerdown","pointerup","touchend"];
+			for (let evt of events) {
+				if (muted&1) {document.addEventListener(evt,this.mutefunc);}
+				else {document.removeEventListener(evt,this.mutefunc);}
+			}
+			this.muted=muted;
+		}
 		// Track time played while audio is suspended. Restart or remove sounds if needed.
-		let muted=this.muted;
 		let inst=this.queue;
 		while (inst) {
 			let next=inst.next;
-			if (muted) {
-				if (!inst.muted) {inst.time=performance.now()*0.001-inst.ctxsrc.context.currentTime;}
-				inst.muted=muted;
-				let elapsed=performance.now()*0.001-inst.time;
-				if (elapsed>inst.snd.time) {inst.remove();}
-			} else if (inst.muted) {
-				inst.muted=muted;
-				let elapsed=performance.now()*0.001-inst.time;
-				let rem=inst.snd.time-elapsed;
-				if (rem<=0) {inst.remove();}
-				else {inst.ctxsrc.start(0,elapsed,rem);}
+			if ((muted || inst.muted) && inst.playing) {
+				let time=inst.time;
+				if (!inst.muted) {
+					inst.stop();
+					inst.time=time;
+					inst.playing=true;
+				}
+				time+=performance.now()*0.001;
+				if (time>inst.snd.time || !muted) {
+					inst.playing=false;
+					inst.time=time;
+					inst.start();
+				}
 			}
 			inst=next;
 		}
+		return true;
 	}
 
 
@@ -2148,9 +2170,6 @@ class Audio {
 			#vol : ${volume}
 			#freq: ${freq}
 			#time: ${time}
-			#vol : 1
-			#freq: 200
-			#time: 2
 			#noi : NOISE
 			#nenv: ENV S #time .5 * I #noi
 			#lpf : LPF F #freq B 2 I #nenv

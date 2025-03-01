@@ -412,6 +412,52 @@ won't run into this positive feedback issue.</p>
 <a href="#" onclick="PlayWaveguide();return false;">play</a></p>
 
 
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~ Web Audio Difficulties ~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Web Audio Difficulties</h1>
+<p>The articles and examples I read made javascript audio look like it would be
+as simple as load sound -&gt; play sound. The reality is that those articles
+unintentionally disguise anti-annoyance features in browsers and gloss over two
+main issues:</p>
+<table class="listtable">
+<tr><td>1.</td><td>Browser tabs ALWAYS start off muted, and can only be unmuted
+after certain user gestures.</td></tr>
+<tr><td>2.</td><td>Sounds stopped with <i>stop()</i> can't be started
+again.</td></tr>
+</table>
+<p>Most articles and examples hide these limitations by making you play an
+example by clicking on a button - as it happens some click related events can
+also unmute a tab. The examples also usually only play a sound once, so starting
+and stopping several times is not a concern.</p>
+<p>Tabs starting off muted is the first issue I noticed, but took the longest to
+solve. I saw some posts mentioning that "user interaction" is needed before a
+tab can play sound, but finding out exactly which ones took a while: it's
+<a href="https://html.spec.whatwg.org/#activation-triggering-input-event">these</a>.
+For reference they're: <i>keydown</i>, <i>mousedown</i>, <i>pointerdown</i>,
+<i>pointerup</i>, and <i>touchend</i>. The simplest thing to do is add event
+listeners for these events and call <i>audiocontext.resume()</i>. This doesn't
+allow audio immediately however, it returns a promise and audio will be allowed
+some time later. After the audio context state turns to running, I remove the
+event listeners. Effectively:</p>
+<div class="codeblock">let mutefunc=function(){ctx.resume();};
+// main loop:
+let muted=ctx.state!=="running";
+let events=["keydown","mousedown","pointerdown","pointerup","touchend"];
+for (let evt of events) {
+	if (muted) {document.addEventListener(evt,mutefunc);}
+	else {document.removeEventListener(evt,mutefunc);}
+}</div>
+<p>This was also the source of a problem with iPhones, although I didn't know it
+at the time. iPhones seem to require you to resume audio with a certain time of
+those events (I think), and fail otherwise. This made my demos fail somewhat
+randomly when I asked friends with iPhones to test them.</p>
+<p>Starting and stopping sounds multiple times is an annoying issue simply
+because I had never heard of an audio system that inherently doesn't allow
+pausing and unpausing sounds. After a lot of trial an error, including
+setting the volume to 0 or disconnecting and reconnecting, I decided to
+destroy the source audio node when paused and record the time. When starting
+again, I remake the sound and start from the recorded time.</p>
+
+
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Notes ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <h1>Notes</h1>
 <p>As someone who was looking to dip their feet into music, I ran into several
@@ -429,7 +475,7 @@ you're an alien who's only studied human anatomy".</p>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-</div><div id="footer">Created on 22 Oct 2024 - Modified on 23 Feb 2025<br>
+</div><div id="footer">Created on 22 Oct 2024 - Modified on 26 Feb 2025<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>
