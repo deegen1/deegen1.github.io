@@ -37,10 +37,10 @@ style='width:100%;height:9rem;background:#000000;margin:auto'>
 style="height:8rem;margin-bottom:0.5rem;" readonly></textarea>
 <button id="main_play">&#9658; Play</button>&nbsp;&nbsp;
 <button id="main_compile">Compile</button>&nbsp;&nbsp;
-<button id="main_download" onclick="main.download()">.WAV</button>&nbsp;&nbsp;
-<button id="main_url" onclick="main.tourl()">URL</button>&nbsp;&nbsp;
+<button id="main_download" onclick="MusicMaker.download()">.WAV</button>&nbsp;&nbsp;
+<button id="main_url" onclick="MusicMaker.tourl()">URL</button>&nbsp;&nbsp;
 <textarea id="main_editor" class="codeblock musiceditor" style="height:20rem;"
-spellcheck="false">' Demo Song
+spellcheck="false">'Demo Song
 BPM 180
 strumlo: AG G#2, AG G#3, AG G#2, AG G#3, AG G#2, AG G#3, AG G#2, AG G#3
 strumhi: AG C#3, AG C#4, AG C#3, AG C#4, AG C#3, AG C#4, AG C#3, AG C#4
@@ -129,14 +129,15 @@ page.</p>
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Samples ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <h1>Samples</h1>
 <button id="sample1_play">&#9658; Play</button>
-<textarea id="sample1_editor" class="codeblock musiceditor" spellcheck="false">' Enter Sandman - Metallica
+<textarea id="sample1_editor" class="codeblock musiceditor" spellcheck="false">'Enter Sandman - Metallica
 BPM 246
-strum: VOL 0.75, AG E2, 2 AG E3, AG G3, AG A#2, AG A2, AG E3
-out  : strum, 8 strum, 8 strum, 0 CUT 5</textarea>
+strum1: AG E2, 2 AG E3, AG G3, AG A#2, AG A2, 2 AG E3
+strum2: AG E2, 2 AG E3, AG G3, AG A#2, AG A2
+out   : VOL 0.75, strum1, 8 strum1, 8 strum2</textarea>
 <script>MusicMaker.initsub("sample1_play","sample1_editor");</script>
 
 <button id="sample2_play">&#9658; Play</button>
-<textarea id="sample2_editor" class="codeblock musiceditor" spellcheck="false">' Soak Up the Sun - Sheryl Crow
+<textarea id="sample2_editor" class="codeblock musiceditor" spellcheck="false">'Soak Up the Sun - Sheryl Crow
 BPM 240
 strum: AG E3, 0 AG B3, AG E3, 0 AG A3, AG E3, 0 AG B3, AG G#4, 2 AG E4,
        2 AG F#3, 0 AG B3, 0 AG B2, 2 AG F#3, 0 AG B3, 0 AG B2, 2 AG E3,
@@ -145,13 +146,13 @@ out  : VOL 0.5, strum, 14 strum</textarea>
 <script>MusicMaker.initsub("sample2_play","sample2_editor");</script>
 
 <button id="sample3_play">&#9658; Play</button>
-<textarea id="sample3_editor" class="codeblock musiceditor" spellcheck="false">' Drum loop
+<textarea id="sample3_editor" class="codeblock musiceditor" spellcheck="false">'Drum loop
 BPM 240
 out: KD, 2 KD, 2 KD, 2 KD, KD A2, KD A2, 2 KD, 2 KD</textarea>
 <script>MusicMaker.initsub("sample3_play","sample3_editor");</script>
 
 <button id="sample4_play">&#9658; Play</button>
-<textarea id="sample4_editor" class="codeblock musiceditor" spellcheck="false">' Twinkle Twinkle Little Star
+<textarea id="sample4_editor" class="codeblock musiceditor" spellcheck="false">'Twinkle Twinkle Little Star
 BPM 100
 out: VOL 0.5,
 0 GS C4, GS C4, GS G4, GS G4, GS A4, GS A4, GS G4,
@@ -160,7 +161,7 @@ out: VOL 0.5,
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-</div><div id="footer">Created on 26 Dec 2024 - Modified on 23 Feb 2025<br>
+</div><div id="footer">Created on 26 Dec 2024 - Modified on 2 Mar 2025<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>

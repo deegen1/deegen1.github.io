@@ -438,7 +438,7 @@ listeners for these events and call <i>audiocontext.resume()</i>. This doesn't
 allow audio immediately however, it returns a promise and audio will be allowed
 some time later. After the audio context state turns to running, I remove the
 event listeners. Effectively:</p>
-<div class="codeblock">let mutefunc=function(){ctx.resume();};
+<div class="codeblock langjs">let mutefunc=function(){ctx.resume();};
 // main loop:
 let muted=ctx.state!=="running";
 let events=["keydown","mousedown","pointerdown","pointerup","touchend"];
