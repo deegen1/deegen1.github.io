@@ -19,7 +19,7 @@ body {
 
 	--main-back   :rgb( 26, 26, 26,1);
 	--main-text   :rgb(230,230,230,1);
-	--main-title1 :var(--main-text);
+	--main-title1 :rgb( 96, 96,255,1);
 	--main-title2 :var(--main-text);
 	--main-link   :rgb(255,165,  0,1);
 	--table-header:rgb( 64, 64, 64,1);
@@ -27,7 +27,7 @@ body {
 	--table-border:rgb( 68, 68, 68,1);
 	--diag-back   :var(--main-back);
 	--diag-fore   :var(--main-text);
-	--diag-high   :rgb( 64,148,255,1);
+	--diag-high   :rgb( 96, 96,255,1);
 	--diag-dim    :rgb(115,115,115,1);
 	--code-border :rgb( 18, 18, 18,1);
 	--code-back   :rgb( 37, 37, 37,1);
@@ -156,20 +156,13 @@ sub {
 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Main Content ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 
-#content {
+/*#content {
 	max-width:67rem;
 	padding:2.98rem;
 	padding-top:0rem;
 	padding-bottom:1.8rem;
-	/*border:1px solid #808080;*/
 	background-color:var(--main-back);
 	margin:auto;
-	margin-bottom:3rem;
-}
-canvas, img {
-	display:block;
-	margin:auto;
-	margin-top:3rem;
 	margin-bottom:3rem;
 }
 h1 {
@@ -184,6 +177,41 @@ h1 {
 	color:var(--main-title1);
 	font-size:200%;
 	font-weight:bold;
+}*/
+#content {
+	max-width:67rem;
+	padding:2.98rem;
+	padding-top:0rem;
+	padding-bottom:1.8rem;
+	/*border:1px solid #808080;*/
+	background-color:var(--main-back);
+	margin:auto;
+	margin-bottom:3rem;
+	margin-top:-2.45rem;
+}
+canvas, img {
+	display:block;
+	margin:auto;
+	margin-top:3rem;
+	margin-bottom:3rem;
+}
+h1 {
+	display:block;
+	padding:inherit;
+	padding-top:0.5775rem;
+	padding-bottom:0.5775rem;
+	border-bottom:inherit;
+	border-radius:inherit;
+	border-bottom-left-radius:0;
+	border-bottom-right-radius:0;
+	margin:-2.98rem;
+	margin-top:2.45rem;
+	margin-bottom:2.45rem;
+	background-color:var(--main-title1);
+	font-family:sans-serif,sans-serif;
+	font-size:170%;
+	font-weight:bold;
+	line-height:150%;
 }
 h2 {
 	display:block;

@@ -71,6 +71,7 @@ Allow inst to play effects
 	https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Using_AudioWorklet
 Sound effects
 	Optimize %mod lines in sfx.fill().
+	Speed up input processing. Move constants to different section?
 	Simplify attribute naming in namemap[].
 	Configure delay filter to cache at a static frequency. If rate is too
 	small accumulate till we have enough. If too large, split up and fill
