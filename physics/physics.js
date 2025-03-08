@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v1.22
+physics.js - v1.23
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -61,7 +61,7 @@ function PhyAssert(condition,data) {
 
 
 //---------------------------------------------------------------------------------
-// Physics - v1.22
+// Physics - v1.23
 
 
 class PhyLink {
@@ -515,7 +515,7 @@ class PhyAtom {
 				norm[i]*=dif;
 				veldif-=(bvel[i]-avel[i])*norm[i];
 			}
-			if (veldif<0.0) {veldif=0.0;}
+			veldif=veldif>0?veldif:0;
 			let posdif=rad-dist;
 			veldif=veldif*intr.vmul+posdif*intr.vpmul;
 			posdif*=intr.pmul;

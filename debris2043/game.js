@@ -65,10 +65,8 @@ spin attack
    ******
 
 */
-/* jshint esversion: 11  */
-/* jshint bitwise: false */
-/* jshint eqeqeq: true   */
-/* jshint curly: true    */
+/* npx eslint game.js -c ../../standards/eslint.js */
+/* global */
 
 
 class Game {

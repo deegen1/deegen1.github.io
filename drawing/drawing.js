@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v3.08
+drawing.js - v3.09
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -78,6 +78,9 @@ History
 TODO
 
 
+https://www.reddit.com/r/javascript/comments/9nihtw/a_simple_3d_engine_in_47_lines_of_js/
+
+Rewrite article.
 Simplify _DrawTransform
 	Remove data[]
 	Use object and world to differentiate.
@@ -131,17 +134,68 @@ DrawPoly
 filltext/textrect
 	Add backspaces and tabs.
 	For filltext, use untransformed offset. Apply transform when drawing.
+3D graphics
+	https://jsfiddle.net/o42mptx3/
 
+
+Tracing draft
+	c2x=(c2x-c1x)*3;c1x=(c1x-p0x)*3;c3x-=p0x+c2x;c2x-=c1x;
+	c2y=(c2y-c1y)*3;c1y=(c1y-p0y)*3;c3y-=p0y+c2y;c2y-=c1y;
+
+	// Point
+	ppx=p0x+u*(c1x+u*(c2x+u*c3x));
+	ppy=p0y+u*(c1y+u*(c2y+u*c3y));
+
+	// Tangent
+	dx=c1x+u*(2*c2x+u*3*c3x);
+	dy=c1y+u*(2*c2y+u*3*c3y);
+	norm=rad/Math.sqrt(dx*dx+dy*dy);
+
+	px=ppx-dy*rad;
+	py=ppy+dx*rad;
+
+	let px=0,py=0,pdx=1,pdy=0;
+	for (let i=0;i<vertidx;) {
+		let v=vertarr[i];
+		let x=v.x,dx=x-px;
+		let y=v.y,dy=y-py;
+		let len=dx*dx+dy*dy;
+		if (len<1e-9) {continue;}
+		len=1/Math.sqrt(len);
+		dx*=len;
+		dy*=len;
+		let type=v.type;
+		let join=0;
+		if (pdx*dy-pdy*dx<=0) {
+			// facing inward
+			join=0;
+		}
+		if (type===_DrawPoly.CURVE) {
+			// Assume best tangents to offset points are at u=0,1/3,2/3,1.
+			let pt=[p0x,p0y,c1x,c1y,c2x,c2y,p1x,p1y];
+			for (let j=0;j<4;j++) {
+				let u=j/3;
+				let cdx=c1x+u*(2*c2x+u*3*c3x);
+				let cdy=c1y+u*(2*c2y+u*3*c3y);
+				let cn=1/Math.sqrt(cdx*cdx+cdy*cdy);
+				cdx*=cn;
+				cdy*=cn;
+				pt[j*2+0]-=cdy*rad;
+				pt[j*2+1]-=cdx*rad;
+			}
+		}
+		px=x;
+		py=y;
+		pdx=dx;
+		pdy=dy;
+	}
 
 */
-/* jshint esversion: 11  */
-/* jshint bitwise: false */
-/* jshint eqeqeq: true   */
-/* jshint curly: true    */
+/* npx eslint drawing.js -c ../../standards/eslint.js */
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v3.08
+// Drawing - v3.09
 
 
 class _DrawTransform {
@@ -564,59 +618,8 @@ class _DrawPoly {
 
 
 	trace(rad) {
-		throw "not implemented";
+		throw "not implemented "+rad;
 		// Curve offseting. Project out based on tangent.
-		/*
-		c2x=(c2x-c1x)*3;c1x=(c1x-p0x)*3;c3x-=p0x+c2x;c2x-=c1x;
-		c2y=(c2y-c1y)*3;c1y=(c1y-p0y)*3;c3y-=p0y+c2y;c2y-=c1y;
-
-		// Point
-		ppx=p0x+u*(c1x+u*(c2x+u*c3x));
-		ppy=p0y+u*(c1y+u*(c2y+u*c3y));
-
-		// Tangent
-		dx=c1x+u*(2*c2x+u*3*c3x);
-		dy=c1y+u*(2*c2y+u*3*c3y);
-		norm=rad/Math.sqrt(dx*dx+dy*dy);
-
-		px=ppx-dy*rad;
-		py=ppy+dx*rad;
-		*/
-		/*let px=0,py=0,pdx=1,pdy=0;
-		for (let i=0;i<vertidx;) {
-			let v=vertarr[i];
-			let x=v.x,dx=x-px;
-			let y=v.y,dy=y-py;
-			let len=dx*dx+dy*dy;
-			if (len<1e-9) {continue;}
-			len=1/Math.sqrt(len);
-			dx*=len;
-			dy*=len;
-			let type=v.type;
-			let join=0;
-			if (pdx*dy-pdy*dx<=0) {
-				// facing inward
-				join=0;
-			}
-			if (type===_DrawPoly.CURVE) {
-				// Assume best tangents to offset points are at u=0,1/3,2/3,1.
-				let pt=[p0x,p0y,c1x,c1y,c2x,c2y,p1x,p1y];
-				for (let j=0;j<4;j++) {
-					let u=j/3;
-					let cdx=c1x+u*(2*c2x+u*3*c3x);
-					let cdy=c1y+u*(2*c2y+u*3*c3y);
-					let cn=1/Math.sqrt(cdx*cdx+cdy*cdy);
-					cdx*=cn;
-					cdy*=cn;
-					pt[j*2+0]-=cdy*rad;
-					pt[j*2+1]-=cdx*rad;
-				}
-			}
-			px=x;
-			py=y;
-			pdx=dx;
-			pdy=dy;
-		}*/
 	}
 
 }
@@ -1240,6 +1243,7 @@ class Draw {
 
 
 	setfont(name) {
+		throw "not implemented "+name;
 	}
 
 

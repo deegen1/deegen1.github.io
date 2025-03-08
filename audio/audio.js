@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-audio.js - v3.01
+audio.js - v3.02
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -65,8 +65,13 @@ Waveguides
 	https://www.osar.fr/notes/waveguides/
 	https://petersalomonsen.com/articles/assemblyscriptphysicalmodelingsynthesis/assemblyscriptphysicalmodelingsynthesis.html
 
+AIVA or UDIO for midi creation.
+Line showing current position on waveform when playing.
+Syntax highlighting.
 Remove envelopes, biquad, and delay?
-Convert Bebop song to beat.
+Graphical node editor.
+Better explanation of compiled form in article.
+Add a piano roll editor.
 Allow inst to play effects
 	https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Using_AudioWorklet
 Sound effects
@@ -81,7 +86,6 @@ Sound effects
 	If node=last, return node.y. Otherwise lerp node and next(node).
 	Store {parent,weight},{prev,next},{left,right},{x},{y} = 20 bytes
 	Go through sound design book. Thunder clap, etc.
-Add a piano roll editor.
 
 
 */
@@ -90,7 +94,7 @@ Add a piano roll editor.
 
 
 //---------------------------------------------------------------------------------
-// Audio - v3.01
+// Audio - v3.02
 
 
 class _AudioSound {
@@ -2012,7 +2016,7 @@ class Audio {
 				// Instruments
 				type-=10;
 				let note=["A3","C4","C4","A6","A5","A8","B2","G3"][type];
-				let time=[5.0,2.2,2.2,5.3,3.0,0.1,0.2,0.2][type];
+				let time=[3.0,2.2,2.2,5.3,3.0,0.1,0.2,0.2][type];
 				let freq=parsenote(argstr[a++],note,"note or frequency");
 				vol=parsenum(argstr[a++],1,"volume");
 				time=parsenum(argstr[a],time,"length");
@@ -2039,7 +2043,7 @@ class Audio {
 	// String Instruments
 
 
-	static generatestring(volume=1.0,freq=200,pos=0.5,inharm=0.00006,time=5,sndfreq=44100) {
+	static generatestring(volume=1.0,freq=200,pos=0.5,inharm=0.00006,time=3,sndfreq=44100) {
 		// Jason Pelc
 		// http://large.stanford.edu/courses/2007/ph210/pelc2/
 		// Stop when e^(-decay*time/sndfreq)<=cutoff
@@ -2090,7 +2094,7 @@ class Audio {
 	}
 
 
-	static createguitar(volume=1.0,freq=200,pluck=0.5,time=5,sndfreq=44100) {
+	static createguitar(volume=1.0,freq=200,pluck=0.5,time=3,sndfreq=44100) {
 		return Audio.generatestring(volume,freq,pluck,0.000050,time,sndfreq);
 	}
 

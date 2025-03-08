@@ -1,0 +1,3 @@
+https://offscreencanvas.com/issues/cel-toon-shading/
+https://smythdesign.com/blog/stylized-grass-webgl/
+https://webgl2fundamentals.org
