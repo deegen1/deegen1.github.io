@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v1.06
+library.js - v1.07
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -15,8 +15,8 @@ Input   - v1.15
 Random  - v1.08
 Vector  - v1.05
 Drawing - v3.09
-Audio   - v1.08
-Physics - v3.02
+Audio   - v3.03
+Physics - v1.21
 
 
 */
@@ -2169,7 +2169,7 @@ class Draw {
 
 
 //---------------------------------------------------------------------------------
-// Audio - v3.02
+// Audio - v3.03
 
 
 class _AudioSound {
@@ -3364,6 +3364,7 @@ class _AudioInstance {
 	remove() {
 		if (this.done) {return;}
 		this.done=true;
+		if (this.playing) {this.time+=performance.now()*0.001;}
 		this.playing=false;
 		let audio=this.snd.audio;
 		let audprev=this.audprev;
@@ -3451,6 +3452,11 @@ class _AudioInstance {
 			vol*=this.audio.volume;
 			this.ctxgain.gain.value=vol;
 		}
+	}
+
+
+	gettime() {
+		return this.time+(this.playing?performance.now()*0.001:0);
 	}
 
 }

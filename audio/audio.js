@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-audio.js - v3.02
+audio.js - v3.03
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -66,14 +66,21 @@ Waveguides
 	https://petersalomonsen.com/articles/assemblyscriptphysicalmodelingsynthesis/assemblyscriptphysicalmodelingsynthesis.html
 
 AIVA or UDIO for midi creation.
-Line showing current position on waveform when playing.
-Syntax highlighting.
 Remove envelopes, biquad, and delay?
-Graphical node editor.
 Better explanation of compiled form in article.
-Add a piano roll editor.
-Allow inst to play effects
-	https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Using_AudioWorklet
+
+UI
+	Add a piano roll editor.
+	Graphical node editor.
+	Line showing current position on waveform when playing.
+	Click anywhere to jump to time.
+	Start/resume/reset.
+	Syntax highlighting.
+
+Sequencer
+	Swap length and volume in sequencer, since we never set the volume.
+	Get rid of case sensitivity.
+
 Sound effects
 	Optimize %mod lines in sfx.fill().
 	Speed up input processing. Move constants to different section?
@@ -87,6 +94,9 @@ Sound effects
 	Store {parent,weight},{prev,next},{left,right},{x},{y} = 20 bytes
 	Go through sound design book. Thunder clap, etc.
 
+Allow inst to play effects
+	https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Using_AudioWorklet
+
 
 */
 /* npx eslint audio.js -c ../../standards/eslint.js */
@@ -94,7 +104,7 @@ Sound effects
 
 
 //---------------------------------------------------------------------------------
-// Audio - v3.02
+// Audio - v3.03
 
 
 class _AudioSound {
@@ -1289,6 +1299,7 @@ class _AudioInstance {
 	remove() {
 		if (this.done) {return;}
 		this.done=true;
+		if (this.playing) {this.time+=performance.now()*0.001;}
 		this.playing=false;
 		let audio=this.snd.audio;
 		let audprev=this.audprev;
@@ -1376,6 +1387,11 @@ class _AudioInstance {
 			vol*=this.audio.volume;
 			this.ctxgain.gain.value=vol;
 		}
+	}
+
+
+	gettime() {
+		return this.time+(this.playing?performance.now()*0.001:0);
 	}
 
 }

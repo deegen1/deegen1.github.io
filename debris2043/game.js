@@ -132,47 +132,67 @@ class Game {
 
 	initaudio() {
 		let audio=new Audio();
+		audio.mute(0);
 		this.audio=audio;
-		let snd=new Audio.Sound();
-		let bpm=60/180;
-		let vol=0.1;
-		let guitar=[
-			{name:"e",freq:329.63,vol:0.40},
-			{name:"B",freq:246.94,vol:0.50},
-			{name:"G",freq:196.00,vol:0.60},
-			{name:"D",freq:146.83,vol:0.70},
-			{name:"A",freq:110.00,vol:0.80},
-			{name:"E",freq: 82.41,vol:0.90}
-		];
-		/*for (let i=0;i<192;i++) {
-			let time=bpm*i;
-			let t=Math.floor(i/8)%3,n=i&1;
-			let s=guitar[5-n*2-t];
-			let g=Audio.createguitar(vol,s.freq*[0.8,0.7][n],0.25);
-			snd.add(g,time);
-			if (i%1===0) {
-				g=Audio.createdrumsnare(vol*0.15);
-				snd.add(g,time);
-			}
-			if (i%1===0) {
-				g=Audio.createdrumkick(vol);
-				snd.add(g,time);
-			}
-		}*/
-		for (let i=0;i<192;i++) {
-			let time=bpm*i;
-			let t=Math.floor(i/8)%3,n=i&1;
-			let s=guitar[5-n*2-t];
-			let g=Audio.createguitar(vol,s.freq*[0.8,0.7][n],0.25);
-			snd.add(g,time);
-			g=Audio.createdrumsnare(vol*0.15);
-			// snd.add(g,time);
-			g=Audio.createdrumkick(vol);
-			snd.add(g,time*0.25);
-		}
-		this.bgsnd=snd;
-		this.audio.play(this.bgsnd);
-		// snd.savefile("bg.wav");
+		this.bgsnd=Audio.sequencer(`
+			'For a Few Dollars More - Ennio Morricone
+			'Loop at 98.691587s
+
+			BPM 214
+
+			lh1d2: AG D2 1 3, 2 AG D2 1 3
+			lh2f1: AG F1 1 3, 2 AG F1 1 1, AG F1 1 1
+			lh2d1: AG D1 1 3, 2 AG D1 1 1, AG D1 1 1
+			lh2d2: AG D2 1 3, 2 AG D2 1 1, AG D2 1 1
+			lo1f1: AG F1 1 3, 2 AG F1 1 3, 2 AG F1 1 3, 2 AG F1 1 1, AG F1 1 1
+			lo1d2: AG D2 1 3, 2 AG D2 1 3, 2 AG D2 1 3, 2 AG D2 1 1, AG D2 1 1
+			lo1f2: AG F2 1 3, 2 AG F2 1 3, 2 AG F2 1 3, 2 AG F2 1 1, AG F2 1 1
+			lo1g2: AG G2 1 3, 2 AG G2 1 3, 2 AG G2 1 3, 2 AG G2 1 1, AG G2 1 1
+			lo2g1: AG G1 1 3, 2 AG G1 1 1, AG G1 1 1, AG G1, 2 AG G1 1 1, AG G1 1 1
+			lo2a1: AG A1 1 3, 2 AG A1 1 1, AG A1 1 1, AG A1, 2 AG A1 1 1, AG A1 1 1
+			lo2c2: AG C2 1 3, 2 AG C2 1 1, AG C2 1 1, AG C2, 2 AG C2 1 1, AG C2 1 1
+			lo2d2: AG D2 1 3, 2 AG D2 1 1, AG D2 1 1, AG D2, 2 AG D2 1 1, AG D2 1 1
+
+			hi1: VOL 0.5,
+			7 AG A3 1 1, '0
+			1 AG D4 1 5, 6 AG C4 1 3, '1
+			2 AG A3 1 6, 7 AG G3 1 1, '2
+			1 AG A3 1 5, 6 AG G3 1 3, '3
+			2 AG D3 1 6, 7 AG A3 1 1, '4
+			1 AG D4 1 3, 2 AG D4 1 1, .5 AG E4 1 1, .5 AG D4 1 1, .5 AG C#4 1 1, .5 AG D4 1 1, 1 AG E4 1 1, 1 AG F4 1 1, 1 AG A3 1 1, '5
+			1 AG D4 1 3, 2 AG D4 1 1, .5 AG E4 1 1, .5 AG D4 1 1, .5 AG C#4 1 1, .5 AG D4 1 1, 1 AG C4 1 1, 1 AG A3 1 1, 1 AG A3 1 1, '6
+			1 AG D4 1 3, 2 AG D4 1 1, .5 AG E4 1 1, .5 AG D4 1 1, .5 AG C#4 1 1, .5 AG D4 1 1, 1 AG D4 1 1, 1 AG E4 1 1, 1 AG D4 1 1, '7
+			1 AG C4 1 1, 1 AG B3 1 1, 1 AG C4 1 4, 5 AG A3 1 1, '8
+			1 AG G3 1 3, 2 AG E3 1 6, '9
+			6 AG D3 1 4, 4 AG A3 1 4  '10
+
+			hi2: VOL 0.5,
+			7 AG A2 1 1, '0
+			1 AG D3 1 1, .5 AG D3 1 1, .5 AG E3 1 1, .5 AG D3 1 1, .5 AG D3 1 1, 1 AG F3 1 1, 1 AG A3 1 8, '1
+			15 AG A2 1 1, 1 AG D3 1 1, .5 AG D3 1 1, .5 AG E3 1 1, .5 AG D3 1 1, .5 AG D3 1 1, 1 AG F3 1 1, '2
+			1 AG A3 1 8, '3
+			15 AG C3 1 1, '4
+			1 AG F3 1 1, .5 AG F3 1 1, .5 AG G3 1 1, .5 AG F3 1 1, .5 AG F3 1 1, 1 AG A3 1 1, 1 AG C4 1 6, '5
+			6 AG A3 1 1, 1 AG F3 1 1, 1 AG D3 1 3, 2 AG D3 1 1, 1 AG F3 1 1, '6
+			1 AG A3 1 3, 2 AG F3 1 1, 1 AG D3 1 1, 1 AG A#2 1 3, 2 AG A#2 1 1, 1 AG D3 1 1, '7
+			1 AG F3 1 6, '8
+			8 AG G3 1 6, '9
+			8 AG F3 1 1, .5 AG E3 1 1, .5 AG D3 1 4.5 '10
+
+			out: VOL .75,
+			0 lo1d2, 0 hi1, 8 lo1d2, 8 lo1d2, 8 lo1f2, '  0
+			8 lo1g2, 8 lo2d2, 8 lo2d2, 8 lo2g1,        ' 32
+			8 lo2a1, 8 lo2c2, 8 lo2d2, 8 lo2d2, 0 hi1, ' 64
+			8 lo2d2, 8 lo2d2, 8 lo1f2, 8 lo1g2,        ' 96
+			8 lo2d2, 8 lo2d2, 8 lo2g1, 8 lo2a1,        '128
+			8 lo2c2, 8 lo1d2, 8 lo1d2, 0 hi2, 8 lo1d2, '160
+			8 lo1d2, 8 lo1d2, 8 lo1d2, 8 lo1f2,        '192
+			8 lo1f1, 8 lh2f1, 4 lh1d2, 4 lh2d2, 4 lh1d2, 4 lo2d2, '224
+			8 lo1d2, 8 lo1d2, 0 hi1, 8 lo1d2, 8 lo1d2, '256
+			8 lo1f2, 8 lo1g2, 8 lo2d2, 8 lo2d2,        '288
+			8 lo2g1, 8 lo2a1, 8 lo2c2, 8 lo1d2         '320
+		`);
+		this.bgsndinst=null;
 	}
 
 
@@ -224,10 +244,15 @@ class Game {
 		else if (delta<0.5*this.frametime) {return true;}
 		this.frameprev=time;
 		let starttime=performance.now();
-		this.audio.update();
+		//this.audio.update();
 		let input=this.input;
 		input.update();
 		let rnd=this.rnd;
+		// Audio
+		let bginst=this.bdsndinst;
+		if (!bginst || bginst.done || bginst.gettime()>=98.691587) {
+			this.bdsndinst=this.bgsnd.play(0.15);
+		}
 		let draw=this.draw;
 		let dw=draw.img.width;
 		let dh=draw.img.height;
