@@ -30,6 +30,11 @@ History
 TODO
 
 
+Increase relative mass as atoms interact with bonds/eachother.
+	increase by 5% for every interaction, depening on mass ratios and tension
+	decay over time
+	add velocity to mass ratio calculation?
+Allow atoms/bonds to have their own values in addition to type's values.
 divide pvmul by timestep, since it's acceleration
 Bonds that break when stretched
 Bondtypes

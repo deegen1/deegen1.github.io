@@ -153,7 +153,7 @@ class Game {
 			lo2c2: AG C2 1 3, 2 AG C2 1 1, AG C2 1 1, AG C2, 2 AG C2 1 1, AG C2 1 1
 			lo2d2: AG D2 1 3, 2 AG D2 1 1, AG D2 1 1, AG D2, 2 AG D2 1 1, AG D2 1 1
 
-			hi1: VOL 0.5,
+			hi1: VOL .35,
 			7 AG A3 1 1, '0
 			1 AG D4 1 5, 6 AG C4 1 3, '1
 			2 AG A3 1 6, 7 AG G3 1 1, '2
@@ -166,7 +166,7 @@ class Game {
 			1 AG G3 1 3, 2 AG E3 1 6, '9
 			6 AG D3 1 4, 4 AG A3 1 4  '10
 
-			hi2: VOL 0.5,
+			hi2: VOL .4,
 			7 AG A2 1 1, '0
 			1 AG D3 1 1, .5 AG D3 1 1, .5 AG E3 1 1, .5 AG D3 1 1, .5 AG D3 1 1, 1 AG F3 1 1, 1 AG A3 1 8, '1
 			15 AG A2 1 1, 1 AG D3 1 1, .5 AG D3 1 1, .5 AG E3 1 1, .5 AG D3 1 1, .5 AG D3 1 1, 1 AG F3 1 1, '2
@@ -244,14 +244,14 @@ class Game {
 		else if (delta<0.5*this.frametime) {return true;}
 		this.frameprev=time;
 		let starttime=performance.now();
-		//this.audio.update();
+		// this.audio.update();
 		let input=this.input;
 		input.update();
 		let rnd=this.rnd;
 		// Audio
 		let bginst=this.bdsndinst;
 		if (!bginst || bginst.done || bginst.gettime()>=98.691587) {
-			this.bdsndinst=this.bgsnd.play(0.15);
+			this.bdsndinst=this.bgsnd.play(0.1);
 		}
 		let draw=this.draw;
 		let dw=draw.img.width;
