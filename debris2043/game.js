@@ -140,57 +140,57 @@ class Game {
 
 			BPM 214
 
-			lh1d2: AG D2 1 3, 2 AG D2 1 3
-			lh2f1: AG F1 1 3, 2 AG F1 1 1, AG F1 1 1
-			lh2d1: AG D1 1 3, 2 AG D1 1 1, AG D1 1 1
-			lh2d2: AG D2 1 3, 2 AG D2 1 1, AG D2 1 1
-			lo1f1: AG F1 1 3, 2 AG F1 1 3, 2 AG F1 1 3, 2 AG F1 1 1, AG F1 1 1
-			lo1d2: AG D2 1 3, 2 AG D2 1 3, 2 AG D2 1 3, 2 AG D2 1 1, AG D2 1 1
-			lo1f2: AG F2 1 3, 2 AG F2 1 3, 2 AG F2 1 3, 2 AG F2 1 1, AG F2 1 1
-			lo1g2: AG G2 1 3, 2 AG G2 1 3, 2 AG G2 1 3, 2 AG G2 1 1, AG G2 1 1
-			lo2g1: AG G1 1 3, 2 AG G1 1 1, AG G1 1 1, AG G1, 2 AG G1 1 1, AG G1 1 1
-			lo2a1: AG A1 1 3, 2 AG A1 1 1, AG A1 1 1, AG A1, 2 AG A1 1 1, AG A1 1 1
-			lo2c2: AG C2 1 3, 2 AG C2 1 1, AG C2 1 1, AG C2, 2 AG C2 1 1, AG C2 1 1
-			lo2d2: AG D2 1 3, 2 AG D2 1 1, AG D2 1 1, AG D2, 2 AG D2 1 1, AG D2 1 1
+			lh1d2: AG D2 1 3.0, 2 AG D2 1 3.0
+			lh2f1: AG F1 1 3.0, 2 AG F1 1 1.5, 1 AG F1 1 1.5
+			lh2d1: AG D1 1 3.0, 2 AG D1 1 1.5, 1 AG D1 1 1.5
+			lh2d2: AG D2 1 3.0, 2 AG D2 1 1.5, 1 AG D2 1 1.5
+			lo1f1: AG F1 1 3.0, 2 AG F1 1 3.0, 2 AG F1 1 3.0, 2 AG F1 1 1.5, 1 AG F1 1 1.5
+			lo1d2: AG D2 1 3.0, 2 AG D2 1 3.0, 2 AG D2 1 3.0, 2 AG D2 1 1.5, 1 AG D2 1 1.5
+			lo1f2: AG F2 1 3.0, 2 AG F2 1 3.0, 2 AG F2 1 3.0, 2 AG F2 1 1.5, 1 AG F2 1 1.5
+			lo1g2: AG G2 1 3.0, 2 AG G2 1 3.0, 2 AG G2 1 3.0, 2 AG G2 1 1.5, 1 AG G2 1 1.5
+			lo2g1: AG G1 1 3.0, 2 AG G1 1 1.5, 1 AG G1 1 1.5, 1 AG G1 1 3.0, 2 AG G1 1 1.5, AG G1 1 1.5
+			lo2a1: AG A1 1 3.0, 2 AG A1 1 1.5, 1 AG A1 1 1.5, 1 AG A1 1 3.0, 2 AG A1 1 1.5, AG A1 1 1.5
+			lo2c2: AG C2 1 3.0, 2 AG C2 1 1.5, 1 AG C2 1 1.5, 1 AG C2 1 3.0, 2 AG C2 1 1.5, AG C2 1 1.5
+			lo2d2: AG D2 1 3.0, 2 AG D2 1 1.5, 1 AG D2 1 1.5, 1 AG D2 1 3.0, 2 AG D2 1 1.5, AG D2 1 1.5
 
-			hi1: VOL .35,
-			7 AG A3 1 1, '0
-			1 AG D4 1 5, 6 AG C4 1 3, '1
-			2 AG A3 1 6, 7 AG G3 1 1, '2
-			1 AG A3 1 5, 6 AG G3 1 3, '3
-			2 AG D3 1 6, 7 AG A3 1 1, '4
-			1 AG D4 1 3, 2 AG D4 1 1, .5 AG E4 1 1, .5 AG D4 1 1, .5 AG C#4 1 1, .5 AG D4 1 1, 1 AG E4 1 1, 1 AG F4 1 1, 1 AG A3 1 1, '5
-			1 AG D4 1 3, 2 AG D4 1 1, .5 AG E4 1 1, .5 AG D4 1 1, .5 AG C#4 1 1, .5 AG D4 1 1, 1 AG C4 1 1, 1 AG A3 1 1, 1 AG A3 1 1, '6
-			1 AG D4 1 3, 2 AG D4 1 1, .5 AG E4 1 1, .5 AG D4 1 1, .5 AG C#4 1 1, .5 AG D4 1 1, 1 AG D4 1 1, 1 AG E4 1 1, 1 AG D4 1 1, '7
-			1 AG C4 1 1, 1 AG B3 1 1, 1 AG C4 1 4, 5 AG A3 1 1, '8
-			1 AG G3 1 3, 2 AG E3 1 6, '9
-			6 AG D3 1 4, 4 AG A3 1 4  '10
+			hi1: VOL .3,
+			7 AG A3 1 1.0, '0
+			1 AG D4 1 3.0, 6 AG C4 1 1.0, '1
+			2 AG A3 1 3.5, 7 AG G3 1 1.0, '2
+			1 AG A3 1 3.0, 6 AG G3 1 1.0, '3
+			2 AG D3 1 3.5, 7 AG A3 1 1.0, '4
+			1 AG D4 1 1.0, 2 AG D4 1 1.0, .5 AG E4 1 1.0, .5 AG D4 1 1.0, .5 AG C#4 1 1.0, .5 AG D4 1 1.0, 1 AG E4 1 1.0, 1 AG F4 1 1.0, 1 AG A3 1 1.0, '5
+			1 AG D4 1 1.0, 2 AG D4 1 1.0, .5 AG E4 1 1.0, .5 AG D4 1 1.0, .5 AG C#4 1 1.0, .5 AG D4 1 1.0, 1 AG C4 1 1.0, 1 AG A3 1 1.0, 1 AG A3 1 1.0, '6
+			1 AG D4 1 1.0, 2 AG D4 1 1.0, .5 AG E4 1 1.0, .5 AG D4 1 1.0, .5 AG C#4 1 1.0, .5 AG D4 1 1.0, 1 AG D4 1 1.0, 1 AG E4 1 1.0, 1 AG D4 1 1.0, '7
+			1 AG C4 1 1.0, 1 AG B3 1 1.0,  1 AG C4 1 2.0,  5 AG A3 1 1.0, '8
+			1 AG G3 1 1.0, 2 AG E3 1 3.0, '9
+			6 AG D3 1 2.0, 4 AG A3 1 2.0  '10
 
-			hi2: VOL .4,
-			7 AG A2 1 1, '0
-			1 AG D3 1 1, .5 AG D3 1 1, .5 AG E3 1 1, .5 AG D3 1 1, .5 AG D3 1 1, 1 AG F3 1 1, 1 AG A3 1 8, '1
-			15 AG A2 1 1, 1 AG D3 1 1, .5 AG D3 1 1, .5 AG E3 1 1, .5 AG D3 1 1, .5 AG D3 1 1, 1 AG F3 1 1, '2
-			1 AG A3 1 8, '3
-			15 AG C3 1 1, '4
-			1 AG F3 1 1, .5 AG F3 1 1, .5 AG G3 1 1, .5 AG F3 1 1, .5 AG F3 1 1, 1 AG A3 1 1, 1 AG C4 1 6, '5
-			6 AG A3 1 1, 1 AG F3 1 1, 1 AG D3 1 3, 2 AG D3 1 1, 1 AG F3 1 1, '6
-			1 AG A3 1 3, 2 AG F3 1 1, 1 AG D3 1 1, 1 AG A#2 1 3, 2 AG A#2 1 1, 1 AG D3 1 1, '7
-			1 AG F3 1 6, '8
-			8 AG G3 1 6, '9
-			8 AG F3 1 1, .5 AG E3 1 1, .5 AG D3 1 4.5 '10
+			hi2: VOL .7,
+			 7 AG A2 1 1.0, '0
+			 1 AG D3 1 1.0, .5 AG D3 1 1.0, .5 AG E3 1 1.0, .5 AG D3 1 1.0, .5 AG D3 1 1.0,  1 AG F3 1 1.0, 1 AG A3 1 5.0, '1
+			15 AG A2 1 1.0,  1 AG D3 1 1.0, .5 AG D3 1 1.0, .5 AG E3 1 1.0, .5 AG D3 1 1.0, .5 AG D3 1 1.0, 1 AG F3 1 1.0, '2
+			 1 AG A3 1 6.0, '3
+			15 AG C3 1 1.0, '4
+			 1 AG F3 1 1.0, .5 AG F3 1 1.0, .5 AG G3 1 1.0, .5 AG F3 1 1.0, .5 AG F3 1 1.0,  1 AG A3 1 1.0, 1 AG C4 1 3.0, '5
+			 6 AG A3 1 1.0,  1 AG F3 1 1.0,  1 AG D3 1 1.0,  2 AG D3 1 1.0,  1 AG F3 1 1.0, '6
+			 1 AG A3 1 1.0,  2 AG F3 1 1.0,  1 AG D3 1 1.0, 1 AG A#2 1 1.0, 2 AG A#2 1 1.0,  1 AG D3 1 1.0, '7
+			 1 AG F3 1 4.0, '8
+			 8 AG G3 1 4.0, '9
+			 8 AG F3 1 1.0, .5 AG E3 1 1.0, .5 AG D3 1 2.0 '10
 
 			out: VOL .75,
-			0 lo1d2, 0 hi1, 8 lo1d2, 8 lo1d2, 8 lo1f2, '  0
-			8 lo1g2, 8 lo2d2, 8 lo2d2, 8 lo2g1,        ' 32
-			8 lo2a1, 8 lo2c2, 8 lo2d2, 8 lo2d2, 0 hi1, ' 64
-			8 lo2d2, 8 lo2d2, 8 lo1f2, 8 lo1g2,        ' 96
-			8 lo2d2, 8 lo2d2, 8 lo2g1, 8 lo2a1,        '128
-			8 lo2c2, 8 lo1d2, 8 lo1d2, 0 hi2, 8 lo1d2, '160
-			8 lo1d2, 8 lo1d2, 8 lo1d2, 8 lo1f2,        '192
+			0 lo1d2, 0 hi1  , 8 lo1d2, 8 lo1d2, 8 lo1f2, '  0
+			8 lo1g2, 8 lo2d2, 8 lo2d2, 8 lo2g1,          ' 32
+			8 lo2a1, 8 lo2c2, 8 lo2d2, 8 lo2d2, 0 hi1  , ' 64
+			8 lo2d2, 8 lo2d2, 8 lo1f2, 8 lo1g2,          ' 96
+			8 lo2d2, 8 lo2d2, 8 lo2g1, 8 lo2a1,          '128
+			8 lo2c2, 8 lo1d2, 8 lo1d2, 0 hi2  , 8 lo1d2, '160
+			8 lo1d2, 8 lo1d2, 8 lo1d2, 8 lo1f2,          '192
 			8 lo1f1, 8 lh2f1, 4 lh1d2, 4 lh2d2, 4 lh1d2, 4 lo2d2, '224
-			8 lo1d2, 8 lo1d2, 0 hi1, 8 lo1d2, 8 lo1d2, '256
-			8 lo1f2, 8 lo1g2, 8 lo2d2, 8 lo2d2,        '288
-			8 lo2g1, 8 lo2a1, 8 lo2c2, 8 lo1d2         '320
+			8 lo1d2, 8 lo1d2, 0 hi1  , 8 lo1d2, 8 lo1d2, '256
+			8 lo1f2, 8 lo1g2, 8 lo2d2, 8 lo2d2,          '288
+			8 lo2g1, 8 lo2a1, 8 lo2c2, 8 lo1d2           '320
 		`);
 		this.bgsndinst=null;
 	}
@@ -251,7 +251,7 @@ class Game {
 		// Audio
 		let bginst=this.bdsndinst;
 		if (!bginst || bginst.done || bginst.gettime()>=98.691587) {
-			this.bdsndinst=this.bgsnd.play(0.1);
+			this.bdsndinst=this.bgsnd.play(0.033);
 		}
 		let draw=this.draw;
 		let dw=draw.img.width;
