@@ -50,10 +50,8 @@ groups
 
 
 */
-/* jshint esversion: 11  */
-/* jshint bitwise: false */
-/* jshint eqeqeq: true   */
-/* jshint curly: true    */
+/* npx eslint physics.js -c ../../standards/eslint.js */
+/* global Vector, Random */
 
 
 function PhyAssert(condition,data) {

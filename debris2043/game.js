@@ -16,6 +16,9 @@ The Space Force needs YOU to clear a path and get supplies to our lunarnauts.
 
 Intro cutscene shows ship plowing through obstacles.
 
+Start very fast. Make first death quick.
+
+
 +mass
 +accel
 +size
@@ -63,6 +66,12 @@ spin attack
  \_/ ** \_/
     ****
    ******
+
+
+fill same color at once to avoid lines between triangles
+If point isn't drawn, because its not dominant on a tri, draw it manually.
+Outline based on lightest color between 2 triangles. Only if color_dif>0.01
+
 
 */
 /* npx eslint game.js -c ../../standards/eslint.js */

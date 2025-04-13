@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-random.js - v1.08
+random.js - v1.09
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -21,6 +21,8 @@ History
      Moved setstate() to seed().
 1.08
      Replaced erfinv table in getnorm() with equation.
+1.09
+     Went back to Box-Muller transform in getnorm().
 
 
 --------------------------------------------------------------------------------
@@ -28,7 +30,7 @@ TODO
 
 
 Only use primitive operations in getnorm().
-Use https://github.com/stdlib-js/math-base-special-erfinv/blob/main/src/main.c
+https://www.reddit.com/r/algorithms/comments/yyz59u/
 
 
 */
@@ -36,7 +38,7 @@ Use https://github.com/stdlib-js/math-base-special-erfinv/blob/main/src/main.c
 
 
 //---------------------------------------------------------------------------------
-// Random - v1.08
+// Random - v1.09
 
 
 class Random {
@@ -110,33 +112,10 @@ class Random {
 
 
 	getnorm() {
-		// Transform a uniform distribution to a normal one via sqrt(2)*erfinv(2*u-1).
-		// erfinv credit: njuffa, https://stackoverflow.com/a/49743348
-		let u=(this.getu32()-2147483647.5)*(1/2147483648);
-		let t=Math.log(1-u*u),p;
-		if (t<-6.125) {
-			p=    4.294932181e-10;
-			p=p*t+4.147083705e-8;
-			p=p*t+1.727466590e-6;
-			p=p*t+4.017907374e-5;
-			p=p*t+5.565679449e-4;
-			p=p*t+4.280807652e-3;
-			p=p*t+6.833279087e-3;
-			p=p*t-3.742661647e-1;
-			p=p*t+1.187962704e+0;
-		} else {
-			p=    7.691594063e-9;
-			p=p*t+2.026362239e-7;
-			p=p*t+1.736297774e-6;
-			p=p*t+1.597546919e-7;
-			p=p*t-7.941244165e-5;
-			p=p*t-2.088759943e-4;
-			p=p*t+3.273461437e-3;
-			p=p*t+1.631897530e-2;
-			p=p*t-3.281194328e-1;
-			p=p*t+1.253314090e+0;
-		}
-		return p*u;
+		// Box-Muller transform.
+		let r=this.getf();
+		r=Math.sqrt(-2*Math.log(r>1e-99?r:1e-99));
+		return Math.cos(6.283185307*this.getf())*r;
 	}
 
 }

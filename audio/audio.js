@@ -93,6 +93,7 @@ Sound effects
 	If node=last, return node.y. Otherwise lerp node and next(node).
 	Store {parent,weight},{prev,next},{left,right},{x},{y} = 20 bytes
 	Go through sound design book. Thunder clap, etc.
+	Dial up sound scratching. Use for electric guitar type sound.
 
 Allow inst to play effects
 	https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Using_AudioWorklet

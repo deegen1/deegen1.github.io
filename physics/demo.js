@@ -15,10 +15,8 @@ Demo for physics.js
 
 
 */
-/* jshint esversion: 11  */
-/* jshint bitwise: false */
-/* jshint eqeqeq: true   */
-/* jshint curly: true    */
+/* npx eslint demo.js -c ../../standards/eslint.js */
+/* global Vector, Random, Input, Draw, PhyWorld */
 
 
 //---------------------------------------------------------------------------------

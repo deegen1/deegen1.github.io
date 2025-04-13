@@ -18,8 +18,12 @@ Array() is faster than Float64Array().
 TODO
 
 
+Allow functions to take scalars or vectors.
+
+
 */
 /* npx eslint vector.js -c ../../standards/eslint.js */
+/* global Random */
 
 
 //---------------------------------------------------------------------------------
@@ -153,6 +157,7 @@ class Vector extends Array {
 		for (let i=0;i<len;i++) {x=u[i];sum+=x*x;}
 		return Math.sqrt(sum);
 	}
+
 
 	randomize() {
 		let u=this,len=this.length;

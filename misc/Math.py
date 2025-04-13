@@ -1,5 +1,5 @@
 """
-Math.py - v1.01
+Math.py - v1.02
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -7,7 +7,7 @@ Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 
 #---------------------------------------------------------------------------------
 # Normal Approximation
-#---------------------------------------------------------------------------------
+
 
 def random_normal():
 	xmb=(
@@ -36,9 +36,10 @@ def random_normal():
 	i+= -3 if x<xmb[ i] else 0
 	return x*xmb[i+1]+xmb[i+2]
 
+
 #---------------------------------------------------------------------------------
 # GCD
-#---------------------------------------------------------------------------------
+
 
 def gcd(a,b=None):
 	if b==None:
@@ -50,6 +51,7 @@ def gcd(a,b=None):
 		a,b=b,a%b
 	return abs(a)
 
+
 def lcm(a,b=None):
 	if b==None:
 		m=abs(a[0])
@@ -60,9 +62,10 @@ def lcm(a,b=None):
 		return 0
 	return abs(a*(b//gcd(a,b)))
 
+
 #---------------------------------------------------------------------------------
 # Modulo Arithmetic
-#---------------------------------------------------------------------------------
+
 
 def modinv(x,mod):
 	"""x^-1%mod. Note that 0^-1=0 mod 1."""
@@ -76,6 +79,7 @@ def modinv(x,mod):
 		b0,b1=b1,(b0-q*b1)%mod
 	if r0==1: return b0
 	return None
+
 
 def powmod(x,exp,mod):
 	"""For some int exp, returns (x^exp)%mod"""
@@ -95,6 +99,7 @@ def powmod(x,exp,mod):
 		exp>>=1
 		x=(x*x)%mod
 	return val
+
 
 def logmod(b,a,n):
 	"""Returns the smallest x such that a^x=b mod n. Returns None if no
@@ -126,6 +131,7 @@ def logmod(b,a,n):
 		b=(b*mul)%n
 	return None
 
+
 def primitiveroot(mod):
 	"""Returns the smallest primitive root given mod."""
 	if mod==1:
@@ -144,9 +150,9 @@ def primitiveroot(mod):
 				return i
 	return None
 
+
 #---------------------------------------------------------------------------------
 # Primes
-#---------------------------------------------------------------------------------
 # A number is prime iff (p-1)!=-1 mod p.
 
 def isprime(n):
@@ -199,6 +205,7 @@ def isprime(n):
 			return False
 	# We have found a prime.
 	return True
+
 
 def primegen(maxp=float("inf"),count=float("inf")):
 	# Sequentially output primes. Outputs the first 'count' primes or all p<maxp.
@@ -261,6 +268,7 @@ def primegen(maxp=float("inf"),count=float("inf")):
 			comp[q*f]=f
 		n+=jump[n%30]
 
+
 def coprime(n):
 	"""
 	Euler totient function. Counts the integers in [1,n) that are relatively
@@ -302,6 +310,7 @@ def coprime(n):
 		count-=count//n
 	return count
 
+
 def primefactors(n):
 	"""Returns a list of the prime factors of n."""
 	if n<2:
@@ -332,6 +341,7 @@ def primefactors(n):
 		cnt+=1
 	return S[:cnt]
 
+
 def findfactor(n):
 	"""Returns a non-trivial factor of n. Returns n if n is prime."""
 	# Pollard's Rho.
@@ -354,9 +364,10 @@ def findfactor(n):
 			return d
 		k+=1
 
+
 #---------------------------------------------------------------------------------
 # Diophantine Equations
-#---------------------------------------------------------------------------------
+
 
 def diophantine(a,n=None):
 	"""
@@ -403,6 +414,7 @@ def diophantine(a,n=None):
 		n=n*x[i]
 	return y
 
+
 def diopositive(a,n):
 	"""
 	For x_i>=0, return [x0,x1,...,gcd] such that a0*x0+a1*x1+...=n, or None
@@ -437,9 +449,10 @@ def diopositive(a,n):
 		return None
 	return x
 
+
 #---------------------------------------------------------------------------------
 # Misc
-#---------------------------------------------------------------------------------
+
 
 def intsqrt(n):
 	"""Returns x such that x^2<=n<(x+1)^2."""
@@ -458,6 +471,7 @@ def intsqrt(n):
 			n-=inc
 		one>>=2
 	return root
+
 
 def sumdiv(n,k=1):
 	"""Sum of the positive divisors of n to the k-th power: sum(d^k for d|n)."""
@@ -501,6 +515,7 @@ def sumdiv(n,k=1):
 		skip=pskip[skip+1]
 	return sum
 
+
 def fibonacci(n):
 	"""Calculates the n-th Fibonacci number in log2(n) time."""
 	# Let F0=0, F1=1, F2=1, F3=2, ..., FN=F(N-2)+F(N-1). We use the relation
@@ -531,6 +546,7 @@ def fibonacci(n):
 		n>>=1
 		pot=mul(pot,pot)
 	return mat[0]
+
 
 def choose(n,k):
 	# For 32 bits, allows for n<=34.
@@ -588,6 +604,7 @@ def choose(n,k):
 		c+=n*(c//i)+(n*(c%i))//i
 	return c
 
+
 def catalan(n):
 	# First 10: 1,1,2,5,14,42,132,429,1430,4862
 	# Direct: cat(n)=choose(2*n,n)/(n+1)
@@ -621,6 +638,7 @@ def catalan(n):
 		c=(c*(4*i+2))//(i+2)
 	return c
 
+
 def bernoulli(n):
 	# Returns (a,b) such that B(n)=a/b. B(1)=+1/2.
 	# Akiyama-Tanagawa algorithm.
@@ -641,6 +659,7 @@ def bernoulli(n):
 			a[j-1]=(n//g,d//g)
 	return a[0]
 
+
 def bernoulliarr(n):
 	# Returns (a,b) such that B(n)=a/b. B(1)=+1/2.
 	# Akiyama-Tanagawa algorithm.
@@ -660,6 +679,7 @@ def bernoulliarr(n):
 			a[j-1]=(n//g,d//g)
 		b[i]=a[0]
 	return b
+
 
 def sumexp(n,exp):
 	# Sum 1^k+2^k+...+n^k.
@@ -682,6 +702,7 @@ def sumexp(n,exp):
 		s//=exp*d
 		return s
 
+
 def sternseq(n):
 	# Stern's diatomic series. Given f(n), the sequence f(n)/f(n+1) produces every
 	# non-negative ratio a/b exactly once. Let
@@ -698,10 +719,12 @@ def sternseq(n):
 		return sternseq(k)+sternseq(k+1)
 	return sternseq(k)
 
+
 def caterer(n):
 	# The maximum number of pieces a cake can be divided into with n cuts.
 	# f(n)=1,2,4,7,11,16,22,29,37,46,56
 	return (n*(n+1))//2+1
+
 
 def bentlines(n):
 	# The maximum number of pieces a cake can be divided into when cut with n bent
@@ -709,6 +732,7 @@ def bentlines(n):
 	# f(n)=1,2,7,16,29,46,67,92,121,154
 	# OEIS: A130883
 	return 1-n+2*n*n
+
 
 def rotpoint3(p,xr,yr,zr):
 	x,y,z=p

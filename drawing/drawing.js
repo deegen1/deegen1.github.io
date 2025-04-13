@@ -79,6 +79,9 @@ TODO
 
 
 https://www.reddit.com/r/javascript/comments/9nihtw/a_simple_3d_engine_in_47_lines_of_js/
+https://offscreencanvas.com/issues/cel-toon-shading/
+https://smythdesign.com/blog/stylized-grass-webgl/
+https://webgl2fundamentals.org
 
 Rewrite article.
 Simplify _DrawTransform
