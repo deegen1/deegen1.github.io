@@ -1,3 +1,14 @@
+
+	format as html
+	fstab
+	chron
+	recover admin
+	https://www.thegeekdiary.com/centos-rhel-converting-an-existing-root-filesystem-to-lvm-partition/
+	curl -vvv
+	linux hosts file
+	cert generation, testing, printing pem
+	cert locations
+
 --------------------------------------------------------------------------------
 SCCM Client Troubleshooting
 
@@ -490,3 +501,128 @@ switchport access vlan 10
 DHCP:
 clear ip dhcp pool <pool> binding *
 show ip dhcp [binding | conflict | pool]
+
+
+--------------------------------------------------------------------------------
+Bash - Conditional Tests
+
+
+Denote with [[ ... ]].
+Need whitespace between brackets and contents.
+
+x="hello"
+if [[ $x == "hello" ]] ; then echo "$x equal" ; fi
+[[ $x == "hello" ]] && echo "$x equal"
+[[ ! $x == "hello" ]] && echo "$x not equal"
+
+String   : < > == !=
+Integer  : -gt -lt ...
+Regex    : = =~
+Condition: && ||
+
+
+--------------------------------------------------------------------------------
+Bash - Arithmetic
+
+
+Denote with $(( ... )) .
+Numbers with leading 0's are considered octal.
+"let" and (( ... )) evaluate their constants as arithmetic.
+
+x=17+23 ; echo $x #17+23
+let x=17+23 ; echo $x #40
+x=$((17+23)) ; echo $x #40
+(( x += 5 )) ; echo $x #45
+
+if (( x > 10 )) ; then echo "$x > 10" ; fi
+
+Evaluate in string: echo "$(( x + 5 ))" #45
+Strip 0s: x=$((10$x))
+
+
+--------------------------------------------------------------------------------
+Bash - Functions
+
+
+frombase() { echo "$(( $1#$2 ))"; }
+frombase 16 ff #255
+
+
+--------------------------------------------------------------------------------
+Bash - Loops
+
+
+for (( i=0, j=0; i<100; i++ )); do echo $i ; done
+
+
+--------------------------------------------------------------------------------
+Bash - Searching
+
+
+Recursively search files for the string "debug"
+grep -R "debug" ./
+
+Find all mp3 or ogg files
+find ~ -name "*.mp3" -o -name "*.ogg"
+
+Alternate
+IFS=$'\n'; for filename in $(find .); do if [[ $filename =~ \.(mp3|ogg) ]]; then echo "$filename"; fi; done
+
+Bash splits inputs by newlines and whitespace. To only split on newline, set
+IFS=$'\n'
+
+To extract a variable from a string
+email="alec.dee@gmail.com"
+res=$(echo $email | sed 's/\(.*\)@.*/\1/')
+echo $res #alec.dee
+
+
+--------------------------------------------------------------------------------
+Linux - File Access Policy
+
+
+systemctl stop fapolicyd
+
+Log everything fapolicy is doing. Still stops applications.
+fapolicyd --debug 2> fapolicy_debug.txt
+
+Only log things that get denied.
+fapolicyd --debug-deny 2> fapolicy_debug.txt
+
+Allow applications to run but log deny rules.
+fapolicyd --debug-deny --permissive 2> fapolicy_debug.txt
+
+List rules
+fapolicyd-cli --list
+
+Modify fapolicy rules
+vi /etc/fapolicyd/fapolicyd.conf
+/etc/fapolicyd/fapolicyd.trust
+systemctl restart fapolicyd
+
+Default log location
+/var/log/fapolicyd-access.log
+
+
+--------------------------------------------------------------------------------
+Linux - Firewall
+
+
+Allow traffic but log denied packets.
+vi /etc/firewalld/firewalld.conf
+Set: LogDenied=all
+systemctl restart firewalld.service
+
+Default log location
+/var/log/firewalld
+
+View denied packets.
+journalctl -x -e
+
+Open a port
+sudo firewall-cmd --zone=public --add-port=80/tcp
+
+List ports and services
+sudo firewall-cmd --list-services
+sudo firewall-cmd --list-ports
+
