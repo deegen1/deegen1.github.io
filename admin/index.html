@@ -1,4 +1,58 @@
-
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Admin Notes</title>
+	<style>
+		* {
+			padding:0;
+			border:0;
+			border-collapse:collapse;
+			margin:0;
+			outline:none;
+			text-decoration:none;
+			font-size:100%;
+			vertical-align:baseline;
+		}
+		body {
+			padding:.5rem;
+			overflow:hidden;
+			background-color:#ffffff;
+			font-family:sans-serif,sans-serif;
+		}
+		.bash {
+			margin:1rem;
+			margin-left:2rem;
+			padding:.5rem;
+			background-color:#eeeeee;
+			color:#000000;
+			font-family:consolas,monospace;
+			white-space:pre-wrap;
+		}
+		i {
+			background-color:#eeeeee;
+			color:#000000;
+			font-family:consolas,monospace;
+			font-style:normal;
+			white-space:pre-wrap;
+		}
+		p {
+			margin:.5rem;
+		}
+		h1 {
+			page-break-before:always;
+			margin:1rem;
+			margin-left:0rem;
+			font-size:300%;
+			font-weight:bold;
+		}
+		h1:first-of-type {
+			page-break-before:avoid;
+		}
+	</style>
+</head>
+<body>
+<!--
 	format as html
 	fstab
 	chron
@@ -556,10 +610,8 @@ for (( i=0, j=0; i<100; i++ )); do echo $i ; done
 
 
 --------------------------------------------------------------------------------
-Bash - Searching
-
-
-Recursively search files for the string "debug"
+<h1>Bash - Searching</h1>
+<p>Recursively search files for the string "debug"</p>
 grep -R "debug" ./
 
 Find all mp3 or ogg files
@@ -578,51 +630,41 @@ echo $res #alec.dee
 
 
 --------------------------------------------------------------------------------
-Linux - File Access Policy
-
-
-systemctl stop fapolicyd
-
-Log everything fapolicy is doing. Still stops applications.
-fapolicyd --debug 2> fapolicy_debug.txt
-
-Only log things that get denied.
-fapolicyd --debug-deny 2> fapolicy_debug.txt
-
-Allow applications to run but log deny rules.
-fapolicyd --debug-deny --permissive 2> fapolicy_debug.txt
-
-List rules
-fapolicyd-cli --list
-
-Modify fapolicy rules
-vi /etc/fapolicyd/fapolicyd.conf
+-->
+<!------------------------- Linux - File Access Policy ------------------------>
+<h1>Linux - File Access Policy</h1>
+<div class="bash">systemctl stop fapolicyd</div>
+<p>Log everything fapolicy is doing. Still stops applications.</p>
+<div class="bash">fapolicyd --debug 2&gt; fapolicy_debug.txt</div>
+<p>Only log things that get denied.</p>
+<div class="bash">fapolicyd --debug-deny 2&gt; fapolicy_debug.txt</div>
+<p>Allow applications to run but log deny rules.</p>
+<div class="bash">fapolicyd --debug-deny --permissive 2&gt; fapolicy_debug.txt</div>
+<p>List rules</p>
+<div class="bash">fapolicyd-cli --list</div>
+<p>Modify fapolicy rules</p>
+<div class="bash">vi /etc/fapolicyd/fapolicyd.conf
 /etc/fapolicyd/fapolicyd.trust
 systemctl restart fapolicyd
+</div>
+<p>Default log location</p>
+<div class="bash">/var/log/fapolicyd-access.log</div>
 
-Default log location
-/var/log/fapolicyd-access.log
-
-
---------------------------------------------------------------------------------
-Linux - Firewall
-
-
-Allow traffic but log denied packets.
-vi /etc/firewalld/firewalld.conf
+<!------------------------------ Linux - Firewall ----------------------------->
+<h1>Linux - Firewall</h1>
+<p>Allow traffic but log denied packets.</p>
+<div class="bash">vi /etc/firewalld/firewalld.conf
 Set: LogDenied=all
 systemctl restart firewalld.service
-
-Default log location
-/var/log/firewalld
-
-View denied packets.
-journalctl -x -e
-
-Open a port
-sudo firewall-cmd --zone=public --add-port=80/tcp
-
-List ports and services
-sudo firewall-cmd --list-services
+</div>
+<p>Default log location:</p>
+<div class="bash">/var/log/firewalld</div>
+<p>View denied packets: <i>journalctl -x -e</i></p>
+<p>Open a port</p>
+<div class="bash">sudo firewall-cmd --zone=public --add-port=80/tcp</div>
+<p>List ports and services</p>
+<div class="bash">sudo firewall-cmd --list-services
 sudo firewall-cmd --list-ports
-
+</div>
+</body>
+</html>

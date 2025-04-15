@@ -18,6 +18,8 @@ Intro cutscene shows ship plowing through obstacles.
 
 Start very fast. Make first death quick.
 
+Title art shows a ship crashing through rocks.
+
 
 +mass
 +accel
@@ -30,6 +32,8 @@ stars parallaxing down
 	speed tied to movement speed
 	level time affected
 debris slowly drop down
+
+smaller debris light up when moving fast or hit
 
 tentacle monsters
 
