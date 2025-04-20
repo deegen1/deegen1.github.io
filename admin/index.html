@@ -16,11 +16,10 @@
 		}
 		body {
 			padding:.5rem;
-			overflow:hidden;
 			background-color:#ffffff;
 			font-family:sans-serif,sans-serif;
 		}
-		.bash {
+		.bash, .terminal, .powershell {
 			margin:1rem;
 			margin-left:2rem;
 			padding:.5rem;
@@ -37,318 +36,193 @@
 			white-space:pre-wrap;
 		}
 		p {
-			margin:.5rem;
+			margin-top:.5rem;
+			margin-bottom:.5rem;
 		}
 		h1 {
 			page-break-before:always;
 			margin:1rem;
 			margin-left:0rem;
+			margin-top:3rem;
 			font-size:300%;
 			font-weight:bold;
 		}
 		h1:first-of-type {
 			page-break-before:avoid;
+			margin-top:0rem;
+		}
+		table > tr > td, table > tbody > tr > td {
+			padding:0.4rem;
 		}
 	</style>
 </head>
 <body>
-<h1>Admin Notes</h1>
-<p>Updated 14 Apr 2025</p>
 <!--
-	fix scrolling
-	format as html
-	fstab
-	chron
-	recover admin
-	https://www.thegeekdiary.com/centos-rhel-converting-an-existing-root-filesystem-to-lvm-partition/
-	curl -vvv
-	linux hosts file
-	cert generation, testing, printing pem
-	cert locations
+fstab
+chron
+CIM property type
+WMI remote execute
+recover admin
+https://www.thegeekdiary.com/centos-rhel-converting-an-existing-root-filesystem-to-lvm-partition/
+curl -vvv
+linux hosts file
+cert generation, testing, printing pem
+cert locations
+group by linux, window, ps, bash ,etc
+base 64 converter
+ssh exec
+iwr with cookies
+remotely execute commands with wmi
+highlighting
+-->
 
---------------------------------------------------------------------------------
-SCCM Client Troubleshooting
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Admin Notes ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Admin Notes</h1>
+<p>Quick references for system administration</p>
+<p>Updated 19 Apr 2025</p>
 
-
-Update failing at end, error 0x8???????:
-Search "%windir$\Logs\CBS\CBS.log" for "failed" to find missing prereq patches.
-run "sfc /scannow"
-
-WUAHandler.log is showing group policy error 0x80004005:
-Check if "C:\Windows\System32\GroupPolicy\Machine\Registry.pol" is more than a
-few days old. Run "net stop ccmexec", delete registry.pol, "gpupdate /force",
-"net start ccmexec".
-
-Symptoms ???:
-"net stop wuauserv", rename "%windir%\SoftwareDistribution", "net start
-wuauserv" and try installing patches again.
-
-Software stuck installing:
-Get-WMIObject -namespace "ROOT\CCM\SoftmgmtAgent" -Query "SELECT * from
-CCM_TSExecutionRequest" | Remove-WMIObject; restart-service ccmexec
-
-Reinstall client:
-ccmsetup /uninstall
+<!--~~~~~~~~~~~~~~~~~~~~~ SCCM - Client Troubleshooting ~~~~~~~~~~~~~~~~~~~~~-->
+<h1>SCCM - Client Troubleshooting</h1>
+<p>Update failing at end, error 0x8???????:<br>
+Search <i>%windir$\Logs\CBS\CBS.log</i> for "failed" to find missing prereq
+patches.<br>
+Run <i>sfc /scannow</i></p>
+<p>WUAHandler.log is showing group policy error 0x80004005:<br>
+Check if <i>C:\Windows\System32\GroupPolicy\Machine\Registry.pol</i> is more
+than a few days old. Run:</p>
+<div class="powershell">net stop ccmexec
+remove-item registry.pol
+gpupdate /force
+net start ccmexec
+</div>
+<p>Windows patches not downloading</p>
+<div class="powershell">net stop wuauserv
+remove-item "$env:windir\SoftwareDistribution" -recurse
+net start wuauserv
+try installing patches again
+</div>
+<p>Software stuck installing:</p>
+<div class="powershell">Get-WMIObject -namespace "ROOT\CCM\SoftmgmtAgent" -Query "SELECT * from CCM_TSExecutionRequest" | Remove-WMIObject; restart-service ccmexec</div>
+<p>Reinstall client:</p>
+<div class="terminal">ccmsetup /uninstall
 delete CCM contents
 delete ccmsetup contents
-ccmsetup
-
-If no management points found:
-invoke-webrequest -uri http://SERVERNAME/SMS_MP/.sms_aut?MPLIST
-
-Failed to download?
+./ccmsetup
+</div>
+<p>Failed to download:<br>
 Check CAS.log for "The number of discovered DPs (Including Branch DP and
-Multicast is 0."
+Multicast) is 0."</p>
 
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ SCCM - Logs ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>SCCM - Logs</h1>
+<p>Main log folder: <i>C:\Windows\CCM\logs</i></p>
+<p>To view installing apps:</p>
+<div class="terminal">appdiscovery.log
+appenforce.log</div>
+<p>Error code 0x800702e4 - Insufficient permissions to install. Deployment is
+most likely install for user instead of install for system.</p>
+<p>To view installing updates: <i>UpdatesDeployment.log</i></p>
+<p>Local client advertisement syncing: <i>CAS.log</i></p>
+<p>View task sequence and package installs: <i>execmgr.log</i></p>
 
---------------------------------------------------------------------------------
-Remotely Reboot a System
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~ SCCM - Reports ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>SCCM - Reports</h1>
+<p>Compliance 5 - Specific Computer:<br>
+Status of a specific task sequence deployment for a specific computer</p>
+<p>View computers that have/need a windows update:<br>
+Compliance 8 - Computers in a specific compliance state for an update</p>
+<p>View time/status of an application deployment:<br>
+Application Compliance<br>
+Hardware 01A - Summary of computers in a specific collection<br>
+Add Remove Programs</p>
 
-
-Restart-Computer -ComputerName $name -force -EA Stop
-
-If stuck rebooting:
-gwmi Win32_Process -ComputerName $name | %{if ($_.ProcessName -eq "logonui.exe")
-{$_.Terminate()}}
-
-
---------------------------------------------------------------------------------
-Check Reboot Event Logs
-
-
-Get-EventLog -LogName System | ?{$_.EventID -in @(1074,1076,6005,6006,6008,6009)
--and $_.TimeGenerated -gt [DateTime]::Now.AddDays(-1)} | ft
-TimeGenerated,EventId,Message -AutoSize -Wrap
-
-
---------------------------------------------------------------------------------
-Search File Contents
-
-
-gci "*" -Recurse | %{Select-String -path $_.fullname -pattern "^hello"}
-
-gci "*" -Recurse | %{$s=$_.fullname;if ($res=Select-String -path $s -pattern
-"^hello"){write-host "$('*'*80)`n$s`n";for ($i=0;$i -lt $res.count;$i++){
-write-host "$i`: $($res[$i])`n`n"}}}
-
-
---------------------------------------------------------------------------------
-SCCM Logs
-
-
-C:\Windows\CCM\logs
-
-to view installing apps
-appdiscovery.log
-appenforce.log
-0x800702e4 - Insufficient permissions to install. Deployment is most likely
-install for user instead of install for system.
-
-to view installing updates
-UpdatesDeployment.log
-
-local client advertisement syncing.
-CAS.log
-
-View task sequence and package installs
-execmgr.log
-
-
---------------------------------------------------------------------------------
-SCCM Reports
-
-
-Compliance 5 - Specific Computer
-Status of a specific task sequence deployment for a specific computer
-
-View computers that have/need a windows update
-Compliance 8 - Computers in a specific compliance state for an update
-
-View time/status of an application deployment.
-Application Compliance
-Hardware 01A - Summary of computers in a specific collection
-Add Remove Programs
-
-
---------------------------------------------------------------------------------
-SCCM MP List
-
-
-http://<SERVER>/sms_mp/.sms_aut?mplist
-http://<SERVER>/sms_mp/.sms_aut?mpcert
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~ SCCM - MP List ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>SCCM - MP List</h1>
+<div class="powershell">http://&lt;SERVER&gt;/sms_mp/.sms_aut?mplist
+http://&lt;SERVER&gt;/sms_mp/.sms_aut?mpcert
 invoke-webrequest -uri "http://..."
+</div>
 
-
---------------------------------------------------------------------------------
-PXE Boot
-
-
-Need ports for
-	DHCP: 67, 68
-	TFTP: 69
-	BINL: 4011
-
-If a DHCP helper pointing to the PXE server is not set on the client's switch,
-or if the server and client are separated by a DMZ, then no traffic will reach
-the PXE server.
-
-1. Msg type 1. The client starts PXE and sends a DHCPDISCOVER UDP broadcast.
-The broadcast includes a list of parameter requests for server and network
-information, and includes the client architecture.
-
-Server checks if device is in database here.
-
-2. Msg type 2. The DHCP and PXE servers both respond to the DHCPDISCOVER
-broadcast with a DHCPOFFER packet containing their information.
-
-3. Msg type 3. The client sends a DHCPREQUEST packet selecting which server it
-wants to use.
-
-Server checks for advertisements available to system.
-
-4. Msg type 5. The client sends a DHCPASK packet requesting an NBP file to boot
-with. Usually wdsmgfw.efi.
-
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~ SCCM - PXE Boot Steps ~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>SCCM - PXE Boot Steps</h1>
+<p>Need ports for</p>
+<table>
+<tr><td>DHCP</td><td>67, 68</td></tr>
+<tr><td>TFTP</td><td>69</td></tr>
+<tr><td>BINL</td><td>4011</td></tr>
+</table>
+<br>
+<table>
+<tr><td>0.</td><td>If a DHCP helper pointing to the PXE server is not set on the
+client's switch, or if the server and client are separated by a DMZ, then no
+traffic will reach the PXE server.</td></tr>
+<tr><td>1.</td><td>Msg type 1. The client starts PXE and sends a DHCPDISCOVER
+UDP broadcast. The broadcast includes a list of parameter requests for server
+and network information, and includes the client architecture.<br><br>
+SCCM Server checks if device is in database here.</td></tr>
+<tr><td>2.</td><td>Msg type 2. The DHCP and PXE servers both respond to the
+DHCPDISCOVER broadcast with a DHCPOFFER packet containing their information.
+<tr><td>3.</td><td>Msg type 3. The client sends a DHCPREQUEST packet selecting
+which server it wants to use.<br><br>
+Server checks for advertisements available to system.</td></tr>
+<tr><td>4.</td><td>Msg type 5. The client sends a DHCPASK packet requesting an
+NBP file to boot with. Usually wdsmgfw.efi.<br><br>
 TFTP is used to download the NBP file to a ramdisk, and is then booted. If the
 download fails randomly when downloading, it's usually network connectivity
-problems.
+problems.</td></tr>
+<tr><td>5.</td><td>The client uses the NBP to boot into WinPE. The console can
+be accessed with F8. Client logs are stored in
+<i>X:\Windows\Temp\SMSTS\SMSTS.log.</i></td></tr>
+</table>
 
-5. The client uses the NBP to boot into WinPE. The console can be accessed with
-F8. Client logs are stored in X:\Windows\Temp\SMSTS\SMSTS.log.
-
-
---------------------------------------------------------------------------------
-Uninstall Registry Path
-
-
-HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall
+<!--~~~~~~~~~~~~~~~~~~~~~~ Windows - Install Registry ~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Windows - Install Registry</h1>
+<div class="terminal">HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall
 HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall
+</div>
 
-
---------------------------------------------------------------------------------
-Software versions
-
-
-VC++ Redistributable
-Programs & Features won't show minor version. Check "HKLM\SOFTWARE\WOW6432Node\
-Microsoft\VisualStudio\10.0\VC\VCRedist\x64" value "Version"
-
-
---------------------------------------------------------------------------------
-IP Address Scripts
-
-
-function IPToInt($ip) {$val=0;$ip.split(".")|%{$val=$val*256+$_};return $val}
-function IntToIP($i) {return (24,16,8,0|%{($i -shr $_) -band 255}) -join "."}
-function NameToIP($name) {
-	$res=Resolve-DNSName $name -EA SilentlyContinue
-	foreach ($ret in $res) {
-		$ip=$ret.IPAddress
-		if ($ip -match "(\d{1,3}\.){3}\d{1,3}") {return $ip}
-	}
-	return "unknown"
-}
-
-
---------------------------------------------------------------------------------
-If scripts have been disabled.
-
-
-powershell -executionpolicy unrestricted -file script.ps1
-
-
---------------------------------------------------------------------------------
-Launch Powershell From .bat
-
-
-@echo off
-Powershell.exe -ExecutionPolicy Unrestricted -File "%~dp0script.ps1" %*
-echo /b %ERRORLEVEL%
-
-
---------------------------------------------------------------------------------
-Find an executable
-
-
-Must have ".exe" or PS will try to run the "where-object" command.
-where.exe SOMEEXE.exe
-
-
---------------------------------------------------------------------------------
-Search files
-
-get-childitem -path "*.txt" -Recurse | Select-String -Pattern "hello"
-
-
---------------------------------------------------------------------------------
-McAfee
-
-
-Tray icon missing, run
-& "C:\Program Files\McAfee\Agent\x86\UpdaterUI.exe"
-
-.\McAfeeEndpointProductRemoval.exe --accepteula --VSE --HIPS --DLP
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ McAfee ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>McAfee</h1>
+<p>If the tray icon is missing, run<p>
+<div class="terminal">& "C:\Program Files\McAfee\Agent\x86\UpdaterUI.exe"</div>
+<p>Uninstalling. Requires a special removal tool.</p>
+<div class="terminal">.\McAfeeEndpointProductRemoval.exe --accepteula --VSE --HIPS --DLP
 .\McAfeeEndpointProductRemoval.exe --accepteula --ALL
+</div>
+<p>Running explorer.exe causes a McAfee installer to start.</p>
+<p>Logs:</p>
+<table>
+<tr><td>HIPS</td><td><i>C:\ProgramData\McAfee\Host Intrusion Prevention\HipShield.log</i></td></tr>
+</table>
 
-HIPS log: C:\ProgramData\McAfee\Host Intrusion Prevention\HipShield.log
+<!--~~~~~~~~~~~~~~~~~~~~~~~ Windows - Delete Profiles ~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Windows - Delete Profiles</h1>
+<p>Control Panel -> System -> Advanced System Settings -> User Profiles</p>
+<p>Manually:<br>
+Delete the folder in <i>C:\Users</i><br>
+Delete the registry entry in <i>HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList</i></p>
 
-Running explorer.exe causes a McAfee installer to start.
-1. Right click on McAfee icon -> McAfee Agent Status Monitor.
-2. Run Collect and Send Props, Send Events, Check New Policies, and Enforce
-Policies.
-3. Might need to run "C:\Program Files\McAfee\Endpoint Security\Threat
-Prevention\RepairCache\setupTP.exe /famus"
-
-
---------------------------------------------------------------------------------
-Delete Profiles
-
-
-Control Panel -> System -> Advanced System Settings -> User Profiles
-
-Manually:
-Delete the folder in C:\Users
-Delete the registry entry in "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\
-ProfileList"
-
-
---------------------------------------------------------------------------------
-Prevent sleeping with fake key presses.
-
-
-$s=New-Object -Com "WScript.Shell"
-while ($true) {Start-Sleep 60;$s.SendKeys(" ")}
-
-
---------------------------------------------------------------------------------
-Base 64 Encoding.
-
-
-certutil -encode file.bin file.txt
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~ Base 64 Encoding ~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Base 64 Encoding</h1>
+<div class="powershell">certutil -encode file.bin file.txt
 certutil -decode file.txt file.bin
+</div>
 
-
---------------------------------------------------------------------------------
-CredSSP Encryption Oracle
-
-
-Set the following registry and restart. Change back when done.
-HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Policies\CredSSP\
-Parameters
+<!--~~~~~~~~~~~~~~~~~~ Windows - CredSSP Encryption Oracle ~~~~~~~~~~~~~~~~~~-->
+<h1>Windows - CredSSP Encryption Oracle</h1>
+<p>Set the following registry and restart. Change back when done.</p>
+<div class="terminal">HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Policies\CredSSP\Parameters
 AllowEncryptionOracle DWORD 2
+</div>
 
-
---------------------------------------------------------------------------------
-Move Mouse with Keyboard.
-
-
-Turn on mouse keys:
-Hit Left-Alt + Left-Shift + NUM-Lock. Otherwise, Win+R -> control panel. Tab to
-Ease of Access -> Mouse Settings -> Use Numeric Keypad -> Hit Spacebar.
-
-If in a VM, disable mouse integration.
-
-  Movement              Clicking
+<!--~~~~~~~~~~~~~~~~~~ Windows - Move Mouse with Keyboard ~~~~~~~~~~~~~~~~~~~-->
+<h1>Windows - Move Mouse with Keyboard</h1>
+<p>Turn on mouse keys:</p>
+<p>Hit Left-Alt + Left-Shift + NUM-Lock. Otherwise, Win+R -> control panel. Tab
+to Ease of Access -> Mouse Settings -> Use Numeric Keypad -> Hit Spacebar.</p>
+<p>If in a VM, disable mouse integration.</p>
+<p>To move the mouse with numpad:</p>
+<div class="terminal">  Movement              Clicking
 Up+left   : 7     Select left button : /
 Up        : 8     Select both buttons: *
 Up+Rgith  : 9     Select right button: -
@@ -357,150 +231,184 @@ Right     : 6     Drag: 0
 Down+Left : 1     Drop: .
 Down      : 2
 Down+Right: 3
+</div>
 
+<!--~~~~~~~~~~~~~~~~~~~~~~~~ Windows - Group Policy ~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Windows - Group Policy</h1>
+<p>Get the policy being applied to windows</p>
+<div class="terminal">gpresult /h report.html</div>
+<p>If random processes like updates aren't working. Delete:</p>
+<div class="terminal">C:\Windows\System32\GroupPolicy\registry.pol</div>
 
---------------------------------------------------------------------------------
-Resultant set of policy. Runs in the current user's context. Drops report in
-current directory.
+<!--~~~~~~~~~~~~~~~~~~~~~~ Powershell - Repair Updates ~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Powershell - Repair Updates</h1>
+<p>Stop windows update service: <i>net stop wuauserv</i></p>
+<p>Rename <i>C:\Windows\SoftwareDistribution</i></p>
+<p>Go to <i>HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate</i> and
+check <i>WUServer</i> and <i>WUStatusServer</i>.</p>
+<p>Set <i>DoNotConnectToWindowsUpdateInternetLocations DWORD 1</i></p>
+<p>In AU: <i>UseWUServer DWORD 1</i></p>
+<p>Delete <i>C:\Windows\System32\GroupPolicy\registry.pol</i></p>
+<p>Start windows update service</p>
 
-gpresult /h report.html
+<!--~~~~~~~~~~~~~~~~~~~~~~ Powershell - Remote Execute ~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Powershell - Remote Execute</h1>
 
+<p>May require enabling PSRemoting and allowing port 5986.</p>
+<div class="powershell">Get-Service -Computer $comp -Name WinRM | Start-Service
+Enter-PSSession -Computer $comp</div>
 
---------------------------------------------------------------------------------
-Repair Windows Updates
+<p>Execute through CIM sessions.</p>
+<div class="powershell">$computer = ""
+$localcmd = "'hello' > C:\Windows\Temp\remote_test.txt"
+$dcom = New-CimSessionOption 1
+$session = New-CimSession -ComputerName $computer -SessionOption $dcom -EA SilentlyContinue
+if ($null -eq $session) {Write-Host "Failed to connect CIM" ; exit}
+$cimParams = @{
+	CimSession  = $session
+	ClassName   = "Win32_Process"
+	MethodName  = "Create"
+	Arguments   = @{CommandLine = $localCmd}
+	ErrorAction = "SilentlyContinue"
+}
+$proc = Invoke-CimMethod @cimParams
+if ($null -eq $proc -or $proc.ReturnValue) {Write-Warning "Failed to execute CIM" ; exit}
+Get-Process -ComputerName $computer -id $proc.ProcessId
+</div>
 
-
-Stop windows update service
-Rename C:\Windows\SoftwareDistribution
-Go to HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate
-Check WUServer and WUStatusServer
-DoNotConnectToWindowsUpdateInternetLocations DWORD 1
-In AU:
-UseWUServer DWORD 1
-Start windows update service
-
-
---------------------------------------------------------------------------------
-Recover Local Admin with Install Disc
-
-
-net user tmpadmin * /add
+<!--~~~~~~~~~~~~~~~~~~~~~ Windows - Recover Local Admin ~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Windows - Recover Local Admin</h1>
+<table>
+<tr><td>1.</td><td>Begin to PXE boot the system, but stop when you see the WinPE
+screen.</td></tr>
+<tr><td>2.</td><td>Press F8 to bring up the command prompt.</td></tr>
+<tr><td>3.</td><td>Enter <i>diskpart</i> to bring up the diskpart prompt, then
+enter <i>list vol</i> to see the drives on the system. Note the letter of the
+volume labeled "Windows". We'll assume it's letter "C". Enter <i>exit</i>.
+</td></tr>
+<tr><td>4.</td><td>We'll modify the registry to get a local command prompt.
+Enter:<br>
+<div class="powershell">reg load HKLM\TMPSYS C:\Windows\System32\config\SYSTEM
+reg add HKLM\TMPSYS\Setup /v cmdline /d cmd.exe /t REG_SZ /f
+reg add HKLM\TMPSYS\Setup /v SetupType /d 2 /t REG_DWORD /f
+reg unload HKLM\TMPSYS
+</div></td></tr>
+<tr><td>5.</td><td>Enter <i>C:\Windows\System32\shutdown.exe /r /f</i> to
+reboot.</td></tr>
+<tr><td>6.</td><td>When the system starts up, you should see a command prompt.
+Avoid clicking anywhere on the screen as the command prompt will disappear.
+Enter<br>
+<div class="powershell">net user tmpadmin * /add
 net localgroup administrators tmpadmin /add
+</div></td></tr>
+<tr><td>7.</td><td>Undo the registry changes we've made with the following
+commands:<br>
+<div class="powershell">reg add HKLM\SYSTEM\Setup /v cmdline /d "" /t REG_SZ /f
+reg add HKLM\SYSTEM\Setup /v SetupType /d 0 /t REG_DWORD /f
+</div></td></tr>
+<tr><td>8.</td><td>Enter <i>exit</i> to reboot.</td></tr>
+<tr><td>9.</td><td>You should see the login screen and be able to login with
+<i>.\tmpadmin</i>.</td></tr>
+</table>
 
-1. Begin to PXE boot the system, but stop when you see the WinPE screen.
-2. Press F8 to bring up the command prompt.
-3. Enter diskpart to bring up the diskpart prompt, then enter "list vol" to see
-   the drives on the system. Note the letter of the volume labeled "Windows".
-   We'll assume it's letter "C". Enter "exit".
-4. We'll modify the registry to get a local command prompt. Enter:
-	reg load "HKLM\TMPSYS" "C:\Windows\System32\config\SYSTEM"
-	reg add "HKLM\TMPSYS\Setup" /v "cmdline" /d "cmd.exe" /t REG_SZ /f
-	reg add "HKLM\TMPSYS\Setup" /v "SetupType" /d "2" /t REG_DWORD /f
-	reg unload "HKLM\TMPSYS"
-5. Enter "C:\Windows\System32\shutdown.exe /r /f" to reboot.
-6. When the system starts up, you should see a command prompt. Avoid clicking
-   anywhere on the screen as the command prompt will disappear. Enter "net user"
-   to see the list of local users and admins. To reset the local admin account
-   password, enter "net user ADMINISTRATOR *" then enter your desired password.
-7. Undo the registry changes we've made with the following commands:
-	reg add "HKLM\SYSTEM\Setup" /v "cmdline" /d "" /t REG_SZ /f
-	reg add "HKLM\SYSTEM\Setup" /v "SetupType" /d "0" /t REG_DWORD /f
-8. Enter "exit" to reboot.
-9. You should see the login screen and be able to login with ".\ADMINISTRATOR".
-
-
---------------------------------------------------------------------------------
-.Net Security Settings
-
-
-In HKLM and S-1-5-18 (system account):
-Path: Software\Microsoft\Windows\CurrentVersion\WinTrust\Trust Providers\
-Software Publishing
-Name: State
-Type: DWORD
+<!--~~~~~~~~~~~~~~~~~~~~~~~~ Windows - .Net Security ~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Windows - .Net Security</h1>
+<p>This setting can cause any signed executable to fail to run. <i>0x23c00</i>
+allows most things.</p>
+<p>In HKLM and S-1-5-18 (system account):</p>
+<div class="terminal">Path : Software\Microsoft\Windows\CurrentVersion\WinTrust\Trust Providers\
+Key  : Software Publishing
+Name : State
+Type : DWORD
 Value: 0x23c00
+</div>
 
-
---------------------------------------------------------------------------------
-Re-Execute sript as 64-bit process
-
-
-if ($pshome -like "*SysWow64*") {
+<!--~~~~~~~~~~~~~~~~~~~~~~~~ Powershell - Launching ~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Powershell - Launching</h1>
+<p>If scripts have been disabled.</p>
+<div class="powershell">powershell -executionpolicy unrestricted -file script.ps1</div>
+<p>Launch Powershell From .bat</p>
+<div class="powershell">@echo off
+Powershell.exe -ExecutionPolicy Unrestricted -File "%~dp0script.ps1" %*
+echo /b %ERRORLEVEL%
+</div>
+<p>Re-Execute sript as 64-bit process</p>
+<div class="powershell">if ($pshome -like "*SysWow64*") {
      & (join-path ($pshome -replace "SysWow64","sysnative") Powershell.exe)`
      -File ($script:MyInvocation.MyCommand.Path) @($script:args); exit
 }
+</div>
 
+<!--~~~~~~~~~~~~~~~~~~~~~ Powershell - Remotely Reboot ~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Powershell - Remotely Reboot</h1>
+<div class="powershell">Restart-Computer -ComputerName $name -force -EA Stop</div>
+<p>If stuck rebooting:</p>
+<div class="powershell">gwmi Win32_Process -ComputerName $name | %{if ($_.ProcessName -eq "logonui.exe") {$_.Terminate()}}</div>
 
---------------------------------------------------------------------------------
-netsh
+<!--~~~~~~~~~~~~~~~~~~~~~~~~ Powershell - Event Logs ~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Powershell - Event Logs</h1>
+<div class="powershell">Get-EventLog -LogName System | ?{$_.TimeGenerated -gt [DateTime]::Now.AddDays(-1)} | ft TimeGenerated,EventId,Message -AutoSize -Wrap</div>
 
+<!--~~~~~~~~~~~~~~~~~~~~~~~~ Powershell - Searching ~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Powershell - Searching</h1>
+<p>Find an executable. Must have ".exe" or PS will try to run the "where-object"
+command.</p>
+<div class="powershell">where.exe SOMEEXE.exe</div>
+<p>Search file contents</p>
+<div class="powershell">get-childitem -path "*.txt" -Recurse | Select-String -Pattern "hello"
+gci "*" -Recurse | %{Select-String -path $_.fullname -pattern "^hello"}
+</div>
 
-???????????????????????????????????????????????
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~ Powershell - Parallel ~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Powershell - Parallel</h1>
+<div class="powershell">workflow parallelping {
+	param($computers)
+	foreach -parallel ($comp in $computers) {
+		Test-Connection $comp -Count 2 -EA SilentlyContinue -WA SilentlyContinue
+	}
+}
+parallelping @(0..255 | %{"10.10.10.$_"})
+</div>
 
-
---------------------------------------------------------------------------------
-AD Without RSAT
-
-
-Open a basic AD query window
-C:\Windows\System32\rundll32.exe dsquery.dll OpenQueryWindow
-
-list basic AD user properties
-net user USERNAME /domain
-
-list basic AD group properties
+<!--~~~~~~~~~~~~~~~~~~~~~ Powershell - AD Without RSAT ~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Powershell - AD Without RSAT</h1>
+<p>Open a basic AD query window</p>
+<div class="powershell">C:\Windows\System32\rundll32.exe dsquery.dll OpenQueryWindow</div>
+<p>List basic properties</p>
+<div class="powershell">net user USERNAME /domain
 net group GROUPNAME /domain
-
-$sysinfo=New-Object -ComObject "ADSystemInfo"
-$dn=$sysinfo.GetType().InvokeMember("ComputerName","GetProperty",$null,$sysinfo,
-$null)
-$compobj=[ADSI]"LDAP://$dn"
+</div>
+<p>Searching with <i>ADSystemInfo</i>.</p>
+<div class="powershell">$sysinfo=New-Object -ComObject "ADSystemInfo"
+$dn=$sysinfo.GetType().InvokeMember("ComputerName","GetProperty",$null,$sysinfo,$null)
+$compobj=[adsi]"LDAP://$dn"
 $compobj.name
-
-#$ou=[ADSI]"LDAP://OU=hello,DC=com"
-#$compobj.psbase.moveTo($ou)
-
-([ADSISEARCHER]"samaccountname=$($env:USERNAME)").FindOne().Properties
-([ADSISEARCHER]"objectClass=computer").FindOne().Properties
-
-$search=[ADSISEARCHER]""
+</div>
+<p>Searching large numbers with <i>adsisearcher</i>.</p>
+<div class="powershell">$search=[adsisearcher]""
 $search.SearchRoot="LDAP://DC=site,DC=com"
 $search.filter="(&(objectClass=computer)(Name=SERVER*))"
 $search.PageSize=1000
 $comps=$search.FindAll()
-
-
---------------------------------------------------------------------------------
-Add user to group
-
-
-$user = [adsi](([adsisearcher]"samaccountname=USERNAME").FindOne().path)
-$group = [adsi](([adsisearcher]"samaccountname=GROUPNAME").FindOne().path)
+</div>
+<p>Move OU</p>
+<div class="powershell">$comp=[adsi]"LDAP://$dn"
+$ou=[adsi]"LDAP://OU=hello,DC=com"
+$comp.psbase.moveTo($ou)
+</div>
+<p>Add user to group</p>
+<div class="powershell">$user = [adsi]([adsisearcher]"samaccountname=USERNAME").FindOne().path
+$group = [adsi]([adsisearcher]"samaccountname=GROUPNAME").FindOne().path
 $group.Add($user.ADSPath)
+</div>
+<p>Searching with <i>adsisearcher</i>.</p>
+<div class="powershell">([adsisearcher]"samaccountname=$($env:USERNAME)").FindOne().Properties
+([adsisearcher]"objectClass=computer").FindAll().Properties
+</div>
 
-
---------------------------------------------------------------------------------
-Powershell Objects
-
-$obj=New-Object PSObject -Property @{
-	name="Name"
-	ip="0.0.0.0"
-}
-
-
---------------------------------------------------------------------------------
-Group Policy
-
-
-gpresult /h report.html
-gpresult /s COMPUTERNAME /user USERNAME /scope computer /h report.html
-
-
---------------------------------------------------------------------------------
-Excel in Powershell
-
-
-$scriptpath=(Split-Path $script:MyInvocation.MyCommand.Path)
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~ Powershell - Excel ~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Powershell - Excel</h1>
+<div class="powershell">$scriptpath=(Split-Path $script:MyInvocation.MyCommand.Path)
 $outpath="$scriptpath\file.xlsx"
 $excel=New-Object -ComObject excel.application
 $book=$excel.Workbooks.Add()
@@ -512,13 +420,11 @@ for ($r=0;$r -lt 15;$r++) {
 }
 $book.SaveAs($outpath)
 $excel.Workbooks.Close()
+</div>
 
-
---------------------------------------------------------------------------------
-Security Center Plugins
-
-
-10902 - Admins Group List
+<!--~~~~~~~~~~~~~~~~~~~~~~~ Tenable - Security Center ~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Tenable - Security Center</h1>
+<div class="terminal">10902 - Admins Group List
 19506 - Nessus Info
 20811 - Installed Software
 24270 - System Details (WMI)
@@ -531,110 +437,88 @@ Security Center Plugins
 66350 - WiFi Network History
 83265 - LAPS
 72684 - Enumerate Users
+</div>
 
-
---------------------------------------------------------------------------------
-Switches
-
-
-When in doubt, use "sh run" to see what commands have been used.
-
-ACLs can filter RIP.
-A GSE tunnel IP needs to be exempted from itself.
-
-Configuration:
-conf t
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~ Cisco - Switches ~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Cisco - Switches</h1>
+<p>When in doubt, use <i>sh run</i> to see what commands have been used.</p>
+<p>ACLs can filter RIP.</p>
+<p>A GSE tunnel IP needs to be exempted from itself.</p>
+<p>Configuration:</p>
+<div class="terminal">conf t
 copy run start
 do show int status
-
-shut/no shut
+</div>
+<div class="terminal">shut/no shut
 show arp
-show ip route <IP>        to see where packets will go
+show ip route &lt;IP&gt;        to see where packets will go
 show ip int brief
 show int status
 show mac address-table
 switchport access vlan 10
-
-DHCP:
-clear ip dhcp pool <pool> binding *
+</div>
+<p>DHCP:</p>
+<div class="bash">clear ip dhcp pool &lt;pool&gt; binding *
 show ip dhcp [binding | conflict | pool]
+</div>
 
-
---------------------------------------------------------------------------------
-Bash - Conditional Tests
-
-
-Denote with [[ ... ]].
-Need whitespace between brackets and contents.
-
-x="hello"
+<!--~~~~~~~~~~~~~~~~~~~~~~~ Bash - Conditional Tests ~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Bash - Conditional Tests</h1>
+<p>Denote with <i>[[ ... ]]</i>.</p>
+<p>Need whitespace between brackets and contents.</p>
+<div class="bash">x="hello"
 if [[ $x == "hello" ]] ; then echo "$x equal" ; fi
 [[ $x == "hello" ]] && echo "$x equal"
 [[ ! $x == "hello" ]] && echo "$x not equal"
+</div>
+<table>
+<tr><td>String</td><td><i>&lt; &gt; == !=</i></td></tr>
+<tr><td>Integer</td><td><i>-gt -lt ...</i></td></tr>
+<tr><td>Regex</td><td><i>= =~</i></td></tr>
+<tr><td>Condition</td><td><i>&amp;&amp; ||</i></td></tr>
+</table>
 
-String   : < > == !=
-Integer  : -gt -lt ...
-Regex    : = =~
-Condition: && ||
-
-
---------------------------------------------------------------------------------
-Bash - Arithmetic
-
-
-Denote with $(( ... )) .
-Numbers with leading 0's are considered octal.
-"let" and (( ... )) evaluate their constants as arithmetic.
-
-x=17+23 ; echo $x #17+23
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~ Bash - Arithmetic ~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Bash - Arithmetic</h1>
+<p>Denote with <i>$(( ... ))</i>.<br>
+Numbers with leading 0's are considered octal.<br>
+<i>let</i> and <i>(( ... ))</i> evaluate their constants as arithmetic.</p>
+<div class="bash">x=17+23 ; echo $x #17+23
 let x=17+23 ; echo $x #40
 x=$((17+23)) ; echo $x #40
 (( x += 5 )) ; echo $x #45
-
 if (( x > 10 )) ; then echo "$x > 10" ; fi
+</div>
+<p>Evaluate in string: <i>echo "$(( x + 5 ))" #45</i></p>
+<p>Strip zeros: <i>x=$((10$x))</i></p>
 
-Evaluate in string: echo "$(( x + 5 ))" #45
-Strip 0s: x=$((10$x))
-
-
---------------------------------------------------------------------------------
-Bash - Functions
-
-
-frombase() { echo "$(( $1#$2 ))"; }
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~ Bash - Functions ~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Bash - Functions</h1>
+<div class="bash">frombase() { echo "$(( $1#$2 ))"; }
 frombase 16 ff #255
+</div>
 
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Bash - Loops ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Bash - Loops</h1>
+<div class="bash">for (( i=0, j=0; i&lt;100; i++ )); do echo $i ; done</div>
 
---------------------------------------------------------------------------------
-Bash - Loops
-
-
-for (( i=0, j=0; i<100; i++ )); do echo $i ; done
-
-
---------------------------------------------------------------------------------
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~ Bash - Searching ~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <h1>Bash - Searching</h1>
 <p>Recursively search files for the string "debug"</p>
-grep -R "debug" ./
-
-Find all mp3 or ogg files
-find ~ -name "*.mp3" -o -name "*.ogg"
-
-Alternate
-IFS=$'\n'; for filename in $(find .); do if [[ $filename =~ \.(mp3|ogg) ]]; then echo "$filename"; fi; done
-
-Bash splits inputs by newlines and whitespace. To only split on newline, set
-IFS=$'\n'
-
-To extract a variable from a string
-email="alec.dee@gmail.com"
+<div class="bash">grep -R "debug" ./</div>
+<p>Find all mp3 or ogg files</p>
+<div class="bash">find ~ -name "*.mp3" -o -name "*.ogg"</div>
+<p>Alternate</p>
+<div class="bash">IFS=$'\n'; for filename in $(find .); do if [[ $filename =~ \.(mp3|ogg) ]]; then echo "$filename"; fi; done</div>
+<p>Bash splits inputs by newlines and whitespace. To only split on newline, set
+<i>IFS=$'\n'</i>.</p>
+<p>To extract a variable from a string</p>
+<div class="bash">email="alec.dee@gmail.com"
 res=$(echo $email | sed 's/\(.*\)@.*/\1/')
 echo $res #alec.dee
+</div>
 
-
---------------------------------------------------------------------------------
--->
-<!------------------------- Linux - File Access Policy ------------------------>
+<!--~~~~~~~~~~~~~~~~~~~~~~ Linux - File Access Policy ~~~~~~~~~~~~~~~~~~~~~~~-->
 <h1>Linux - File Access Policy</h1>
 <div class="bash">systemctl stop fapolicyd</div>
 <p>Log everything fapolicy is doing. Still stops applications.</p>
@@ -653,7 +537,7 @@ systemctl restart fapolicyd
 <p>Default log location</p>
 <div class="bash">/var/log/fapolicyd-access.log</div>
 
-<!------------------------------ Linux - Firewall ----------------------------->
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~ Linux - Firewall ~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <h1>Linux - Firewall</h1>
 <p>Allow traffic but log denied packets.</p>
 <div class="bash">vi /etc/firewalld/firewalld.conf
