@@ -209,6 +209,14 @@ class Game {
 	}
 
 
+	makeglaive(x,y) {
+		//      _
+		//       \
+		// -------
+		// \_
+	}
+
+
 	initworld() {
 		let dw=this.draw.img.width;
 		let dh=this.draw.img.height;
@@ -247,6 +255,7 @@ class Game {
 		pos.set([viewwidth*0.5,viewheight*0.33]);
 		this.playeratom=world.createatom(pos,0.035,playertype);
 		this.mouse.set(pos);*/
+		this.makeglaive(200,500);
 	}
 
 

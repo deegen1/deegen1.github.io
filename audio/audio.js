@@ -611,7 +611,7 @@ class _AudioSFX {
 
 
 	parse(seqstr) {
-		// Last node is returned. Node names must start with #.
+		// Last node is used as output. Node names must start with #.
 		// Translating addresses: (node_num+1)<<8+param_num
 		const EXPR=0,ENV=1,TBL=2,NOI=8,DEL=9,OSC0=2,OSC1=7,FIL0=10,FIL1=17;
 		const CON=0,VAR=1,OP=2,VBITS=24,VMASK=(1<<VBITS)-1,PBITS=8,PMASK=(1<<PBITS)-1;
