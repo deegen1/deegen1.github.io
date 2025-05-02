@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-sico.js - v2.10
+sico.js - v2.11
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -103,10 +103,8 @@ Audio
 
 
 */
-/* jshint esversion: 11  */
-/* jshint bitwise: false */
-/* jshint eqeqeq: true   */
-/* jshint curly: true    */
+/* npx eslint sico.js -c ../../standards/eslint.js */
+/* global SICOFastRun, process*/
 
 
 //---------------------------------------------------------------------------------
@@ -202,7 +200,7 @@ class SICO {
 			try {
 				process.stdout.write(str);
 			} catch {
-				str.split("\n").forEach((e,idx,arr)=>{console.log(e);});
+				str.split("\n").forEach((e)=>{console.log(e);});
 			}
 		}
 	}
@@ -494,7 +492,7 @@ class SICO {
 			// Attempt to allocate.
 			try {
 				mem=new BigUint64Array(Number(memlen));
-			} catch(error) {
+			} catch {
 				this.state=this.ERROR_MEMORY;
 				this.statestr="Failed to allocate memory.\nIndex: "+addr+"\n";
 				return;

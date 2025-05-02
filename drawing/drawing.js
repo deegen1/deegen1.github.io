@@ -130,6 +130,7 @@ polyfill
 DrawPoly
 	closestpoint()
 	pointinside()
+	Add circular arcs.
 	Binary operators: and, or, not, nand.
 	simplify() to remove small lines and clean up.
 	Add v,V,h,H.

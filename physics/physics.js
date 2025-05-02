@@ -30,8 +30,11 @@ History
 TODO
 
 
+Collisions and bonds should use the same equations.
+Skip collision step and only update during bond step?
+
 Increase relative mass as atoms interact with bonds/eachother.
-	increase by 5% for every interaction, depening on mass ratios and tension
+	increase by 5% for every interaction, depending on mass ratios and tension
 	decay over time
 	add velocity to mass ratio calculation?
 Allow atoms/bonds to have their own values in addition to type's values.
@@ -47,6 +50,11 @@ groups
 	scale
 	move
 	copy
+How to layer atoms so a particle will always be pushed out?
+	1 dimension? 2 dimensions?
+	d=rad*sqrt(1,2,3,...,dim)
+How close do atoms have to be to ensure a point gets pushed out?
+How many bonds are needed for a cube to be stable?
 
 
 */
@@ -473,65 +481,75 @@ class PhyAtom {
 
 	static collideatom(a,b,callback) {
 		// Collides two atoms. Vector operations are unrolled to use constant memory.
-		if (Object.is(a,b)) {
-			return;
-		}
+		if (Object.is(a,b)) {return;}
+		// Determine if the atoms are overlapping.
 		let apos=a.pos,bpos=b.pos;
-		let dim=apos.length;
-		// Determine if atoms are overlapping.
-		let dist=0.0,dif,i,norm=a.world.tmpvec;
+		let dim=apos.length,i;
+		let dist=0.0,dif,norm=a.world.tmpvec;
 		for (i=0;i<dim;i++) {
 			dif=bpos[i]-apos[i];
 			norm[i]=dif;
 			dist+=dif*dif;
 		}
 		let rad=a.rad+b.rad;
-		if (dist<rad*rad) {
-			// If we have a callback, allow it to handle the collision.
-			let intr=a.type.intarr[b.type.id];
-			if (intr.collide===false) {return;}
-			if (callback===undefined && intr.callback!==null) {
-				if (intr.callback(a,b)) {PhyAtom.collideatom(a,b,true);}
-				return;
+		if (dist>=rad*rad) {return;}
+		// Bonds can limit the distance between the atoms.
+		let b0=a,b1=b;
+		if (a.bondlist.count>b.bondlist.count) {b0=b;b1=a;}
+		let link=b0.bondlist.head;
+		while (link!==null) {
+			let bond=link.obj;
+			link=link.next;
+			if (Object.is(bond.a,b1) || Object.is(bond.b,b1)) {
+				if (rad>bond.dist) {rad=bond.dist;}
+				break;
 			}
-			let amass=a.mass,bmass=b.mass;
-			let mass=amass+bmass;
-			if ((amass>=Infinity && bmass>=Infinity) || mass<=1e-10 || dim===0) {
-				return;
-			}
-			amass=amass>=Infinity?1.0:(amass/mass);
-			bmass=bmass>=Infinity?1.0:(bmass/mass);
-			// If the atoms are too close together, randomize the direction.
-			if (dist>1e-10) {
-				dist=Math.sqrt(dist);
-				dif=1.0/dist;
-			} else {
-				dist=0;
-				dif=1.0;
-				a.world.tmpvec.randomize();
-			}
-			// Check the relative velocity. We can have situations where two atoms increase
-			// eachother's velocity because they've been pushed past eachother.
-			let avel=a.vel,bvel=b.vel;
-			let veldif=0.0;
-			for (i=0;i<dim;i++) {
-				norm[i]*=dif;
-				veldif-=(bvel[i]-avel[i])*norm[i];
-			}
-			veldif=veldif>0?veldif:0;
-			let posdif=rad-dist;
-			veldif=veldif*intr.vmul+posdif*intr.vpmul;
-			posdif*=intr.pmul;
-			// Push the atoms apart.
-			let avelmul=veldif*bmass,bvelmul=veldif*amass;
-			let aposmul=posdif*bmass,bposmul=posdif*amass;
-			for (i=0;i<dim;i++) {
-				dif=norm[i];
-				apos[i]-=dif*aposmul;
-				avel[i]-=dif*avelmul;
-				bpos[i]+=dif*bposmul;
-				bvel[i]+=dif*bvelmul;
-			}
+		}
+		if (dist>rad*rad) {return;}
+		// If we have a callback, allow it to handle the collision.
+		let intr=a.type.intarr[b.type.id];
+		if (intr.collide===false) {return;}
+		if (callback===undefined && intr.callback!==null) {
+			if (intr.callback(a,b)) {PhyAtom.collideatom(a,b,true);}
+			return;
+		}
+		let amass=a.mass,bmass=b.mass;
+		let mass=amass+bmass;
+		if ((amass>=Infinity && bmass>=Infinity) || mass<=1e-10 || dim===0) {
+			return;
+		}
+		amass=amass>=Infinity?1.0:(amass/mass);
+		bmass=bmass>=Infinity?1.0:(bmass/mass);
+		// If the atoms are too close together, randomize the direction.
+		if (dist>1e-10) {
+			dist=Math.sqrt(dist);
+			dif=1.0/dist;
+		} else {
+			dist=0;
+			dif=1.0;
+			a.world.tmpvec.randomize();
+		}
+		// Check the relative velocity. We can have situations where two atoms increase
+		// eachother's velocity because they've been pushed past eachother.
+		let avel=a.vel,bvel=b.vel;
+		let veldif=0.0;
+		for (i=0;i<dim;i++) {
+			norm[i]*=dif;
+			veldif-=(bvel[i]-avel[i])*norm[i];
+		}
+		veldif=veldif>0?veldif:0;
+		let posdif=rad-dist;
+		veldif=veldif*intr.vmul+posdif*intr.vpmul;
+		posdif*=intr.pmul;
+		// Push the atoms apart.
+		let avelmul=veldif*bmass,bvelmul=veldif*amass;
+		let aposmul=posdif*bmass,bposmul=posdif*amass;
+		for (i=0;i<dim;i++) {
+			dif=norm[i];
+			apos[i]-=dif*aposmul;
+			avel[i]-=dif*avelmul;
+			bpos[i]+=dif*bposmul;
+			bvel[i]+=dif*bvelmul;
 		}
 	}
 
@@ -1020,7 +1038,10 @@ class PhyWorld {
 	}
 
 
-	createbox(cen,side,rad,type) {
+	createbox(cen,side,rad,dist,type) {
+		// O O O O
+		//  O O O
+		// O O O O
 		let pos=new Vector(cen);
 		let atomcombos=1;
 		let dim=this.dim;
@@ -1032,7 +1053,7 @@ class PhyWorld {
 			for (let i=0;i<dim;i++) {
 				let x=atomtmp%side;
 				atomtmp=Math.floor(atomtmp/side);
-				pos[i]=cen[i]+(x*2-side+1)*rad;
+				pos[i]=cen[i]+(x*2-side+1)*dist;
 			}
 			atomarr[atomcombo]=this.createatom(pos,rad,type);
 		}

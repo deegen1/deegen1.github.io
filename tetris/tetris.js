@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-tetris.js - v2.07
+tetris.js - v2.08
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -17,10 +17,7 @@ Clean up UI creation.
 
 
 */
-/* jshint esversion: 6   */
-/* jshint bitwise: false */
-/* jshint eqeqeq: true   */
-/* jshint curly: true    */
+/* npx eslint tetris.js -c ../../standards/eslint.js */
 
 
 //---------------------------------------------------------------------------------
@@ -908,7 +905,7 @@ class Tetris {
 
 
 //---------------------------------------------------------------------------------
-// Input - v1.13
+// Input - v1.15
 
 
 class Input {
@@ -944,8 +941,8 @@ class Input {
 		this.active=null;
 		this.scrollupdate=false;
 		this.scroll=[window.scrollX,window.scrollY];
-		this.mousepos=[-Infinity,-Infinity];
-		this.mouseraw=[-Infinity,-Infinity];
+		this.mousepos=[NaN,NaN];
+		this.mouseraw=[NaN,NaN];
 		this.mousez=0;
 		this.touchfocus=0;
 		this.clickpos=[0,0];
@@ -1092,7 +1089,7 @@ class Input {
 				state.setkeyup(state.MOUSE.LEFT);
 			}
 		}
-		function onscroll(evt) {
+		function onscroll() {
 			// Update relative position on scroll.
 			if (state.scrollupdate) {
 				let difx=window.scrollX-state.scroll[0];
@@ -1129,11 +1126,11 @@ class Input {
 			touchmove(evt);
 			state.clickpos=state.mousepos.slice();
 		}
-		function touchend(evt) {
+		function touchend() {
 			state.touchfocus=0;
 			state.setkeyup(state.MOUSE.LEFT);
 		}
-		function touchcancel(evt) {
+		function touchcancel() {
 			state.touchfocus=0;
 			state.setkeyup(state.MOUSE.LEFT);
 		}
@@ -1348,7 +1345,6 @@ class TetrisGUI {
 		let time=performance.now()/1000.0;
 		let input=this.input;
 		input.update();
-		let canvas=this.canvas;
 		let mpos=input.getmousepos();
 		let mx=mpos[0],my=mpos[1];
 		for (let i=0;i<this.buttons.length;i++) {

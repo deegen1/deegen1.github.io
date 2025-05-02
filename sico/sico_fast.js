@@ -12,7 +12,7 @@ Notes
 
 
 Webassembly acceleration for SICO.
-SICO.run() will call SICOFastRun() automatically if it's detected.
+This file is optional. If loaded, SICO.run() will call SICOFastRun().
 
 
           Mode     |   Time
@@ -50,10 +50,8 @@ TODO
 
 
 */
-/* jshint esversion: 11  */
-/* jshint bitwise: false */
-/* jshint eqeqeq: true   */
-/* jshint curly: true    */
+/* npx eslint sico_fast.js -c ../../standards/eslint.js */
+/* global */
 
 
 //---------------------------------------------------------------------------------

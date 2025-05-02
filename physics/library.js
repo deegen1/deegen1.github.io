@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v1.04
+library.js - v1.05
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -11,22 +11,20 @@ Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 Versions
 
 
-Input   - v1.14
+Input   - v1.15
 Random  - v1.09
 Vector  - v1.05
-Drawing - v3.08
-Audio   - v1.06
+Drawing - v3.09
+Audio   - v3.03
 
 
 */
-/* jshint esversion: 11  */
-/* jshint bitwise: false */
-/* jshint eqeqeq: true   */
-/* jshint curly: true    */
+/* npx eslint library.js -c ../../standards/eslint.js */
+/* global */
 
 
 //---------------------------------------------------------------------------------
-// Input - v1.14
+// Input - v1.15
 
 
 class Input {
@@ -210,7 +208,7 @@ class Input {
 				state.setkeyup(state.MOUSE.LEFT);
 			}
 		}
-		function onscroll(evt) {
+		function onscroll() {
 			// Update relative position on scroll.
 			if (state.scrollupdate) {
 				let difx=window.scrollX-state.scroll[0];
@@ -247,11 +245,11 @@ class Input {
 			touchmove(evt);
 			state.clickpos=state.mousepos.slice();
 		}
-		function touchend(evt) {
+		function touchend() {
 			state.touchfocus=0;
 			state.setkeyup(state.MOUSE.LEFT);
 		}
-		function touchcancel(evt) {
+		function touchcancel() {
 			state.touchfocus=0;
 			state.setkeyup(state.MOUSE.LEFT);
 		}
@@ -685,7 +683,7 @@ class Vector extends Array {
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v3.08
+// Drawing - v3.09
 
 
 class _DrawTransform {
@@ -1108,59 +1106,8 @@ class _DrawPoly {
 
 
 	trace(rad) {
-		throw "not implemented";
+		throw "not implemented "+rad;
 		// Curve offseting. Project out based on tangent.
-		/*
-		c2x=(c2x-c1x)*3;c1x=(c1x-p0x)*3;c3x-=p0x+c2x;c2x-=c1x;
-		c2y=(c2y-c1y)*3;c1y=(c1y-p0y)*3;c3y-=p0y+c2y;c2y-=c1y;
-
-		// Point
-		ppx=p0x+u*(c1x+u*(c2x+u*c3x));
-		ppy=p0y+u*(c1y+u*(c2y+u*c3y));
-
-		// Tangent
-		dx=c1x+u*(2*c2x+u*3*c3x);
-		dy=c1y+u*(2*c2y+u*3*c3y);
-		norm=rad/Math.sqrt(dx*dx+dy*dy);
-
-		px=ppx-dy*rad;
-		py=ppy+dx*rad;
-		*/
-		/*let px=0,py=0,pdx=1,pdy=0;
-		for (let i=0;i<vertidx;) {
-			let v=vertarr[i];
-			let x=v.x,dx=x-px;
-			let y=v.y,dy=y-py;
-			let len=dx*dx+dy*dy;
-			if (len<1e-9) {continue;}
-			len=1/Math.sqrt(len);
-			dx*=len;
-			dy*=len;
-			let type=v.type;
-			let join=0;
-			if (pdx*dy-pdy*dx<=0) {
-				// facing inward
-				join=0;
-			}
-			if (type===_DrawPoly.CURVE) {
-				// Assume best tangents to offset points are at u=0,1/3,2/3,1.
-				let pt=[p0x,p0y,c1x,c1y,c2x,c2y,p1x,p1y];
-				for (let j=0;j<4;j++) {
-					let u=j/3;
-					let cdx=c1x+u*(2*c2x+u*3*c3x);
-					let cdy=c1y+u*(2*c2y+u*3*c3y);
-					let cn=1/Math.sqrt(cdx*cdx+cdy*cdy);
-					cdx*=cn;
-					cdy*=cn;
-					pt[j*2+0]-=cdy*rad;
-					pt[j*2+1]-=cdx*rad;
-				}
-			}
-			px=x;
-			py=y;
-			pdx=dx;
-			pdy=dy;
-		}*/
 	}
 
 }
@@ -1784,6 +1731,7 @@ class Draw {
 
 
 	setfont(name) {
+		throw "not implemented "+name;
 	}
 
 
@@ -2198,7 +2146,7 @@ class Draw {
 
 
 //---------------------------------------------------------------------------------
-// Audio - v1.06
+// Audio - v3.03
 
 
 class _AudioSound {
@@ -2217,6 +2165,19 @@ class _AudioSound {
 		} else {
 			this.resizelen(0);
 		}
+	}
+
+
+	get(i) {
+		let len=this.len;
+		let data=this.data;
+		if (len<2) {return len?data[0]:0;}
+		if (i<0) {i=(i%len)+len;}
+		else if (i>=len) {i%=len;}
+		let j0=Math.floor(i);
+		i-=j0;
+		let j1=j0+1<len?j0+1:0;
+		return data[j0]*(1-i)+data[j1]*i;
 	}
 
 
@@ -2269,9 +2230,10 @@ class _AudioSound {
 
 	resizelen(len) {
 		// Over-allocate in case we keep modifying the sound.
+		len=isNaN(len) || len<0?0:(len|0);
 		this.loaded=true;
 		let olddata=this.data;
-		let oldlen=olddata?olddata.length:0;
+		let oldlen=olddata?olddata.length:-1;
 		let newlen=(len>oldlen || 3*len<oldlen)?len*2:oldlen;
 		let data=this.data;
 		if (newlen!==oldlen) {
@@ -2294,6 +2256,9 @@ class _AudioSound {
 	}
 
 
+	resizetime(time) {return this.resizelen(Math.round(time*this.freq));}
+
+
 	loadfile(path) {
 		// Load and replace the sound with a WAV file.
 		this.resizelen(0);
@@ -2301,7 +2266,7 @@ class _AudioSound {
 		let req=new XMLHttpRequest();
 		req.open("GET",path,true);
 		req.responseType="arraybuffer";
-		req.onload=((evt)=>{
+		req.onload=(()=>{
 			if (req.response) {
 				let data=new Uint8Array(req.response);
 				this.fromwav(data);
@@ -2359,8 +2324,7 @@ class _AudioSound {
 			let blockid=read32(i);
 			let blocklen=read32(i+4)+8;
 			if (blocklen<=0) {
-				console.log("corrupt block");
-				return this;
+				throw "corrupt block";
 			} else if (blockid===0x20746d66) {
 				fmtidx=i;
 				fmtlen=blocklen;
@@ -2371,8 +2335,7 @@ class _AudioSound {
 			i+=blocklen;
 		}
 		if (fmtlen<24 || datlen<0) {
-			console.log("could not find format or data blocks");
-			return this;
+			throw "could not find format or data blocks";
 		}
 		// Read the format block.
 		let fmt =read16(fmtidx+ 8);
@@ -2469,6 +2432,7 @@ class _AudioSound {
 
 	addindex(snd,dstoff=0,vol=1.0) {
 		// Add sound samples to the current sound.
+		dstoff=Math.floor(dstoff);
 		let srcoff=0,srclen=snd.len;
 		if (dstoff<0) {
 			srcoff=-dstoff;
@@ -2496,8 +2460,8 @@ class _AudioSound {
 	}
 
 
-	add(snd,offset=0,vol=1.0) {
-		return this.addindex(snd,Math.round(offset*this.freq),vol);
+	add(snd,time=0,vol=1.0) {
+		return this.addindex(snd,Math.round(time*this.freq),vol);
 	}
 
 
@@ -2571,11 +2535,772 @@ class _AudioSound {
 }
 
 
+class _AudioSFX {
+
+	// Array Format
+	//  Offset | Data
+	// --------+--------------
+	//         | Header data
+	//       0 | [u32 next]
+	//       4 | [u32 in stop]
+	//       8 |      [u32 src stop 1] [u32 src 1] [u32 src 2] ... [dst 1]
+	//   stop1 |      [u32 src stop 2] [u32 src 1] [u32 src 2] ... [dst 2]
+	//   stop2 |      ...
+	//         |      VAR/OP format: [8: OP,24: addr]
+	//         |      CON    format: [8: OP,24: addr] [f32 con]
+	//  instop | Node data
+	//       0 | [u32 type]
+	//       4 | [f32 output]
+	//       8 | [f32 field 1]
+	//      12 | [f32 field 2]
+	//      16 | ...
+	//    next | Next node header
+
+	// Rules
+	// Node names begin with a # symbol. The last node is used as output.
+	// Node outputs can be used as inputs for most parameters.
+	// Ex, a square wave modulated by a sine wave: #osc: SIN F 200 #out: SQR F #osc
+	// Combine inputs with reverse polish notation. Leftover terms are summed.
+	// Ex, (#osca*2)+(#oscb-1): #out: SQR F #osca 2 * #oscb 1 -
+
+
+	constructor(str) {
+		this.parse(str);
+	}
+
+
+	reset() {
+		this.di32.set(this.orig);
+	}
+
+
+	tosound(time=10,silence=0.1,freq=44100) {
+		// Plays the effect until a max time or span of silence.
+		if (isNaN(time) || time<0) {time=Infinity;}
+		if (isNaN(silence) || silence<0) {silence=Infinity;}
+		let snd;
+		let maxlen=Math.floor(freq*time);
+		if (silence>=Infinity) {
+			// Fill the whole time.
+			if (time>=Infinity) {throw "infinite sound";}
+			snd=new Audio.Sound(freq,maxlen);
+			this.fill(snd);
+		} else {
+			// Fill until max time or silence.
+			const thres=1e-5;
+			let sillen=Math.floor(freq*silence);
+			let genlen=Math.floor(freq*0.2)+1;
+			snd=new Audio.Sound(freq,0);
+			let len=snd.len,silpos=0;
+			let data=snd.data;
+			for (let dst=0;dst<maxlen && dst-silpos<sillen;) {
+				let newlen=dst+genlen;
+				if (newlen>len) {
+					if (newlen>maxlen) {newlen=maxlen;}
+					len=newlen;
+					snd.resizelen(len);
+					data=snd.data;
+				}
+				this.fill(snd,dst,newlen-dst);
+				while (dst<newlen) {
+					if (Math.abs(data[dst++])>thres) {silpos=dst;}
+				}
+			}
+			while (len>silpos) {data[--len]=0;}
+			snd.len=len;
+			snd.time=len/freq;
+		}
+		this.reset();
+		return snd;
+	}
+
+
+	geti(name) {
+		// Gets the value at #node.attr. Ex: #osc1.f
+		let addr=this.namemap[name];
+		if (addr===undefined) {throw name+" not found";}
+		return this.di32[addr];
+	}
+
+
+	getf(name) {
+		let addr=this.namemap[name];
+		if (addr===undefined) {throw name+" not found";}
+		return this.df32[addr];
+	}
+
+
+	seti(name,val) {
+		// Sets the value at #node.attr.
+		let addr=this.namemap[name];
+		if (addr===undefined) {throw name+" not found";}
+		this.di32[addr]=val;
+		return this;
+	}
+
+
+	setf(name,val) {
+		let addr=this.namemap[name];
+		if (addr===undefined) {throw name+" not found";}
+		this.df32[addr]=val;
+		return this;
+	}
+
+
+	// ----------------------------------------
+	// Parser
+
+
+	parse(seqstr) {
+		// Last node is returned. Node names must start with #.
+		// Translating addresses: (node_num+1)<<8+param_num
+		const EXPR=0,ENV=1,TBL=2,NOI=8,DEL=9,OSC0=2,OSC1=7,FIL0=10,FIL1=17;
+		const CON=0,VAR=1,OP=2,VBITS=24,VMASK=(1<<VBITS)-1,PBITS=8,PMASK=(1<<PBITS)-1;
+		this.namemap={};
+		let nodetypes=[
+			{str:"expr" ,type: 0,params:" "},
+			{str:"env"  ,type: 1,params:"asri "},
+			{str:"tbl"  ,type: 2,params:"fphl t"},
+			{str:"tri"  ,type: 3,params:"fphl "},
+			{str:"pulse",type: 4,params:"fphl w"},
+			{str:"saw"  ,type: 5,params:"fphl "},
+			{str:"sin"  ,type: 6,params:"fphl "},
+			{str:"sqr"  ,type: 7,params:"fphl "},
+			{str:"noise",type: 8,params:"hl  "},
+			{str:"del"  ,type: 9,params:"tmi "},
+			{str:"lpf"  ,type:10,params:"fbgi"},
+			{str:"hpf"  ,type:11,params:"fbgi"},
+			{str:"bpf"  ,type:12,params:"fbgi"},
+			{str:"npf"  ,type:13,params:"fbgi"},
+			{str:"apf"  ,type:14,params:"fbgi"},
+			{str:"pkf"  ,type:15,params:"fbgi"},
+			{str:"lsf"  ,type:16,params:"fbgi"},
+			{str:"hsf"  ,type:17,params:"fbgi"}
+		];
+		seqstr=seqstr.toLowerCase();
+		let s=0,seqlen=seqstr.length;
+		let sndfreq=44100;
+		let ndecl=new Int32Array(seqlen>>1);
+		let naddr=new Int32Array(seqlen>>1);
+		let node=null,nparam=0,nodes=0,nid=0;
+		let name="";
+		let paramarr=new Array(10);
+		let paramcon=new Array(10);
+		let dpos=0;
+		let di32=new Int32Array(0);
+		let df32=new Float32Array(di32.buffer);
+		function error(msg,s0,s1) {
+			let line=1,start=0;
+			for (let i=0;i<s0;i++) {if (seqstr.charCodeAt(i)===10) {start=i+1;line++;}}
+			if (s1===undefined) {s1=s0+1;s0=start;}
+			let argsum=seqstr.substring(s0,s1);
+			throw "Sequencer error:\n\tError: "+msg+"\n\tLine : "+line+"\n\targs : "+argsum;
+		}
+		function getc() {return s<seqlen?seqstr.charCodeAt(s):0;}
+		function findc(str,c) {
+			let i=str.length;while (--i>=0 && str.charCodeAt(i)!==c) {}
+			return i;
+		}
+		while (s<seqlen || node) {
+			// Read through whitespace and comments.
+			let c=0;
+			while ((c=getc())<33 && c>0) {s++;}
+			if (c===39 || c===34) {
+				// If " stop at ". If ' stop at \n.
+				let eoc=c===34?34:10;
+				do {s++;} while ((c=getc())!==eoc && c>0);
+				s++;
+				continue;
+			}
+			// Stop at :'"
+			let c0=getc(),s0=s++;
+			while ((c=getc())>32 && c!==34 && c!==39 && c!==58) {s++;}
+			// Types: 0 const, 1 node, 2 op, 3 process
+			let tval=nodes,tid=3,s1=s;
+			while ((c=getc())<33 && c>0) {s++;}
+			if (!node && c!==58) {
+				// Node type. If we can't identify it, default to EXPR.
+				let n=nodetypes.length,str=seqstr.substring(s0,s1);
+				while (--n>=0 && str!==nodetypes[n].str) {}
+				node=nodetypes[n>0?n:0];
+				let params=node.params.length;
+				for (let i=0;i<params;i++) {paramarr[i]=new Array();}
+				nparam=0;
+				if (n>=0) {continue;}
+			}
+			if (c0===35) {
+				// Find the node's ID.
+				while (--tval>=0) {
+					let i=ndecl[tval],j=s1-1;
+					while (j>=s0 && seqstr[i]===seqstr[j]) {i--;j--;}
+					if (j<s0) {break;}
+				}
+				// If we have a new node name or a definition.
+				if (tval<0) {tval=nodes++;naddr[tval]=-s0-1;ndecl[tval]=s1-1;}
+				if (c!==58) {tid=VAR;tval=((tval+1)<<PBITS)|1;}
+				else {s++;if (naddr[tval]>=0) {error("node already defined",s0,s1);}}
+			} else if (s1-s0<2 && c0>96 && c0<123) {
+				// Parameter.
+				nparam=findc(node.params,c0);
+				if (nparam<0) {error("invalid parameter",s0,s1);}
+				continue;
+			} else if (s1-s0<2 && c0 && (c0<48 || c0>57)) {
+				// Operator.
+				tval=findc(" ~+-*%/^<>",c0);
+				if (tval<0) {error("invalid operator",s0,s1);}
+				tid=OP;
+			} else if (c0) {
+				// Parse numbers in format: [+-]\d*(\.\d*)?
+				let i=s0,d=0;
+				c=i<s1?seqstr.charCodeAt(i):0;
+				let neg=c===45?-1:1;
+				if (c===45 || c===43) {i++;}
+				let num=0,den=1;
+				while (i<s1 && (c=seqstr.charCodeAt(i)-48)>=0 && c<=9) {d=1;i++;num=num*10+c;}
+				if (c===-2) {i++;}
+				while (i<s1 && (c=seqstr.charCodeAt(i)-48)>=0 && c<=9) {d=1;i++;den*=0.1;num+=c*den;}
+				if (i<s1 || !d) {error("invalid token",s0,s1);}
+				tval=neg*num;
+				tid=CON;
+			}
+			// Process the token.
+			if (tid<3) {
+				if (!node) {error("node type undefined",s0,s);}
+				paramarr[nparam].push({type:tid,val:tval});
+				continue;
+			}
+			if (node) {
+				// Make sure expressions are valid and preprocess constant expressions.
+				let params=node.params.length;
+				let type=node.type;
+				for (let i=0;i<params;i++) {
+					// Don't evaluate osc.p.
+					let stack=paramarr[i];
+					if (type===TBL && i===5) {continue;}
+					let h=0;
+					for (let p of stack) {
+						h+=p.type!==OP?1:(p.val<2?0:-1);
+						if (h<=0) {error("not enough operands in expression: "+node.str,s0-1);}
+					}
+					// Sum everything left in the stack.
+					while (h-->1) {
+						let p={type:OP,val:2},l=stack.length;
+						stack.push(p);
+						while (l>2 && stack[l-2].type!==OP) {stack[l]=stack[l-1];l--;}
+						stack[l]=p;
+					}
+					h=0;
+					for (let j=0;j<stack.length;j++) {
+						let p=stack[j];
+						if (p.type===OP) {
+							let min=p.val<2?1:2;
+							let p1=stack[h-min],p2=stack[h-1];
+							if (p1.type===CON && p2.type===CON) {
+								let v1=p1.val,v2=p2.val;
+								switch (p.val) {
+									case 0: break;
+									case 1: v1=-v1;break;
+									case 2: v1+=v2;break;
+									case 3: v1-=v2;break;
+									case 4: v1*=v2;break;
+									case 5: v1%=v2;break;
+									case 6: v1/=v2;break;
+									case 7: v1=Math.pow(v1,v2);break;
+									case 8: v1=v1<v2?v1:v2;break;
+									case 9: v1=v1>v2?v1:v2;break;
+								}
+								h-=min;
+								p.type=CON;
+								p.val=v1;
+							}
+						}
+						stack[h++]=p;
+					}
+					paramarr[i]=stack.slice(0,h);
+				}
+				let param=paramarr;
+				let iscon=paramcon;
+				for (let i=0;i<params;i++) {
+					iscon[i]=1;
+					for (let p of param[i]) {iscon[i]&=p.type===CON;}
+				}
+				// Default arguments.
+				let noff=(nid+1)<<PBITS;
+				let size=params;
+				let def=[],negp=-1;
+				if (type===EXPR) {
+					size=0;
+					def=[0];
+				} else if (type===ENV) {
+					def=[0,0,0,1,0];
+				} else if (type>=OSC0 && type<=OSC1) {
+					def=[NaN,0,1,-1,0,0.5];
+					negp=3;
+					if (type===TBL) {
+						if (!iscon[5]) {error("table points must be constants",s0-1);}
+						let p=param[5],len=p.length;
+						if (len<4) {error("table must have at least 2 points",s0-1);}
+						if (len&1) {error("table must have an even number of values: "+len,s0-1);}
+						for (let i=2;i<len;i+=2) {
+							let j=i,x=p[j],y=p[j+1];
+							while (j>0 && p[j-2].val>x.val) {p[j]=p[j-2];p[j+1]=p[j-1];j-=2;}
+							p[j]=x;p[j+1]=y;
+						}
+						if (p[0].val!==0) {error("table must start at x=0",s0-1);}
+						for (let i=1;i<len;i+=2) {p[i].val=p[i].val*0.5+0.5;}
+						size+=len-1;
+					}
+				} else if (type===NOI) {
+					// noise
+					let rand=dpos+params;
+					def=[1,-1,Math.imul(rand,0x7eccc553),Math.imul(rand,0x49e15d71)|1];
+					negp=1;
+				} else if (type===DEL) {
+					// delay
+					if (!param[0].length) {error("delay must have a time",s0-1);}
+					if (!param[1].length && iscon[0]) {param[1].push({type:CON,val:param[0][0].val});}
+					let max=(param[1].length===1 && iscon[1])?param[1][0].val:NaN;
+					let len=Math.floor(sndfreq*max)+2;
+					if (isNaN(len)) {error("max delay must be constant",s0-1);}
+					def=[NaN,NaN,0,0];
+					size+=len;
+				} else if (type>=FIL0 && type<=FIL1) {
+					size+=11;
+					def=[NaN,1,1,NaN];
+				} else {
+					error("unknown known type: "+type,s0-1);
+				}
+				if (negp>0 && !param[negp].length && param[negp-1].length) {
+					// set to -[h]
+					let h=negp-1;
+					if (iscon[h]) {param[negp].push({type:CON,val:-param[h][0].val});}
+					else {param[negp].push({type:VAR,val:noff+2+h},{type:OP,val:1});}
+					iscon[negp]=iscon[h];
+				}
+				for (let p=0;p<params;p++) {
+					if (!param[p].length) {
+						if (isNaN(def[p])) {error(node.params[p]+" must have a value",s0-1);}
+						param[p].push({type:CON,val:def[p]});
+					}
+				}
+				// Overallocate to fit our data.
+				let resize=dpos+4+size;
+				for (let p=0;p<params;p++) {resize+=!iscon[p]?param[p].length*2+2:0;}
+				if (resize>resize || resize>VMASK) {
+					error("not enough memory: "+resize,s0-1);
+				}
+				if (resize>di32.length) {
+					let newlen=resize*2;
+					let tmp=new Int32Array(newlen);
+					for (let i=di32.length;i<newlen;i++) {tmp[i]=0;}
+					tmp.set(di32);
+					di32=tmp;
+					df32=new Float32Array(di32.buffer);
+				}
+				// Fill inputs and fields.
+				let dpos0=dpos++; // next
+				dpos++; // in stop
+				// Pack inputs if they're non contants.
+				for (let p=0;p<params;p++) {
+					if (iscon[p]) {continue;}
+					let in0=dpos++,ppos=-1;
+					for (let prm of param[p]) {
+						let pt=prm.type;
+						if (pt===OP) {
+							let val=prm.val<<VBITS;
+							if (ppos>=0) {di32[ppos]|=val;}
+							else {di32[dpos++]=val;}
+							ppos=-1;
+						} else if (pt===CON) {
+							ppos=dpos;
+							di32[dpos++]=1;
+							df32[dpos++]=prm.val;
+						} else {
+							ppos=dpos;
+							di32[dpos++]=prm.val;
+						}
+					}
+					di32[in0]=dpos; // src stop
+					di32[dpos++]=p+1+(type!==EXPR); // dst
+				}
+				di32[dpos0+1]=dpos; // in stop
+				di32[dpos++]=type; // type
+				// Allocate state values and fill in constants.
+				let dpos1=dpos+size+1;
+				if (dpos1>resize || dpos1>VMASK) {
+					error("out of bounds: "+dpos1+" > "+resize,s0-1);
+				}
+				for (let p=0;p<params;p++) {
+					if (!iscon[p]) {continue;}
+					let prm=param[p];
+					let off=dpos+p+(type!==EXPR),len=prm.length;
+					if (type===TBL && p===5) {
+						for (let i=0;i<len;i++) {df32[off+i]=prm[i].val;}
+					} else if ((type===DEL && p>2) || (type===NOI && p>2)) {
+						di32[off]=prm[0].val;
+					} else {
+						df32[off]=prm[0].val;
+					}
+				}
+				// Map names to addresses for ease of use.
+				this.namemap[name]=dpos0;
+				this.namemap[name+".type"]=dpos-1;
+				this.namemap[name+".out"]=dpos;
+				for (let p=0;p<params;p++) {
+					let pstr=node.params[p];
+					let off=dpos+p+(type!==EXPR);
+					if (off===dpos) {pstr="out";}
+					if (type>=OSC0 && type<=OSC1 && p===4) {pstr="acc";}
+					if (type===ENV && p===4) {pstr="time";}
+					if (type===NOI && p>1) {pstr=["acc","inc"][p-2];}
+					if (type===DEL && p>2) {pstr=["pos","len"][p-3];}
+					if (!pstr.trim()) {pstr="p"+p;}
+					this.namemap[name+"."+pstr]=off;
+				}
+				dpos=dpos1;
+				di32[dpos0]=dpos; // next
+				node=null;
+			}
+			naddr[tval]=dpos;
+			nid=tval;
+			name=seqstr.substring(s0,s1);
+		}
+		// Find any undefined nodes.
+		for (let i=0;i<nodes;i++) {
+			let a=-naddr[i];
+			if (a>0) {error("undefined node",a-1,ndecl[i]+1);}
+		}
+		// Convert node numbers to output addresses.
+		let maxh=0;
+		for (let d=0;d<dpos;) {
+			let next=di32[d++],istop=di32[d++];
+			while (d<istop) {
+				let sstop=di32[d++];
+				if (maxh<sstop-d) {maxh=sstop-d;}
+				while (d<sstop) {
+					let d0=d++,tmp=di32[d0];
+					let op=tmp&~VMASK,src=(tmp&VMASK)>>>0;
+					if (src>PMASK) {
+						tmp=naddr[(src>>>PBITS)-1];
+						src=(src&PMASK)+di32[tmp+1];
+					} else if (src===1) {
+						src=d++;
+					}
+					di32[d0]=op|src;
+				}
+				di32[d++]+=istop;
+			}
+			d=next;
+		}
+		// Resize to dpos + stack.
+		di32=di32.slice(0,dpos);
+		this.stack=new Float64Array(maxh);
+		this.di32=di32;
+		this.df32=new Float32Array(di32.buffer);
+		this.orig=di32.slice();
+	}
+
+
+	// ----------------------------------------
+	// Generator
+
+
+	biquadcoefs(n,type,rate,bw,gain) {
+		const LPF=10,HPF=11,BPF=12,NPF=13,APF=14,PKF=15,LSF=16,HSF=17;
+		let b0=1,b1=0,b2=0;
+		let a0=1,a1=0,a2=0;
+		let v  =gain;
+		let ang=2*Math.PI*rate;
+		let sn =Math.sin(ang);
+		let cs =Math.cos(ang);
+		let q  =0.5/Math.sinh(Math.log(2)*0.5*bw*ang/sn);
+		let a  =sn/(2*q);
+		let vr =2*Math.sqrt(v)*a;
+		if (type===LPF) {
+			b1=(1-cs)*v;
+			b2=0.5*b1;
+			b0=b2;
+			a0=1+a;
+			a1=-2*cs;
+			a2=1-a;
+		} else if (type===HPF) {
+			b1=(-1-cs)*v;
+			b2=-0.5*b1;
+			b0=b2;
+			a0=1+a;
+			a1=-2*cs;
+			a2=1-a;
+		} else if (type===BPF) {
+			b1=0;
+			b2=-a*v;
+			b0=-b2;
+			a0=1+a;
+			a1=-2*cs;
+			a2=1-a;
+		} else if (type===NPF) {
+			b1=-2*cs*v;
+			b2=v;
+			b0=v;
+			a0=1+a;
+			a1=-2*cs;
+			a2=1-a;
+		} else if (type===APF) {
+			b1=-2*cs*v;
+			b2=(1+a)*v;
+			b0=(1-a)*v;
+			a0=b2;
+			a1=b1;
+			a2=1-a;
+		} else if (type===PKF) {
+			b0=1+a*v;
+			b1=-2*cs;
+			b2=1-a*v;
+			a0=1+a/v;
+			a1=-2*cs;
+			a2=1-a/v;
+		} else if (type===LSF) {
+			b0=v*((v+1)-(v-1)*cs+vr);
+			b1=2*v*((v-1)-(v+1)*cs);
+			b2=v*((v+1)-(v-1)*cs-vr);
+			a0=(v+1)+(v-1)*cs+vr;
+			a1=-2*((v-1)+(v+1)*cs);
+			a2=(v+1)+(v-1)*cs-vr;
+		} else if (type===HSF) {
+			b0=v*((v+1)+(v-1)*cs+vr);
+			b1=-2*v*((v-1)+(v+1)*cs);
+			b2=v*((v+1)+(v-1)*cs-vr);
+			a0=(v+1)-(v-1)*cs+vr;
+			a1=2*((v-1)-(v+1)*cs);
+			a2=(v+1)-(v-1)*cs-vr;
+		} else {
+			throw "Biquad type not recognized: "+type;
+		}
+		let df32=this.df32;
+		df32[n+11]=b0/a0;
+		df32[n+12]=b1/a0;
+		df32[n+13]=b2/a0;
+		df32[n+14]=a1/a0;
+		df32[n+15]=a2/a0;
+	}
+
+
+	next() {
+		let dst=[0];
+		this.fill(dst);
+		return dst[0];
+	}
+
+
+	fill(snd,start,len) {
+		// Fills a sound or array with the effect's output.
+		let snddata=snd;
+		let sndlen =snd.length;
+		let sndfreq=44100;
+		if (sndlen===undefined) {
+			snddata=snd.data;
+			sndlen =snd.len;
+			sndfreq=snd.freq;
+		}
+		if (start===undefined) {start=0;}
+		if (len===undefined) {len=sndlen;}
+		if (start+len<sndlen) {sndlen=start+len;}
+		let sndrate=1/sndfreq;
+		const EXPR=0,ENV=1,TBL=2,TRI=3,PLS=4,SAW=5,SIN=6,SQR=7,NOI=8,DEL=9;
+		const OSC0=2,OSC1=7,FIL0=10,FIL1=17;
+		const VBITS=24,VMASK=(1<<VBITS)-1;
+		for (let sndpos=start;sndpos<sndlen;sndpos++) {
+			let di32=this.di32,df32=this.df32;
+			let stack=this.stack;
+			let n=0,nstop=di32.length;
+			let out=0;
+			// Loop through each node.
+			while (n<nstop) {
+				let next=di32[n++],istop=di32[n++];
+				// Loop through each input.
+				while (n<istop) {
+					let sstop=di32[n++],s=0;
+					// Loop through each source.
+					// Process the RPN expression. Memory IO is expensive so try to minimize it.
+					// The first element will always be [x] or ~[x].
+					let tmp=di32[n++],op=tmp>>>VBITS,src=(tmp&VMASK)>>>0;
+					n+=n===src;
+					let val=df32[src];
+					if (op) {val=-val;}
+					while (n<sstop) {
+						tmp=di32[n++];op=tmp>>>VBITS;src=(tmp&VMASK)>>>0;
+						let x=val;
+						if (src) {n+=n===src;x=df32[src];if (op<2) {stack[s++]=val;}}
+						else if (op>1) {val=stack[--s];}
+						switch (op) {
+							case 0: val= x;break;
+							case 1: val=-x;break;
+							case 2: val+=x;break;
+							case 3: val-=x;break;
+							case 4: val*=x;break;
+							case 5: val%=x;break;
+							case 6: val/=x;break;
+							case 7: val=Math.pow(val,x);break;
+							case 8: val=val<x?val:x;break;
+							case 9: val=val>x?val:x;break;
+						}
+					}
+					// Set a value in the node.
+					df32[di32[n++]]=val;
+				}
+				let type=di32[n++];
+				if (type===EXPR) {
+					out=df32[n];
+				} else if (type===ENV) {
+					// Attack, sustain, release.
+					let atk=df32[n+1];
+					let sus=df32[n+2],s1=atk+sus;
+					let rel=df32[n+3],r1=rel+s1;
+					let t  =df32[n+5];
+					out=df32[n+4];
+					df32[n+5]=t+sndrate;
+					// Want: e^decay=eps, a+b*e^(decay*0)=1, a+b*e^(decay*1)=0
+					// eps=0.01, decay=ln(eps), b=1/(1-eps), a=1-b
+					const decay=-4.605170186,b=100/99,a=-1/99;
+					if      (t>=r1) {out=0;}
+					else if (t>=s1) {out*=a+b*Math.exp(decay*(t-s1)/rel);}
+					else if (t<atk) {out*=t/atk;}
+				} else if (type>=OSC0 && type<=OSC1) {
+					// Oscillators.
+					let freq =df32[n+1];
+					let phase=df32[n+2];
+					let hi   =df32[n+3];
+					let lo   =df32[n+4];
+					let acc  =df32[n+5];
+					let mod  =type!==TBL?1:df32[next-2];
+					let u=(acc+phase)%mod;
+					if (u<0) {u+=mod;}
+					df32[n+5]=(acc+freq*sndrate)%mod;
+					if      (type===TRI) {out=(u<0.5?u:1-u)*2;}
+					else if (type===PLS) {out=u<df32[n+6]?0:1;}
+					else if (type===SAW) {out=u;}
+					else if (type===SIN) {out=Math.sin(u*(Math.PI*2))*0.5+0.5;}
+					else if (type===SQR) {out=u<0.5?0:1;}
+					else if (type===TBL) {
+						// Binary search to find what points we're between.
+						let l=n+6,h=next-4;
+						while (l<h) {let m=l+(((h-l+2)>>>2)<<1);if (df32[m]>u) {h=m-2;} else {l=m;}}
+						// Interpolate between the points.
+						let x=df32[l],y=df32[l+1];
+						out=y+(df32[l+3]-y)*((u-x)/(df32[l+2]-x));
+					}
+					out=out*(hi-lo)+lo;
+				} else if (type===NOI) {
+					// Noise.
+					let hi =df32[n+1];
+					let lo =df32[n+2];
+					let inc=di32[n+4];
+					let val=di32[n+3]+inc;
+					di32[n+3]=val;
+					val=Math.imul(val^(val>>>16),0xf8b7629f);
+					val=Math.imul(val^(val>>> 8),0xcbc5c2b5);
+					val=Math.imul(val^(val>>>24),0xf5a5bda5);
+					out=((val>>>0)/4294967295)*(hi-lo)+lo;
+				} else if (type===DEL) {
+					// Delay.
+					let del=df32[n+1];
+					let max=df32[n+2];
+					let sig=df32[n+3];
+					let pos=di32[n+4];
+					let len=next-n-5;
+					// Add the latest input.
+					if (++pos>=len) {pos=0;}
+					di32[n+4]=pos;
+					df32[n+5+pos]=sig;
+					// Interpolate the delayed output.
+					del=del<max?del:max;
+					del=del>0?del*sndfreq:0;
+					let i=del>>>0,j;
+					let f=del-i;
+					i=pos-i;i=i<0?i+len:i;
+					j=i-1  ;j=j<0?j+len:j;
+					out=df32[n+5+i]*(1-f)+df32[n+5+j]*f;
+				} else if (type>=FIL0 && type<=FIL1) {
+					// Biquad filters.
+					let freq=df32[n+1],bw=df32[n+2],gain=df32[n+3];
+					if (df32[n+5]!==freq || df32[n+6]!==bw || df32[n+7]!==gain) {
+						df32[n+5]=freq;df32[n+6]=bw;df32[n+7]=gain;
+						this.biquadcoefs(n,type,freq/sndfreq,bw,gain);
+					}
+					// Process the input. y1 is kept in df32[n] as the previous output.
+					let x =df32[n+4];
+					let x1=df32[n+8],x2=df32[n+ 9];
+					let y1=df32[n  ],y2=df32[n+10];
+					out=df32[n+11]*x+df32[n+12]*x1+df32[n+13]*x2-df32[n+14]*y1-df32[n+15]*y2;
+					df32[n+ 8]=x;
+					df32[n+ 9]=x1;
+					df32[n+10]=y1;
+				}
+				out=!isNaN(out)?out:0;
+				df32[n]=out;
+				n=next;
+			}
+			snddata[sndpos]=out;
+		}
+	}
+
+
+	// ----------------------------------------
+	// Default Sounds
+
+
+	static deflib={
+		"uiinc":"#vol: .05 #freq: 1500 #time: 0.1 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 S #time .01 - .5 * R #time .01 - .5 * I #bpf #vol *",
+		"uidec":"#vol: .05 #freq: 1000 #time: 0.1 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 S #time .01 - .5 * R #time .01 - .5 * I #bpf #vol *",
+		"uiconf":"#vol: .05 #freq: 4000 #time: 1.0 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 R #time .01 - I #bpf #vol *",
+		"uierr":"#vol: .1 #freq: 400 #time: 0.5 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 R #time .01 - I #bpf #vol *",
+		"uiclick":"#vol: .1 #freq: 180 #time: 0.1 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 R #time .01 - I #bpf #vol *",
+		"explosion1":"#vol: 5 #freq: 300 #time: 2 #u: #freq #freq 1000 + / #noi: NOISE #lpf: LPF F #freq B 1 G 1 #u - I #noi #bpf: BPF F #freq B 2 G #u I #noi #del: DEL T 0.15 #u * 0.75 + M 0.9 I 0.5 #u * 0.9 - #sig * #sig: #del #lpf #bpf #out: ENV A 0.01 R #time 0.01 - I #sig #vol *",
+		"explosion2":"#vol: 9 #freq: 100 #time: 2 #u: #freq #freq 1000 + / #noi: NOISE #lpf: LPF F #freq B 1 G 1 #u - I #noi #bpf: BPF F #freq B 2 G #u I #noi #del: DEL T 0.15 #u * 0.75 + M 0.9 I 0.5 #u * 0.9 - #sig * #sig: #del #lpf #bpf #out: ENV A 0.01 R #time 0.01 - I #sig #vol *",
+		"gunshot1":"#vol: 5 #freq: 500 #time: .25 #u: #freq #freq 1000 + / #noi: NOISE #lpf: LPF F #freq B 1 G 1 #u - I #noi #bpf: BPF F #freq B 2 G #u I #noi #del: DEL T 0.15 #u * 0.75 + M 0.9 I 0.5 #u * 0.9 - #sig * #sig: #del #lpf #bpf #out: ENV A 0.01 R #time 0.01 - I #sig #vol *",
+		"gunshot2":"#vol: 1 #freq: 1000 #time: .25 #u: #freq #freq 1000 + / #noi: NOISE #lpf: LPF F #freq B 1 G 1 #u - I #noi #bpf: BPF F #freq B 2 G #u I #noi #del: DEL T 0.15 #u * 0.75 + M 0.9 I 0.5 #u * 0.9 - #sig * #sig: #del #lpf #bpf #out: ENV A 0.01 R #time 0.01 - I #sig #vol *",
+		"missile1":"#noi1: NOISE H 1000 #noi2: #noi1 1 < -1 > #freq: TRI F 20 H 1000 L 100 #sigl: LPF F #freq I #noi2 B 1 #sigb: BPF F #freq I #noi2 B 2 #out: ENV A .015 R .985 I #sigl #sigb",
+		"electricity":"#freq: 159 #saw0: SAW F #freq #saw1: SAW F #freq 1.002 * #sig: LPF F 3000 I #saw0 #saw1 + 0.5 < -0.5 > #out : ENV S 2 I #sig",
+		"laser":"#vol: 1 #freq: 10000 #time: .25 #t: SAW F 1 #time / L 0 H #time #del1: DEL T #t .01 * M .5 I #sig -.35 * #del2: DEL T #t .10 * M .5 I #sig -.28 * #del3: DEL T #t .20 * M .5 I #sig -.21 * #del4: DEL T #t .60 * M .5 I #sig -.13 * #osc: SIN F #freq H 0.7 #sig: #osc #del1 #del2 #del3 #del4 #out: ENV A 0.01 R #time .01 - I #sig #vol *",
+		"thud":"#vol: 10 #freq: 80 #time: .2 #noi: NOISE #bpf1: BPF F #freq B 2 I #noi #bpf2: BPF F #freq B 2 I #bpf1 #sig: #bpf2 #del #del: DEL T 0.003 I #bpf2 0.9 * #out: ENV R #time I #sig #vol *",
+		"marble":"#vol: .05 #freq: 7000 #time: .02 #noi: NOISE #bpf1: BPF F #freq B 2 I #noi #bpf2: BPF F #freq B 2 I #bpf1 #sig: #bpf2 #del #del: DEL T 0.003 I #bpf2 0.9 * #out: ENV R #time I #sig #vol *"
+	};
+
+
+	static defload(name,vol,freq,time) {
+		let str=_AudioSFX.deflib[name];
+		if (str===undefined) {throw "unknown effect: "+name;}
+		let sfx=new _AudioSFX(str);
+		if (vol !==undefined) {sfx.setf("#vol.out" ,vol );}
+		if (freq!==undefined) {sfx.setf("#freq.out",freq);}
+		if (time!==undefined) {sfx.setf("#time.out",time);}
+		return sfx;
+	}
+
+
+	static defsnd(name,vol,freq,time) {
+		let sfx=_AudioSFX.defload(name,vol,freq,time);
+		let silence=Infinity;
+		if (isNaN(time) || time<0) {time=NaN;silence=0.1;}
+		return sfx.tosound(time,silence);
+	}
+
+
+	static defplay(name,vol,freq,time) {
+		_AudioSFX.defsnd(name,vol,freq,time).play();
+	}
+
+}
+
+
 class _AudioInstance {
 
-	constructor(snd,vol=1.0,pan=0.0,freq=null) {
+	// We can only call start/stop once. In order to pause a buffer node, we need to
+	// destroy and recreate the node.
+
+	constructor(snd,vol=1.0,pan=0.0) {
 		let audio=snd.audio;
 		// Audio player link
+		this.audio  =audio;
 		this.audprev=null;
 		this.audnext=audio.queue;
 		audio.queue =this;
@@ -2585,9 +3310,11 @@ class _AudioInstance {
 		this.sndnext=snd.queue;
 		snd.queue   =this;
 		// Misc
+		this.volume =vol;
 		this.rate   =1.0;
-		this.playing=true;
+		this.playing=false;
 		this.done   =false;
+		this.muted  =audio.muted;
 		// src -> gain -> pan -> ctx
 		let ctx=audio.ctx;
 		this.ctx=ctx;
@@ -2599,16 +3326,22 @@ class _AudioInstance {
 		this.ctxgain.connect(this.ctxpan);
 		let ctxsrc=ctx.createBufferSource();
 		this.ctxsrc=ctxsrc;
-		ctxsrc.addEventListener("ended",()=>{this.remove();});
+		let st=this;
+		ctxsrc.onended=function(){st.remove();};
 		ctxsrc.buffer=snd.ctxbuf;
 		ctxsrc.connect(this.ctxgain);
-		ctxsrc.start(0,0,snd.time);
+		if (snd.ctxbuf) {
+			if (!this.muted) {ctxsrc.start(0,0,snd.time);}
+			this.playing=true;
+		}
+		this.time=-performance.now()*0.001;
 	}
 
 
 	remove() {
 		if (this.done) {return;}
 		this.done=true;
+		if (this.playing) {this.time+=performance.now()*0.001;}
 		this.playing=false;
 		let audio=this.snd.audio;
 		let audprev=this.audprev;
@@ -2623,7 +3356,6 @@ class _AudioInstance {
 			audnext.audprev=audprev;
 			this.audnext=null;
 		}
-		// this.audio=null;
 		let sndprev=this.sndprev;
 		let sndnext=this.sndnext;
 		if (sndprev===null) {
@@ -2636,7 +3368,8 @@ class _AudioInstance {
 			sndnext.sndprev=sndprev;
 			this.sndnext=null;
 		}
-		// this.snd=null;
+		this.ctxsrc.onended=undefined;
+		try {this.ctxsrc.stop();} catch {}
 		this.ctxsrc.disconnect();
 		this.ctxgain.disconnect();
 		this.ctxpan.disconnect();
@@ -2644,17 +3377,33 @@ class _AudioInstance {
 
 
 	stop() {
-		if (!this.done) {
+		// Audio nodes can't start and stop, so recreate the node.
+		if (!this.done && this.playing) {
 			this.playing=false;
-			this.ctxsrc.stop();
+			this.muted=this.audio.muted;
+			let src=this.ctxsrc;
+			let endfunc=src.onended;
+			src.onended=undefined;
+			try {src.stop();} catch {}
+			src.disconnect();
+			this.time+=performance.now()*0.001;
+			src=this.ctx.createBufferSource();
+			src.onended=endfunc;
+			src.buffer=this.snd.ctxbuf;
+			src.connect(this.ctxgain);
+			this.ctxsrc=src;
 		}
 	}
 
 
 	start() {
-		if (!this.done) {
+		if (!this.done && !this.playing) {
 			this.playing=true;
-			this.ctxsrc.start();
+			this.muted=this.audio.muted;
+			let rem=this.snd.time-this.time;
+			if (rem<=0) {this.remove();}
+			else if (!this.muted) {this.ctxsrc.start(0,this.time,rem);}
+			this.time-=performance.now()*0.001;
 		}
 	}
 
@@ -2665,20 +3414,26 @@ class _AudioInstance {
 		// +1: 100% right channel
 		if (pan<-1) {pan=-1;}
 		else if (pan>1) {pan=1;}
-		else if (isNaN(pan) || pan===undefined || pan===null) {pan=0;}
+		else if (isNaN(pan)) {pan=0;}
 		this.pan=pan;
 		if (!this.done) {
-			this.ctxpan.pan.setValueAtTime(this.pan,this.ctx.currentTime);
+			this.ctxpan.pan.value=this.pan;
 		}
 	}
 
 
 	setvolume(vol) {
-		if (isNaN(vol) || vol===undefined || vol===null) {vol=1;}
+		if (isNaN(vol)) {vol=1;}
 		this.volume=vol;
 		if (!this.done) {
-			this.ctxgain.gain.setValueAtTime(this.volume,this.ctx.currentTime);
+			vol*=this.audio.volume;
+			this.ctxgain.gain.value=vol;
 		}
+	}
+
+
+	gettime() {
+		return this.time+(this.playing?performance.now()*0.001:0);
 	}
 
 }
@@ -2815,6 +3570,8 @@ class _AudioEnvelope {
 class _AudioBiquad {
 	// Biquad filter type 1
 	// https://shepazu.github.io/Audio-EQ-Cookbook/audio-eq-cookbook.html
+	// lingain(db)  = exp(db/(ln(10)*40))
+	// bandwidth(Q) = sinh^-1(0.5/Q)*2/ln(2)
 
 	static NONE     =0;
 	static LOWPASS  =1;
@@ -2827,12 +3584,13 @@ class _AudioBiquad {
 	static HIGHSHELF=8;
 
 
-	constructor(type,rate,bandwidth=1,peakgain=0) {
-		// bandwidth in kHz
+	constructor(type,rate,bandwidth=1,lingain=1) {
+		// Bandwidth in kHz.
 		// rate = freq / sample rate
+		// Gain is applied to input signal.
 		this.type=type;
 		this.rate=rate;
-		this.peakgain=peakgain;
+		this.gain=lingain;
 		this.bandwidth=bandwidth;
 		this.clear();
 		this.calccoefs();
@@ -2862,29 +3620,40 @@ class _AudioBiquad {
 	prev() {return this.y1;}
 
 
-	getq() {
-		let ang=2*Math.PI*this.rate;
-		let sn =Math.sin(ang);
-		let q  =0.5/Math.sinh(Math.log(2)*0.5*this.bandwidth*ang/sn);
-		return q;
+	response(rate) {
+		// Return the magnitude,phase response to a given frequency.
+		// rate = freq / sample rate
+		let w=Math.PI*2*rate;
+		let cos1=Math.cos(-w),cos2=Math.cos(-2*w);
+		let sin1=Math.sin(-w),sin2=Math.sin(-2*w);
+		let realzero=this.b1*cos1+this.b2*cos2+this.b0;
+		let imagzero=this.b1*sin1+this.b2*sin2;
+		let realpole=this.a1*cos1+this.a2*cos2+1;
+		let imagpole=this.a1*sin1+this.a2*sin2;
+		let den=realpole*realpole+imagpole*imagpole;
+		let realw=(realzero*realpole+imagzero*imagpole)/den;
+		let imagw=(imagzero*realpole-realzero*imagpole)/den;
+		let mag=Math.sqrt(realw*realw+imagw*imagw);
+		let phase=-Math.atan2(imagw,realw)/rate;
+		return [mag,phase];
 	}
 
 
-	updatecoefs(type,rate,bandwidth=1,peakgain=0) {
-		if (this.type!==type || this.rate!==rate || this.bandwidth!==bandwidth || this.peakgain!==peakgain) {
+	updatecoefs(type,rate,bandwidth=1,lingain=1) {
+		if (this.type!==type || this.rate!==rate || this.bandwidth!==bandwidth || this.gain!==lingain) {
 			this.type=type;
 			this.rate=rate;
-			this.peakgain=peakgain;
+			this.gain=lingain;
 			this.bandwidth=bandwidth;
-			this.calccoefs(false);
+			this.calccoefs();
 		}
 	}
 
 
-	calccoefs(reset=true) {
+	calccoefs() {
 		let b0=1,b1=0,b2=0;
 		let a0=1,a1=0,a2=0;
-		let v  =Math.exp(this.peakgain/(Math.log(10)*40));
+		let v  =this.gain;
 		let ang=2*Math.PI*this.rate;
 		let sn =Math.sin(ang);
 		let cs =Math.cos(ang);
@@ -2894,40 +3663,40 @@ class _AudioBiquad {
 		let type=this.type;
 		if (type===_AudioBiquad.NONE) {
 		} else if (type===_AudioBiquad.LOWPASS) {
-			b1=1-cs;
-			b0=0.5*b1;
-			b2=b0;
+			b1=(1-cs)*v;
+			b2=0.5*b1;
+			b0=b2;
 			a0=1+a;
 			a1=-2*cs;
 			a2=1-a;
 		} else if (type===_AudioBiquad.HIGHPASS) {
-			b1=-1-cs;
-			b0=-0.5*b1;
-			b2=b0;
+			b1=(-1-cs)*v;
+			b2=-0.5*b1;
+			b0=b2;
 			a0=1+a;
 			a1=-2*cs;
 			a2=1-a;
 		} else if (type===_AudioBiquad.BANDPASS) {
-			b0=a;
 			b1=0;
-			b2=-b0;
+			b2=-a*v;
+			b0=-b2;
 			a0=1+a;
 			a1=-2*cs;
 			a2=1-a;
 		} else if (type===_AudioBiquad.NOTCH) {
-			b0=1;
-			b1=-2*cs;
-			b2=b0;
+			b1=-2*cs*v;
+			b2=v;
+			b0=v;
 			a0=1+a;
 			a1=-2*cs;
 			a2=1-a;
 		} else if (type===_AudioBiquad.ALLPASS) {
-			b0=1-a;
-			b1=-2*cs;
-			b2=1+a;
+			b1=-2*cs*v;
+			b2=(1+a)*v;
+			b0=(1-a)*v;
 			a0=b2;
 			a1=b1;
-			a2=b0;
+			a2=1-a;
 		} else if (type===_AudioBiquad.PEAK) {
 			b0=1+a*v;
 			b1=-2*cs;
@@ -2952,16 +3721,6 @@ class _AudioBiquad {
 		} else {
 			throw "Biquad type not recognized: "+type;
 		}
-		// Rescale running constants.
-		if (reset) {
-			this.a0=0;
-			this.x1=0;
-			this.x2=0;
-		}
-		let norm=this.a0/a0;
-		this.y1*=norm;
-		this.y2*=norm;
-		this.a0=a0;
 		this.a1=a1/a0;
 		this.a2=a2/a0;
 		this.b0=b0/a0;
@@ -2974,25 +3733,34 @@ class _AudioBiquad {
 
 class Audio {
 
-	static Sound   =_AudioSound;
-	static Instance=_AudioInstance;
-	static Delay   =_AudioDelay;
-	static Envelope=_AudioEnvelope;
-	static Biquad  =_AudioBiquad;
+	static Sound    =_AudioSound;
+	static SFX      =_AudioSFX;
+	static Instance =_AudioInstance;
+	static Delay    =_AudioDelay;
+	static Envelope =_AudioEnvelope;
+	static Biquad   =_AudioBiquad;
 
 	// The default context used for audio functions.
 	static def=null;
+	static randacc=0;
+	static randinc=0;
 
 
 	constructor(freq=44100) {
-		let con=this.constructor;
-		Object.assign(this,con);
-		if (con.def===null) {con.def=this;}
+		Object.assign(this,this.constructor);
 		this.freq=freq;
 		this.queue=null;
+		this.volume=1;
 		let ctx=new AudioContext({latencyHint:"interactive",sampleRate:freq});
 		this.ctx=ctx;
+		// 2 = Audio mute, 1 = browser mute
+		this.muted=2;
+		this.mutefunc=function(){ctx.resume();};
+		this.updatetime=NaN;
 		if (!Audio.def) {Audio.initdef(this);}
+		let st=this;
+		function update() {if (st.update()) {requestAnimationFrame(update);}}
+		update();
 	}
 
 
@@ -3000,6 +3768,12 @@ class Audio {
 		if (!def) {def=Audio.def;}
 		if (!def) {def=new Audio();}
 		Audio.def=def;
+		if (!Audio.randinc) {
+			Audio.randinc=1;
+			Audio.randacc=performance.timeOrigin+performance.now();
+			Audio.randinc=((Audio.noise1()*0xffffffff)|1)>>>0;
+			Audio.randacc=(Audio.noise1()*0xffffffff)>>>0;
+		}
 		return def;
 	}
 
@@ -3009,76 +3783,99 @@ class Audio {
 	}
 
 
+	mute(val) {
+		if (val!==undefined) {this.muted=(val?2:0)|(this.muted&1);}
+		return (this.muted&2)?true:false;
+	}
+
+
+	update() {
+		// Audio is silenced until a sound is played after user interaction.
+		// https://html.spec.whatwg.org/#activation-triggering-input-event
+		let muted=(this.muted&2)|(this.ctx.state!=="running");
+		if ((muted^this.muted)&1) {
+			let events=["keydown","mousedown","pointerdown","pointerup","touchend"];
+			for (let evt of events) {
+				if (muted&1) {document.addEventListener(evt,this.mutefunc);}
+				else {document.removeEventListener(evt,this.mutefunc);}
+			}
+			this.muted=muted;
+		}
+		// Track time played while audio is suspended. Restart or remove sounds if needed.
+		let inst=this.queue;
+		while (inst) {
+			let next=inst.next;
+			if ((muted || inst.muted) && inst.playing) {
+				let time=inst.time;
+				if (!inst.muted) {
+					inst.stop();
+					inst.time=time;
+					inst.playing=true;
+				}
+				time+=performance.now()*0.001;
+				if (time>inst.snd.time || !muted) {
+					inst.playing=false;
+					inst.time=time;
+					inst.start();
+				}
+			}
+			inst=next;
+		}
+		return true;
+	}
+
+
 	// ----------------------------------------
 	// Oscillators
 	// All input domains are wrapped to [0,1).
-	// NaN and infinite values return 0 or the minimum value.
+	// NaN and infinite values return the minimum value.
 
 
-	static sin1(x) {
+	static saw(x) {
+		//   /|  /|  /|
+		//  / | / | / |
+		// /  |/  |/  |
 		x%=1.0;
-		if (isNaN(x)) {return 0;}
-		return Math.sin(x*6.2831853071795864769252866)*0.5+0.5;
+		x=x<0?1+x:x;
+		return x>=0?x*2-1:-1;
 	}
 
 
 	static sin(x) {
 		x%=1.0;
-		if (isNaN(x)) {return 0;}
-		return Math.sin(x*6.2831853071795864769252866);
-	}
-
-
-	static saw1(x) {
-		//   /|  /|  /|
-		//  / | / | / |
-		// /  |/  |/  |
-		x%=1.0;
-		if (x<0) {x+=1;}
-		return x>=0?x:0;
-	}
-
-
-	static saw(x) {
-		return Audio.saw1(x+0.5)*2-1;
-	}
-
-
-	static tri1(x) {
-		//   /\    /\    /
-		//  /  \  /  \  /
-		// /    \/    \/
-		x%=1.0;
-		if (x<0) {x+=1;}
-		x*=2;
-		if (x>1) {return 2-x;}
-		return x>0?x:0;
+		return x>=-1?Math.sin(x*(Math.PI*2)):-1;
 	}
 
 
 	static tri(x) {
-		return Audio.tri1(x+0.25)*2-1;
+		//   /\    /\    /
+		//  /  \  /  \  /
+		// /    \/    \/
+		x%=1.0;
+		x=x<0.0?1+x:x;
+		x=x>0.5?1-x:x;
+		return x>=0?x*4-1:-1;
 	}
 
 
-	static sqr1(x) {
+	static sqr(x) {
 		//    __    __
 		//   |  |  |  |
 		//   |  |  |  |
 		// __|  |__|  |__
 		x%=1.0;
-		if (x<0) {x+=1;}
-		return x>0.5?1:0;
-	}
-
-
-	static sqr(x) {
-		return Audio.sqr1(x)*2-1;
+		x=x<0?1+x:x;
+		return x>=0?(x>0.5?1:-1):-1;
 	}
 
 
 	static noise1(x) {
-		// PRNG noise with interpolation for different frequencies.
+		// Noise with interpolation. If undefined, acts as a PRNG.
+		// Returns a value in [0,1].
+		if (x===undefined) {
+			x=Audio.randacc;
+			Audio.randacc=(x+Audio.randinc)>>>0;
+		}
 		let v=x%1;
 		if (v<0) {v+=1;}
 		else if (isNaN(v)) {v=0;x=0;}
@@ -3126,18 +3923,192 @@ class Audio {
 
 
 	// ----------------------------------------
+	// Sequencer
+
+
+	static sequencer(seq) {
+		// Converts a shorthand script into music.
+		// The last sequence is returned as the sound.
+		// Note format: [CDEFGAB][#b][octave]. Ex: A4  B#12  C-1.2
+		//
+		//  Symbol |             Description             |         Parameters
+		// --------+-------------------------------------+-----------------------------
+		//   ,     | Separate and advance time by 1 BPM. |
+		//   , X   | Separate and advance time by X BPM. |
+		//   '     | Line Comment.                       |
+		//   "     | Block comment. Terminate with "     |
+		//   bass: | Define a sequence named bass.       |
+		//   bass  | Reference a sequence named bass.    | [vol=1]
+		//   BPM   | Beats per minute.                   | [240]
+		//   VOL   | Sets volume. Resets every sequence. | [1.0]
+		//   CUT   | Cuts off sequence at time+delta.    | [delta=0]
+		//   AG    | Acoustic Guitar                     | [note=A3] [vol=1] [len=5.0]
+		//   XY    | Xylophone                           | [note=C4] [vol=1] [len=2.2]
+		//   MR    | Marimba                             | [note=C4] [vol=1] [len=2.2]
+		//   GS    | Glockenspiel                        | [note=A6] [vol=1] [len=5.3]
+		//   MB    | Music Box                           | [note=A5] [vol=1] [len=3.0]
+		//   HH    | Hi-hat                              | [note=A8] [vol=1] [len=0.1]
+		//   KD    | Kick Drum                           | [note=B2] [vol=1] [len=0.2]
+		//   SD    | Snare Drum                          | [note=G3] [vol=1] [len=0.2]
+		//
+		let seqpos=0,seqlen=seq.length,sndfreq=44100;
+		let bpm=240,time=0,subvol=1,sepdelta=0;
+		let argmax=7,args=0;
+		let argstr=new Array(argmax);
+		for (let i=0;i<argmax;i++) {argstr[i]="";}
+		let subsnd=null,nextsnd=new Audio.Sound(sndfreq);
+		let rand=[Audio.randacc,Audio.randinc];
+		[Audio.randacc,Audio.randinc]=[0,0xcadffab1];
+		// ,:'"
+		let stoptoken={44:true,58:true,39:true,34:true};
+		let sequences={
+			"BPM": 1,"VOL": 2,"CUT": 3,
+			"AG": 10,
+			"XY": 11,"MR": 12,"GS": 13,"MB": 14,
+			"HH": 15,"KD": 16,"SD": 17,
+			"":nextsnd
+		};
+		function error(msg) {
+			[Audio.randacc,Audio.randinc]=rand;
+			let line=1;
+			for (let i=0;i<seqpos;i++) {line+=seq.charCodeAt(i)===10;}
+			let argsum=argstr.slice(0,args).join(" ");
+			throw "Sequencer error:\n\tError: "+msg+"\n\tLine : "+line+"\n\targs : "+argsum;
+		}
+		function parsenum(str,def=NaN,name="") {
+			// Parse numbers in format: [+-]\d*(\.\d*)?
+			if (!str && !isNaN(def)) {return def;}
+			let len=str.length,i=0,d=0;
+			let c=i<len?str.charCodeAt(i):0;
+			let neg=c===45;
+			if (c===45 || c===43) {i++;}
+			let num=0,den=1;
+			while (i<len && (c=str.charCodeAt(i)-48)>=0 && c<=9) {d=1;i++;num=num*10+c;}
+			if (c===-2) {i++;}
+			while (i<len && (c=str.charCodeAt(i)-48)>=0 && c<=9) {d=1;i++;den*=0.1;num+=c*den;}
+			if (i===len && d) {return neg?-num:num;}
+			if (name) {error("invalid "+name);}
+			return NaN;
+		}
+		function parsenote(str,def,name) {
+			// Convert a piano note to a frequency. Ex: A4 = 440hz
+			// Format: sign + BAGFEDC + #b + octave.
+			if (!str) {str=def;}
+			let val=parsenum(str);
+			if (!isNaN(val)) {return val;}
+			let slen=str.length,i=0;
+			let c=i<slen?str.charCodeAt(i):0;
+			let mag=c===45?-440:440;
+			if (c===45 || c===43) {i++;}
+			c=(i<slen?str.charCodeAt(i++):0)-65;
+			if (c<0 || c>6) {error("invalid "+name);}
+			let n=[48,46,57,55,53,52,50][c];
+			c=i<slen?str.charCodeAt(i):0;
+			if (c===35 || c===98) {n+=c===98?1:-1;i++;}
+			let oct=parsenum(str.substring(i),NaN,name);
+			return mag*Math.pow(2,-n/12+oct);
+		}
+		while (seqpos<seqlen || args>0) {
+			// We've changed sequences.
+			if (!Object.is(subsnd,nextsnd)) {
+				subsnd=nextsnd;
+				subvol=1;
+				time=0;
+				sepdelta=0;
+			}
+			// Read through whitespace and comments.
+			let c=0;
+			while (seqpos<seqlen && (c=seq.charCodeAt(seqpos))<33) {seqpos++;}
+			if (c===39 || c===34) {
+				// If " stop at ". If ' stop at \n.
+				let eoc=c===34?34:10;
+				while (seqpos<seqlen && seq.charCodeAt(++seqpos)!==eoc) {}
+				seqpos++;
+				continue;
+			}
+			c=seqpos<seqlen?seq[seqpos]:"";
+			if (c===",") {
+				seqpos++;
+			} else if (c===":") {
+				// Sequence definition.
+				seqpos++;
+				if (!args) {error("Invalid label");}
+				let name=argstr[--args];
+				argstr[args]="";
+				if (!name || sequences[name]) {error("'"+name+"' already defined");}
+				nextsnd=new Audio.Sound(sndfreq);
+				sequences[name]=nextsnd;
+			} else if (seqpos<seqlen) {
+				// Read the next token.
+				if (args>=argmax) {error("Too many arguments");}
+				let start=seqpos;
+				while (seqpos<seqlen && (c=seq.charCodeAt(seqpos))>32 && !stoptoken[c]) {seqpos++;}
+				argstr[args++]=seq.substring(start,seqpos);
+				continue;
+			}
+			// Parse current tokens. Check for a time delta.
+			let a=0;
+			let delta=parsenum(argstr[a++]);
+			if (isNaN(delta)) {delta=sepdelta;a--;}
+			if (bpm) {sepdelta=1;time+=delta*60/bpm;}
+			else {sepdelta=0;time+=delta;}
+			time=time>0?time:0;
+			if (a>=args) {continue;}
+			// Find the instrument or sequence to play.
+			let inst=sequences[argstr[a++]];
+			if (inst===undefined) {error("Unrecognized instrument");}
+			let type=isNaN(inst)?0:inst;
+			let snd=null,vol=1;
+			if (type===0) {
+				vol=parsenum(argstr[a],1,"volume");
+				snd=inst;
+			} else if (type===1) {
+				bpm=parsenum(argstr[a],240,"BPM");
+			} else if (type===2) {
+				subvol=parsenum(argstr[a],1,"volume");
+			} else if (type===3) {
+				time+=parsenum(argstr[a],0,"delta");
+				time=time>0?time:0;
+				subsnd.resizetime(time);
+			} else {
+				// Instruments
+				type-=10;
+				let note=["A3","C4","C4","A6","A5","A8","B2","G3"][type];
+				let time=[3.0,2.2,2.2,5.3,3.0,0.1,0.2,0.2][type];
+				let freq=parsenote(argstr[a++],note,"note or frequency");
+				vol=parsenum(argstr[a++],1,"volume");
+				time=parsenum(argstr[a],time,"length");
+				if      (type===0) {snd=Audio.createguitar(1,freq,0.2,time);}
+				else if (type===1) {snd=Audio.createxylophone(1,freq,0.5,time);}
+				else if (type===2) {snd=Audio.createmarimba(1,freq,0.5,time);}
+				else if (type===3) {snd=Audio.createglockenspiel(1,freq,0.5,time);}
+				else if (type===4) {snd=Audio.createmusicbox(1,freq,time);}
+				else if (type===5) {snd=Audio.createdrumhihat(1,freq,time);}
+				else if (type===6) {snd=Audio.createdrumkick(1,freq,time);}
+				else if (type===7) {snd=Audio.createdrumsnare(1,freq,time);}
+			}
+			// Add the new sound to the sub sequence.
+			if (!snd) {sepdelta=0;}
+			else {subsnd.add(snd,time,subvol*vol);}
+			while (args>0) {argstr[--args]="";}
+		}
+		[Audio.randacc,Audio.randinc]=rand;
+		return nextsnd;
+	}
+
+
+	// ----------------------------------------
 	// String Instruments
 
 
-	static generatestring(volume=1.0,freq=200,pos=0.5,inharm=0.00006,decay=1.2,sndfreq=44100) {
+	static generatestring(volume=1.0,freq=200,pos=0.5,inharm=0.00006,time=3,sndfreq=44100) {
 		// Jason Pelc
 		// http://large.stanford.edu/courses/2007/ph210/pelc2/
 		// Stop when e^(-decay*time/sndfreq)<=cutoff
 		const cutoff=1e-3;
-		decay/=sndfreq;
 		freq/=sndfreq;
 		let harmonics=Math.ceil(0.5/freq);
-		let sndlen=Math.ceil(-Math.log(cutoff)/decay);
+		let sndlen=Math.ceil(sndfreq*time);
 		let snd=new Audio.Sound(sndfreq,sndlen);
 		let data=snd.data;
 		// Generate coefficients.
@@ -3147,6 +4118,7 @@ class Audio {
 		let c0=listen*Math.PI;
 		let c1=(2*volume)/(Math.PI*Math.PI*pos*(1-pos));
 		let c2=freq*Math.PI*2;
+		let decay=Math.log(0.01)/sndlen;
 		// Process highest to lowest for floating point accuracy.
 		for (let n=harmonics;n>0;n--) {
 			// Calculate coefficients for the n'th harmonic.
@@ -3155,12 +4127,13 @@ class Audio {
 			if (Math.abs(harmvol)<=cutoff) {continue;}
 			// Correct n2 by -1 so the fundamental = freq.
 			let ihscale=n*Math.sqrt(1+(n2-1)*inharm);
-			let harmdecay=-decay*ihscale;
+			let harmdecay=decay*ihscale;
 			let harmmul=Math.exp(harmdecay);
 			let harmlen=Math.ceil(Math.log(cutoff/Math.abs(harmvol))/harmdecay);
 			if (harmlen>sndlen) {harmlen=sndlen;}
+			// Randomize the phase to prevent aliasing.
 			let harmfreq=c2*ihscale;
-			let harmphase=0;
+			let harmphase=Audio.noise()*3.141592654;
 			// Generate the waveform.
 			for (let i=0;i<harmlen;i++) {
 				data[i]+=harmvol*Math.sin(harmphase);
@@ -3169,37 +4142,39 @@ class Audio {
 			}
 		}
 		// Taper the ends.
-		let head=Math.ceil(0.010*sndfreq);
-		for (let i=0;i<head && i<sndlen;i++) {data[i]*=i/head;}
-		let tail=Math.ceil(0.005*sndfreq);
-		for (let i=0;i<tail && i<sndlen;i++) {data[sndlen-1-i]*=i/tail;}
+		let end=Math.ceil(0.01*sndfreq);
+		end=end<sndlen?end:sndlen;
+		for (let i=0;i<end;i++) {let u=i/end;data[i]*=u;}
+		end=Math.ceil(0.5*sndfreq);
+		end=end<sndlen?end:sndlen;
+		for (let i=0;i<end;i++) {let u=i/end;data[sndlen-1-i]*=u;}
 		return snd;
 	}
 
 
-	static createguitar(volume=1.0,freq=200,pluck=0.5,sndfreq=44100) {
-		return Audio.generatestring(volume,freq,pluck,0.000050,1.2,sndfreq);
+	static createguitar(volume=1.0,freq=200,pluck=0.5,time=3,sndfreq=44100) {
+		return Audio.generatestring(volume,freq,pluck,0.000050,time,sndfreq);
 	}
 
 
-	static createxylophone(volume=1.0,freq=250,pos=0.5,sndfreq=44100) {
+	static createxylophone(volume=1.0,freq=250,pos=0.5,time=2.2,sndfreq=44100) {
 		// freq = constant / length^2
-		return Audio.generatestring(volume,freq,pos,0.374520,3.2,sndfreq);
+		return Audio.generatestring(volume,freq,pos,0.374520,time,sndfreq);
 	}
 
 
-	static createmarimba(volume=1.0,freq=250,pos=0.5,sndfreq=44100) {
-		return Audio.generatestring(volume,freq,pos,0.947200,3.2,sndfreq);
+	static createmarimba(volume=1.0,freq=250,pos=0.5,time=2.2,sndfreq=44100) {
+		return Audio.generatestring(volume,freq,pos,0.947200,time,sndfreq);
 	}
 
 
-	static createglockenspiel(volume=0.2,freq=1867,pos=0.5,sndfreq=44100) {
-		return Audio.generatestring(volume,freq,pos,0.090000,1.3,sndfreq);
+	static createglockenspiel(volume=0.2,freq=1867,pos=0.5,time=5.3,sndfreq=44100) {
+		return Audio.generatestring(volume,freq,pos,0.090000,time,sndfreq);
 	}
 
 
-	static createmusicbox(volume=0.1,freq=877,sndfreq=44100) {
-		return Audio.generatestring(volume,freq,0.40,0.050000,2.3,sndfreq);
+	static createmusicbox(volume=0.1,freq=877,time=3.0,sndfreq=44100) {
+		return Audio.generatestring(volume,freq,0.40,0.050000,time,sndfreq);
 	}
 
 
@@ -3207,69 +4182,45 @@ class Audio {
 	// Percussion Instruments
 
 
-	static createdrumhihat(volume=1.0,freq=7000,time=0.1,sndfreq=44100) {
-		let len=Math.ceil(time*sndfreq);
-		let snd=new Audio.Sound(sndfreq,len);
-		let gain=new Audio.Envelope([Audio.Envelope.LIN,0.01,volume,Audio.Envelope.EXP,time-0.01,0]);
-		let hp=new Audio.Biquad(Audio.Biquad.HIGHPASS,freq/sndfreq);
-		let bp=new Audio.Biquad(Audio.Biquad.BANDPASS,freq*1.4/sndfreq);
-		let data=snd.data;
-		for (let i=0;i<len;i++) {
-			let t=i/sndfreq;
-			let x=Audio.noise(i);
-			x=bp.process(x);
-			x=hp.process(x);
-			x=Audio.clip(x,-1,1);
-			data[i]=x*gain.get(t);
-		}
-		return snd;
+	static createdrumhihat(volume=0.2,freq=7000,time=0.1) {
+		return (new Audio.SFX(`
+			#vol : ${volume}
+			#freq: ${freq}
+			#time: ${time}
+			#sig : NOISE H 0.7 #vol *
+			#hpf : HPF F #freq I #sig
+			#bpf : BPF F #freq 1.4 * I #sig
+			#out : ENV A 0.005 R #time 0.005 - I #hpf #bpf`
+		)).tosound(time);
 	}
 
 
-	static createdrumkick(volume=1.0,freq=120,time=0.2,sndfreq=44100) {
-		let len=Math.ceil(time*sndfreq);
-		let snd=new Audio.Sound(sndfreq,len);
-		let gain=new Audio.Envelope([Audio.Envelope.LIN,0.01,volume*0.5,Audio.Envelope.LIN,time-0.01,0]);
-		let freq1=freq/sndfreq,freq2=freq1*0.41;
-		let osc1=new Audio.Envelope([Audio.Envelope.CON,0,freq1,Audio.Envelope.LIN,0.01,freq1,Audio.Envelope.LIN,time-0.01,freq1*0.2]);
-		let osc2=new Audio.Envelope([Audio.Envelope.CON,0,freq2,Audio.Envelope.LIN,0.01,freq2,Audio.Envelope.LIN,time-0.01,freq2*0.2]);
-		let phase1=0,phase2=0;
-		let data=snd.data;
-		for (let i=0;i<len;i++) {
-			let t=i/sndfreq;
-			let x=Audio.sin(phase1)+Audio.sin(phase2);
-			phase1+=osc1.get(t);
-			phase2+=osc2.get(t);
-			data[i]=x*gain.get(t);
-		}
-		return snd;
+	static createdrumkick(volume=0.3,freq=80,time=0.2) {
+		return (new Audio.SFX(`
+			#vol : ${volume}
+			#freq: ${freq}
+			#time: ${time}
+			#f   : SAW F 1 #time / L #freq H #freq .25 *
+			#sig1: NOISE H 8
+			#sig2: TRI F #f H 1.8
+			#lpf : LPF F #f B 1.75 I #sig1 #sig2
+			#out : ENV A 0.005 R #time 0.005 - I #lpf #vol *`
+		)).tosound(time);
 	}
 
 
-	static createdrumsnare(volume=1.0,freq=100,time=0.2,sndfreq=44100) {
-		let len=Math.ceil(time*sndfreq);
-		let snd=new Audio.Sound(sndfreq,len);
-		let gain=new Audio.Envelope([Audio.Envelope.LIN,0.01,volume,Audio.Envelope.EXP,time-0.01,0]);
-		let freq1=freq/sndfreq,freq2=freq1*0.41;
-		let osc1=new Audio.Envelope([Audio.Envelope.CON,0,freq1,Audio.Envelope.LIN,0.01,freq1,Audio.Envelope.LIN,time-0.01,freq1*0.2]);
-		let osc2=new Audio.Envelope([Audio.Envelope.CON,0,freq2,Audio.Envelope.LIN,0.01,freq2,Audio.Envelope.LIN,time-0.01,freq2*0.2]);
-		let oscn=new Audio.Envelope([Audio.Envelope.LIN,time,1]);
-		let phase1=0,phase2=0;
-		let hp0=new Audio.Biquad(Audio.Biquad.HIGHPASS,freq/sndfreq);
-		let hp1=new Audio.Biquad(Audio.Biquad.HIGHPASS,10*freq/sndfreq);
-		let data=snd.data;
-		for (let i=0;i<len;i++) {
-			let t=i/sndfreq;
-			let n=Audio.noise(i);
-			let n0=hp0.process(n);
-			let n1=hp1.process(n);
-			n=n0+oscn.get(t)*(n1-n0);
-			let x=(Audio.sin(phase1)+Audio.sin(phase2))*0.5*0.2+n*0.8;
-			phase1+=osc1.get(t);
-			phase2+=osc2.get(t);
-			data[i]=x*gain.get(t);
-		}
-		return snd;
+	static createdrumsnare(volume=0.1,freq=200,time=0.2) {
+		return (new Audio.SFX(`
+			#vol : ${volume}
+			#freq: ${freq}
+			#time: ${time}
+			#f   : SAW F 1 #time / L #freq H #freq .5 *
+			#sig1: NOISE H 1
+			#sig2: TRI F #f .5 * H 1
+			#hpf : HPF F #f I #sig1 #sig2
+			#lpf : LPF F 10000 I #hpf
+			#out : ENV A 0.005 R #time 0.005 - I #lpf #vol *`
+		)).tosound(time);
 	}
 
 
@@ -3277,237 +4228,33 @@ class Audio {
 	// Wind Instruments
 
 
-	static createflute(volume=1.0,freq=200) {
-		let sndfreq=44100,len=sndfreq*2;
-		let snd=new Audio.Sound(sndfreq,len);
-		// let voldecay=Math.log(1e-4)/4;
-		let data=snd.data;
-		let filter=new Audio.Biquad(Audio.Biquad.LOWPASS,freq/sndfreq,2);
-		let delay=new Audio.Delay(sndfreq,1/freq),delaygain=-0.95;
-		for (let i=0;i<len;i++) {
-			let t=i/sndfreq;
-			// let mul=Math.exp(voldecay*t);
-			let x=t<0.5?(Math.random()*2-1):0;
-			x=filter.process(x)+delay.get()*delaygain;
-			delay.add(x);
-			data[i]=x;
-		}
-		snd.scalevol(volume,true);
-		return snd;
+	static createflute(volume=1.0,freq=200,time=2.0) {
+		return (new Audio.SFX(`
+			#vol : ${volume}
+			#freq: ${freq}
+			#time: ${time}
+			#noi : NOISE
+			#nenv: ENV S #time .5 * I #noi
+			#lpf : LPF F #freq B 2 I #nenv
+			#sig : #del -.95 * #lpf
+			#del : DEL T .5 #freq / M .2 I #sig
+			#out : #sig`
+		)).tosound(time);
 	}
 
 
-	static createtuba(volume=1.0,freq=300) {
-		let sndfreq=44100,len=sndfreq*3;
-		let snd=new Audio.Sound(sndfreq,len);
-		let voldecay=Math.log(1e-4)/3;
-		let data=snd.data;
-		let filter=new Audio.Biquad(Audio.Biquad.LOWPASS,freq/sndfreq,1);
-		let delay=new Audio.Delay(sndfreq,0.02),delaygain=0.95;
-		for (let i=0;i<len;i++) {
-			let t=i/sndfreq;
-			let mul=Math.exp(voldecay*t);
-			let x=filter.process(Audio.noise(i))*mul;
-			x+=delay.get()*delaygain;
-			delay.add(x);
-			data[i]=x;
-		}
-		snd.scalevol(volume,true);
-		return snd;
-	}
-
-
-	// ----------------------------------------
-	// User Interface
-
-
-	static generateui(volume=0.04,freq=200,time=0.2,noise=0.5,sndfreq=44100) {
-		let len=Math.ceil(time*sndfreq);
-		let snd=new Audio.Sound(sndfreq,len);
-		let data=snd.data;
-		let attack=0.01,sustain=time*0.25;
-		let scale=freq/5000;
-		let bp1=new Audio.Biquad(Audio.Biquad.BANDPASS,freq/sndfreq,6*scale);
-		// let bp2=new Audio.Biquad(Audio.Biquad.BANDPASS, 700/sndfreq,3*scale);
-		// let del=new Audio.Delay(sndfreq,time*0.25);
-		for (let i=0;i<len;i++) {
-			let t=i/sndfreq;
-			let x=0;
-			if (t<attack) {x=t/attack;}
-			else if (t-attack<sustain) {x=1-(t-attack)/sustain;}
-			x*=x;
-			x*=bp1.process(Audio.tri(t*freq)*(1-noise)+Audio.noise(i)*noise);
-			// x+=del.get();
-			// This bandpass adds low frequency vibrations from the hypothetical console.
-			// del.add(bp2.process(x)*0.25);
-			data[i]=x;
-		}
-		snd.scalevol(volume,true);
-		return snd;
-	}
-
-
-	static createuiincrease(volume=0.05) {
-		return Audio.generateui(volume,2000,0.2,0.5);
-	}
-
-
-	static createuidecrease(volume=0.05) {
-		return Audio.generateui(volume,1500,0.2,0.5);
-	}
-
-
-	static createuiconfirm(volume=0.05) {
-		return Audio.generateui(volume,4000,2.0,0.25);
-	}
-
-
-	static createuierror(volume=0.05) {
-		return Audio.generateui(volume,800,1.0,0.5);
-	}
-
-
-	static createuiclick(volume=0.05) {
-		return Audio.generateui(volume,800,0.2,0.75);
-	}
-
-
-	// ----------------------------------------
-	// Misc
-
-
-	static generatethud(volume=1.0,freq=8000,time=0.02,sndfreq=44100) {
-		// Pitch should increase slightly with force.
-		let decay=Math.log(1e-4)/(time*sndfreq);
-		let len=Math.ceil(Math.log(1e-4)/decay);
-		let snd=new Audio.Sound(sndfreq,len);
-		let data=snd.data;
-		let vmul=Math.exp(decay),vtmp=1;
-		freq/=sndfreq;
-		let bp1=new Audio.Biquad(Audio.Biquad.BANDPASS,freq,2);
-		let bp2=new Audio.Biquad(Audio.Biquad.BANDPASS,freq,2);
-		let del=new Audio.Delay(sndfreq,0.003),delmul=0.9;
-		for (let i=0;i<len;i++) {
-			let x=Audio.noise(i)*vtmp;
-			vtmp*=vmul;
-			x=bp1.process(x);
-			x=bp2.process(x);
-			x+=del.process(x)*delmul;
-			data[i]=x;
-		}
-		snd.scalevol(volume,true);
-		return snd;
-	}
-
-
-	static createmarble(volume=0.5) {
-		return Audio.generatethud(volume,8000,0.02);
-	}
-
-
-	static createthud(volume=1.0) {
-		return Audio.generatethud(volume,100,0.2);
-	}
-
-
-	static createelectricity(volume=0.15,freq=159.8,time=1.5) {
-		let sndfreq=44100,len=Math.ceil(time*sndfreq);
-		let ramp=0.01*sndfreq,rampden=1/ramp,tail=len-ramp;
-		let snd=new Audio.Sound(sndfreq,len);
-		let data=snd.data;
-		let freq0=freq/sndfreq,freq1=freq0*1.002;
-		let lp3=new Audio.Biquad(Audio.Biquad.LOWPASS,3000/sndfreq);
-		for (let i=0;i<len;i++) {
-			let x=Audio.saw1(i*freq0)+Audio.saw1(i*freq1);
-			x=Audio.clip(x-1,-0.5,0.5);
-			x=lp3.process(x);
-			if (i<ramp || i>tail) {x*=(i<ramp?i:len-1-i)*rampden;}
-			data[i]=x;
-		}
-		snd.scalevol(volume,true);
-		return snd;
-	}
-
-
-	static createlaser(volume=0.5,freq=10000,time=0.25) {
-		let sndfreq=44100,len=Math.ceil(time*sndfreq);
-		let ramp=0.01*sndfreq,rampden=1/ramp,tail=len-ramp;
-		let snd=new Audio.Sound(sndfreq,len);
-		let data=snd.data;
-		freq*=Math.PI*2/sndfreq;
-		let vmul=Math.exp(Math.log(1e-4)/len),vol=1;
-		// Instead of a delay constant, use a delay multiplier. Scales sum < 1.
-		// Array format: delay, scale, delay, scale, ...
-		let deltable=[0.99,-0.35,0.90,-0.28,0.80,-0.21,0.40,-0.13];
-		let delays=deltable.length;
-		for (let i=0;i<len;i++) {
-			let x=Math.sin(i*freq)*vol;
-			if (i<ramp) {x*=i*rampden;}
-			vol*=vmul;
-			for (let j=0;j<delays;j+=2) {
-				let u=i*deltable[j],k=Math.floor(u);
-				if (k>=0 && k+1<i) {
-					u-=k;
-					x+=(data[k]*(1-u)+data[k+1]*u)*deltable[j+1];
-				}
-			}
-			if (i>tail) {x*=(len-1-i)*rampden;}
-			data[i]=x;
-		}
-		snd.scalevol(volume,true);
-		return snd;
-	}
-
-
-	static generateexplosion(volume=0.75,freq=1000,time=0.25,sndfreq=44100) {
-		let len=Math.ceil(time*sndfreq);
-		let ramp=0.01*sndfreq,rampden=1/ramp,tail=len-ramp;
-		let snd=new Audio.Sound(sndfreq,len);
-		let data=snd.data;
-		let vmul=Math.exp(Math.log(1e-4)*3/len),vol=1;
-		let f=freq/(freq+1000);
-		let lpcoef=1-f,bpcoef=f,del=0.75+0.15*f,delmul=-0.9+0.5*f;
-		let lp=new Audio.Biquad(Audio.Biquad.LOWPASS,freq/sndfreq,1);
-		let bp=new Audio.Biquad(Audio.Biquad.BANDPASS,freq/sndfreq,2);
-		for (let i=0;i<len;i++) {
-			let x=Audio.noise(i)*vol;
-			vol*=vmul;
-			x=lp.process(x)*lpcoef+bp.process(x)*bpcoef;
-			let u=i*del,k=Math.floor(u);
-			if (k>=0 && k+1<i) {
-				u-=k;
-				x+=(data[k]*(1-u)+data[k+1]*u)*delmul;
-			}
-			if (i<ramp || i>tail) {x*=(i<ramp?i:len-1-i)*rampden;}
-			data[i]=x;
-		}
-		snd.scalevol(volume,true);
-		return snd;
-	}
-
-
-	static createexplosion1(volume=0.5) {
-		return Audio.generateexplosion(volume,100,5.0);
-	}
-
-
-	static createexplosion2(volume=1.0) {
-		return Audio.generateexplosion(volume,300,5.0);
-	}
-
-
-	static creategunshot1(volume=0.25) {
-		return Audio.generateexplosion(volume,500,0.25);
-	}
-
-
-	static creategunshot2(volume=0.5) {
-		return Audio.generateexplosion(volume,1000,1.0);
-	}
-
-
-	static creategunhit(volume=0.25) {
-		return Audio.generateexplosion(volume,200,0.10);
+	static createtuba(volume=1.0,freq=300,time=2.0) {
+		return (new Audio.SFX(`
+			#vol : ${volume}
+			#freq: ${freq}
+			#time: ${time}
+			#noi : NOISE
+			#nenv: ENV R #time I #noi
+			#lpf : LPF F #freq I #nenv
+			#sig : #del .95 * #lpf
+			#del : DEL T .02 M .2 I #sig
+			#out : #sig`
+		)).tosound(time);
 	}
 
 }

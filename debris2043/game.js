@@ -11,6 +11,8 @@ Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 Notes
 
 
+Just make something simple with falling blocks
+
 The shipping lanes from the earth to the moon have become blocked by by debris.
 The Space Force needs YOU to clear a path and get supplies to our lunarnauts.
 
@@ -210,10 +212,18 @@ class Game {
 
 
 	makeglaive(x,y) {
-		//      _
-		//       \
-		// -------
+		//        _
+		//         \
+		// ----O----
 		// \_
+		let world=this.world;
+		let atoms=[];
+		for (let i=0;i<4;i++) {
+		}
+	}
+
+
+	makebox(x,y) {
 	}
 
 
@@ -273,7 +283,7 @@ class Game {
 		// Audio
 		let bginst=this.bdsndinst;
 		if (!bginst || bginst.done || bginst.gettime()>=98.691587) {
-			this.bdsndinst=this.bgsnd.play(0.033);
+			// this.bdsndinst=this.bgsnd.play(0.033);
 		}
 		let draw=this.draw;
 		let dw=draw.img.width;

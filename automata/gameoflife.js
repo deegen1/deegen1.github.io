@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-gameoflife.js - v2.06
+gameoflife.js - v2.07
 
 Copyright 2020 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -12,10 +12,7 @@ TODO
 
 
 */
-/* jshint esversion: 11  */
-/* jshint bitwise: false */
-/* jshint eqeqeq: true   */
-/* jshint curly: true    */
+/* npx eslint gameoflife.js -c ../../standards/eslint.js */
 
 
 //---------------------------------------------------------------------------------
@@ -301,7 +298,7 @@ class Life {
 			for (i=0;i<formats.length;i++) {
 				try {
 					return this.setcells(pat,formats[i],coord,trans);
-				} catch(e) {
+				} catch {
 				}
 			}
 			throw "Unable to determine pattern type";
@@ -374,7 +371,7 @@ class Life {
 					pt=line.split(" ");
 					pt=[parseInt(pt[0]),parseInt(pt[1])];
 					if (isNaN(pt[0]) || isNaN(pt[1])) {throw "";}
-				} catch(e) {
+				} catch {
 					throw "Unable to parse life 1.06 pattern";
 				}
 				points.push(pt);
@@ -393,7 +390,7 @@ class Life {
 				let arr=head.split(",");
 				w=parseInt(arr[0].substr(2));
 				h=parseInt(arr[1].substr(2));
-			} catch(e) {
+			} catch {
 				w=" ";
 			}
 			if (head!=="x="+w+",y="+h+",rule=b3/s23") {
@@ -573,7 +570,7 @@ class Life {
 
 
 //---------------------------------------------------------------------------------
-// Input - v1.13
+// Input - v1.15
 
 
 class Input {
@@ -609,8 +606,8 @@ class Input {
 		this.active=null;
 		this.scrollupdate=false;
 		this.scroll=[window.scrollX,window.scrollY];
-		this.mousepos=[-Infinity,-Infinity];
-		this.mouseraw=[-Infinity,-Infinity];
+		this.mousepos=[NaN,NaN];
+		this.mouseraw=[NaN,NaN];
 		this.mousez=0;
 		this.touchfocus=0;
 		this.clickpos=[0,0];
@@ -757,7 +754,7 @@ class Input {
 				state.setkeyup(state.MOUSE.LEFT);
 			}
 		}
-		function onscroll(evt) {
+		function onscroll() {
 			// Update relative position on scroll.
 			if (state.scrollupdate) {
 				let difx=window.scrollX-state.scroll[0];
@@ -794,11 +791,11 @@ class Input {
 			touchmove(evt);
 			state.clickpos=state.mousepos.slice();
 		}
-		function touchend(evt) {
+		function touchend() {
 			state.touchfocus=0;
 			state.setkeyup(state.MOUSE.LEFT);
 		}
-		function touchcancel(evt) {
+		function touchcancel() {
 			state.touchfocus=0;
 			state.setkeyup(state.MOUSE.LEFT);
 		}
