@@ -85,6 +85,7 @@ class PhyScene {
 			offtop +=elem.offsetTop;
 			elem=elem.offsetParent;
 		}
+		offleft=0;
 		let ratio =this.drawratio;
 		let pscale=1;//window.devicePixelRatio;
 		let width =Math.floor(pscale*(window.innerWidth-offleft));
