@@ -18,11 +18,11 @@ Demo for physics.js
 TODO
 
 
+Move coloring to update loop.
+Move all rendering to render().
 split drawing dimensions and physics dimensions
 	use (viewx,viewy,vieww,viewh,viewscale) and phyw,phyh
 	x=(phy.x-viewx)*viewscale
-get real number of pixels
-scale based off 1000
 scale text, (.005,.005)*scale, .018*scale
 WASM filling
 
