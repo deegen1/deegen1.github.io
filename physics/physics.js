@@ -30,6 +30,7 @@ History
 TODO
 
 
+Why aren't boxes spinning properly?
 Collisions and bonds should use the same equations.
 Skip collision step and only update during bond step?
 
@@ -40,20 +41,8 @@ Increase relative mass as atoms interact with bonds/eachother.
 Allow atoms/bonds to have their own values in addition to type's values.
 divide pvmul by timestep, since it's acceleration
 Bonds that break when stretched
-Bondtypes
-groups
-	center
-	set vel
-	add vel
-	add rotation
-	rotate
-	scale
-	move
-	copy
 How to layer atoms so a particle will always be pushed out?
 	1 dimension? 2 dimensions?
-	d=rad*sqrt(1,2,3,...,dim)
-How close do atoms have to be to ensure a point gets pushed out?
 How many bonds are needed for a cube to be stable?
 
 

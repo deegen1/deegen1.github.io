@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.04
+demo.js - v1.05
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -18,7 +18,13 @@ Demo for physics.js
 TODO
 
 
-Distance based filling.
+split drawing dimensions and physics dimensions
+	use (viewx,viewy,vieww,viewh,viewscale) and phyw,phyh
+	x=(phy.x-viewx)*viewscale
+get real number of pixels
+scale based off 1000
+scale text, (.005,.005)*scale, .018*scale
+WASM filling
 
 
 */
@@ -29,90 +35,14 @@ Distance based filling.
 //---------------------------------------------------------------------------------
 
 
-function fastcircle(draw,x,y,rad) {
-	// Manually draw a circle pixel by pixel.
-	// This is ugly, but it's faster than canvas.arc and drawimage.
-	let imgdata32=draw.img.data32;
-	let imgwidth=draw.img.width;
-	let imgheight=draw.img.height;
-	rad-=0.5;
-	if (rad<=0 || x-rad>imgwidth || x+rad<0 || y-rad>imgheight || y+rad<0) {
-		return;
-	}
-	let colrgba=draw.rgba32[0];
-	let coll=(colrgba&0x00ff00ff)>>>0;
-	let colh=(colrgba&0xff00ff00)>>>0;
-	let colh2=colh>>>8;
-	let minx=Math.floor(x-rad-0.5);
-	if (minx<0) {minx=0;}
-	let maxx=Math.ceil(x+rad+0.5);
-	if (maxx>imgwidth) {maxx=imgwidth;}
-	let xs=Math.floor(x);
-	if (xs< minx) {xs=minx;}
-	if (xs>=maxx) {xs=maxx-1;}
-	let miny=Math.floor(y-rad-0.5);
-	if (miny<0) {miny=0;}
-	let maxy=Math.ceil(y+rad+0.5);
-	if (maxy>imgheight) {maxy=imgheight;}
-	let pixrow=miny*imgwidth;
-	let d,d2,dst;
-	let pixmin,pixmax,pix;
-	let dx,dy=miny-y+0.5;
-	let rad20=rad*rad;
-	let rad21=(rad+1)*(rad+1);
-	let imul=Math.imul,sqrt=Math.sqrt;
-	// let rnorm=256.0/(rad21-rad20);
-	for (let y0=miny;y0<maxy;y0++) {
-		dx=xs-x+0.5;
-		d2=dy*dy+dx*dx;
-		pixmax=pixrow+maxx;
-		pix=pixrow+xs;
-		while (d2<rad20 && pix<pixmax) {
-			imgdata32[pix++]=colrgba;
-			d2+=dx+dx+1;
-			dx++;
-		}
-		while (d2<rad21 && pix<pixmax) {
-			d=((sqrt(d2)-rad)*256)|0;
-			// d=(d2-rad20)*rnorm|0;
-			dst=imgdata32[pix];
-			imgdata32[pix]=(((imul((dst&0x00ff00ff)-coll,d)>>>8)+coll)&0x00ff00ff)+
-			               ((imul(((dst&0xff00ff00)>>>8)-colh2,d)+colh)&0xff00ff00);
-			pix++;
-			d2+=dx+dx+1;
-			dx++;
-		}
-		dx=xs-x-0.5;
-		d2=dy*dy+dx*dx;
-		pixmin=pixrow+minx;
-		pix=pixrow+(xs-1);
-		while (d2<rad20 && pix>=pixmin) {
-			imgdata32[pix--]=colrgba;
-			d2-=dx+dx-1;
-			dx--;
-		}
-		while (d2<rad21 && pix>=pixmin) {
-			d=((sqrt(d2)-rad)*256)|0;
-			// d=(d2-rad20)*rnorm|0;
-			dst=imgdata32[pix];
-			imgdata32[pix]=(((imul((dst&0x00ff00ff)-coll,d)>>>8)+coll)&0x00ff00ff)+
-			               ((imul(((dst&0xff00ff00)>>>8)-colh2,d)+colh)&0xff00ff00);
-			pix--;
-			d2-=dx+dx-1;
-			dx--;
-		}
-		pixrow+=imgwidth;
-		dy++;
-	}
-}
-
-
 class PhyScene {
 
 	constructor(divid) {
 		// Setup the canvas
-		let drawwidth=600;
+		this.drawratio=9/16;
+		//let drawwidth=600;
 		let drawheight=1066;
+		let drawwidth=Math.floor(drawheight*this.drawratio);
 		let canvas=document.getElementById(divid);
 		canvas.width=drawwidth;
 		canvas.height=drawheight;
@@ -147,35 +77,37 @@ class PhyScene {
 	resize() {
 		// Properly resize the canvas
 		let canvas =this.canvas;
-		let ratio  =canvas.height/canvas.width;
 		let elem   =canvas;
-		// let offleft=elem.clientLeft;
+		let offleft=elem.clientLeft;
 		let offtop =elem.clientTop;
 		while (elem!==null) {
-			// offleft+=elem.offsetLeft;
+			offleft+=elem.offsetLeft;
 			offtop +=elem.offsetTop;
 			elem=elem.offsetParent;
 		}
-		let pscale =1;// window.devicePixelRatio;
-		let width  =Math.floor(pscale*(window.innerWidth));// -offleft));
-		let height =Math.floor(pscale*(window.innerHeight-offtop));
-		if (width*ratio<height) {
-			height=Math.floor(width*ratio);
+		let ratio =this.drawratio;
+		let pscale=1;//window.devicePixelRatio;
+		let width =Math.floor(pscale*(window.innerWidth-offleft));
+		let height=Math.floor(pscale*(window.innerHeight-offtop));
+		if (width<height*ratio) {
+			height=Math.floor(width/ratio);
 		} else {
-			width =Math.floor(height/ratio);
+			width =Math.floor(height*ratio);
 		}
+		canvas.width =width;
+		canvas.height=height;
 		canvas.style.width =width +"px";
 		canvas.style.height=height+"px";
+		this.draw.img.resize(width,height);
 	}
 
 
 	initworld() {
 		this.world=new PhyWorld(2);
-		let canvas=this.canvas;
 		let world=this.world;
 		world.maxsteptime=1/180;
 		world.gravity.set([0,0.1]);
-		let viewheight=1.0,viewwidth=canvas.width/canvas.height;
+		let viewheight=1.0,viewwidth=this.drawratio;
 		// let walltype=world.createatomtype(1.0,Infinity,1.0);
 		let normtype=world.createatomtype(0.01,1.0,0.98);
 		let boxtype=world.createatomtype(0.0,0.8,1.0);
@@ -233,17 +165,16 @@ class PhyScene {
 
 
 	distancefill() {
+		// Draw atoms. If 2 atoms overlap, prefer the one that's closer.
 		let draw=this.draw;
 		let dw=draw.img.width,dh=draw.img.height,pixels=dw*dh;
 		let scale=dh;
 		let distmap=this.distmap;
 		if (distmap===undefined || distmap.length!==pixels) {
-			distmap=new Float32Array(pixels);
+			distmap=new Float64Array(pixels);
 			this.distmap=distmap;
 		}
-		for (let i=0;i<pixels;i++) {
-			distmap[i]=Infinity;
-		}
+		distmap.fill(Infinity);
 		let imgdata32=draw.img.data32;
 		let link=this.world.atomlist.head;
 		while (link!==null) {
@@ -271,14 +202,11 @@ class PhyScene {
 			let rad=atom.rad*scale+0.5,rad2=rad*rad;
 			if (dx*dx+dy*dy>=rad2) {continue;}
 			let rad21=rad>1?(rad-1)*(rad-1):0;
-			// Fill
+			// Fill in the circle at (x,y) with radius 'rad'.
 			let r=data.r,g=data.g,b=data.b;
-			//draw.setcolor(r,g,b,255);
-			//fastcircle(draw,x,y,rad);
-			//draw.filloval(x,y,rad,rad);
-			let miny=Math.floor(y-rad),maxy=Math.ceil(y+rad);
-			if (miny<0 ) {miny=0 ;}
-			if (maxy>dh) {maxy=dh;}
+			let miny=Math.floor(y-rad+0.5),maxy=Math.ceil(y+rad-0.5);
+			miny=miny>0 ?miny:0 ;
+			maxy=maxy<dh?maxy:dh;
 			if (miny>=maxy) {continue;}
 			draw.setcolor(r,g,b,255);
 			let colrgba=draw.rgba32[0];
@@ -286,45 +214,44 @@ class PhyScene {
 			let colh=(colrgba&0xff00ff00)>>>0;
 			let colh2=colh>>>8;
 			for (;miny<maxy;miny++) {
-				dy=miny+0.5-y;
-				dx=rad2-dy*dy;
-				if (dx<=0) {continue;}
-				dx=Math.sqrt(dx);
+				// Find the boundaries of the row we're on. Clip to center of pixel.
+				dy=miny-y+0.5;
+				let d2=dy*dy;
+				dx=Math.sqrt(rad2-d2)-0.5;
 				let minx=Math.floor(x-dx),maxx=Math.ceil(x+dx);
-				if (minx<0 ) {minx=0 ;}
-				if (maxx>dw) {maxx=dw;}
-				if (minx>=maxx) {continue;}
-				dx=minx+0.5-x;
-				let d2=dy*dy+dx*dx;
-				let pix=dw*miny+minx;
-				let stop=dw*miny+maxx;
-				while (d2>=rad2 && pix<stop) {d2+=2*dx+1;dx++;pix++;}
-				while (d2<rad2 && pix<stop) {
-					let m2=distmap[pix];
-					let u=m2-d2,u1=u+1;
+				minx=minx>0 ?minx: 0;
+				maxx=maxx<dw?maxx:dw;
+				dx=minx-x+0.5;
+				d2+=dx*dx;
+				minx+=dw*miny;
+				maxx+=dw*miny;
+				for (;minx<maxx;minx++) {
+					// Check if we can overwrite another atom's pixel, or if we need to blend them.
+					// PhyAssert(d2>=0 && d2<=rad2,[d2,rad2]);
+					let m2=distmap[minx];
+					let u=(m2-d2)*0.5,u1=u+0.5,u2=u-0.5;
 					// sqrt(m2)-sqrt(d2)>-1
-					if (u1>0 || m2>u1*u1*.25) {
-						distmap[pix]=d2;
-						u1=u-1;
-						// rad-dist>1 and sqrt(m2)>sqrt(d2)+1
-						if (d2<=rad21 && u1>0 && d2<u1*u1*.25) {
-							imgdata32[pix]=colrgba;
+					if (u1>0 || m2>u1*u1) {
+						distmap[minx]=d2;
+						// rad-dist>1 and sqrt(m2)-sqrt(d2)>1
+						if (d2<=rad21 && u2>0 && d2<u2*u2) {
+							imgdata32[minx]=colrgba;
 						} else {
 							// Blend with the background or another atom.
 							let dist=Math.sqrt(d2);
-							let dst=imgdata32[pix];
+							let dst=imgdata32[minx];
 							let back=rad-dist;
 							let edge=Math.sqrt(m2)-dist;
 							u=1-(edge<1?(edge+1)*0.5:1)*(back<1?back:1);
 							let d=(u*256)|0;
-							imgdata32[pix]=(((Math.imul((dst&0x00ff00ff)-coll,d)>>>8)+coll)&0x00ff00ff)+
-							               ((Math.imul(((dst&0xff00ff00)>>>8)-colh2,d)+colh)&0xff00ff00);
+							imgdata32[minx]=(((Math.imul((dst&0x00ff00ff)-coll,d)>>>8)+coll)&0x00ff00ff)+
+							                ((Math.imul(((dst&0xff00ff00)>>>8)-colh2,d)+colh)&0xff00ff00);
 						}
 					}
 					d2+=2*dx+1;
 					dx++;
-					pix++;
 				}
+				// PhyAssert(maxx>=dw*miny+dw || d2>=rad2,[d2,rad2]);
 			}
 		}
 	}
