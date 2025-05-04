@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.05
+demo.js - v1.06
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -18,10 +18,6 @@ Demo for physics.js
 TODO
 
 
-split drawing dimensions and physics dimensions
-	use (viewx,viewy,vieww,viewh,viewscale) and phyw,phyh
-	x=(phy.x-viewx)*viewscale
-scale text, (.005,.005)*scale, .018*scale
 WASM drawing
 	types: 0=done, 1=poly, 2=atom
 	overload fillpoly to add to queue instead of rendering
@@ -81,7 +77,7 @@ class PhyScene {
 	resize() {
 		// Properly resize the canvas
 		let canvas =this.canvas;
-		let elem   =canvas;
+		let elem   =canvas.parentNode;
 		let offleft=elem.clientLeft;
 		let offtop =elem.clientTop;
 		while (elem!==null) {
@@ -89,11 +85,10 @@ class PhyScene {
 			offtop +=elem.offsetTop;
 			elem=elem.offsetParent;
 		}
-		offleft=0;
-		let ratio =this.drawratio;
-		let pscale=1;// window.devicePixelRatio;
+		let pscale=1; // window.devicePixelRatio;
 		let width =Math.floor(pscale*(window.innerWidth-offleft));
 		let height=Math.floor(pscale*(window.innerHeight-offtop));
+		let ratio =this.drawratio;
 		if (width<height*ratio) {
 			height=Math.floor(width/ratio);
 		} else {
@@ -113,21 +108,20 @@ class PhyScene {
 		let world=this.world;
 		world.maxsteptime=1/180;
 		world.gravity.set([0,0.1]);
-		let viewheight=1.0,viewwidth=this.drawratio;
-		// let walltype=world.createatomtype(1.0,Infinity,1.0);
+		let viewh=1.0,vieww=this.drawratio;
 		let normtype=world.createatomtype(0.01,1.0,0.98);
 		let boxtype=world.createatomtype(0.0,0.8,1.0);
 		let rnd=new Random(2);
 		let pos=new Vector(world.dim);
 		for (let p=0;p<3000;p++) {
-			pos[0]=rnd.getf()*viewwidth;
-			pos[1]=rnd.getf()*viewheight;
+			pos[0]=rnd.getf()*vieww;
+			pos[1]=rnd.getf()*viewh;
 			let atom=world.createatom(pos,0.004,normtype);
 			atom.userdata={isparticle:true};
 		}
 		for (let k=0;k<3;k++) {
 			// world.createbox(,6,0.007,0.007*.70,boxtype);
-			let cen=new Vector([(0.3+k*0.2)*viewwidth,0.3]);
+			let cen=new Vector([(0.3+k*0.2)*vieww,0.3]);
 			let side=6,rad=0.007,dist=0.007*.70,pos=new Vector(cen);
 			let atomcombos=1;
 			let dim=world.dim;
@@ -152,11 +146,11 @@ class PhyScene {
 			world.autobond(atomarr,Infinity);
 		}
 		world.bndmin=new Vector([0,0]);
-		world.bndmax=new Vector([viewwidth,1]);
-		let playertype=world.createatomtype(0.0,Infinity,0.1);
+		world.bndmax=new Vector([vieww,1]);
+		let playertype=world.createatomtype(0.0,Infinity,1);
 		playertype.bound=false;
 		playertype.gravity=new Vector([0,0]);
-		pos.set([viewwidth*0.5,viewheight*0.33]);
+		pos.set([vieww*0.5,viewh*0.33]);
 		this.playeratom=world.createatom(pos,0.035,playertype);
 		this.playeratom.userdata={isparticle:false};
 		this.mouse.set(pos);
@@ -179,18 +173,18 @@ class PhyScene {
 		let starttime=performance.now();
 		let world=this.world;
 		let draw=this.draw;
-		let dw=draw.img.width,dh=draw.img.height;
-		let scale=dh;
 		let input=this.input;
+		let viewscale=draw.img.height;
+		//let vieww=draw.img.width/viewscale,viewh=draw.img.height/viewscale;
 		input.update();
 		world.update(delta);
 		draw.fill(0,0,0,255);
+		draw.setscale(viewscale,viewscale);
 		this.distmap.fill(Infinity);
 		// Move the player. Pulse the player atom until moved.
 		let mpos=input.getmousepos();
-		let maxx=draw.img.width/draw.img.height;
-		this.mouse[0]=(mpos[0]/draw.img.width)*maxx;
-		this.mouse[1]=mpos[1]/draw.img.height;
+		this.mouse[0]=mpos[0]/viewscale;
+		this.mouse[1]=mpos[1]/viewscale;
 		let player=this.playeratom;
 		let pdata=player.userdata;
 		let dir=this.mouse.sub(player.pos);
@@ -231,7 +225,7 @@ class PhyScene {
 		}
 		// Draw the HUD.
 		draw.setcolor(255,255,255,255);
-		draw.filltext(5,5,"time : "+this.framestr+"\ncount: "+world.atomlist.count,20);
+		draw.filltext(.005,.005,"time : "+this.framestr+"\ncount: "+world.atomlist.count,.019);
 		this.ctx.putImageData(draw.img.imgdata,0,0);
 		// Calculate the frame time.
 		this.framesum+=performance.now()-starttime;
@@ -246,26 +240,26 @@ class PhyScene {
 
 
 	drawatom(atom) {
-		// If 2 atoms overlap, prefer the one that's closer.
-		let draw=this.draw;
-		let dw=draw.img.width,dh=draw.img.height;
-		let scale=dh;
-		let imgdata32=draw.img.data32;
+		// If two atoms overlap, prefer the one that's closer.
+		// Overlap is judged by the center of the pixel (.5,.5).
+		let draw=this.draw,img=draw.img;
+		let imgdata32=img.data32;
 		let distmap=this.distmap;
 		// Check if it's on the screen.
+		let dw=img.width,dh=img.height,scale=dh;
 		let x=atom.pos[0]*scale,y=atom.pos[1]*scale;
-		let dx=(x>0?(x<dw?x:dw):0)-x,dy=(y>0?(y<dh?y:dh):0)-y;
+		let dx=(x>1?(x<dw?x:dw):1)-0.5-x;
+		let dy=(y>1?(y<dh?y:dh):1)-0.5-y;
 		let rad=atom.rad*scale+0.5,rad2=rad*rad;
 		if (dx*dx+dy*dy>=rad2) {return;}
 		let rad21=rad>1?(rad-1)*(rad-1):0;
 		// Fill in the circle at (x,y) with radius 'rad'.
 		let data=atom.userdata;
-		let r=data.r,g=data.g,b=data.b;
 		let miny=Math.floor(y-rad+0.5),maxy=Math.ceil(y+rad-0.5);
-		miny=miny>0 ?miny:0 ;
+		miny=miny> 0?miny: 0;
 		maxy=maxy<dh?maxy:dh;
-		if (miny>=maxy) {return;}
-		draw.setcolor(r,g,b,255);
+		// PhyAssert(miny<maxy);
+		draw.setcolor(data.r,data.g,data.b,255);
 		let colrgba=draw.rgba32[0];
 		let coll=(colrgba&0x00ff00ff)>>>0;
 		let colh=(colrgba&0xff00ff00)>>>0;
@@ -276,12 +270,13 @@ class PhyScene {
 			let d2=dy*dy;
 			dx=Math.sqrt(rad2-d2)-0.5;
 			let minx=Math.floor(x-dx),maxx=Math.ceil(x+dx);
-			minx=minx>0 ?minx: 0;
+			minx=minx> 0?minx: 0;
 			maxx=maxx<dw?maxx:dw;
 			dx=minx-x+0.5;
 			d2+=dx*dx;
 			minx+=dw*miny;
 			maxx+=dw*miny;
+			// Normal version. Time FF: 2.582620, time CR: 2.692565
 			for (;minx<maxx;minx++) {
 				// Check if we can overwrite another atom's pixel, or if we need to blend them.
 				// PhyAssert(d2>=0 && d2<=rad2,[d2,rad2]);
@@ -289,7 +284,7 @@ class PhyScene {
 				let u=(m2-d2)*0.5,u1=u+0.5,u2=u-0.5;
 				// sqrt(m2)-sqrt(d2)>-1
 				if (u1>0 || m2>u1*u1) {
-					distmap[minx]=d2;
+					distmap[minx]=d2<m2?d2:m2;
 					// rad-dist>1 and sqrt(m2)-sqrt(d2)>1
 					if (d2<=rad21 && u2>0 && d2<u2*u2) {
 						imgdata32[minx]=colrgba;
@@ -299,44 +294,17 @@ class PhyScene {
 						let dist=Math.sqrt(d2);
 						let bord=Math.sqrt(m2)-dist;
 						let edge=rad-dist;
-						u=1-(bord<1?(bord+1)*0.5:1)*(edge<1?edge:1);
-						let d=(u*256)|0;
-						imgdata32[minx]=(((Math.imul((dst&0x00ff00ff)-coll,d)>>>8)+coll)&0x00ff00ff)+
-						                ((Math.imul(((dst&0xff00ff00)>>>8)-colh2,d)+colh)&0xff00ff00);
+						let a=(256-(bord<1?(bord+1)*128:256)*(edge<1?edge:1))|0;
+						imgdata32[minx]=
+							(((Math.imul((dst&0x00ff00ff)-coll,a)>>>8)+coll)&0x00ff00ff)+
+							((Math.imul(((dst&0xff00ff00)>>>8)-colh2,a)+colh)&0xff00ff00);
 					}
 				}
 				d2+=2*dx+1;
 				dx++;
 			}
-			/*for (;minx<maxx;minx++) {
-				// Check if we can overwrite another atom's pixel, or if we need to blend them.
-				// PhyAssert(d2>=0 && d2<=rad2,[d2,rad2]);
-				let md=distmap[minx]+1;
-				//let u=(m2-d2)*0.5,u1=u+0.5,u2=u-0.5;
-				// md+1>sqrt(d2)
-				if (d2<md*md) {
-					let dist=Math.sqrt(d2);
-					let edge=rad-dist;
-					let bord=md-dist;
-					distmap[minx]=dist;//<md?d:md;
-					// rad-dist>1 and sqrt(m2)-sqrt(d2)>1
-					//if (edge>=1 && bord>=2) {
-					//	imgdata32[minx]=colrgba;
-					//} else {
-						// Blend if we're on the edge or bordering another atom.
-						let dst=imgdata32[minx];
-						let u=1-(bord<2?bord*0.5:1)*(edge<1?edge:1);
-						let a=(u*256)|0;
-						imgdata32[minx]=(((Math.imul((dst&0x00ff00ff)-coll,a)>>>8)+coll)&0x00ff00ff)+
-						                ((Math.imul(((dst&0xff00ff00)>>>8)-colh2,a)+colh)&0xff00ff00);
-					//}
-				}
-				d2+=2*dx+1;
-				dx++;
-			}*/
 			// PhyAssert(maxx>=dw*miny+dw || d2>=rad2,[d2,rad2]);
 		}
-
 	}
 
 }
