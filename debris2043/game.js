@@ -39,9 +39,11 @@ smaller debris light up when moving fast or hit
 
 tentacle monsters
 
-register domain name
 see how melon game handles audio
 put home page link under settings
+
+Throbbing from control point. Control points send out a signal. After x seconds,
+those atoms send out the signal and enter a refactory period.
 
 glow effect
 glaives that rotate and hook eachother
@@ -57,12 +59,6 @@ boss room, filled with objects, boss spins around and hits them
 laser that heats up atoms and makes them vibrate
 bullet that transfers momentum sideways
 
-particles are constantly falling down
-you need to protect a ship below
-
-dash attack
-spin attack
-
 
      /\
     /  \
@@ -72,11 +68,6 @@ spin attack
  \_/ ** \_/
     ****
    ******
-
-
-fill same color at once to avoid lines between triangles
-If point isn't drawn, because its not dominant on a tri, draw it manually.
-Outline based on lightest color between 2 triangles. Only if color_dif>0.01
 
 
 */
