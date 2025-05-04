@@ -147,7 +147,7 @@ class PhyScene {
 		}
 		world.bndmin=new Vector([0,0]);
 		world.bndmax=new Vector([vieww,1]);
-		let playertype=world.createatomtype(0.0,Infinity,1);
+		let playertype=world.createatomtype(0.0,Infinity,0.2);
 		playertype.bound=false;
 		playertype.gravity=new Vector([0,0]);
 		pos.set([vieww*0.5,viewh*0.33]);
