@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v1.23
+physics.js - v2.00
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -11,7 +11,9 @@ Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 Notes
 
 
-With enough atoms and enough bonds, anything can be simulated.
+With enough atoms and bonds, anything can be simulated.
+Atoms can overlap if they're bonded.
+Two atoms will only collide once a step.
 
 
 --------------------------------------------------------------------------------
@@ -24,21 +26,52 @@ History
      Tweaks for performance improvement in javascript.
 1.22
      The simulation can now use a variable timestep.
+2.00
+     Rewrote broadphase to use recursive subdivision instead of cells.
+     Broadphase will no longer collide 2 atoms multiple times a step.
 
 
 --------------------------------------------------------------------------------
 TODO
 
 
+Testing
+	narrowphase speed test
+		generate an array of atoms
+		time collision of every 2 atoms
+	ballistic test
+	rotation test
+	multiple dimensions for all tests
+	static time for each sim step
+	rewrite everthing to use multiply add
+	if (!(dist<rad*rad)) {return;}
+	let den=1;
+	if (dist>=1e-10) {
+		dist=Math.sqrt(dist);
+		den=1/dist;
+	} else {
+		// The atoms are too close, so guess a direction to separate them.
+		// This should be a random unit vector, but all we care about is speed.
+		let rand=Math.imul(world.seed++,0xf8b7629f);
+		norm[rand%dim]=((rand>>>30)&2)-1;
+	}
+	for (i=0;i<dim;i++) {
+		let x=(norm[i]*=den);
+		veldif+=(avel[i]-bvel[i])*x;
+	}
+
+Broadphase WASM.
+
+add back collision callback
+	add a read-only callback and read-write callback
+
 Why aren't boxes spinning properly?
+	veldif=veldif>0?veldif:0;
 Collisions and bonds should use the same equations.
 Skip collision step and only update during bond step?
 
-Increase relative mass as atoms interact with bonds/eachother.
-	increase by 5% for every interaction, depending on mass ratios and tension
-	decay over time
-	add velocity to mass ratio calculation?
-Allow atoms/bonds to have their own values in addition to type's values.
+get rid of need to define material types
+	add [density,damp,elasticity] option instead of type
 divide pvmul by timestep, since it's acceleration
 Bonds that break when stretched
 How to layer atoms so a particle will always be pushed out?
@@ -204,7 +237,7 @@ class PhyAtomInteraction {
 	constructor(a,b) {
 		this.a=a;
 		this.b=b;
-		this.collide=0;
+		this.collide=false;
 		this.pmul=0;
 		this.vmul=0;
 		this.vpmul=0;
@@ -238,6 +271,8 @@ class PhyAtomType {
 		this.worldlink=new PhyLink(this);
 		this.atomlist=new PhyList();
 		this.id=id;
+		this.intarr=[];
+		this.collide=true;
 		this.damp=damp;
 		this.density=density;
 		this.pmul=1.0;
@@ -250,8 +285,6 @@ class PhyAtomType {
 		this.dt1=0;
 		this.dt2=0;
 		this.gravity=null;
-		this.intarr=[];
-		this.collide=true;
 	}
 
 
@@ -446,13 +479,11 @@ class PhyAtom {
 		let ae=this.acc,ge=type.gravity;
 		ge=(ge===null?this.world.gravity:ge);
 		let dt0=type.dt0,dt1=type.dt1,dt2=type.dt2;
-		let pos,vel,acc,rad=this.rad;
+		let pos,rad=this.rad;
 		for (let i=0;i<dim;i++) {
-			pos=pe[i];
-			vel=ve[i];
-			acc=ae[i]+ge[i];
-			pos+=vel*dt1+acc*dt2;
-			vel =vel*dt0+acc*dt1;
+			let vel=ve[i],acc=ae[i]+ge[i];
+			pos=vel*dt1+acc*dt2+pe[i];
+			vel=vel*dt0+acc*dt1;
 			if (bound && pos<bndmin[i]+rad) {
 				pos=bndmin[i]+rad;
 				vel=vel<0?-vel:vel;
@@ -468,9 +499,11 @@ class PhyAtom {
 	}
 
 
-	static collideatom(a,b,callback) {
+	static collide(a,b) {// ,callback) {
 		// Collides two atoms. Vector operations are unrolled to use constant memory.
 		if (Object.is(a,b)) {return;}
+		let intr=a.type.intarr[b.type.id];
+		if (!intr.collide) {return;}
 		// Determine if the atoms are overlapping.
 		let apos=a.pos,bpos=b.pos;
 		let dim=apos.length,i;
@@ -494,14 +527,12 @@ class PhyAtom {
 				break;
 			}
 		}
-		if (dist>rad*rad) {return;}
+		if (dist>=rad*rad) {return;}
 		// If we have a callback, allow it to handle the collision.
-		let intr=a.type.intarr[b.type.id];
-		if (intr.collide===false) {return;}
-		if (callback===undefined && intr.callback!==null) {
-			if (intr.callback(a,b)) {PhyAtom.collideatom(a,b,true);}
-			return;
-		}
+		// if (callback===undefined && intr.callback!==null) {
+		// 	if (intr.callback(a,b)) {PhyAtom.collide(a,b,true);}
+		// 	return;
+		// }
 		let amass=a.mass,bmass=b.mass;
 		let mass=amass+bmass;
 		if ((amass>=Infinity && bmass>=Infinity) || mass<=1e-10 || dim===0) {
@@ -526,9 +557,11 @@ class PhyAtom {
 			norm[i]*=dif;
 			veldif-=(bvel[i]-avel[i])*norm[i];
 		}
-		veldif=veldif>0?veldif:0;
 		let posdif=rad-dist;
+		// if (link===null) {veldif=veldif>0?veldif:0;}
+		veldif=veldif>0?veldif:0;
 		veldif=veldif*intr.vmul+posdif*intr.vpmul;
+		// veldif=veldif>0?veldif:0;
 		posdif*=intr.pmul;
 		// Push the atoms apart.
 		let avelmul=veldif*bmass,bvelmul=veldif*amass;
@@ -618,275 +651,291 @@ class PhyBond {
 }
 
 
-class PhyCell {
-
-	constructor() {
-		this.dist=0;
-		this.atom=null;
-		this.hash=0;
-		this.next=null;
-	}
-
-}
-
-
 class PhyBroadphase {
 
 	constructor(world) {
 		this.world=world;
 		this.slack=1.05;
-		this.cellarr=[];
-		this.celldim=0.05;
-		this.cellmap=[];
-		this.mapused=0;
-		this.hash0=0;
+		this.atomarr=null;
+		this.atomcnt=0;
+		this.zonecnt=0;
+		this.memarr=null;
 	}
 
 
 	release() {
-		this.cellarr=[];
-		this.cellmap=[];
+		this.atomcnt=0;
+		this.atomarr=null;
+		this.zonecnt=0;
+		this.memarr=null;
 	}
 
 
-	getcell(point) {
-		if (this.mapused===0) {return null;}
-		let dim=this.world.dim,celldim=this.celldim;
-		let hash=this.hash0,x;
-		for (let d=0;d<dim;d++) {
-			x=Math.floor(point[d]/celldim);
-			hash=Random.hashu32(hash+x);
+	resize(newlen) {
+		let memarr=this.memarr;
+		let dim=this.world.dim;
+		let arrs=5+(dim>0?dim:1);
+		if (!memarr) {
+			memarr=new Array(arrs);
+			for (let i=0;i<arrs;i++) {memarr[i]=new Int32Array(0);}
+			this.memarr=memarr;
 		}
-		return this.cellmap[hash&(this.mapused-1)];
-	}
-
-
-	testcell(newcell,oldcell,point,d,off) {
-		// Tests if the fast distance computation matches the actual distance.
-		let world=this.world;
-		let dim=world.dim,i;
-		let coord=newcell.coord;
-		if (coord===undefined) {
-			coord=new Array(dim);
-			newcell.coord=coord;
+		let memlen=memarr[0].length;
+		if (newlen<=memlen) {return memlen;}
+		while (newlen&(newlen+1)) {newlen|=newlen>>>1;}
+		newlen++;
+		for (let i=0;i<arrs;i++) {
+			let dstarr=new Int32Array(newlen);
+			dstarr.set(memarr[i]);
+			memarr[i]=dstarr;
 		}
-		let hash=this.hash0;
-		let celldim=this.celldim;
-		if (oldcell!==null) {
-			for (i=0;i<dim;i++) {coord[i]=oldcell.coord[i];}
-			coord[d]+=off;
-			for (i=0;i<=d;i++) {hash=Random.hashu32(hash+coord[i]);}
-		} else {
-			for (i=0;i<dim;i++) {coord[i]=Math.floor(point[i]/celldim);}
-		}
-		if (newcell.hash!==hash) {
-			console.log("hash mismatch");
-			throw "error";
-		}
-		let rad=newcell.atom.rad*this.slack;
-		let dist=-rad*rad;
-		for (i=0;i<dim;i++) {
-			let x0=coord[i]*celldim;
-			let x1=x0+celldim;
-			let x=point[i];
-			if (x<x0) {
-				x-=x0;
-				dist+=x*x;
-			} else if (x>x1) {
-				x-=x1;
-				dist+=x*x;
-			}
-		}
-		if (Math.abs(newcell.dist-dist)>1e-10) {
-			console.log("dist drift");
-			throw "error";
-		}
+		return newlen;
 	}
 
 
 	build() {
-		// Find all cells that an atom overlaps and add that atom to a linked list in the
-		// cell.
+		// Recursively find an axis to best split a group of atoms. If we can't find a
+		// good split, assign those atoms to a zone and stop. Then, check all atoms within
+		// a zone for collisions.
 		//
-		// To find the cells that overlap a atom, first create a cell at the center of the
-		// atom. Then expand along the X axis until we reach the edge. For each of these
-		// cells, expand along the Y axis until we reach the edge. Continue for each
-		// dimension.
+		// We sort atom bounds once for each axis, with min=atom_id*2+0 max=atom_id*2+1.
+		// We can easily determine how many atoms will be on the left, right, or both
+		// sides of a split by counting how many even or odd ID's we've read.
 		//
-		//                                                                  +--+
-		//                                                                  |  |
-		//                                                               +--+--+--+
-		//                                                               |  |  |  |
-		//      +--+        +--+--+--+        +--+--+--+--+--+        +--+--+--+--+--+
-		//      |  |   ->   |  |  |  |   ->   |  |  |  |  |  |   ->   |  |  |  |  |  |
-		//      +--+        +--+--+--+        +--+--+--+--+--+        +--+--+--+--+--+
-		//                                                               |  |  |  |
-		//                                                               +--+--+--+
-		//                                                                  |  |
-		//                                                                  +--+
+		// memarr layout:
+		//     arr[0  ]=zoneend
+		//     arr[1  ]=zoneatoms
+		//     arr[2  ]=atomend   / workend
+		//     arr[3  ]=atomzones / coordarr / atomflag
+		//     arr[4  ]=tmp       / collided
+		//     arr[5+0]=x
+		//     arr[5+1]=y
+		//     arr[5+2]=z
+		//     ...
 		//
-		//    Start at      Expand along      Continue until we        Expand along Y
-		//    center.       X axis.           reach the edge.          axis.
-		//
-		let i,j;
+		// wasm: dim, atomcnt, zonecnt, memlen, atomarr [rad,x,y,...], memarr
 		let world=this.world;
 		let dim=world.dim;
-		let atomcount=world.atomlist.count;
-		this.mapused=0;
-		if (atomcount===0) {
-			return;
-		}
-		// Put atoms with infinite mass at the front of the array. This will sort them at
-		// the end of the grid's linked list and allow us to skip them during collision
-		// testing. Randomize the order of the other atoms.
-		let cellmap=this.cellmap;
-		while (atomcount>cellmap.length) {
-			cellmap=cellmap.concat(new Array(cellmap.length+1));
+		let atomcnt=world.atomlist.count;
+		this.atomcnt=atomcnt;
+		this.zonecnt=0;
+		if (atomcnt===0) {return;}
+		let atomcnt2=atomcnt*2;
+		// Randomize the order of the atoms.
+		let atomarr=this.atomarr;
+		if (atomarr===null || atomarr.length<atomcnt) {
+			atomarr=new Array(atomcnt2);
+			this.atomarr=atomarr;
 		}
 		let rnd=world.rnd;
 		let atomlink=world.atomlist.head;
-		let inactive=0;
-		let celldim=0.0;
-		let atom;
-		for (i=0;i<atomcount;i++) {
-			atom=atomlink.obj;
+		for (let i=0;i<atomcnt;i++) {
+			let j=rnd.getu32()%(i+1);
+			atomarr[i]=atomarr[j];
+			atomarr[j]=atomlink.obj;
 			atomlink=atomlink.next;
-			celldim+=atom.rad;
-			if (atom.mass<Infinity) {
-				j=inactive+(rnd.getu32()%(i-inactive+1));
-				cellmap[i]=cellmap[j];
-				cellmap[j]=atom;
-			} else {
-				cellmap[i]=cellmap[inactive];
-				j=rnd.getu32()%(inactive+1);
-				cellmap[inactive]=cellmap[j];
-				cellmap[j]=atom;
-				inactive++;
+		}
+		// Allocate working arrays.
+		let dim0=dim>0?dim:1;
+		let memlen=this.resize(atomcnt2*dim0);
+		let memarr=this.memarr;
+		// Store atom bounds. All X's first, then Y's, etc. [x-rad,x+rad]
+		let slack=this.slack;
+		let coordarr=new Float32Array(memarr[3].buffer);
+		for (let i=0;i<atomcnt;i++) {
+			let atom=atomarr[i],j=i<<1;
+			let pos=atom.pos,rad=Math.abs(atom.rad*slack);
+			for (let axis=0;axis<dim;axis++) {
+				let x=pos[axis],x0=x-rad,x1=x+rad;
+				if (isNaN(x0) || isNaN(x1)) {x0=x1=-Infinity;}
+				coordarr[j  ]=x0;
+				coordarr[j+1]=x1;
+				j+=atomcnt2;
 			}
 		}
-		// Use a heuristic to calculate celldim.
-		let slack=this.slack;
-		celldim*=2.5*slack/atomcount;
-		let hash0=rnd.getu32();
-		this.celldim=celldim;
-		this.hash0=hash0;
-		let invdim=1.0/celldim;
-		let celldim2=2.0*celldim*celldim;
-		let cellend=0;
-		let cellarr=this.cellarr;
-		let cellalloc=cellarr.length;
-		let cellstart;
-		let rad,cell,pos,radcells,d,c;
-		let cen,cendif,neginit,posinit,incinit;
-		let hash,hashcen,dist,distinc,newcell;
-		let hashu32=Random.hashu32;
-		let floor=Math.floor;
-		for (i=0;i<atomcount;i++) {
-			atom=cellmap[i];
-			rad=atom.rad*slack;
-			// Make sure we have enough cells.
-			radcells=floor(rad*2*invdim+2.1);
-			c=radcells;
-			for (d=1;d<dim;d++) {c*=radcells;}
-			while (cellend+c>cellalloc) {
-				cellarr=cellarr.concat(new Array(cellalloc+1));
-				for (j=0;j<=cellalloc;j++) {cellarr[cellalloc+j]=new PhyCell();}
-				cellalloc=cellarr.length;
+		// Sort bounds along each axis.
+		let axistmp=memarr[4];
+		for (let axis=0;axis<dim;axis++) {
+			// Arrange bounds so all minimums are in the front. So if B.max=A.min, A.min
+			// will be sorted first. This is needed to properly split edge cases later.
+			let axisarr=memarr[5+axis];
+			for (let i=0,j=0;i<atomcnt;i++) {
+				axisarr[i]=j++;
+				axisarr[i+atomcnt]=j++;
 			}
-			// Get the starting cell.
-			cellstart=cellend;
-			cell=cellarr[cellend++];
-			cell.atom=atom;
-			cell.dist=-rad*rad;
-			cell.hash=hash0;
-			pos=atom.pos;
-			// this.testcell(cell,null,pos,0,0);
-			for (d=0;d<dim;d++) {
-				// Precalculate constants for the cell-atom distance calculation.
-				// floor(x) is needed so negative numbers round to -infinity.
-				cen    =floor(pos[d]*invdim);
-				cendif =cen*celldim-pos[d];
-				neginit=cendif*cendif;
-				incinit=(celldim+2*cendif)*celldim;
-				posinit=incinit+neginit;
-				for (c=cellend-1;c>=cellstart;c--) {
-					// Using the starting cell's distance to pos, calculate the distance to the cells
-					// above and below. The starting cell is at cen[d] = floor(pos[d]/celldim).
-					cell=cellarr[c];
-					hashcen=cell.hash+cen;
-					cell.hash=hashu32(hashcen);
-					// Check the cells below the center.
-					hash=hashcen;
-					dist=cell.dist+neginit;
-					distinc=-incinit;
-					while (dist<0) {
-						newcell=cellarr[cellend++];
-						newcell.atom=atom;
-						newcell.dist=dist;
-						newcell.hash=hashu32(--hash);
-						// this.testcell(newcell,cell,pos,d,hash-hashcen);
-						distinc+=celldim2;
-						dist+=distinc;
+			// Merge sort. This must be stable.
+			coordarr=new Float32Array(coordarr.buffer,atomcnt2*axis*4);
+			for (let half=1;half<atomcnt2;half+=half) {
+				let hstop=atomcnt2-half;
+				for (let i=0;i<atomcnt2;) {
+					let i0=i ,i1=i <hstop?i +half:atomcnt2;
+					let j0=i1,j1=i1<hstop?i1+half:atomcnt2;
+					if (i0<i1 && j0<j1) {
+						let io=axisarr[i0],jo=axisarr[j0];
+						let iv=coordarr[io],jv=coordarr[jo];
+						while (true) {
+							if (iv<=jv) {
+								axistmp[i++]=io;
+								if (++i0>=i1) {break;}
+								io=axisarr[i0];
+								iv=coordarr[io];
+							} else {
+								axistmp[i++]=jo;
+								if (++j0>=j1) {break;}
+								jo=axisarr[j0];
+								jv=coordarr[jo];
+							}
+						}
 					}
-					// Check the cells above the center.
-					hash=hashcen;
-					dist=cell.dist+posinit;
-					distinc=incinit;
-					while (dist<0) {
-						newcell=cellarr[cellend++];
-						newcell.atom=atom;
-						newcell.dist=dist;
-						newcell.hash=hashu32(++hash);
-						// this.testcell(newcell,cell,pos,d,hash-hashcen);
-						distinc+=celldim2;
-						dist+=distinc;
+					while (i0<i1) {axistmp[i++]=axisarr[i0++];}
+					while (j0<j1) {axistmp[i++]=axisarr[j0++];}
+				}
+				let tmp=axisarr;
+				axisarr=axistmp;
+				axistmp=tmp;
+			}
+			memarr[5+axis]=axisarr;
+		}
+		memarr[4]=axistmp;
+		// Special case for 0 dimensions.
+		if (dim<=0) {
+			let axisarr=memarr[5];
+			for (let i=0,j=0;i<atomcnt;i++) {
+				axisarr[i]=j++;
+				axisarr[i+atomcnt]=j++;
+			}
+		}
+		let workend=memarr[2];
+		workend[0]=0;
+		workend[1]=atomcnt2;
+		let workidx=2;
+		let zonecnt=0,zoneidx=0;
+		while (workidx>0) {
+			// Pop the top working range off the stack.
+			let workhi=workend[--workidx];
+			let worklo=workend[--workidx];
+			let workcnt=workhi-worklo;
+			// Over-allocate ahead of time.
+			let alloc=(zoneidx>workhi?zoneidx:workhi)+workcnt*2;
+			if (memlen<alloc) {
+				memlen=this.resize(alloc);
+				workend=memarr[2];
+			}
+			// Split the atoms in a way that minimizes max(lcnt,rcnt).
+			let minlcnt=0,minrcnt=workcnt>28?(workcnt*.72)|0:(workcnt-8);
+			let minidx=0,minaxis=-1;
+			for (let axis=0;axis<dim;axis++) {
+				let axisarr=memarr[5+axis];
+				let lcnt=0,rcnt=workcnt;
+				for (let i=worklo;lcnt<minrcnt;i++) {
+					if (axisarr[i]&1) {
+						rcnt-=2;
+						// we already know lcnt<minrcnt
+						if (minrcnt>rcnt) {
+							minrcnt=rcnt;
+							minlcnt=lcnt;
+							minidx=i;
+							minaxis=axis;
+						}
+					} else {
+						lcnt+=2;
 					}
 				}
 			}
+			// If no split passed our threshold, add it to the list of settled zones.
+			// Use the same axis each time, so A appears before B in all zones.
+			if (minaxis<0) {
+				let axisarr=memarr[5];
+				let zoneend=memarr[0];
+				let zoneatoms=memarr[1];
+				let stop=zoneidx+(workcnt>>>1);
+				zoneend[zonecnt++]=stop;
+				for (let i=worklo;zoneidx<stop;i++) {
+					let x=axisarr[i];
+					if (!(x&1)) {zoneatoms[zoneidx++]=x>>>1;}
+				}
+				continue;
+			}
+			// Flag each atom for the left half (0), right half (2), or both (1).
+			let atomflag=memarr[3];
+			let axisarr=memarr[5+minaxis];
+			for (let i=worklo;i<=minidx;i++) {
+				let x=axisarr[i];
+				atomflag[x>>>1]=1-(x&1);
+			}
+			for (let i=workhi-1;i>minidx;i--) {
+				let x=axisarr[i];
+				atomflag[x>>>1]=2-(x&1);
+			}
+			// For each axis, copy the left half to [lo,lo+lcnt) and the right half to
+			// [hi,hi+rcnt) while maintaining sorted order.
+			workend[workidx++]=worklo;
+			workend[workidx++]=worklo+minlcnt;
+			workend[workidx++]=workhi;
+			workend[workidx++]=workhi+minrcnt;
+			for (let axis=0;axis<dim;axis++) {
+				axisarr=memarr[5+axis];
+				let lidx=worklo,ridx=workhi;
+				for (let i=worklo;i<workhi;i++) {
+					let x=axisarr[i];
+					let f=atomflag[x>>>1];
+					if (f<=1) {axisarr[lidx++]=x;}
+					if (f>=1) {axisarr[ridx++]=x;}
+				}
+				// PhyAssert(lidx===worklo+minlcnt && ridx===workhi+minrcnt);
+			}
 		}
-		// Hash cell coordinates and add to the map.
-		let cellmask=cellend;
-		cellmask|=cellmask>>>16;
-		cellmask|=cellmask>>>8;
-		cellmask|=cellmask>>>4;
-		cellmask|=cellmask>>>2;
-		cellmask|=cellmask>>>1;
-		let mapused=cellmask+1;
-		if (mapused>cellmap.length) {
-			cellmap=new Array(mapused);
+		// Records all zones an atom is in.
+		this.zonecnt=zonecnt;
+		let zoneend  =memarr[0];
+		let zoneatoms=memarr[1];
+		let atomend  =memarr[2];
+		let atomzones=memarr[3];
+		let sum=zoneidx;
+		for (let i=0;i<atomcnt;i++) {atomend[i]=0;}
+		for (let i=0;i<sum;i++) {atomend[zoneatoms[i]]++;}
+		for (let i=atomcnt-1;i>=0;i--) {
+			sum-=atomend[i];
+			atomend[i]=sum;
 		}
-		for (i=0;i<mapused;i++) {
-			cellmap[i]=null;
+		let idx=0;
+		for (let z=0;z<zonecnt;z++) {
+			let stop=zoneend[z];
+			while (idx<stop) {
+				let a=zoneatoms[idx++];
+				atomzones[atomend[a]++]=z;
+			}
 		}
-		for (i=0;i<cellend;i++) {
-			cell=cellarr[i];
-			hash=cell.hash&cellmask;
-			cell.next=cellmap[hash];
-			cellmap[hash]=cell;
-		}
-		this.cellarr=cellarr;
-		this.cellmap=cellmap;
-		this.mapused=mapused;
 	}
 
 
 	collide() {
-		// Look at each grid cell. Check for collisions among atoms within that cell.
-		let mapused=this.mapused;
-		let cellmap=this.cellmap;
-		let al,bl,a,collide=PhyAtom.collideatom;
-		for (let c=0;c<mapused;c++) {
-			al=cellmap[c];
-			while (al!==null) {
-				// Once we encounter a atom with infinite mass, we know that the rest of the
-				// atoms will also have infinite mass.
-				a=al.atom;
-				if (a.mass>=Infinity) {break;}
-				al=al.next;
-				bl=al;
-				while (bl!==null) {
-					collide(a,bl.atom);
-					bl=bl.next;
+		// Look at all zones an atom is in and check for collisions in each zone.
+		// Avoid duplicate collisions.
+		let atomcnt=this.atomcnt;
+		if (atomcnt<=0) {return;}
+		let memarr=this.memarr;
+		let collided=memarr[4];
+		for (let i=0;i<atomcnt;i++) {collided[i]=-1;}
+		let collide=PhyAtom.collide;
+		let atomarr=this.atomarr;
+		let zoneend  =memarr[0];
+		let zoneatoms=memarr[1];
+		let atomend  =memarr[2];
+		let atomzones=memarr[3];
+		let idx=0;
+		for (let aid=0;aid<atomcnt;aid++) {
+			let aend=atomend[aid];
+			let a=atomarr[aid];
+			while (idx<aend) {
+				let zone=atomzones[idx++];
+				let zend=zoneend[zone],bid;
+				while ((bid=zoneatoms[--zend])!==aid) {
+					if (collided[bid]!==aid) {
+						collided[bid]=aid;
+						let b=atomarr[bid];
+						collide(a,b);
+					}
 				}
 			}
 		}
@@ -896,6 +945,10 @@ class PhyBroadphase {
 
 
 class PhyWorld {
+
+	static Atom=PhyAtom;
+	static Bond=PhyBond;
+
 
 	constructor(dim) {
 		this.dim=dim;
@@ -1053,21 +1106,20 @@ class PhyWorld {
 	update(time) {
 		// Process the simulation in multiple steps if time is too large.
 		if (time<1e-9 || isNaN(time)) {return;}
-		let steps=Math.ceil(time/this.maxsteptime);
-		let dt=steps<Infinity?time/steps:this.maxsteptime;
-		let next,link;
-		let bondcount,bondarr;
+		let dt=this.maxsteptime;
+		let steps=time<=dt?1:Math.ceil(time/dt);
+		if (steps<Infinity) {dt=time/steps;}
 		let rnd=this.rnd;
 		for (let step=0;step<steps;step++) {
 			// Integrate atoms.
-			next=this.atomlist.head;
+			let next=this.atomlist.head,link;
 			while ((link=next)!==null) {
 				next=next.next;
 				link.obj.update(dt);
 			}
 			// Integrate bonds. Randomizing the order minimizes oscillations.
-			bondcount=this.bondlist.count;
-			bondarr=this.gettmpmem(bondcount);
+			let bondcount=this.bondlist.count;
+			let bondarr=this.gettmpmem(bondcount);
 			link=this.bondlist.head;
 			for (let i=0;i<bondcount;i++) {
 				let j=rnd.getu32()%(i+1);
