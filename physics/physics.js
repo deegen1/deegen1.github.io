@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v2.00
+physics.js - v2.01
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -29,6 +29,8 @@ History
 2.00
      Rewrote broadphase to use recursive subdivision instead of cells.
      Broadphase will no longer collide 2 atoms multiple times a step.
+2.01
+     Broadphase now uses a BVH instead of subdivided regions.
 
 
 --------------------------------------------------------------------------------
@@ -39,10 +41,11 @@ Testing
 	narrowphase speed test
 		generate an array of atoms
 		time collision of every 2 atoms
+		add back collision callback
+		add a read-only callback and read-write callback
 	ballistic test
 	rotation test
 	multiple dimensions for all tests
-	static time for each sim step
 	rewrite everthing to use multiply add
 	if (!(dist<rad*rad)) {return;}
 	let den=1;
@@ -60,13 +63,9 @@ Testing
 		veldif+=(avel[i]-bvel[i])*x;
 	}
 
-Broadphase WASM.
-
-add back collision callback
-	add a read-only callback and read-write callback
-
 Why aren't boxes spinning properly?
 	veldif=veldif>0?veldif:0;
+	more steps?
 Collisions and bonds should use the same equations.
 Skip collision step and only update during bond step?
 
@@ -77,6 +76,7 @@ Bonds that break when stretched
 How to layer atoms so a particle will always be pushed out?
 	1 dimension? 2 dimensions?
 How many bonds are needed for a cube to be stable?
+Find better sorting criteria for broadphase.
 
 
 */
@@ -94,7 +94,7 @@ function PhyAssert(condition,data) {
 
 
 //---------------------------------------------------------------------------------
-// Physics - v1.23
+// Physics - v2.01
 
 
 class PhyLink {
@@ -653,290 +653,232 @@ class PhyBond {
 
 class PhyBroadphase {
 
+	// BVH tree structure, S = 3+2*dim:
+	//
+	//      N*S-S  parent nodes
+	//      N*S    leaf nodes
+	//      N      sorting
+	//
+	// Node structure:
+	//
+	//      0 parent
+	//      1 left
+	//      2 right
+	//      3 x min
+	//      4 x max
+	//      5 y min
+	//        ...
+	//
+	// If left<0, atom_id=-1-left.
+
+
 	constructor(world) {
 		this.world=world;
-		this.slack=1.05;
-		this.atomarr=null;
+		this.slack=0.05;
 		this.atomcnt=0;
-		this.zonecnt=0;
-		this.memarr=null;
+		this.atomarr=null;
+		this.memi32=null;
+		this.memf32=null;
 	}
 
 
 	release() {
-		this.atomcnt=0;
 		this.atomarr=null;
-		this.zonecnt=0;
-		this.memarr=null;
-	}
-
-
-	resize(newlen) {
-		let memarr=this.memarr;
-		let dim=this.world.dim;
-		let arrs=5+(dim>0?dim:1);
-		if (!memarr) {
-			memarr=new Array(arrs);
-			for (let i=0;i<arrs;i++) {memarr[i]=new Int32Array(0);}
-			this.memarr=memarr;
-		}
-		let memlen=memarr[0].length;
-		if (newlen<=memlen) {return memlen;}
-		while (newlen&(newlen+1)) {newlen|=newlen>>>1;}
-		newlen++;
-		for (let i=0;i<arrs;i++) {
-			let dstarr=new Int32Array(newlen);
-			dstarr.set(memarr[i]);
-			memarr[i]=dstarr;
-		}
-		return newlen;
+		this.atomcnt=0;
+		this.memi32=null;
+		this.memf32=null;
 	}
 
 
 	build() {
-		// Recursively find an axis to best split a group of atoms. If we can't find a
-		// good split, assign those atoms to a zone and stop. Then, check all atoms within
-		// a zone for collisions.
+		// Build a bounding volume hierarchy for the atoms.
 		//
-		// We sort atom bounds once for each axis, with min=atom_id*2+0 max=atom_id*2+1.
-		// We can easily determine how many atoms will be on the left, right, or both
-		// sides of a split by counting how many even or odd ID's we've read.
+		// During each step, find the axis with the largest range (x_max-x_min).
+		// Sort the atoms by their minimum bounds on that axis and split the range in half.
+		// Continue subdividing each half.
 		//
-		// memarr layout:
-		//     arr[0  ]=zoneend
-		//     arr[1  ]=zoneatoms
-		//     arr[2  ]=atomend   / workend
-		//     arr[3  ]=atomzones / coordarr / atomflag
-		//     arr[4  ]=tmp       / collided
-		//     arr[5+0]=x
-		//     arr[5+1]=y
-		//     arr[5+2]=z
-		//     ...
-		//
-		// wasm: dim, atomcnt, zonecnt, memlen, atomarr [rad,x,y,...], memarr
 		let world=this.world;
 		let dim=world.dim;
 		let atomcnt=world.atomlist.count;
 		this.atomcnt=atomcnt;
-		this.zonecnt=0;
 		if (atomcnt===0) {return;}
-		let atomcnt2=atomcnt*2;
-		// Randomize the order of the atoms.
-		let atomarr=this.atomarr;
-		if (atomarr===null || atomarr.length<atomcnt) {
-			atomarr=new Array(atomcnt2);
-			this.atomarr=atomarr;
-		}
-		let rnd=world.rnd;
-		let atomlink=world.atomlist.head;
-		for (let i=0;i<atomcnt;i++) {
-			let j=rnd.getu32()%(i+1);
-			atomarr[i]=atomarr[j];
-			atomarr[j]=atomlink.obj;
-			atomlink=atomlink.next;
-		}
 		// Allocate working arrays.
-		let dim0=dim>0?dim:1;
-		let memlen=this.resize(atomcnt2*dim0);
-		let memarr=this.memarr;
-		// Store atom bounds. All X's first, then Y's, etc. [x-rad,x+rad]
-		let slack=this.slack;
-		let coordarr=new Float32Array(memarr[3].buffer);
+		let nodesize=3+2*dim;
+		let treesize=atomcnt*(nodesize*2+1)-nodesize;
+		let memi=this.memi32;
+		if (memi===null || memi.length<treesize) {
+			memi=new Int32Array(treesize*2);
+			this.memi32=memi;
+			this.memf32=new Float32Array(memi.buffer);
+			this.atomarr=new Array(atomcnt*2);
+		}
+		let memf=this.memf32;
+		let leafstart=nodesize*(atomcnt-1);
+		let sortstart=leafstart+nodesize*atomcnt;
+		// Store atoms and their bounds.
+		let slack=1+this.slack;
+		let leafidx=leafstart;
+		let atomlink=world.atomlist.head;
+		let atomarr=this.atomarr;
 		for (let i=0;i<atomcnt;i++) {
-			let atom=atomarr[i],j=i<<1;
+			let atom=atomlink.obj;
+			atomlink=atomlink.next;
+			atomarr[i]=atom;
+			memi[sortstart+i]=leafidx;
+			memi[leafidx+1]=~i;
+			leafidx+=3;
 			let pos=atom.pos,rad=Math.abs(atom.rad*slack);
 			for (let axis=0;axis<dim;axis++) {
 				let x=pos[axis],x0=x-rad,x1=x+rad;
 				if (isNaN(x0) || isNaN(x1)) {x0=x1=-Infinity;}
-				coordarr[j  ]=x0;
-				coordarr[j+1]=x1;
-				j+=atomcnt2;
+				memf[leafidx++]=x0;
+				memf[leafidx++]=x1;
 			}
 		}
-		// Sort bounds along each axis.
-		let axistmp=memarr[4];
-		for (let axis=0;axis<dim;axis++) {
-			// Arrange bounds so all minimums are in the front. So if B.max=A.min, A.min
-			// will be sorted first. This is needed to properly split edge cases later.
-			let axisarr=memarr[5+axis];
-			for (let i=0,j=0;i<atomcnt;i++) {
-				axisarr[i]=j++;
-				axisarr[i+atomcnt]=j++;
-			}
-			// Merge sort. This must be stable.
-			coordarr=new Float32Array(coordarr.buffer,atomcnt2*axis*4);
-			for (let half=1;half<atomcnt2;half+=half) {
-				let hstop=atomcnt2-half;
-				for (let i=0;i<atomcnt2;) {
-					let i0=i ,i1=i <hstop?i +half:atomcnt2;
-					let j0=i1,j1=i1<hstop?i1+half:atomcnt2;
-					if (i0<i1 && j0<j1) {
-						let io=axisarr[i0],jo=axisarr[j0];
-						let iv=coordarr[io],jv=coordarr[jo];
-						while (true) {
-							if (iv<=jv) {
-								axistmp[i++]=io;
-								if (++i0>=i1) {break;}
-								io=axisarr[i0];
-								iv=coordarr[io];
-							} else {
-								axistmp[i++]=jo;
-								if (++j0>=j1) {break;}
-								jo=axisarr[j0];
-								jv=coordarr[jo];
-							}
-						}
-					}
-					while (i0<i1) {axistmp[i++]=axisarr[i0++];}
-					while (j0<j1) {axistmp[i++]=axisarr[j0++];}
-				}
-				let tmp=axisarr;
-				axisarr=axistmp;
-				axistmp=tmp;
-			}
-			memarr[5+axis]=axisarr;
-		}
-		memarr[4]=axistmp;
-		// Special case for 0 dimensions.
-		if (dim<=0) {
-			let axisarr=memarr[5];
-			for (let i=0,j=0;i<atomcnt;i++) {
-				axisarr[i]=j++;
-				axisarr[i+atomcnt]=j++;
-			}
-		}
-		let workend=memarr[2];
-		workend[0]=0;
-		workend[1]=atomcnt2;
-		let workidx=2;
-		let zonecnt=0,zoneidx=0;
-		while (workidx>0) {
+		memi[0]=-1;
+		if (atomcnt<=1) {return;}
+		memi[1]=sortstart;
+		memi[2]=sortstart+atomcnt;
+		let treeidx=nodesize;
+		for (let work=0;work<leafstart;work+=nodesize) {
 			// Pop the top working range off the stack.
-			let workhi=workend[--workidx];
-			let worklo=workend[--workidx];
-			let workcnt=workhi-worklo;
-			// Over-allocate ahead of time.
-			let alloc=(zoneidx>workhi?zoneidx:workhi)+workcnt*2;
-			if (memlen<alloc) {
-				memlen=this.resize(alloc);
-				workend=memarr[2];
-			}
-			// Split the atoms in a way that minimizes max(lcnt,rcnt).
-			let minlcnt=0,minrcnt=workcnt>28?(workcnt*.72)|0:(workcnt-8);
-			let minidx=0,minaxis=-1;
-			for (let axis=0;axis<dim;axis++) {
-				let axisarr=memarr[5+axis];
-				let lcnt=0,rcnt=workcnt;
-				for (let i=worklo;lcnt<minrcnt;i++) {
-					if (axisarr[i]&1) {
-						rcnt-=2;
-						// we already know lcnt<minrcnt
-						if (minrcnt>rcnt) {
-							minrcnt=rcnt;
-							minlcnt=lcnt;
-							minidx=i;
-							minaxis=axis;
-						}
-					} else {
-						lcnt+=2;
-					}
-				}
-			}
-			// If no split passed our threshold, add it to the list of settled zones.
-			// Use the same axis each time, so A appears before B in all zones.
-			if (minaxis<0) {
-				let axisarr=memarr[5];
-				let zoneend=memarr[0];
-				let zoneatoms=memarr[1];
-				let stop=zoneidx+(workcnt>>>1);
-				zoneend[zonecnt++]=stop;
-				for (let i=worklo;zoneidx<stop;i++) {
-					let x=axisarr[i];
-					if (!(x&1)) {zoneatoms[zoneidx++]=x>>>1;}
-				}
-				continue;
-			}
-			// Flag each atom for the left half (0), right half (2), or both (1).
-			let atomflag=memarr[3];
-			let axisarr=memarr[5+minaxis];
-			for (let i=worklo;i<=minidx;i++) {
-				let x=axisarr[i];
-				atomflag[x>>>1]=1-(x&1);
-			}
-			for (let i=workhi-1;i>minidx;i--) {
-				let x=axisarr[i];
-				atomflag[x>>>1]=2-(x&1);
-			}
-			// For each axis, copy the left half to [lo,lo+lcnt) and the right half to
-			// [hi,hi+rcnt) while maintaining sorted order.
-			workend[workidx++]=worklo;
-			workend[workidx++]=worklo+minlcnt;
-			workend[workidx++]=workhi;
-			workend[workidx++]=workhi+minrcnt;
-			for (let axis=0;axis<dim;axis++) {
-				axisarr=memarr[5+axis];
-				let lidx=worklo,ridx=workhi;
+			let worklo=memi[work+1];
+			let workhi=memi[work+2];
+			let workmid=worklo+((workhi-worklo)>>>1);
+			// Find the axis with the greatest range.
+			let sortoff=-1,sortmax=-Infinity;
+			for (let axis=3;axis<nodesize;axis+=2) {
+				let min=Infinity,max=-Infinity;
 				for (let i=worklo;i<workhi;i++) {
-					let x=axisarr[i];
-					let f=atomflag[x>>>1];
-					if (f<=1) {axisarr[lidx++]=x;}
-					if (f>=1) {axisarr[ridx++]=x;}
+					let node=memi[i]+axis;
+					let x=memf[node];
+					min=min<x?min:x;
+					x=memf[node+1];
+					max=max>x?max:x;
 				}
-				// PhyAssert(lidx===worklo+minlcnt && ridx===workhi+minrcnt);
+				max-=min;
+				max=max>=0?max:Infinity;
+				if (sortmax<max) {
+					sortmax=max;
+					sortoff=axis;
+				}
 			}
+			// Heapsort the largest axis. We only need to sort half.
+			let sortend=sortoff>=0?workhi:worklo;
+			let sortheap=workmid;
+			let nodeoff=1-worklo;
+			while (sortend>workmid) {
+				let node,child,nidx;
+				if (sortheap>worklo) {
+					// Build the heap.
+					node=--sortheap;
+					nidx=memi[node];
+				} else {
+					// Pop the greatest element to the end of the array.
+					node=sortheap;
+					nidx=memi[--sortend];
+					memi[sortend]=memi[sortheap];
+				}
+				let nval=memf[nidx+sortoff];
+				// Heap sort the top element down.
+				// 2*(node-worklo)+worklo+1 = 2*node-worklo+1
+				while ((child=(node<<1)+nodeoff)<sortend) {
+					let cidx=memi[child];
+					let cval=memf[cidx+sortoff];
+					let right=child+1;
+					if (right<sortend) {
+						let ridx=memi[right];
+						let rval=memf[ridx+sortoff];
+						if (cval<rval) {
+							cidx=ridx;
+							cval=rval;
+							child=right;
+						}
+					}
+					if (nval>=cval) {break;}
+					memi[node]=cidx;
+					node=child;
+				}
+				memi[node]=nidx;
+			}
+			// Split the sorted nodes in half. If we only have 1 node on a side, stop
+			// dividing. Otherwise, add the range to the working stack.
+			let leaf;
+			if (worklo+1===workmid) {
+				leaf=memi[worklo];
+			} else {
+				leaf=treeidx;
+				treeidx+=nodesize;
+				memi[leaf+1]=worklo;
+				memi[leaf+2]=workmid;
+			}
+			memi[work+1]=leaf;
+			if (workhi-1===workmid) {
+				leaf=memi[workmid];
+			} else {
+				leaf=treeidx;
+				treeidx+=nodesize;
+				memi[leaf+1]=workmid;
+				memi[leaf+2]=workhi;
+			}
+			memi[work+2]=leaf;
 		}
-		// Records all zones an atom is in.
-		this.zonecnt=zonecnt;
-		let zoneend  =memarr[0];
-		let zoneatoms=memarr[1];
-		let atomend  =memarr[2];
-		let atomzones=memarr[3];
-		let sum=zoneidx;
-		for (let i=0;i<atomcnt;i++) {atomend[i]=0;}
-		for (let i=0;i<sum;i++) {atomend[zoneatoms[i]]++;}
-		for (let i=atomcnt-1;i>=0;i--) {
-			sum-=atomend[i];
-			atomend[i]=sum;
-		}
-		let idx=0;
-		for (let z=0;z<zonecnt;z++) {
-			let stop=zoneend[z];
-			while (idx<stop) {
-				let a=zoneatoms[idx++];
-				atomzones[atomend[a]++]=z;
+		// Set parents and bounding boxes.
+		for (let n=leafstart-nodesize;n>=0;n-=nodesize) {
+			let l=memi[n+1],r=memi[n+2],ndim=n+nodesize;
+			memi[l]=n;l+=3;
+			memi[r]=n;r+=3;
+			let x,y;
+			for (let i=n+3;i<ndim;i+=2) {
+				x=memf[l++];y=memf[r++];
+				memf[i  ]=x<y?x:y;
+				x=memf[l++];y=memf[r++];
+				memf[i+1]=x>y?x:y;
 			}
 		}
 	}
 
 
 	collide() {
-		// Look at all zones an atom is in and check for collisions in each zone.
-		// Avoid duplicate collisions.
+		// Look at all leaf nodes and check for collision with all leafs to their right
+		// in the tree.
 		let atomcnt=this.atomcnt;
-		if (atomcnt<=0) {return;}
-		let memarr=this.memarr;
-		let collided=memarr[4];
-		for (let i=0;i<atomcnt;i++) {collided[i]=-1;}
-		let collide=PhyAtom.collide;
+		if (atomcnt<=1) {return;}
+		let nodesize=3+this.world.dim*2;
+		let leafidx=nodesize*(atomcnt-1);
+		let leafend=nodesize*(atomcnt*2-1);
+		let memi=this.memi32;
+		let memf=this.memf32;
 		let atomarr=this.atomarr;
-		let zoneend  =memarr[0];
-		let zoneatoms=memarr[1];
-		let atomend  =memarr[2];
-		let atomzones=memarr[3];
-		let idx=0;
-		for (let aid=0;aid<atomcnt;aid++) {
-			let aend=atomend[aid];
-			let a=atomarr[aid];
-			while (idx<aend) {
-				let zone=atomzones[idx++];
-				let zend=zoneend[zone],bid;
-				while ((bid=zoneatoms[--zend])!==aid) {
-					if (collided[bid]!==aid) {
-						collided[bid]=aid;
-						let b=atomarr[bid];
-						collide(a,b);
+		let collide=PhyAtom.collide;
+		// Randomize the order we process leafs.
+		let rnd=this.world.rnd;
+		for (let i=0;i<atomcnt;i++) {
+			let j=leafend+(rnd.getu32()%(i+1));
+			memi[leafend+i]=memi[j];
+			memi[j]=leafidx+i*nodesize;
+		}
+		for (let i=0;i<atomcnt;i++) {
+			let n=memi[leafend+i],prev=n,node=memi[n];
+			let atom=atomarr[~memi[n+1]];
+			let nbnd=n+3,ndim=n+nodesize;
+			while (node>=0) {
+				let next=memi[node  ];
+				let left=memi[node+1];
+				if (prev===next) {
+					// Down - check for overlap.
+					let u=nbnd,v=node+3;
+					while (u<ndim && memf[u]<=memf[v+1] && memf[v]<=memf[u+1]) {u+=2;v+=2;}
+					if (u===ndim) {
+						if (left>=0) {next=left;}
+						else {collide(atom,atomarr[~left]);}
 					}
+				} else if (prev===left) {
+					// Up - go right or up again.
+					next=memi[node+2];
 				}
+				prev=node;
+				node=next;
 			}
 		}
 	}
@@ -955,7 +897,7 @@ class PhyWorld {
 		this.maxsteptime=1/180;
 		this.rnd=new Random();
 		this.gravity=new Vector(dim);
-		this.gravity[dim-1]=0.24;
+		this.gravity[dim-1]=0.2;
 		this.bndmin=(new Vector(dim)).set(-Infinity);
 		this.bndmax=(new Vector(dim)).set( Infinity);
 		this.atomtypelist=new PhyList();

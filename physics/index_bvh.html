@@ -36,6 +36,9 @@
 <a style="float:right" href="./research.html">Research</a><br>
 </div>
 <canvas id="democanv" style="display:block;margin:auto"></canvas>
-<script>new PhyScene("democanv","demobanner");</script>
+<script>
+let scene=new PhyScene("democanv","demobanner");
+scene.world.broad=new PhyBroadphase(scene.world);
+</script>
 </body>
 </html>
