@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v3.09
+drawing.js - v3.10
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -72,16 +72,13 @@ History
      Draw.setcolor can now handle ints, arrays, and objects.
 3.08
      Rescaled default font. Curve derivatives now match neighbors.
+3.10
+     Fixed TGA orientation when saving and loading.
 
 
 --------------------------------------------------------------------------------
 TODO
 
-
-https://www.reddit.com/r/javascript/comments/9nihtw/a_simple_3d_engine_in_47_lines_of_js/
-https://offscreencanvas.com/issues/cel-toon-shading/
-https://smythdesign.com/blog/stylized-grass-webgl/
-https://webgl2fundamentals.org
 
 Rewrite article.
 Simplify _DrawTransform
@@ -138,8 +135,6 @@ DrawPoly
 filltext/textrect
 	Add backspaces and tabs.
 	For filltext, use untransformed offset. Apply transform when drawing.
-3D graphics
-	https://jsfiddle.net/o42mptx3/
 
 
 Tracing draft
@@ -193,6 +188,7 @@ Tracing draft
 		pdx=dx;
 		pdy=dy;
 	}
+
 
 */
 /* npx eslint drawing.js -c ../../standards/eslint.js */
@@ -696,15 +692,19 @@ class _DrawImage {
 		}
 		// Load the image data.
 		this.resize(w,h);
-		let dst=this.data8,didx=0,sidx=18,a=255;
+		let dst=this.data8;
+		let didx=0,dinc=0,sidx=18,a=255;
+		if (src[17]&32) {didx=(h-1)*w*4;dinc=-w*8;}
 		for (let y=0;y<h;y++) {
 			for (let x=0;x<w;x++) {
-				dst[didx++]=src[sidx++];
-				dst[didx++]=src[sidx++];
-				dst[didx++]=src[sidx++];
+				dst[didx+2]=src[sidx++];
+				dst[didx+1]=src[sidx++];
+				dst[didx+0]=src[sidx++];
 				if (bytes===4) {a=src[sidx++];}
-				dst[didx++]=a;
+				dst[didx+3]=a;
+				didx+=4;
 			}
+			didx+=dinc;
 		}
 	}
 
@@ -713,15 +713,16 @@ class _DrawImage {
 		// Returns a Uint8Array with TGA image data.
 		let w=this.width,h=this.height;
 		if (w>0xffff || h>0xffff) {throw "Size too big: "+w+", "+h;}
-		let didx=18,dst=new Uint8Array(w*h*4+didx);
-		let sidx= 0,src=this.data8;
-		dst.set([0,0,2,0,0,0,0,0,0,0,0,0,w&255,w>>>8,h&255,h>>>8,32,0],0,didx);
+		let didx=18,sidx=0;
+		let dst=new Uint8Array(w*h*4+didx),src=this.data8;
+		dst.set([0,0,2,0,0,0,0,0,0,0,0,0,w&255,w>>>8,h&255,h>>>8,32,40],0,didx);
 		for (let y=0;y<h;y++) {
 			for (let x=0;x<w;x++) {
-				dst[didx++]=src[sidx++];
-				dst[didx++]=src[sidx++];
-				dst[didx++]=src[sidx++];
-				dst[didx++]=src[sidx++];
+				dst[didx++]=src[sidx+2];
+				dst[didx++]=src[sidx+1];
+				dst[didx++]=src[sidx+0];
+				dst[didx++]=src[sidx+3];
+				sidx+=4;
 			}
 		}
 		return dst;

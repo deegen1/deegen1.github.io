@@ -11,6 +11,7 @@ Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 Notes
 
 
+https://www.youtube.com/watch?v=DBX4ReeH6R8&list=PLtzt35QOXmkJ9unmoeA5gXHcscQHJVQpW&index=1
 Just make something simple with falling blocks
 
 The shipping lanes from the earth to the moon have become blocked by by debris.

@@ -29,6 +29,7 @@ History
 TODO
 
 
+Use 64-bit state. 32x16 bit multiplications.
 Only use primitive operations in getnorm().
 https://www.reddit.com/r/algorithms/comments/yyz59u/
 

@@ -1,0 +1,481 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>How to Make an Unstable Physics Engine</title>
+	<link rel="stylesheet" href="../style/style.css" type="text/css">
+	<script src="../style/style.js"></script>
+	<script src="./library.js"></script>
+	<script src="./physics.js"></script>
+	<script src="./demo.js"></script>
+	<script src="./testing/testing.js"></script>
+</head>
+<body>
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<div id="header"><a href="../index.html">Alec Dee's General Site</a></div>
+<div id="content">
+
+
+<!--~~~~~~~~~~~~~~~~ How to Make an Unstable Physics Engine ~~~~~~~~~~~~~~~~~-->
+<h1>How to Make an Unstable Physics Engine</h1>
+<p>Main demo <a href="./index.html">here</a></p>
+<p><a href="./physics.js">physics.js</a> is a physics engine I'm making. This
+page covers the main pieces someone might be interested in learning from.
+Lessons learned concerning stability and performance that are buried in larger
+engines.</p>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Collisions ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Collisions</h1>
+<!--<h2>Collisions</h2>-->
+<p>The engine is based around simulating everything with atoms and bonds, which
+means that collisions would form the core of the engine and that it was
+important I get them right. A bit of research turned up results to just use
+ready-made engines, and a bit more research turned up basic elastic collision
+equations, like
+<a href="https://en.wikipedia.org/wiki/Elastic_collision#Two-dimensional">wikipedia</a>.</p>
+<p>This is what the simulation looks like when implementing the equations as
+they're written:</p>
+<table style="width:100%">
+<tr><td></td>
+<td style="width:33%;padding:1rem;"><canvas id="stackcanv00" style="margin:auto;"></canvas></td>
+<td></td></tr>
+</table>
+<p>Simulation grade. The problem is that the equations are modeled after
+reality, which effectively has an infinitely small timestep, and we can't
+simulate that in any reasonable timeframe. Our simulation will have to make do
+with the large timesteps we give it.</p>
+<p>This is the pseudocode the simulation is using, implementing real-world
+equations:</p>
+<div class="codeblock langjs">function collideatoms(a,b) {
+	// Determine if the atoms are overlapping.
+	let norm=b.pos-a.pos;
+	let dist=norm*norm;
+	let rad=a.rad+b.rad;
+	if (dist>=rad*rad) {return;}
+	dist=Math.sqrt(dist);
+	norm/=dist;
+	// Get relative masses.
+	let mass=a.mass+b.mass;
+	let amass=a.mass/mass;
+	let bmass=b.mass/mass;
+	// Get the relative velocity.
+	let elasticity=1.98;
+	let posdif=rad-dist;
+	let veldif=norm*(a.vel-b.vel)*elasticity;
+	// Push the atoms apart.
+	a.pos-=norm*(posdif*bmass);
+	a.vel-=norm*(veldif*bmass);
+	b.pos+=norm*(posdif*amass);
+	b.vel+=norm*(veldif*amass);
+}
+</div>
+<p>The problem with all the atoms collapsing together occurs because our stack
+of atoms is crushed together so much that they never fully separate. Our engine
+applies the collision equations whenever the atoms are colliding, but those
+equations only make sense if the atoms are traveling <b>towards</b> each other.
+Our stack is so dense that atoms can stay overlapping each other even though
+their velocities should separate them.</p>
+<p>The fix, pretty simply, is to ignore the velocity component when the atoms
+are already traveling away from each other. The only modification needed is to
+the <i>veldif</i> equation.</p>
+<div class="codeblock langjs">let veldif=norm*(a.vel-b.vel);
+veldif=max(veldif,0)*elasticity;
+</div>
+<p>With this we can see a pretty noticeable improvement:</p>
+<table style="width:100%">
+<tr>
+<td></td>
+<td style="width:33%;padding:1rem;"><canvas id="stackcanv01" style="margin:auto;"></canvas></td>
+<td style="width:33%;padding:1rem;"><canvas id="stackcanv10" style="margin:auto;"></canvas></td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td style="padding:1.5rem;padding-top:0;"><i>veldif</i></td>
+<td style="padding:1.5rem;padding-top:0;"><i>max(veldif,0)</i></td>
+<td></td>
+</tr>
+</table>
+<p>The stack still looks a little too crushed at the bottom. Even if this is
+reflective of high pressures in the real world, the engine isn't really applying
+pressure to the bottom of the stack. The volatile movement is mostly being
+caused by the atoms pushing each other's positions away from each other. We need
+a way for that change in position to result in a change in velocity to allow the
+bottom to build up pressure and press up against gravity. The modification is
+once again to <i>veldif</i> by adding <i>posdif</i> to it</p>
+<div class="codeblock langjs">let posdif=rad-dist;
+let veldif=norm*(a.vel-b.vel);
+veldif=max(veldif,0)*elasticity+posdif;
+</div>
+<p>With this we finally have a stack that can support itself</p>
+<table style="width:100%">
+<tr>
+<td style="width:33%;padding:1rem;"><canvas id="stackcanv02" style="margin:auto;"></canvas></td>
+<td style="width:33%;padding:1rem;"><canvas id="stackcanv11" style="margin:auto;"></canvas></td>
+<td style="width:33%;padding:1rem;"><canvas id="stackcanv20" style="margin:auto;"></canvas></td>
+</tr>
+<tr>
+<td style="padding:1.5rem;padding-top:0;"><i>veldif</i></td>
+<td style="padding:1.5rem;padding-top:0;"><i>max(veldif,0)</i></td>
+<td style="padding:1.5rem;padding-top:0;"><i>max(veldif,0) + posdif</i></td>
+</tr>
+</table>
+<script>
+new StackScene(["stackcanv00","stackcanv01","stackcanv02"],0);
+new StackScene(["stackcanv10","stackcanv11"],1);
+new StackScene(["stackcanv20"],2);
+</script>
+<p>The final corrected function is:</p>
+<div class="codeblock langjs">function collideatoms(a,b) {
+	// Determine if the atoms are overlapping.
+	let norm=b.pos-a.pos;
+	let dist=norm*norm;
+	let rad=a.rad+b.rad;
+	if (dist>=rad*rad) {return;}
+	dist=Math.sqrt(dist);
+	norm/=dist;
+	// Get relative masses.
+	let mass=a.mass+b.mass;
+	let amass=a.mass/mass;
+	let bmass=b.mass/mass;
+	// Get the relative velocity.
+	let elasticity=1.98;
+	let posdif=rad-dist;
+	let veldif=norm*(a.vel-b.vel);          // correction
+	veldif=max(veldif,0)*elasticity+posdif; // correction
+	// Push the atoms apart.
+	a.pos-=norm*(posdif*bmass);
+	a.vel-=norm*(veldif*bmass);
+	b.pos+=norm*(posdif*amass);
+	b.vel+=norm*(veldif*amass);
+}
+</div>
+<p>The choice to add <i>posdif</i> to the velocity came after a lot of trial and
+error. Other attempts involved having a multiplier increase every time an atom
+got hit, or increasing the relative mass of atoms lower to the ground. All of
+these felt hackish, especially since some simulations might have multiple fields
+of gravity. <i>posdif</i> was the simplest solution that offered decent results
+and didn't blow up the simulation, so it's what I stuck with.</p>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Springs ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Springs</h1>
+<!--<h2>Springs</h2>-->
+<p>Springs (called bonds) form the second half of creating solid objects in the
+engine, so it's equally important that we get them right too. The standard
+equations for springs follow
+<a href="https://en.wikipedia.org/wiki/Hooke%27s_law">Hooke's law</a>. Unlike
+the early problems with atoms collapsing, applying Hooke's law results in
+meshes that explode:</p>
+<table style="width:100%">
+<tr><td></td>
+<td style="width:36%;padding:2rem;">
+<canvas id="osccanv4" style="margin:auto;"></canvas></td>
+<td></td></tr>
+</table>
+<p>This is the pseudocode that implements Hooke's law as it's written:</p>
+<div class="codeblock langjs">function applyspring() {
+	// Compare atom distance.
+	let a=this.a,b=this.b;
+	let norm=b.pos-a.pos;
+	let dist=Math.sqrt(norm*norm);
+	norm/=dist;
+	// Get relative masses.
+	let mass=a.mass+b.mass;
+	let amass=a.mass/mass;
+	let bmass=b.mass/mass;
+	// Push or pull the atoms.
+	let force=norm*(this.dist-dist)*this.tension;
+	a.acc-=force*bmass;
+	b.acc+=force*amass;
+}
+// update all atoms after accumulating forces
+</div>
+<p>Once again, the infinitesimal timestep of the real world allows the
+traditional spring equations to work. The mesh explosion results from the
+engine accumulating all of the acceleration changes at once, and then applying
+them all at once in a separate step. When the atoms are perfectly aligned,
+forces stay in balance. But, because our simulation is a flawed world with large
+timesteps and floating-point rounding, as soon as that balance is upset a
+little, the corrective spring forces build up in one direction, and in the next
+step build up in the other direction and so on.</p>
+<p>The fix is to change when we apply the forces so that the springs naturally
+moderate themselves. We'll modify the function to apply the acceleration when
+the spring is evaluated instead of waiting to do it all at once, like so:</p>
+<div class="codeblock langjs">// dt = our timestep. For 60 fps it would be 1/60.
+let force=(rest_dist-dist)*tension;
+pos+=force*dt*dt*0.5;
+vel+=force*dt;
+</div>
+<p>Modifying the positions during evaluation prevents the forces from building
+up. This results in a much more stable mesh</p>
+<table style="width:100%">
+<tr><td></td>
+<td style="width:36%;padding:2rem;">
+<canvas id="osccanv2" style="margin:auto;"></canvas></td>
+<td style="width:36%;padding:2rem;">
+<canvas id="osccanv3" style="margin:auto;"></canvas></td>
+<td></td>
+</tr><tr>
+<td></td>
+<td style="padding:2rem;padding-top:0;vertical-align:top">
+<i>acc += force</i></td>
+<td style="padding:2rem;padding-top:0;vertical-align:top">
+<i>pos += force * dt * dt * 0.5<br>vel += force * dt</i></td>
+<td></td></tr>
+</table>
+<p>The final corrected spring function is:</p>
+<div class="codeblock langjs">function applyspring(dt) {
+	// Compare atom distance to our target distance.
+	let a=this.a,b=this.b;
+	let norm=b.pos-a.pos;
+	let dist=Math.sqrt(norm*norm);
+	norm/=dist;
+	// Get relative masses.
+	let mass=a.mass+b.mass;
+	let amass=a.mass/mass;
+	let bmass=b.mass/mass;
+	// Push or pull the atoms, with corrected forces.
+	let force=(this.dist-dist)*this.tension;
+	let veldif=force*dt;
+	let posdif=force*dt*dt*0.5;
+	a.pos-=norm*(posdif*bmass);
+	a.vel-=norm*(veldif*bmass);
+	b.pos+=norm*(posdif*amass);
+	b.vel+=norm*(veldif*amass);
+}
+</div>
+<p>Once meshes get large enough, however, forces can still build up
+regardless.</p>
+<table style="width:100%">
+<tr><td></td>
+<td style="width:36%;padding:2rem;">
+<canvas id="osccanv5" style="margin:auto;"></canvas></td>
+<td></td></tr>
+</table>
+<p>The problem isn't really on the engine this time. It has to do with how
+meshes are normally constructed. In the demo above, for example, we have two
+loops that build the meshes from upper-left to bottom-right.</p>
+<div class="codeblock langjs">for (let y=0;y&lt;mesh_height;y++) {
+	for (let x=0;x&lt;mesh_width;x++) {
+		// connect (x,y) with (x-1,y  )
+		// connect (x,y) with (x  ,y-1)
+		// connect (x,y) with (x-1,y-1)
+		// connect (x,y) with (x+1,y-1)
+	}
+}
+</div>
+<p>When meshes are constructed with an order like this, forces tend to build up
+in one direction like a wave. The oscillations in the demo are always biased to
+one corner if you watch closely.</p>
+<p>We can fix this by randomizing the order we evaluate springs. Any
+randomization will work, even if it's low quality. As long as the forces are
+spread out then the mesh will stabilize.</p>
+<table style="width:100%">
+<tr>
+<td></td>
+<td style="width:36%;padding:2rem;">
+<canvas id="osccanv0" style="margin:auto;"></canvas></td>
+<td style="width:36%;padding:2rem;">
+<canvas id="osccanv1" style="margin:auto;"></canvas></td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td style="padding:2rem;padding-top:0;">Static ordering. The mesh always
+resonates and collapses.</td>
+<td style="padding:2rem;padding-top:0;">Random ordering. The mesh is jittery
+but doesn't collapse.</td>
+<td></td>
+</tr>
+</table>
+<script>
+new OscillationScene(["osccanv0","osccanv5"],0);
+new OscillationScene(["osccanv1"],1);
+new OscillationScene(["osccanv2","osccanv4"],2);
+new OscillationScene(["osccanv3"],3);
+</script>
+<p>When figuring out how to stabilize the springs, updating the position
+quickly became the obvious choice. The only problem was that choosing the
+wrong multiplier created springs that were almost too stable. Boxes would
+barely rotate when a corner was hit. After a lot of trial and error, I
+eventually found that just unrolling the acceleration equations in the spring
+function was enough to make things stable without any weird hacks or
+multipliers.</p>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Broadphase ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Broadphase</h1>
+<!--<h2>Broadphase</h2>-->
+<p>If you're driving a car in the U.S., you likely won't be worried about a car
+making a left turn in China. Although humans can make this distinction easily, a
+computer won't know to. Anything can collide with anything, even if they're far
+away. So, if we have 1000 objects, then there will be about half a million pairs
+of collisions we'll need to test - half a million for every single step of the
+engine.</p>
+<p>The broadphase step does the job of quickly determining which objects are
+likely to collide and which ones aren't. An easy way to do this is to draw a
+grid. If two objects overlap the same cell, check if they collide. This grid
+scheme runs into problems with differently scaled objects though: a mountain
+will take up millions of cells, while a mouse will take up one.</p>
+<p>Our engine instead uses a bounding volume hierarchy (BVH), which looks like
+this:</p>
+<canvas id="bvhcanv" style="width:100%;height:200px;"></canvas>
+<script>new BVHScene("bvhcanv");</script>
+<p>This demo doesn't show the full hierarchy since it would be too messy, but
+the algorithm works by subdividing the world into smaller and smaller boxes. We
+first check if an object overlaps the top box. If it does then we check if it
+overlaps any of it's children until we get all the way down to an actual,
+tangible object. The hard part of this scheme is deciding the best way to divide
+up everything.</p>
+<p>I decided to compare the different construction methods for evaluation time
+and BVH quality. I've listed the performance values below, but the method I
+decided to go with involved:</p>
+<table class="listtable">
+<tr><td>1.</td><td>Find the smallest and largest values of the AABB box minimums
+along each axis.</td></tr>
+<tr><td>2.</td><td>Pick the axis with the largest <i>max - min</i></td></tr>
+<tr><td>3.</td><td>Take <i>(min+max)/2</i> and sort objects by whether their
+AABB's are above or below this value.</td></tr>
+<tr><td>4.</td><td>Continue subdividing each side.</td></tr>
+</table>
+<p>I call this the center split method. Other common methods involve splitting
+by the average of all AABB's, or sorting them by Morton codes and building the
+tree from the bottom up.</p>
+<p>The next thing to look at was traversing the BVH during collision checks.
+From past experience working in C, I knew that flattening the tree was more
+trouble than it's worth for a few thousand objects. But in javascript, every
+array access is treated as an affront to god and punished just as harshly. In
+the end flattening the tree resulted in an amazing ~40% speed up. Converting to
+webassembly was always slower no matter how I did it.</p>
+<p>2D times</p>
+<table class="datatable headerrow">
+<tr><td>Scheme</td><td>Time (s)</td><td>Volume (u^2)</td><td>AABB Tests (k)</td></tr>
+<tr><td>Center (flat)</td><td>0.106</td><td>13,467</td><td>3,755</td></tr>
+<tr><td>Mean (flat)</td>  <td>0.108</td><td>16,260</td><td>3,969</td></tr>
+<tr><td>Morton (WASM)</td><td>0.127</td><td>16,110</td><td>2,432</td></tr>
+<tr><td>Grid</td>         <td>0.137</td><td>N/A</td><td>N/A</td></tr>
+<tr><td>Mean</td>         <td>0.180</td><td>16,260</td><td>2,333</td></tr>
+<tr><td>Center</td>       <td>0.184</td><td>13,467</td><td>2,340</td></tr>
+<tr><td>Median</td>       <td>0.366</td><td>19,279</td><td>2,413</td></tr>
+<tr><td>Median (WASM)</td><td>0.421</td><td>19,279</td><td>2,413</td></tr>
+<tr><td>SAH (fast)</td>   <td>0.664</td><td>11,375</td><td>2,259</td></tr>
+<tr><td>SAH (full)</td>   <td>1.542</td><td>11,120</td><td>2,254</td></tr>
+</table>
+<p>3D times</p>
+<table class="datatable headerrow">
+<tr><td>Scheme</td><td>Time (s)</td><td>Volume (u^3)</td><td>AABB Tests (k)</td></tr>
+<tr><td>Center (flat)</td><td>0.137</td><td>446,394</td><td>5,672</td></tr>
+<tr><td>Mean (flat)</td>  <td>0.137</td><td>588,805</td><td>5,713</td></tr>
+<tr><td>Morton (WASM)</td><td>0.153</td><td>622,660</td><td>4,278</td></tr>
+<tr><td>Center</td>       <td>0.229</td><td>446,394</td><td>4,052</td></tr>
+<tr><td>Mean</td>         <td>0.229</td><td>588,805</td><td>3,963</td></tr>
+<tr><td>Median</td>       <td>0.420</td><td>970,161</td><td>4,056</td></tr>
+<tr><td>Median (WASM)</td><td>0.471</td><td>970,161</td><td>4,056</td></tr>
+<tr><td>Grid</td>         <td>0.502</td><td>N/A</td><td>N/A</td></tr>
+<tr><td>SAH (fast)</td>   <td>0.789</td><td>417,253</td><td>3,858</td></tr>
+<tr><td>SAH (full)</td>   <td>2.418</td><td>415,410</td><td>3,831</td></tr>
+</table>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Drawing ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Drawing</h1>
+<!--<h2>Drawing</h2>-->
+<p>Because I wanted to construct objects out of atoms, the problem arose with
+how to render them accurately while also looking good. In minecraft, everything
+is a block which ends up looking pleasing because they line up flush with each
+other. With circles, there end up being annoying gaps no matter how they're
+stacked.</p>
+<p>The obvious solution is to keep the drawing separate from the physical
+object, which quickly becomes untenable when the underlying atoms are deformed.
+There are also fancy filling algorithms I looked at but abandoned because they
+would be too complicated and slow.</p>
+<p>The solution was to change how objects were constructed to allow overlapping
+atoms if there was a bond between them. When rendering, if multiple atoms
+overlap, pixels from the closest atom overwrite others. This allows straight
+edges to form even when we're modeling everything with circles.</p>
+<p>This is what the effect looks like in action:</p>
+<svg version="1.1" viewBox="0 0 483 483" class="diagram"
+style="background:#000000;width:50%">
+	<defs>
+		<g id="row1">
+			<circle cx=0.0 cy=0 r=.4 />
+			<circle cx=0.7 cy=0 r=.4 />
+			<circle cx=1.4 cy=0 r=.4 />
+			<circle cx=2.1 cy=0 r=.4 />
+			<circle cx=2.8 cy=0 r=.4 />
+			<circle cx=3.5 cy=0 r=.4 />
+		</g>
+		<g id="box1">
+			<use href="#row1" x=0 y=0.0 />
+			<use href="#row1" x=0 y=0.7 />
+			<use href="#row1" x=0 y=1.4 />
+			<use href="#row1" x=0 y=2.1 />
+			<use href="#row1" x=0 y=2.8 />
+			<use href="#row1" x=0 y=3.5 />
+		</g>
+		<g id="row2">
+			<circle cx=0.0 cy=0 r=.6 />
+			<circle cx=0.7 cy=0 r=.6 />
+			<circle cx=1.4 cy=0 r=.6 />
+			<circle cx=2.1 cy=0 r=.6 />
+			<circle cx=2.8 cy=0 r=.6 />
+			<circle cx=3.5 cy=0 r=.6 />
+		</g>
+		<g id="box2">
+			<use href="#row2" x=0 y=0.0 />
+			<use href="#row2" x=0 y=0.7 />
+			<use href="#row2" x=0 y=1.4 />
+			<use href="#row2" x=0 y=2.1 />
+			<use href="#row2" x=0 y=2.8 />
+			<use href="#row2" x=0 y=3.5 />
+		</g>
+		<mask id="center">
+			<rect x=-1 y=-1 width=5.5 height=5.5 fill="#ffffff"
+			stroke="none"/>
+			<rect x=0.35 y=0.35 width=2.8 height=2.8 fill="#a0a0a0"
+			stroke="none"/>
+		</mask>
+	</defs>
+	<g transform="translate(100,100) scale(25,25)" stroke="#ffffff"
+		stroke-width=.04 fill="none">
+		<use href="#box1" x=0 y=0 />
+	</g>
+	<g transform="translate(300,100) scale(25,25)" stroke="none"
+		fill="#40dd00" mask="url(#center)">
+		<use href="#box1" x=0 y=0 />
+	</g>
+	<g transform="translate(100,280) scale(25,25)" stroke="#ffffff"
+		stroke-width=.04 fill="none">
+		<use href="#box2" x=0 y=0 />
+	</g>
+	<g transform="translate(300,280) scale(25,25)" stroke="none"
+		fill="#40dd00" mask="url(#center)">
+		<use href="#box2" x=0 y=0 />
+	</g>
+</svg>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Notes ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Notes</h1>
+<p>I'm really happy with how the dynamics turned out. I've been working with
+physics engines for a long time, and it was only recently that everything came
+together to create an engine that's stable and also looks good.</p>
+<p>The broadphase detection was also a long time coming. I used to use
+grid-based detection because of its speed, and before that an algorithm that
+would find the covariance of the points and split them along that vector. Only
+after sitting down to try a dozen or so different types of BVH algorithms did I
+find the center split method that is not only more functional than the grid, but
+also faster.</p>
+<p>I thought about making an engine with only atoms and modeling everything
+with protons and electrons. That might come at another time. I don't know how
+electrons stay stuck to protons if they're neutral...</p>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+</div><div id="footer">Created on 15 May 2025 - Modified on 11 Jun 2025<br>
+Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
+<a href="../index.html">Alec Dee's General Site</a></div>
+</body>
+</html>

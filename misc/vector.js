@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-vector.js - v1.05
+vector.js - v1.06
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -27,7 +27,7 @@ Allow functions to take scalars or vectors.
 
 
 //---------------------------------------------------------------------------------
-// Vector - v1.05
+// Vector - v1.06
 
 
 class Vector extends Array {
@@ -161,6 +161,7 @@ class Vector extends Array {
 
 	randomize() {
 		let u=this,len=this.length;
+		if (!len) {return this;}
 		let mag,i,x,rnd=Vector.rnd;
 		do {
 			mag=0;
@@ -183,6 +184,7 @@ class Vector extends Array {
 
 	normalize() {
 		let u=this,len=this.length,mag=0,i,x;
+		if (!len) {return;}
 		for (i=0;i<len;i++) {
 			x=u[i];
 			mag+=x*x;

@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v1.05
+library.js - v1.06
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -13,7 +13,7 @@ Versions
 
 Input   - v1.15
 Random  - v1.09
-Vector  - v1.05
+Vector  - v1.06
 Drawing - v3.09
 Audio   - v3.03
 
@@ -506,7 +506,7 @@ class Random {
 
 
 //---------------------------------------------------------------------------------
-// Vector - v1.05
+// Vector - v1.06
 
 
 class Vector extends Array {
@@ -640,6 +640,7 @@ class Vector extends Array {
 
 	randomize() {
 		let u=this,len=this.length;
+		if (!len) {return this;}
 		let mag,i,x,rnd=Vector.rnd;
 		do {
 			mag=0;
@@ -662,6 +663,7 @@ class Vector extends Array {
 
 	normalize() {
 		let u=this,len=this.length,mag=0,i,x;
+		if (!len) {return;}
 		for (i=0;i<len;i++) {
 			x=u[i];
 			mag+=x*x;

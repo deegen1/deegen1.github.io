@@ -63,7 +63,8 @@ TODO
 
 Waveguides
 	https://www.osar.fr/notes/waveguides/
-	https://petersalomonsen.com/articles/assemblyscriptphysicalmodelingsynthesis/assemblyscriptphysicalmodelingsynthesis.html
+	https://petersalomonsen.com/articles/assemblyscriptphysicalmodelingsynth
+	esis/assemblyscriptphysicalmodelingsynthesis.html
 
 AIVA or UDIO for midi creation.
 Remove envelopes, biquad, and delay?
@@ -96,7 +97,8 @@ Sound effects
 	Dial up sound scratching. Use for electric guitar type sound.
 
 Allow inst to play effects
-	https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Using_AudioWorklet
+	https://developer.mozilla.org/en-US/docs/Web/API/
+	Web_Audio_API/Using_AudioWorklet
 
 
 */

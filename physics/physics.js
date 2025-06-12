@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v2.01
+physics.js - v3.00
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -31,52 +31,19 @@ History
      Broadphase will no longer collide 2 atoms multiple times a step.
 2.01
      Broadphase now uses a BVH instead of subdivided regions.
+3.00
+     Bonds now apply acceleration but modify pos and vel directly for stability.
+     Added iterators.
 
 
 --------------------------------------------------------------------------------
 TODO
 
 
-Testing
-	narrowphase speed test
-		generate an array of atoms
-		time collision of every 2 atoms
-		add back collision callback
-		add a read-only callback and read-write callback
-	ballistic test
-	rotation test
-	multiple dimensions for all tests
-	rewrite everthing to use multiply add
-	if (!(dist<rad*rad)) {return;}
-	let den=1;
-	if (dist>=1e-10) {
-		dist=Math.sqrt(dist);
-		den=1/dist;
-	} else {
-		// The atoms are too close, so guess a direction to separate them.
-		// This should be a random unit vector, but all we care about is speed.
-		let rand=Math.imul(world.seed++,0xf8b7629f);
-		norm[rand%dim]=((rand>>>30)&2)-1;
-	}
-	for (i=0;i<dim;i++) {
-		let x=(norm[i]*=den);
-		veldif+=(avel[i]-bvel[i])*x;
-	}
-
-Why aren't boxes spinning properly?
-	veldif=veldif>0?veldif:0;
-	more steps?
-Collisions and bonds should use the same equations.
-Skip collision step and only update during bond step?
-
-get rid of need to define material types
-	add [density,damp,elasticity] option instead of type
-divide pvmul by timestep, since it's acceleration
-Bonds that break when stretched
-How to layer atoms so a particle will always be pushed out?
-	1 dimension? 2 dimensions?
-How many bonds are needed for a cube to be stable?
-Find better sorting criteria for broadphase.
+Bonds that break when stretched.
+Scale pvmul like calcdt.
+See if leaning the BVH tree to the left or right is faster.
+Try maintaining sorted order of AABBs.
 
 
 */
@@ -94,7 +61,7 @@ function PhyAssert(condition,data) {
 
 
 //---------------------------------------------------------------------------------
-// Physics - v2.01
+// Physics - v3.00
 
 
 class PhyLink {
@@ -146,6 +113,15 @@ class PhyList {
 			link=next;
 		}
 		this.count=0;
+	}
+
+
+	*iter() {
+		let link,next=this.head;
+		while ((link=next)!==null) {
+			next=link.next;
+			yield link.obj;
+		}
 	}
 
 
@@ -279,7 +255,7 @@ class PhyAtomType {
 		this.vmul=elasticity;
 		this.vpmul=1.0;
 		this.bound=true;
-		this.callback=null;
+		// this.callback=null;
 		this.dt =NaN;
 		this.dt0=0;
 		this.dt1=0;
@@ -413,7 +389,6 @@ class PhyAtom {
 		pos=new Vector(pos);
 		this.pos=pos;
 		this.vel=new Vector(pos.length);
-		this.acc=new Vector(pos.length);
 		this.rad=rad;
 		this.bondlist=new PhyList();
 		this.typelink=new PhyLink(this);
@@ -457,49 +432,32 @@ class PhyAtom {
 		// acc+=gravity
 		// pos+=vel*dt1+acc*dt2
 		// vel =vel*dt0+acc*dt1
-		/*let pe=this.pos,ve=this.vel;
-		let dim=pe.length,type=this.type,v,a;
-		let ae=this.acc,ge=type.gravity;
-		ge=(ge===null?this.world.gravity:ge);
-		let dt0=type.dt0,dt1=type.dt1,dt2=type.dt2;
-		for (let i=0;i<dim;i++) {
-			v=ve[i];
-			a=ae[i]+ge[i];
-			pe[i]+=v*dt1+a*dt2;
-			ve[i] =v*dt0+a*dt1;
-			ae[i] =0;
-		}*/
 		let world=this.world;
 		let bndmin=world.bndmin;
 		let bndmax=world.bndmax;
-		let pe=this.pos,ve=this.vel;
+		let pe=this.pos,ve=this.vel,b;
 		let dim=pe.length,type=this.type;
 		if (type.dt!==dt) {type.updateconstants(dt);}
 		let bound=type.bound;
-		let ae=this.acc,ge=type.gravity;
+		let ge=type.gravity;
 		ge=(ge===null?this.world.gravity:ge);
 		let dt0=type.dt0,dt1=type.dt1,dt2=type.dt2;
 		let pos,rad=this.rad;
 		for (let i=0;i<dim;i++) {
-			let vel=ve[i],acc=ae[i]+ge[i];
+			let vel=ve[i],acc=ge[i];
 			pos=vel*dt1+acc*dt2+pe[i];
 			vel=vel*dt0+acc*dt1;
-			if (bound && pos<bndmin[i]+rad) {
-				pos=bndmin[i]+rad;
-				vel=vel<0?-vel:vel;
-			}
-			if (bound && pos>bndmax[i]-rad) {
-				pos=bndmax[i]-rad;
-				vel=vel>0?-vel:vel;
-			}
+			b=bound?bndmin[i]+rad:-Infinity;
+			if (pos<b) {pos=b;vel=vel<0?-vel:vel;}
+			b=bound?bndmax[i]-rad: Infinity;
+			if (pos>b) {pos=b;vel=vel>0?-vel:vel;}
 			pe[i]=pos;
 			ve[i]=vel;
-			ae[i]=0;
 		}
 	}
 
 
-	static collide(a,b) {// ,callback) {
+	static collide(a,b) {
 		// Collides two atoms. Vector operations are unrolled to use constant memory.
 		if (Object.is(a,b)) {return;}
 		let intr=a.type.intarr[b.type.id];
@@ -528,48 +486,43 @@ class PhyAtom {
 			}
 		}
 		if (dist>=rad*rad) {return;}
-		// If we have a callback, allow it to handle the collision.
-		// if (callback===undefined && intr.callback!==null) {
-		// 	if (intr.callback(a,b)) {PhyAtom.collide(a,b,true);}
-		// 	return;
-		// }
 		let amass=a.mass,bmass=b.mass;
 		let mass=amass+bmass;
 		if ((amass>=Infinity && bmass>=Infinity) || mass<=1e-10 || dim===0) {
 			return;
 		}
-		amass=amass>=Infinity?1.0:(amass/mass);
-		bmass=bmass>=Infinity?1.0:(bmass/mass);
+		amass=amass>=Infinity? 1.0: amass/mass;
+		bmass=bmass>=Infinity?-1.0:-bmass/mass;
 		// If the atoms are too close together, randomize the direction.
+		let den=1;
 		if (dist>1e-10) {
 			dist=Math.sqrt(dist);
-			dif=1.0/dist;
+			den=1.0/dist;
 		} else {
-			dist=0;
-			dif=1.0;
-			a.world.tmpvec.randomize();
+			norm.randomize();
 		}
 		// Check the relative velocity. We can have situations where two atoms increase
 		// eachother's velocity because they've been pushed past eachother.
 		let avel=a.vel,bvel=b.vel;
 		let veldif=0.0;
 		for (i=0;i<dim;i++) {
-			norm[i]*=dif;
-			veldif-=(bvel[i]-avel[i])*norm[i];
+			norm[i]*=den;
+			veldif+=(avel[i]-bvel[i])*norm[i];
 		}
 		let posdif=rad-dist;
-		// if (link===null) {veldif=veldif>0?veldif:0;}
 		veldif=veldif>0?veldif:0;
 		veldif=veldif*intr.vmul+posdif*intr.vpmul;
-		// veldif=veldif>0?veldif:0;
 		posdif*=intr.pmul;
+		// If we have a callback, allow it to handle the collision.
+		let callback=intr.callback;
+		if (callback!==null && !callback(a,b,norm,veldif,posdif)) {return;}
 		// Push the atoms apart.
-		let avelmul=veldif*bmass,bvelmul=veldif*amass;
-		let aposmul=posdif*bmass,bposmul=posdif*amass;
+		let aposmul=posdif*bmass,avelmul=veldif*bmass;
+		let bposmul=posdif*amass,bvelmul=veldif*amass;
 		for (i=0;i<dim;i++) {
 			dif=norm[i];
-			apos[i]-=dif*aposmul;
-			avel[i]-=dif*avelmul;
+			apos[i]+=dif*aposmul;
+			avel[i]+=dif*avelmul;
 			bpos[i]+=dif*bposmul;
 			bvel[i]+=dif*bvelmul;
 		}
@@ -604,7 +557,7 @@ class PhyBond {
 	}
 
 
-	update(dt) {
+	update() {
 		// Pull two atoms toward eachother based on the distance and bond strength.
 		// Vector operations are unrolled to use constant memory.
 		let a=this.a,b=this.b;
@@ -613,8 +566,8 @@ class PhyBond {
 		if ((amass>=Infinity && bmass>=Infinity) || mass<=1e-10) {
 			return;
 		}
-		amass=amass>=Infinity?1.0:(amass/mass);
-		bmass=bmass>=Infinity?1.0:(bmass/mass);
+		amass=amass>=Infinity? 1.0: amass/mass;
+		bmass=bmass>=Infinity?-1.0:-bmass/mass;
 		// Get the distance and direction between the atoms.
 		let apos=a.pos,bpos=b.pos;
 		let dim=apos.length,i,dif;
@@ -626,25 +579,26 @@ class PhyBond {
 			dist+=dif*dif;
 		}
 		// If the atoms are too close together, randomize the direction.
+		let tension=this.tension;
 		if (dist>1e-10) {
 			dist=Math.sqrt(dist);
-			dif=1.0/dist;
+			tension/=dist;
 		} else {
-			dist=0;
-			dif=1.0;
-			a.world.tmpvec.randomize();
+			norm.randomize();
 		}
-		// Apply equal and opposite forces.
-		let tension=dt*this.tension;
-		let force=(this.dist-dist)*(tension<1?tension:1)*dif;
-		let amul=force*bmass,bmul=force*amass;
+		// Apply equal and opposite acceleration. Updating pos and vel in this
+		// function, instead of waiting for atom.update(), increases stability.
+		let at=a.type,bt=b.type;
+		let acc=(this.dist-dist)*tension;
+		let aacc=acc*bmass,aposmul=aacc*at.dt2,avelmul=aacc*at.dt1;
+		let bacc=acc*amass,bposmul=bacc*bt.dt2,bvelmul=bacc*bt.dt1;
 		let avel=a.vel,bvel=b.vel;
 		for (i=0;i<dim;i++) {
 			dif=norm[i];
-			apos[i]-=dif*amul;
-			avel[i]-=dif*amul;
-			bpos[i]+=dif*bmul;
-			bvel[i]+=dif*bmul;
+			apos[i]+=dif*aposmul;
+			avel[i]+=dif*avelmul;
+			bpos[i]+=dif*bposmul;
+			bvel[i]+=dif*bvelmul;
 		}
 	}
 
@@ -655,9 +609,10 @@ class PhyBroadphase {
 
 	// BVH tree structure, S = 3+2*dim:
 	//
-	//      N*S-S  parent nodes
-	//      N*S    leaf nodes
-	//      N      sorting
+	//      (2N-1)S  tree
+	//      N        sorting
+	//      (2D+1)N  leaf bounds
+	//      N        rand tree
 	//
 	// Node structure:
 	//
@@ -669,7 +624,10 @@ class PhyBroadphase {
 	//      5 y min
 	//        ...
 	//
-	// If left<0, atom_id=-1-left.
+	// If left<0, atom_id=~left.
+	//
+	// Center splitting.
+	// Flat construction.
 
 
 	constructor(world) {
@@ -694,17 +652,15 @@ class PhyBroadphase {
 		// Build a bounding volume hierarchy for the atoms.
 		//
 		// During each step, find the axis with the largest range (x_max-x_min).
-		// Sort the atoms by their minimum bounds on that axis and split the range in half.
-		// Continue subdividing each half.
-		//
+		// Sort the atoms by whether they're above or below the center of this range.
 		let world=this.world;
 		let dim=world.dim;
 		let atomcnt=world.atomlist.count;
 		this.atomcnt=atomcnt;
 		if (atomcnt===0) {return;}
 		// Allocate working arrays.
-		let nodesize=3+2*dim;
-		let treesize=atomcnt*(nodesize*2+1)-nodesize;
+		let dim2=2*dim,nodesize=3+2*dim;
+		let treesize=atomcnt*(nodesize*3)-nodesize;
 		let memi=this.memi32;
 		if (memi===null || memi.length<treesize) {
 			memi=new Int32Array(treesize*2);
@@ -713,8 +669,8 @@ class PhyBroadphase {
 			this.atomarr=new Array(atomcnt*2);
 		}
 		let memf=this.memf32;
-		let leafstart=nodesize*(atomcnt-1);
-		let sortstart=leafstart+nodesize*atomcnt;
+		let sortstart=nodesize*(atomcnt*2-1);
+		let leafstart=sortstart+atomcnt;
 		// Store atoms and their bounds.
 		let slack=1+this.slack;
 		let leafidx=leafstart;
@@ -724,110 +680,76 @@ class PhyBroadphase {
 			let atom=atomlink.obj;
 			atomlink=atomlink.next;
 			atomarr[i]=atom;
+			memi[leafidx++]=i;
 			memi[sortstart+i]=leafidx;
-			memi[leafidx+1]=~i;
-			leafidx+=3;
-			let pos=atom.pos,rad=Math.abs(atom.rad*slack);
+			let pos=atom.pos,rad=atom.rad*slack;
+			rad=rad>0?rad:-rad;
 			for (let axis=0;axis<dim;axis++) {
 				let x=pos[axis],x0=x-rad,x1=x+rad;
-				if (isNaN(x0) || isNaN(x1)) {x0=x1=-Infinity;}
+				x0=x0>-Infinity?x0:-Infinity;
+				x1=x1>=x0?x1:x0;
 				memf[leafidx++]=x0;
 				memf[leafidx++]=x1;
 			}
 		}
 		memi[0]=-1;
-		if (atomcnt<=1) {return;}
-		memi[1]=sortstart;
-		memi[2]=sortstart+atomcnt;
-		let treeidx=nodesize;
-		for (let work=0;work<leafstart;work+=nodesize) {
+		memi[1]=sortstart+atomcnt;
+		let worklo=sortstart;
+		for (let work=0;work<sortstart;work+=nodesize) {
 			// Pop the top working range off the stack.
-			let worklo=memi[work+1];
-			let workhi=memi[work+2];
-			let workmid=worklo+((workhi-worklo)>>>1);
+			let workhi=memi[work+1],workcnt=workhi-worklo;
+			if (workcnt===1) {worklo++;continue;}
 			// Find the axis with the greatest range.
-			let sortoff=-1,sortmax=-Infinity;
-			for (let axis=3;axis<nodesize;axis+=2) {
+			let sortaxis=-1;
+			let sortmin=-Infinity,sortval=-Infinity;
+			for (let axis=0;axis<dim2;axis+=2) {
 				let min=Infinity,max=-Infinity;
 				for (let i=worklo;i<workhi;i++) {
 					let node=memi[i]+axis;
 					let x=memf[node];
 					min=min<x?min:x;
-					x=memf[node+1];
 					max=max>x?max:x;
 				}
-				max-=min;
-				max=max>=0?max:Infinity;
-				if (sortmax<max) {
-					sortmax=max;
-					sortoff=axis;
+				// Handle min=max=inf.
+				let val=max>min?max-min:0;
+				val=val>=0?val:Infinity;
+				if (sortval<val) {
+					sortval=val;
+					sortmin=min;
+					sortaxis=axis;
 				}
 			}
-			// Heapsort the largest axis. We only need to sort half.
-			let sortend=sortoff>=0?workhi:worklo;
-			let sortheap=workmid;
-			let nodeoff=1-worklo;
-			while (sortend>workmid) {
-				let node,child,nidx;
-				if (sortheap>worklo) {
-					// Build the heap.
-					node=--sortheap;
-					nidx=memi[node];
-				} else {
-					// Pop the greatest element to the end of the array.
-					node=sortheap;
-					nidx=memi[--sortend];
-					memi[sortend]=memi[sortheap];
+			// Divide the nodes depending on if they're above or below the center.
+			sortmin+=sortval*0.5;
+			sortval=sortmin<Infinity?sortmin:3.40282347e+38;
+			let sortdiv=worklo;
+			for (let i=dim2?worklo:workhi;i<workhi;i++) {
+				let node=memi[i];
+				if (memf[node+sortaxis]<=sortval) {
+					memi[i]=memi[sortdiv];
+					memi[sortdiv++]=node;
 				}
-				let nval=memf[nidx+sortoff];
-				// Heap sort the top element down.
-				// 2*(node-worklo)+worklo+1 = 2*node-worklo+1
-				while ((child=(node<<1)+nodeoff)<sortend) {
-					let cidx=memi[child];
-					let cval=memf[cidx+sortoff];
-					let right=child+1;
-					if (right<sortend) {
-						let ridx=memi[right];
-						let rval=memf[ridx+sortoff];
-						if (cval<rval) {
-							cidx=ridx;
-							cval=rval;
-							child=right;
-						}
-					}
-					if (nval>=cval) {break;}
-					memi[node]=cidx;
-					node=child;
-				}
-				memi[node]=nidx;
 			}
-			// Split the sorted nodes in half. If we only have 1 node on a side, stop
-			// dividing. Otherwise, add the range to the working stack.
-			let leaf;
-			if (worklo+1===workmid) {
-				leaf=memi[worklo];
-			} else {
-				leaf=treeidx;
-				treeidx+=nodesize;
-				memi[leaf+1]=worklo;
-				memi[leaf+2]=workmid;
-			}
-			memi[work+1]=leaf;
-			if (workhi-1===workmid) {
-				leaf=memi[workmid];
-			} else {
-				leaf=treeidx;
-				treeidx+=nodesize;
-				memi[leaf+1]=workmid;
-				memi[leaf+2]=workhi;
-			}
-			memi[work+2]=leaf;
+			if (sortdiv<=worklo || sortdiv>=workhi) {sortdiv=worklo+(workcnt>>>1);}
+			// Queue the divided nodes for additional processing.
+			// Left follows immediately, right needs to be padded.
+			let l=work+nodesize;
+			let r=work+(sortdiv-worklo)*nodesize*2;
+			memi[l+1]=sortdiv;
+			memi[r+1]=workhi;
+			memi[work+1]=l;
+			memi[work+2]=r;
 		}
-		// Set parents and bounding boxes.
-		for (let n=leafstart-nodesize;n>=0;n-=nodesize) {
+		// Set parents and bounding boxes. Leaf = ~atom_id.
+		for (let n=sortstart-nodesize;n>=0;n-=nodesize) {
 			let l=memi[n+1],r=memi[n+2],ndim=n+nodesize;
-			memi[l]=n;l+=3;
-			memi[r]=n;r+=3;
+			if (l>=sortstart) {
+				l=memi[l-1];r=l;
+				memi[n+2]=~memi[l-1];
+			} else {
+				memi[l]=n;l+=3;
+				memi[r]=n;r+=3;
+			}
 			let x,y;
 			for (let i=n+3;i<ndim;i+=2) {
 				x=memf[l++];y=memf[r++];
@@ -840,45 +762,69 @@ class PhyBroadphase {
 
 
 	collide() {
-		// Look at all leaf nodes and check for collision with all leafs to their right
-		// in the tree.
+		// Check for collisions among leaves. Randomly reorder the tree to randomize
+		// collision order.
 		let atomcnt=this.atomcnt;
 		if (atomcnt<=1) {return;}
 		let nodesize=3+this.world.dim*2;
-		let leafidx=nodesize*(atomcnt-1);
-		let leafend=nodesize*(atomcnt*2-1);
+		let treeend=nodesize*(atomcnt*2-1);
 		let memi=this.memi32;
 		let memf=this.memf32;
 		let atomarr=this.atomarr;
 		let collide=PhyAtom.collide;
-		// Randomize the order we process leafs.
+		// Randomly flip the left and right children and repack them.
+		// Also find the next node to skip AABB's we've already checked.
+		let randstart=treeend;
+		let randend=randstart+treeend;
 		let rnd=this.world.rnd;
-		for (let i=0;i<atomcnt;i++) {
-			let j=leafend+(rnd.getu32()%(i+1));
-			memi[leafend+i]=memi[j];
-			memi[j]=leafidx+i*nodesize;
+		let swap=0;
+		memi[randstart  ]=0;
+		memi[randstart+1]=randend;
+		memi[randstart+2]=treeend;
+		for (let n=randstart;n<randend;n+=nodesize) {
+			let orig=memi[n  ];
+			let next=memi[n+1];
+			// Copy original right child and AABB.
+			let u=n+3,v=orig+3,stop=n+nodesize;
+			while (u<stop) {memi[u++]=memi[v++];}
+			let r=memi[orig+2];
+			if (r<0) {
+				// Make next negative to let us know if it's a leaf.
+				memi[n+1]=~next;
+				memi[n+2]=~r;
+				continue;
+			}
+			let l=memi[orig+1];
+			// Randomly swap the children.
+			if (swap<=1) {swap=rnd.getu32()|0x80000000;}
+			if (swap&1) {let tmp=l;l=r;r=tmp;}
+			swap>>>=1;
+			let cnt=memi[n+2]-nodesize;
+			let lcnt=(l<r?0:cnt)+r-l,rcnt=cnt-lcnt;
+			let lidx=n+nodesize,ridx=lidx+lcnt;
+			memi[lidx  ]=l;
+			memi[lidx+1]=ridx;
+			memi[lidx+2]=lcnt;
+			memi[ridx  ]=r;
+			memi[ridx+1]=next;
+			memi[ridx+2]=rcnt;
 		}
-		for (let i=0;i<atomcnt;i++) {
-			let n=memi[leafend+i],prev=n,node=memi[n];
-			let atom=atomarr[~memi[n+1]];
+		// Process leaves left to right.
+		for (let n=randstart;n<randend;n+=nodesize) {
+			let node=~memi[n+1];
+			if (node<0) {continue;}
+			let atom=atomarr[memi[n+2]];
 			let nbnd=n+3,ndim=n+nodesize;
-			while (node>=0) {
-				let next=memi[node  ];
-				let left=memi[node+1];
-				if (prev===next) {
-					// Down - check for overlap.
-					let u=nbnd,v=node+3;
-					while (u<ndim && memf[u]<=memf[v+1] && memf[v]<=memf[u+1]) {u+=2;v+=2;}
-					if (u===ndim) {
-						if (left>=0) {next=left;}
-						else {collide(atom,atomarr[~left]);}
-					}
-				} else if (prev===left) {
-					// Up - go right or up again.
-					next=memi[node+2];
+			while (node<randend) {
+				let next=memi[node+1];
+				// Down - check for overlap.
+				let u=nbnd,v=node+3;
+				while (u<ndim && memf[u]<=memf[v+1] && memf[v]<=memf[u+1]) {u+=2;v+=2;}
+				if (u===ndim) {
+					if (next>=0) {next=node+nodesize;}
+					else {collide(atom,atomarr[memi[node+2]]);}
 				}
-				prev=node;
-				node=next;
+				node=next<0?~next:next;
 			}
 		}
 	}
@@ -928,6 +874,10 @@ class PhyWorld {
 	}
 
 
+	*atomiter() {yield* this.atomlist.iter();}
+	*bonditer() {yield* this.bondlist.iter();}
+
+
 	createatomtype(damp,density,elasticity) {
 		// Assume types are sorted from smallest to largest.
 		// Find if there's any missing ID or add to the end.
@@ -965,12 +915,7 @@ class PhyWorld {
 		let link=a.bondlist.head;
 		while (link!==null) {
 			let bond=link.obj;
-			if (Object.is(bond.a,a)) {
-				if (Object.is(bond.b,b)) {
-					return bond;
-				}
-			} else if (Object.is(bond.a,b)) {
-				// PhyAssert(Object.is(bond.b,a));
+			if (Object.is(bond.a,b) || Object.is(bond.b,b)) {
 				return bond;
 			}
 			link=link.next;
@@ -1054,12 +999,14 @@ class PhyWorld {
 		let rnd=this.rnd;
 		for (let step=0;step<steps;step++) {
 			// Integrate atoms.
-			let next=this.atomlist.head,link;
+			let link,next;
+			next=this.atomlist.head;
 			while ((link=next)!==null) {
 				next=next.next;
 				link.obj.update(dt);
 			}
-			// Integrate bonds. Randomizing the order minimizes oscillations.
+			// Integrate bonds after atoms or vel will be counted twice.
+			// Randomize the evaluation order to reduce oscillations.
 			let bondcount=this.bondlist.count;
 			let bondarr=this.gettmpmem(bondcount);
 			link=this.bondlist.head;
