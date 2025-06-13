@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.06
+demo.js - v1.07
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -451,14 +451,14 @@ class StackScene {
 			// Resize based on the parent width.
 			let canvas=scene.canvas;
 			let draw=scene.draw;
-			if (!scene.drawn || canvas.width!==canvas.clientWidth) {
+			if (!scene.drawn || draw.img.width!==canvas.clientWidth) {
 				scene.drawn=false;
 				let draww=canvas.clientWidth;
 				let drawh=Math.floor(draww/this.drawratio);
 				canvas.style.height=drawh+"px";
 				canvas.width=draww;
 				canvas.height=drawh;
-				scene.draw.img.resize(draww,drawh);
+				draw.img.resize(draww,drawh);
 				scene.distmap=new Float32Array(draww*drawh);
 			} else if (!IsVisible(canvas)) {
 				// If we've drawn a frame and nothing's visible, skip drawing.
@@ -690,15 +690,15 @@ class OscillationScene {
 			// Resize based on the parent width.
 			let canvas=scene.canvas;
 			let draw=scene.draw;
-			if (!scene.drawn || canvas.width!==canvas.clientWidth) {
+			if (!scene.drawn || draw.img.width!==canvas.clientWidth) {
 				scene.drawn=false;
 				let draww=canvas.clientWidth;
 				let drawh=Math.floor(draww/this.drawratio);
 				canvas.style.height=drawh+"px";
 				canvas.width=draww;
 				canvas.height=drawh;
-				scene.draw.img.resize(draww,drawh);
-				scene.draw.linewidth=draww/300;
+				draw.img.resize(draww,drawh);
+				draw.linewidth=draww/300;
 			} else if (!IsVisible(canvas)) {
 				// If we've drawn a frame and nothing's visible, skip drawing.
 				continue;
@@ -783,14 +783,14 @@ class BVHScene {
 		// Resize based on the parent width.
 		let canvas=this.canvas;
 		let draw=this.draw;
-		if (!this.drawn || canvas.width!==canvas.clientWidth) {
+		if (!this.drawn || draw.img.width!==canvas.clientWidth) {
 			this.drawn=false;
 			let draww=canvas.clientWidth;
 			let drawh=Math.floor(draww/this.drawratio);
 			canvas.style.height=drawh+"px";
 			canvas.width=draww;
 			canvas.height=drawh;
-			this.draw.img.resize(draww,drawh);
+			draw.img.resize(draww,drawh);
 		} else if (!IsVisible(canvas)) {
 			// If we've drawn a frame and nothing's visible, skip drawing.
 			return;

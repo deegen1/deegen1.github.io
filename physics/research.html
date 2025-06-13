@@ -170,7 +170,7 @@ the early problems with atoms collapsing, applying Hooke's law results in
 meshes that explode:</p>
 <table style="width:100%">
 <tr><td></td>
-<td style="width:36%;padding:2rem;">
+<td style="width:40%;padding:2rem;">
 <canvas id="osccanv4" style="margin:auto;"></canvas></td>
 <td></td></tr>
 </table>
@@ -219,8 +219,8 @@ up. This results in a much more stable mesh.</p>
 <td></td>
 </tr><tr>
 <td></td>
-<td style="padding:2rem;padding-top:0;vertical-align:top">
-<i>acc += force</i></td>
+<td style="padding:2rem;padding-top:0;vertical-align:top"><i>acc += force</i>
+<br><i style="visibility:hidden">pos += force * dt * dt * 0.5</i></td>
 <td style="padding:2rem;padding-top:0;vertical-align:top">
 <i>pos += force * dt * dt * 0.5<br>vel += force * dt</i></td>
 <td></td></tr>
@@ -250,7 +250,7 @@ up. This results in a much more stable mesh.</p>
 regardless.</p>
 <table style="width:100%">
 <tr><td></td>
-<td style="width:36%;padding:2rem;">
+<td style="width:40%;padding:2rem;">
 <canvas id="osccanv5" style="margin:auto;"></canvas></td>
 <td></td></tr>
 </table>
