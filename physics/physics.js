@@ -42,8 +42,11 @@ TODO
 
 Bonds that break when stretched.
 Scale pvmul like calcdt.
-See if leaning the BVH tree to the left or right is faster.
-Try maintaining sorted order of AABBs.
+Broadphase
+	See if leaning the BVH tree to the left or right is faster.
+	Try maintaining sorted order of AABBs.
+	Change AABB structure from [x0,y0,x1,y1] to [x0,y0] [x1,y1].
+	Construct parent AABBs during partitioning step?
 
 
 */

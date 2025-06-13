@@ -8,7 +8,7 @@
 	<script src="./library.js"></script>
 	<script src="./physics.js"></script>
 	<script src="./demo.js"></script>
-	<script src="./testing/testing.js"></script>
+	<!--<script src="./testing/testing.js"></script>-->
 </head>
 <body>
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
@@ -326,22 +326,25 @@ this:</p>
 <p>This demo doesn't show the full hierarchy since it would be too messy, but
 the algorithm works by subdividing the world into smaller and smaller boxes. We
 first check if an object overlaps the top box. If it does then we check if it
-overlaps any of it's children until we get all the way down to an actual,
+overlaps any of its children until we get all the way down to an actual,
 tangible object. The hard part of this scheme is deciding the best way to divide
 up everything.</p>
 <p>I decided to compare the different construction methods for evaluation time
-and BVH quality. I've listed the performance values below, but the method I
-decided to go with involved:</p>
+and BVH quality. I've listed the performance values below, but without going
+into the exact differences, the method I decided to go with involved:</p>
 <table class="listtable">
-<tr><td>1.</td><td>Find the smallest and largest values of the AABB box minimums
-along each axis.</td></tr>
-<tr><td>2.</td><td>Pick the axis with the largest <i>max - min</i></td></tr>
-<tr><td>3.</td><td>Take <i>(min+max)/2</i> and sort objects by whether their
-AABB's are above or below this value.</td></tr>
-<tr><td>4.</td><td>Continue subdividing each side.</td></tr>
+<tr><td>1.</td><td>Pick a point in each object's AABB. I went with the minimum
+vertex to keep things simple.</td></tr>
+<tr><td>2.</td><td>Compute a parent AABB containing all of these
+points.</td></tr>
+<tr><td>3.</td><td>Find the axis with the largest <i>max[axis]-min[axis]</i> in
+the parent AABB.</td></tr>
+<tr><td>4.</td><td>Find the midpoint <i>(min[axis]+max[axis])/2</i> and split
+objects by whether their AABBs are above or below this value.</td></tr>
+<tr><td>5.</td><td>Continue subdividing each side.</td></tr>
 </table>
 <p>I call this the center split method. Other common methods involve splitting
-by the average of all AABB's, or sorting them by Morton codes and building the
+by the average of all AABBs, or sorting them by Morton codes and building the
 tree from the bottom up.</p>
 <p>The next thing to look at was traversing the BVH during collision checks.
 From past experience working in C, I knew that flattening the tree was more
@@ -377,6 +380,10 @@ webassembly was always slower no matter how I did it.</p>
 <tr><td>SAH (fast)</td>   <td>0.789</td><td>417,253</td><td>3,858</td></tr>
 <tr><td>SAH (full)</td>   <td>2.418</td><td>415,410</td><td>3,831</td></tr>
 </table>
+<p>The important thing about the center split method is that it is <b>fast</b>.
+It beat my previous broadphase algorithm (grid partitioning) by 23% while
+being simpler, scaling to higher dimensions better, and being more useful for
+queries.</p>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Drawing ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
@@ -474,7 +481,7 @@ electrons stay stuck to protons if they're neutral...</p>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-</div><div id="footer">Created on 15 May 2025 - Modified on 11 Jun 2025<br>
+</div><div id="footer">Created on 15 May 2025 - Modified on 13 Jun 2025<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>
