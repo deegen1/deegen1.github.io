@@ -38,7 +38,8 @@ equations, like
 they're written:</p>
 <table style="width:100%">
 <tr><td></td>
-<td style="width:33%;padding:1rem;"><canvas id="stackcanv00" style="margin:auto;"></canvas></td>
+<td style="width:33%;padding:1rem;">
+<canvas id="stackcanv00" style="margin:auto;"></canvas></td>
 <td></td></tr>
 </table>
 <p>Simulation grade. The problem is that the equations are modeled after
@@ -70,12 +71,12 @@ equations:</p>
 	b.vel+=norm*(veldif*amass);
 }
 </div>
-<p>The problem with all the atoms collapsing together occurs because our stack
-of atoms is crushed together so much that they never fully separate. Our engine
-applies the collision equations whenever the atoms are colliding, but those
-equations only make sense if the atoms are traveling <b>towards</b> each other.
-Our stack is so dense that atoms can stay overlapping each other even though
-their velocities should separate them.</p>
+<p>The problem with the stack of atoms collapsing together occurs because the
+atoms never get the chance to fully separate. Our engine applies the collision
+equations whenever the atoms are colliding, but those equations only make sense
+if the atoms are traveling <b>towards</b> each other. Our stack is so dense that
+atoms can stay overlapping each other even though their velocities should
+separate them.</p>
 <p>The fix, pretty simply, is to ignore the velocity component when the atoms
 are already traveling away from each other. The only modification needed is to
 the <i>veldif</i> equation.</p>
@@ -86,8 +87,10 @@ veldif=max(veldif,0)*elasticity;
 <table style="width:100%">
 <tr>
 <td></td>
-<td style="width:33%;padding:1rem;"><canvas id="stackcanv01" style="margin:auto;"></canvas></td>
-<td style="width:33%;padding:1rem;"><canvas id="stackcanv10" style="margin:auto;"></canvas></td>
+<td style="width:33%;padding:1rem;">
+<canvas id="stackcanv01" style="margin:auto;"></canvas></td>
+<td style="width:33%;padding:1rem;">
+<canvas id="stackcanv10" style="margin:auto;"></canvas></td>
 <td></td>
 </tr>
 <tr>
@@ -111,9 +114,12 @@ veldif=max(veldif,0)*elasticity+posdif;
 <p>With this we finally have a stack that can support itself.</p>
 <table style="width:100%">
 <tr>
-<td style="width:33%;padding:1rem;"><canvas id="stackcanv02" style="margin:auto;"></canvas></td>
-<td style="width:33%;padding:1rem;"><canvas id="stackcanv11" style="margin:auto;"></canvas></td>
-<td style="width:33%;padding:1rem;"><canvas id="stackcanv20" style="margin:auto;"></canvas></td>
+<td style="width:33%;padding:1rem;">
+<canvas id="stackcanv02" style="margin:auto;"></canvas></td>
+<td style="width:33%;padding:1rem;">
+<canvas id="stackcanv11" style="margin:auto;"></canvas></td>
+<td style="width:33%;padding:1rem;">
+<canvas id="stackcanv20" style="margin:auto;"></canvas></td>
 </tr>
 <tr>
 <td style="padding:1.5rem;padding-top:0;"><i>veldif</i></td>
@@ -266,9 +272,9 @@ loops that build the meshes from upper-left to bottom-right.</p>
 	}
 }
 </div>
-<p>When meshes are constructed with an order like this, forces tend to build up
-in one direction like a wave. The oscillations in the demo are always biased to
-one corner if you watch closely.</p>
+<p>When meshes are evaluated in an order like this, forces tend to build up in
+one direction like a wave. The oscillations in the demo are always biased to one
+corner if you watch closely.</p>
 <p>We can fix this by randomizing the order we evaluate springs. Any
 randomization will work, even if it's low quality. As long as the forces are
 spread out then the mesh will stabilize.</p>
@@ -481,7 +487,7 @@ electrons stay stuck to protons if they're neutral...</p>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-</div><div id="footer">Created on 15 May 2025 - Modified on 13 Jun 2025<br>
+</div><div id="footer">Created on 15 May 2025 - Modified on 14 Jun 2025<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>
