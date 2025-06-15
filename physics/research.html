@@ -4,6 +4,13 @@
 	<meta charset="utf-8">
 	<title>How to Make an Unstable Physics Engine</title>
 	<link rel="stylesheet" href="../style/style.css" type="text/css">
+	<style>
+	.demotable {
+		width:100%;
+		margin-top:2rem;
+		margin-bottom:2rem;
+	}
+	</style>
 	<script src="../style/style.js"></script>
 	<script src="./library.js"></script>
 	<script src="./physics.js"></script>
@@ -36,7 +43,7 @@ equations, like
 <a href="https://en.wikipedia.org/wiki/Elastic_collision#Two-dimensional">wikipedia</a>.</p>
 <p>This is what the simulation looks like when implementing the equations as
 they're written:</p>
-<table style="width:100%">
+<table class="demotable">
 <tr><td></td>
 <td style="width:33%;padding:1rem;">
 <canvas id="stackcanv00" style="margin:auto;"></canvas></td>
@@ -84,7 +91,7 @@ the <i>veldif</i> equation.</p>
 veldif=max(veldif,0)*elasticity;
 </div>
 <p>With this we can see a pretty noticeable improvement:</p>
-<table style="width:100%">
+<table class="demotable">
 <tr>
 <td></td>
 <td style="width:33%;padding:1rem;">
@@ -112,7 +119,7 @@ let veldif=norm*(a.vel-b.vel);
 veldif=max(veldif,0)*elasticity+posdif;
 </div>
 <p>With this we finally have a stack that can support itself.</p>
-<table style="width:100%">
+<table class="demotable">
 <tr>
 <td style="width:33%;padding:1rem;">
 <canvas id="stackcanv02" style="margin:auto;"></canvas></td>
@@ -174,9 +181,9 @@ equations for springs follow
 <a href="https://en.wikipedia.org/wiki/Hooke%27s_law">Hooke's law</a>. Unlike
 the early problems with atoms collapsing, applying Hooke's law results in
 meshes that explode:</p>
-<table style="width:100%">
+<table class="demotable">
 <tr><td></td>
-<td style="width:40%;padding:2rem;">
+<td style="width:40%;padding:1rem;">
 <canvas id="osccanv4" style="margin:auto;"></canvas></td>
 <td></td></tr>
 </table>
@@ -216,18 +223,18 @@ vel+=force*dt;
 </div>
 <p>Modifying the positions during evaluation prevents the forces from building
 up. This results in a much more stable mesh.</p>
-<table style="width:100%">
+<table class="demotable">
 <tr><td></td>
-<td style="width:36%;padding:2rem;">
+<td style="width:36%;padding:1rem;">
 <canvas id="osccanv2" style="margin:auto;"></canvas></td>
-<td style="width:36%;padding:2rem;">
+<td style="width:36%;padding:1rem;">
 <canvas id="osccanv3" style="margin:auto;"></canvas></td>
 <td></td>
 </tr><tr>
 <td></td>
-<td style="padding:2rem;padding-top:0;vertical-align:top"><i>acc += force</i>
+<td style="padding:1rem;padding-top:0;vertical-align:top"><i>acc += force</i>
 <br><i style="visibility:hidden">pos += force * dt * dt * 0.5</i></td>
-<td style="padding:2rem;padding-top:0;vertical-align:top">
+<td style="padding:1rem;padding-top:0;vertical-align:top">
 <i>pos += force * dt * dt * 0.5<br>vel += force * dt</i></td>
 <td></td></tr>
 </table>
@@ -254,9 +261,9 @@ up. This results in a much more stable mesh.</p>
 </div>
 <p>Once meshes get large enough, however, forces can still build up
 regardless.</p>
-<table style="width:100%">
+<table class="demotable">
 <tr><td></td>
-<td style="width:40%;padding:2rem;">
+<td style="width:40%;padding:1rem;">
 <canvas id="osccanv5" style="margin:auto;"></canvas></td>
 <td></td></tr>
 </table>
@@ -278,21 +285,19 @@ corner if you watch closely.</p>
 <p>We can fix this by randomizing the order we evaluate springs. Any
 randomization will work, even if it's low quality. As long as the forces are
 spread out then the mesh will stabilize.</p>
-<table style="width:100%">
+<table class="demotable">
 <tr>
 <td></td>
-<td style="width:36%;padding:2rem;">
+<td style="width:36%;padding:1rem;">
 <canvas id="osccanv0" style="margin:auto;"></canvas></td>
-<td style="width:36%;padding:2rem;">
+<td style="width:36%;padding:1rem;">
 <canvas id="osccanv1" style="margin:auto;"></canvas></td>
 <td></td>
 </tr>
 <tr>
 <td></td>
-<td style="padding:2rem;padding-top:0;">Static ordering. The mesh always
-resonates and collapses.</td>
-<td style="padding:2rem;padding-top:0;">Random ordering. The mesh is jittery
-but doesn't collapse.</td>
+<td style="padding:1rem;padding-top:0;">Static ordering</td>
+<td style="padding:1rem;padding-top:0;">Random ordering</td>
 <td></td>
 </tr>
 </table>
@@ -350,14 +355,30 @@ objects by whether their AABBs are above or below this value.</td></tr>
 <tr><td>5.</td><td>Continue subdividing each side.</td></tr>
 </table>
 <p>I call this the center split method. Other common methods involve splitting
-by the average of all AABBs, or sorting them by Morton codes and building the
-tree from the bottom up.</p>
-<p>The next thing to look at was traversing the BVH during collision checks.
-From past experience working in C, I knew that flattening the tree was more
-trouble than it's worth for a few thousand objects. But in javascript, every
-array access is treated as an affront to god and punished just as harshly. In
-the end flattening the tree resulted in an amazing ~40% speed up. Converting to
-webassembly was always slower no matter how I did it.</p>
+by surface area of the child AABBs, or sorting them by Morton codes and building
+the tree from the bottom up.</p>
+<p>The next thing to look at was traversing the BVH during collision checks. In
+javascript, every array access is treated as an affront to god and punished just
+as harshly, so anything that could help accesses would pay dividends. To speed
+up traversal, we'll flatten the tree.</p>
+<p>Flattening a tree involves rearranging it in memory so parents and siblings
+are nearby to each other in physical memory. In our case, the tree was arranged
+so the left child would immediately follow a parent. The right child would come
+after the left child and all its children. This is what it looks like compared
+to a tree arranged top to bottom in memory:</p>
+<div class="consoleblock"> Top-to-bottom                Flattened
+
+       1                          1
+     .' '.                      .' '.  
+   .'     '.                  .'     '.
+  2         3                2         5
+ / \       / \              / \       / \
+4   5     6   7            3   4     6   7
+</div>
+<p>Notice that differences between <i>child - parent</i> values in the
+top-to-bottom tree sum to 15, while it's only 11 in the flattened tree.</p>
+<p>In the end flattening the tree resulted in an amazing 43% speed up.
+Converting to webassembly was always slower no matter how I did it.</p>
 <p>2D times</p>
 <table class="datatable headerrow">
 <tr><td>Scheme</td><td>Time (s)</td><td>Volume (u^2)</td><td>AABB Tests (k)</td></tr>
@@ -401,9 +422,9 @@ is a block which ends up looking pleasing because they line up flush with each
 other. With circles, there end up being annoying gaps no matter how they're
 stacked.</p>
 <p>The obvious solution is to keep the drawing separate from the physical
-object, which quickly becomes untenable when the underlying atoms are deformed.
-There are also fancy filling algorithms I looked at but abandoned because they
-would be too complicated and slow.</p>
+object, which quickly becomes untenable when the underlying atoms are deformed -
+we would have to deform the drawing too. There are also fancy filling algorithms
+I looked at but abandoned because they would be too complicated and slow.</p>
 <p>The solution was to change how objects were constructed to allow overlapping
 atoms if there was a bond between them. When rendering, if multiple atoms
 overlap, pixels from the closest atom overwrite others. This allows straight
@@ -487,7 +508,7 @@ electrons stay stuck to protons if they're neutral...</p>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-</div><div id="footer">Created on 15 May 2025 - Modified on 14 Jun 2025<br>
+</div><div id="footer">Created on 15 May 2025 - Modified on 15 Jun 2025<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>

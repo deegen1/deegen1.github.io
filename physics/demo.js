@@ -60,7 +60,7 @@ class PhyScene {
 		this.frames=0;
 		this.framesum=0;
 		this.framestr="0.0 ms";
-		this.frametime=1/60;
+		this.framemax=1/30;
 		this.frameprev=0;
 		this.initworld();
 		let state=this;
@@ -88,7 +88,7 @@ class PhyScene {
 			elem=elem.offsetParent;
 		}
 		let pscale=1; // window.devicePixelRatio;
-		offleft=0; // Phone's will rescale horizontally.
+		offleft=0; // Phones will rescale horizontally.
 		let width =Math.floor(pscale*(window.innerWidth-offleft));
 		let height=Math.floor(pscale*(window.innerHeight-offtop));
 		let ratio =this.drawratio;
@@ -167,10 +167,11 @@ class PhyScene {
 
 
 	update(time) {
-		// Restrict our FPS to [fps/2,fps].
+		if (!IsVisible(this.canvas)) {return true;}
+		// Prevent timesteps that are too large.
 		let delta=(time-this.frameprev)/1000;
-		if (delta>this.frametime || !(delta>0)) {delta=this.frametime;}
-		else if (delta<0.5*this.frametime) {return true;}
+		delta=delta<this.framemax?delta:this.framemax;
+		delta=delta>0?delta:0;
 		this.frameprev=time;
 		let starttime=performance.now();
 		let world=this.world;

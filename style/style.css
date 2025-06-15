@@ -234,8 +234,8 @@ h2 {
 	width:90%;
 	padding:0.5775rem;
 	margin:auto;
-	margin-top:2rem;
-	margin-bottom:2rem;
+	margin-top:3rem;
+	margin-bottom:3rem;
 	border:1px solid var(--code-border);
 	background-color:var(--code-back);
 	color:var(--code-text);
@@ -291,8 +291,8 @@ button:hover, select:hover {
 .listtable {
 	width:85%;
 	margin-left:4rem;
-	margin-top:2rem;
-	margin-bottom:2rem;
+	margin-top:3rem;
+	margin-bottom:3rem;
 }
 .listtable > tr > td, .listtable > tbody > tr > td {
 	padding:0.2rem;
@@ -305,8 +305,8 @@ button:hover, select:hover {
 .datatable {
 	max-width:85%;
 	margin:auto;
-	margin-top:2rem;
-	margin-bottom:2rem;
+	margin-top:3rem;
+	margin-bottom:3rem;
 	border:1px solid var(--table-border);
 	/* border-collapse:separate; */
 	/* border-spacing:0.2rem; */
@@ -344,8 +344,8 @@ button:hover, select:hover {
 	width:85%;
 	height:auto;
 	margin:auto;
-	margin-top:2rem;
-	margin-bottom:2rem;
+	margin-top:3rem;
+	margin-bottom:3rem;
 	/* Used for troubleshooting */
 	/* border:2px dashed var(--diag-fore); */
 	font-family:Consolas,monospace,monospace;
