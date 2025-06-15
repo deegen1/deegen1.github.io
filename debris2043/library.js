@@ -4833,7 +4833,7 @@ class PhyBroadphase {
 	//      5 y min
 	//        ...
 	//
-	// If left<0, atom_id=~left.
+	// If right<0, atom_id=~right.
 	//
 	// Center splitting.
 	// Flat construction.

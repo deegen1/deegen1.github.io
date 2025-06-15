@@ -61,6 +61,8 @@ History
 TODO
 
 
+Use module to put everything under Audio. namespace.
+
 Waveguides
 	https://www.osar.fr/notes/waveguides/
 	https://petersalomonsen.com/articles/assemblyscriptphysicalmodelingsynth

@@ -41,6 +41,7 @@ TODO
 
 
 Bonds that break when stretched.
+Use module to put everything under Phy. namespace.
 Scale pvmul like calcdt.
 Broadphase
 	See if leaning the BVH tree to the left or right is faster.
@@ -626,7 +627,7 @@ class PhyBroadphase {
 	//      5 y min
 	//        ...
 	//
-	// If left<0, atom_id=~left.
+	// If right<0, atom_id=~right.
 	//
 	// Center splitting.
 	// Flat construction.

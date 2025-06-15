@@ -80,6 +80,7 @@ History
 TODO
 
 
+Use module to put everything under Draw. namespace.
 Rewrite article.
 Simplify _DrawTransform
 	Remove data[]

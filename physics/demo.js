@@ -88,6 +88,7 @@ class PhyScene {
 			elem=elem.offsetParent;
 		}
 		let pscale=1; // window.devicePixelRatio;
+		offleft=0; // Phone's will rescale horizontally.
 		let width =Math.floor(pscale*(window.innerWidth-offleft));
 		let height=Math.floor(pscale*(window.innerHeight-offtop));
 		let ratio =this.drawratio;
