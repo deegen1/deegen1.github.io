@@ -11,8 +11,6 @@ Copyright 2025 Alec Dee - MIT license - SPDX: MIT
 Notes
 
 
-Try on phone. Change orientation.
-
 Particles when movedir or player vel change
 
 Levels
@@ -415,6 +413,7 @@ class Game {
 		// Control the player.
 		let input=this.input;
 		let mouse=this.mouse.mul(1/this.draw.img.height);
+		// Get our average position, velocity, and orientation.
 		let bodyatom=this.bodyatom;
 		let ropeatom=this.ropeatom;
 		let playerpos=this.playerpos.set(0);
@@ -428,10 +427,10 @@ class Game {
 		let head=ropeatom[ropeatom.length-1];
 		let updir=this.updir;
 		updir.set(head.pos.sub(playerpos));
+		// Check for click.
 		let throwing=this.throwing;
 		let charge=this.charge+0.5*dt;
 		charge=charge<1?charge:1;
-		// Check for click.
 		let click=input.getkeydown(input.MOUSE.LEFT)?1:0;
 		if (this.click!==click) {this.click=click;} else {click=2;}
 		if (this.throwing>=4) {
@@ -442,7 +441,7 @@ class Game {
 				throwing=0;
 			}
 		} else {
-			// Estimate where the ground is.
+			// Estimate where the ground is based on static bonds.
 			let mass=0,maxmass=bodyatom[0].mass;
 			let dir=new Vector(2);
 			for (let atom of bodyatom) {
@@ -489,7 +488,7 @@ class Game {
 				[  0.990,0.009 ,0.001 ,0.0045,500],
 				[  0.990,0.009 ,0.001 ,0.0045,500],
 				[  0.990,0.0015,0.0085,0.0045,500],
-				[  0.700,0.200 ,0.100 ,0.0150,100],
+				[  0.700,0.200 ,0.100 ,0.0150,100]
 			][throwing];
 			if (throwing<4) {
 				for (let atom of ropeatom) {

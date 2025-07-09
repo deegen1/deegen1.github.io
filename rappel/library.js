@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v1.14
+library.js - v1.15
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -16,7 +16,7 @@ Random  - v1.09
 Vector  - v2.00
 Drawing - v3.12
 Audio   - v3.04
-Physics - v3.03
+Physics - v3.04
 
 
 */
@@ -4401,7 +4401,7 @@ class Audio {
 
 
 //---------------------------------------------------------------------------------
-// Physics - v3.03
+// Physics - v3.04
 
 
 class PhyLink {
@@ -5306,8 +5306,8 @@ class PhyWorld {
 		}
 		for (let i=0;i<count;i++) {
 			let mainatom=infoarr[i].atom;
-			let rad=mainatom.rad*5.1;
-			for (let j=0;j<count;j++) {
+			let rad=mainatom.rad*4.0;
+			for (let j=0;j<i;j++) {
 				let atom=infoarr[j].atom;
 				if (Object.is(atom,mainatom)) {continue;}
 				let dist=atom.pos.dist(mainatom.pos);

@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v3.03
+physics.js - v3.04
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -45,6 +45,8 @@ History
      Bonds can break if they're too far apart.
      Added .data fields to atoms, bonds, and atomtypes.
      Added stepcallback() to allow manual tweaks before each timestep.
+3.04
+     Fixed autobond creating multiple bonds.
 
 
 --------------------------------------------------------------------------------
@@ -82,7 +84,7 @@ Change BVH AABB structure from [x0,y0,x1,y1] to [x0,y0] [x1,y1].
 
 
 //---------------------------------------------------------------------------------
-// Physics - v3.03
+// Physics - v3.04
 
 
 class PhyLink {
@@ -987,8 +989,8 @@ class PhyWorld {
 		}
 		for (let i=0;i<count;i++) {
 			let mainatom=infoarr[i].atom;
-			let rad=mainatom.rad*5.1;
-			for (let j=0;j<count;j++) {
+			let rad=mainatom.rad*4.0;
+			for (let j=0;j<i;j++) {
 				let atom=infoarr[j].atom;
 				if (Object.is(atom,mainatom)) {continue;}
 				let dist=atom.pos.dist(mainatom.pos);

@@ -766,6 +766,10 @@ class BVHScene {
 			let atom=world.createatom(pos,0.016,normtype);
 			atom.vel.randomize().imul(this.normenergy);
 		}
+		// Static bonds kill performance.
+		for (let type of world.atomtypelist.iter()) {
+			for (let intr of type.intarr) {intr.statictension=0;}
+		}
 		// Launch.
 		let state=this;
 		function update(time) {
