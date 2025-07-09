@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v3.10
+drawing.js - v3.12
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -74,13 +74,20 @@ History
      Rescaled default font. Curve derivatives now match neighbors.
 3.10
      Fixed TGA orientation when saving and loading.
+3.11
+     Corrected duplicate variable.
+3.12
+     Added getpixel, setpixel, and inttorgba.
+     Fixed fromstring() parsing numbers as Z instead of L.
 
 
 --------------------------------------------------------------------------------
 TODO
 
 
-Use module to put everything under Draw. namespace.
+Use module to put everything under Draw namespace.
+Try to reduce size to 30kb.
+	Optimize font glyphs. Use /100 or /60 instead of /1000. Optimize svg.
 Rewrite article.
 Simplify _DrawTransform
 	Remove data[]
@@ -88,54 +95,29 @@ Simplify _DrawTransform
 	Add "degree" to params to allow rotation in degrees.
 	point -> object offset -> world scale -> world rotate -> world offset
 	remove undo() and replace with inverse().
-Meta
-	How to save multiple images as an animated png? .tar?
-	upng.js
-	How to save multiple files zipped together?
-	Make example for saving an animation.
-	Come up with process for autotracing in inkscape.
-drawimage
-	v4.0
-	Allow non integer coordinates.
-	Allow rotation.
-	Allow scaling.
-	Allow full transformation matrix?
-	Perform AABB detection like in fillpoly.
-	Use inverse transform to map back to image and determine if we're still
-	in the pixel.
-	Fast pixel averaging for shrinking?
-	+-----+-----+
-	|     |     |
-	|   .'.     |
-	+-.'   '.---+
-	|  '. .'    |
-	|    '|     |
-	+-----+-----+
 Tracing
-	v5.0
-	Corner types: round, flat, sharp
+	v4.0
 	Limit length of sharp corners to 2x thickness.
 	Rounded corners: set midpoint distance to thickness.
 	For inline, go through path in reverse.
 	Add traceoval, tracerect.
 polyfill
 	Per-subpath color. "F" specifies colors for following segments.
-	Speed up blending portion. imul() on each rgb component?
-	while (floor(area*256)==con) like in WASM. Use alpha as max, not 256.
-	f32 in WASM.
 	Allow for different blend modes.
 	If we call moveto(), close the previous subpath.
 DrawPoly
-	closestpoint()
-	pointinside()
-	Add circular arcs.
-	Binary operators: and, or, not, nand.
-	simplify() to remove small lines and clean up.
+	normalize, scale, shift
+	closestpoint(point,transform)
+	pointinside(point,transform)
+	Add circular arcs. Use in rappel.js charge timer.
 	Add v,V,h,H.
-	Optimize font glyphs.
+	Stop segmenting subcurves if they're offscreen.
 filltext/textrect
 	Add backspaces and tabs.
 	For filltext, use untransformed offset. Apply transform when drawing.
+DrawImage
+	Redo setpixel, getpixel, fill, rgbatoint, etc so it's always
+	(a<<24)|(r<<16)|(g<<28)|b
 
 
 Tracing draft
@@ -196,7 +178,7 @@ Tracing draft
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v3.09
+// Drawing - v3.12
 
 
 class _DrawTransform {
@@ -530,7 +512,7 @@ class _DrawPoly {
 			else if (c==="l")  {type=5;}
 			else if (c==="C")  {type=6;}
 			else if (c==="c")  {type=7;}
-			else if (isnum(c)) {type=2;i--;}
+			else if (isnum(c)) {type=4;i--;}
 			else {continue;}
 			let off=[0,0];
 			if ((type&1) && this.vertidx) {
@@ -739,6 +721,22 @@ class _DrawImage {
 		let strdata=canv.toDataURL("image/png");
 		canv.remove();
 		return strdata;
+	}
+
+
+	getpixel(x,y) {
+		if (x<0 || x>=this.width || y<0 || y>=this.height) {
+			throw `invalid pixel: ${x}, ${y}`;
+		}
+		return this.data32[y*this.height+x];
+	}
+
+
+	setpixel(x,y,rgba) {
+		if (x<0 || x>=this.width || y<0 || y>=this.height) {
+			throw `invalid pixel: ${x}, ${y}`;
+		}
+		this.data32[y*this.height+x]=rgba;
 	}
 
 }
@@ -1028,6 +1026,16 @@ class Draw {
 		rgba[3]=a;
 		rgba=this.rgba32[0];
 		this.rgba32[0]=tmp;
+		return rgba;
+	}
+
+
+	inttorgba(i) {
+		let rgba32=this.rgba32;
+		let tmp=rgba32[0];
+		rgba32[0]=i;
+		let rgba=this.rgba.slice();
+		rgba32[0]=tmp;
 		return rgba;
 	}
 
@@ -1429,10 +1437,10 @@ class Draw {
 						u0+=du;
 						let sx=p0x+u0*(c1x+u0*(c2x+u0*c3x)),lx=sx-x0;
 						let sy=p0y+u0*(c1y+u0*(c2y+u0*c3y)),ly=sy-y0;
-						let v=dx*lx+dy*ly;
-						v=v>0?(v<den?v/den:1):0;
-						lx-=dx*v;
-						ly-=dy*v;
+						let u=dx*lx+dy*ly;
+						u=u>0?(u<den?u/den:1):0;
+						lx-=dx*u;
+						ly-=dy*u;
 						let dist=lx*lx+ly*ly;
 						if (maxdist<dist) {
 							maxdist=dist;

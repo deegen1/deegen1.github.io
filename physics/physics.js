@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v3.00
+physics.js - v3.03
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -34,19 +34,45 @@ History
 3.00
      Bonds now apply acceleration but modify pos and vel directly for stability.
      Added iterators.
+3.01
+     Atoms can now go to sleep. The BVH will ignore sleeping nodes.
+3.02
+     Removed collide flag in favor of callbacks.
+     Allowed multiple bonds between 2 atoms. This effectively allows multiple
+     iterations per bond per timestep.
+3.03
+     Electrostatic bonds can form during atom collisions.
+     Bonds can break if they're too far apart.
+     Added .data fields to atoms, bonds, and atomtypes.
+     Added stepcallback() to allow manual tweaks before each timestep.
 
 
 --------------------------------------------------------------------------------
 TODO
 
 
-Bonds that break when stretched.
-Use module to put everything under Phy. namespace.
+Switch list to array
+	arr=new PhyArray("_atomidx"); // indexname="_atomidx"
+	arr.add(atom);                // obj[indexname]=...
+	arr.remove(atom);             // obj[indexname]=-1
+	remove tmpmem and bvh.atomarr
+	Keep objects allocated in the array, since we'll add and remove them a lot.
+Better sleeping
+	sleeptime+=dt
+	if vel>1e-10: sleeptime=0
+	if sleeptime>grav.mag(): sleeping=true
+	What to do if gravity is changed after sleeping?
+	If bonded with a sleeping atom, consider sleeping.
+	If a bond is released, wake up both atoms.
+Add static bonds to article.
+New article: friction with springs.
+Remove static bonds if another bond is formed afterwards?
+Only create static if veldif>0?
+Use module to put everything under Phy namespace.
+Motors: linear, angular, range. Add acceleration?
+Reduce to 20kb.
 Scale pvmul like calcdt.
-Broadphase
-	See if leaning the BVH tree to the left or right is faster.
-	Try maintaining sorted order of AABBs.
-	Change AABB structure from [x0,y0,x1,y1] to [x0,y0] [x1,y1].
+Change BVH AABB structure from [x0,y0,x1,y1] to [x0,y0] [x1,y1].
 
 
 */
@@ -54,17 +80,8 @@ Broadphase
 /* global Vector, Random */
 
 
-function PhyAssert(condition,data) {
-	// To toggle debug, replace "\tPhyAssert" with "\t// PhyAssert".
-	if (!condition) {
-		console.log("assert failed:",data);
-		throw new Error("Assert Failed");
-	}
-}
-
-
 //---------------------------------------------------------------------------------
-// Physics - v3.00
+// Physics - v3.03
 
 
 class PhyLink {
@@ -183,25 +200,19 @@ class PhyList {
 		if (link===null) {
 			return;
 		}
-		// PhyAssert(link.list===this);
-		// PhyAssert(this.count>0);
 		let prev=link.prev;
 		let next=link.next;
 		if (prev!==null) {
 			prev.next=next;
 		} else {
-			// PhyAssert(this.head===link);
 			this.head=next;
 		}
 		if (next!==null) {
 			next.prev=prev;
 		} else {
-			// PhyAssert(this.tail===link);
 			this.tail=prev;
 		}
 		this.count--;
-		// PhyAssert((this.count===0)===(this.head===null));
-		// PhyAssert((this.head===null)===(this.tail===null));
 		link.prev=null;
 		link.next=null;
 		link.list=null;
@@ -216,10 +227,11 @@ class PhyAtomInteraction {
 	constructor(a,b) {
 		this.a=a;
 		this.b=b;
-		this.collide=false;
 		this.pmul=0;
 		this.vmul=0;
 		this.vpmul=0;
+		this.statictension=0;
+		this.staticdist=0;
 		this.callback=null;
 		this.updateconstants();
 	}
@@ -227,10 +239,11 @@ class PhyAtomInteraction {
 
 	updateconstants() {
 		let a=this.a,b=this.b;
-		this.collide=a.collide && b.collide;
 		this.pmul=(a.pmul+b.pmul)*0.5;
 		this.vmul=a.vmul+b.vmul;
 		this.vpmul=(a.vpmul+b.vpmul)*0.5;
+		this.statictension=(a.statictension+b.statictension)*0.5;
+		this.staticdist=(a.staticdist+b.staticdist)*0.5;
 	}
 
 
@@ -251,19 +264,20 @@ class PhyAtomType {
 		this.atomlist=new PhyList();
 		this.id=id;
 		this.intarr=[];
-		this.collide=true;
 		this.damp=damp;
 		this.density=density;
 		this.pmul=1.0;
 		this.vmul=elasticity;
 		this.vpmul=1.0;
+		this.statictension=50;
+		this.staticdist=1.25;
 		this.bound=true;
-		// this.callback=null;
 		this.dt =NaN;
 		this.dt0=0;
 		this.dt1=0;
 		this.dt2=0;
 		this.gravity=null;
+		this.data={};
 	}
 
 
@@ -389,6 +403,8 @@ class PhyAtom {
 		this.worldlink=new PhyLink(this);
 		this.world=type.world;
 		this.world.atomlist.add(this.worldlink);
+		this.deleted=false;
+		this.sleeping=false;
 		pos=new Vector(pos);
 		this.pos=pos;
 		this.vel=new Vector(pos.length);
@@ -397,12 +413,13 @@ class PhyAtom {
 		this.typelink=new PhyLink(this);
 		this.type=type;
 		type.atomlist.add(this.typelink);
-		this.userdata=null;
+		this.data={};
 		this.updateconstants();
 	}
 
 
 	release() {
+		this.deleted=true;
 		this.worldlink.remove();
 		this.typelink.remove();
 		let link;
@@ -445,7 +462,7 @@ class PhyAtom {
 		let ge=type.gravity;
 		ge=(ge===null?this.world.gravity:ge);
 		let dt0=type.dt0,dt1=type.dt1,dt2=type.dt2;
-		let pos,rad=this.rad;
+		let pos,rad=this.rad,energy=0;
 		for (let i=0;i<dim;i++) {
 			let vel=ve[i],acc=ge[i];
 			pos=vel*dt1+acc*dt2+pe[i];
@@ -456,15 +473,15 @@ class PhyAtom {
 			if (pos>b) {pos=b;vel=vel>0?-vel:vel;}
 			pe[i]=pos;
 			ve[i]=vel;
+			energy+=vel*vel;
 		}
+		this.sleeping=energy<1e-10;
 	}
 
 
 	static collide(a,b) {
 		// Collides two atoms. Vector operations are unrolled to use constant memory.
-		if (Object.is(a,b)) {return;}
-		let intr=a.type.intarr[b.type.id];
-		if (!intr.collide) {return;}
+		if (Object.is(a,b) || a.deleted || b.deleted) {return;}
 		// Determine if the atoms are overlapping.
 		let apos=a.pos,bpos=b.pos;
 		let dim=apos.length,i;
@@ -480,12 +497,13 @@ class PhyAtom {
 		let b0=a,b1=b;
 		if (a.bondlist.count>b.bondlist.count) {b0=b;b1=a;}
 		let link=b0.bondlist.head;
+		let bonded=0;
 		while (link!==null) {
 			let bond=link.obj;
 			link=link.next;
 			if (Object.is(bond.a,b1) || Object.is(bond.b,b1)) {
-				if (rad>bond.dist) {rad=bond.dist;}
-				break;
+				rad=rad<bond.dist?rad:bond.dist;
+				bonded=1;
 			}
 		}
 		if (dist>=rad*rad) {return;}
@@ -512,6 +530,7 @@ class PhyAtom {
 			norm[i]*=den;
 			veldif+=(avel[i]-bvel[i])*norm[i];
 		}
+		let intr=a.type.intarr[b.type.id];
 		let posdif=rad-dist;
 		veldif=veldif>0?veldif:0;
 		veldif=veldif*intr.vmul+posdif*intr.vpmul;
@@ -519,6 +538,11 @@ class PhyAtom {
 		// If we have a callback, allow it to handle the collision.
 		let callback=intr.callback;
 		if (callback!==null && !callback(a,b,norm,veldif,posdif)) {return;}
+		// Create an electrostatic bond between the atoms.
+		if (bonded===0 && intr.statictension>0) {
+			let bond=a.world.createbond(a,b,rad,intr.statictension);
+			bond.breakdist=rad*intr.staticdist;
+		}
 		// Push the atoms apart.
 		let aposmul=posdif*bmass,avelmul=veldif*bmass;
 		let bposmul=posdif*amass,bvelmul=veldif*amass;
@@ -537,23 +561,25 @@ class PhyAtom {
 class PhyBond {
 
 	constructor(world,a,b,dist,tension) {
-		// PhyAssert(!Object.is(a,b));
 		this.world=world;
 		this.worldlink=new PhyLink(this);
 		this.world.bondlist.add(this.worldlink);
+		this.deleted=false;
 		this.a=a;
 		this.b=b;
 		this.dist=dist;
+		this.breakdist=Infinity;
 		this.tension=tension;
 		this.alink=new PhyLink(this);
 		this.blink=new PhyLink(this);
 		this.a.bondlist.add(this.alink);
 		this.b.bondlist.add(this.blink);
-		this.userdata=null;
+		this.data={};
 	}
 
 
 	release () {
+		this.deleted=true;
 		this.worldlink.remove();
 		this.alink.remove();
 		this.blink.remove();
@@ -564,6 +590,7 @@ class PhyBond {
 		// Pull two atoms toward eachother based on the distance and bond strength.
 		// Vector operations are unrolled to use constant memory.
 		let a=this.a,b=this.b;
+		if (this.deleted || (a.sleeping && b.sleeping)) {return;}
 		let amass=a.mass,bmass=b.mass;
 		let mass=amass+bmass;
 		if ((amass>=Infinity && bmass>=Infinity) || mass<=1e-10) {
@@ -588,6 +615,10 @@ class PhyBond {
 			tension/=dist;
 		} else {
 			norm.randomize();
+		}
+		if (dist>this.breakdist) {
+			this.release();
+			return;
 		}
 		// Apply equal and opposite acceleration. Updating pos and vel in this
 		// function, instead of waiting for atom.update(), increases stability.
@@ -619,15 +650,16 @@ class PhyBroadphase {
 	//
 	// Node structure:
 	//
-	//      0 parent
-	//      1 left
+	//      0 flags
+	//      1 parent
 	//      2 right
 	//      3 x min
 	//      4 x max
 	//      5 y min
 	//        ...
 	//
-	// If right<0, atom_id=~right.
+	// If flags&1: atom_id=right
+	// If flags&2: sleeping
 	//
 	// Center splitting.
 	// Flat construction.
@@ -662,7 +694,7 @@ class PhyBroadphase {
 		this.atomcnt=atomcnt;
 		if (atomcnt===0) {return;}
 		// Allocate working arrays.
-		let dim2=2*dim,nodesize=3+2*dim;
+		let dim2=2*dim,nodesize=3+dim2;
 		let treesize=atomcnt*(nodesize*3)-nodesize;
 		let memi=this.memi32;
 		if (memi===null || memi.length<treesize) {
@@ -674,7 +706,7 @@ class PhyBroadphase {
 		let memf=this.memf32;
 		let sortstart=nodesize*(atomcnt*2-1);
 		let leafstart=sortstart+atomcnt;
-		// Store atoms and their bounds.
+		// Store atoms and their bounds. atom_id*2+sleeping.
 		let slack=1+this.slack;
 		let leafidx=leafstart;
 		let atomlink=world.atomlist.head;
@@ -683,7 +715,7 @@ class PhyBroadphase {
 			let atom=atomlink.obj;
 			atomlink=atomlink.next;
 			atomarr[i]=atom;
-			memi[leafidx++]=i;
+			memi[leafidx++]=(i<<1)|atom.sleeping;
 			memi[sortstart+i]=leafidx;
 			let pos=atom.pos,rad=atom.rad*slack;
 			rad=rad>0?rad:-rad;
@@ -695,12 +727,12 @@ class PhyBroadphase {
 				memf[leafidx++]=x1;
 			}
 		}
-		memi[0]=-1;
-		memi[1]=sortstart+atomcnt;
+		memi[1]=-1;
+		memi[2]=sortstart+atomcnt;
 		let worklo=sortstart;
 		for (let work=0;work<sortstart;work+=nodesize) {
 			// Pop the top working range off the stack.
-			let workhi=memi[work+1],workcnt=workhi-worklo;
+			let workhi=memi[work+2],workcnt=workhi-worklo;
 			if (workcnt===1) {worklo++;continue;}
 			// Find the axis with the greatest range.
 			let sortaxis=-1;
@@ -738,20 +770,22 @@ class PhyBroadphase {
 			// Left follows immediately, right needs to be padded.
 			let l=work+nodesize;
 			let r=work+(sortdiv-worklo)*nodesize*2;
-			memi[l+1]=sortdiv;
-			memi[r+1]=workhi;
-			memi[work+1]=l;
+			memi[l+2]=sortdiv;
+			memi[r+2]=workhi;
 			memi[work+2]=r;
 		}
-		// Set parents and bounding boxes. Leaf = ~atom_id.
+		// Set parents and bounding boxes.
 		for (let n=sortstart-nodesize;n>=0;n-=nodesize) {
-			let l=memi[n+1],r=memi[n+2],ndim=n+nodesize;
-			if (l>=sortstart) {
-				l=memi[l-1];r=l;
-				memi[n+2]=~memi[l-1];
+			let l=n+nodesize,r=memi[n+2],ndim=n+nodesize;
+			if (r>=sortstart) {
+				l=memi[r-1];r=l;
+				let a=memi[l-1];
+				memi[n+2]=a>>>1;
+				memi[n  ]=((a&1)<<1)|1;
 			} else {
-				memi[l]=n;l+=3;
-				memi[r]=n;r+=3;
+				memi[n  ]=memi[l]&memi[r]&2;
+				memi[l+1]=n;l+=3;
+				memi[r+1]=n;r+=3;
 			}
 			let x,y;
 			for (let i=n+3;i<ndim;i+=2) {
@@ -787,22 +821,20 @@ class PhyBroadphase {
 		for (let n=randstart;n<randend;n+=nodesize) {
 			let orig=memi[n  ];
 			let next=memi[n+1];
+			let cnt =memi[n+2]-nodesize;
 			// Copy original right child and AABB.
-			let u=n+3,v=orig+3,stop=n+nodesize;
+			let u=n+2,v=orig+2,stop=n+nodesize;
 			while (u<stop) {memi[u++]=memi[v++];}
-			let r=memi[orig+2];
-			if (r<0) {
-				// Make next negative to let us know if it's a leaf.
-				memi[n+1]=~next;
-				memi[n+2]=~r;
-				continue;
-			}
-			let l=memi[orig+1];
+			// Set the flags on .next.
+			let f=memi[orig];
+			memi[n+1]=(next<<2)|f;
+			if (f&1) {continue;}
 			// Randomly swap the children.
+			let r=memi[orig+2];
+			let l=orig+nodesize;
 			if (swap<=1) {swap=rnd.getu32()|0x80000000;}
 			if (swap&1) {let tmp=l;l=r;r=tmp;}
 			swap>>>=1;
-			let cnt=memi[n+2]-nodesize;
 			let lcnt=(l<r?0:cnt)+r-l,rcnt=cnt-lcnt;
 			let lidx=n+nodesize,ridx=lidx+lcnt;
 			memi[lidx  ]=l;
@@ -814,20 +846,24 @@ class PhyBroadphase {
 		}
 		// Process leaves left to right.
 		for (let n=randstart;n<randend;n+=nodesize) {
-			let node=~memi[n+1];
-			if (node<0) {continue;}
+			let node=memi[n+1];
+			if (!(node&1)) {continue;}
+			let sleeping=node&2;
 			let atom=atomarr[memi[n+2]];
 			let nbnd=n+3,ndim=n+nodesize;
+			node>>>=2;
 			while (node<randend) {
 				let next=memi[node+1];
-				// Down - check for overlap.
-				let u=nbnd,v=node+3;
-				while (u<ndim && memf[u]<=memf[v+1] && memf[v]<=memf[u+1]) {u+=2;v+=2;}
-				if (u===ndim) {
-					if (next>=0) {next=node+nodesize;}
-					else {collide(atom,atomarr[memi[node+2]]);}
+				if (!(sleeping&next)) {
+					// Down - check for overlap.
+					let u=nbnd,v=node+3;
+					while (u<ndim && memf[u]<=memf[v+1] && memf[v]<=memf[u+1]) {u+=2;v+=2;}
+					if (u===ndim) {
+						if (!(next&1)) {node+=nodesize;continue;}
+						else {collide(atom,atomarr[memi[node+2]]);}
+					}
 				}
-				node=next<0?~next:next;
+				node=next>>>2;
 			}
 		}
 	}
@@ -855,6 +891,7 @@ class PhyWorld {
 		this.tmpmem=[];
 		this.tmpvec=new Vector(dim);
 		this.broad=new PhyBroadphase(this);
+		this.stepcallback=null;
 	}
 
 
@@ -877,8 +914,8 @@ class PhyWorld {
 	}
 
 
-	*atomiter() {yield* this.atomlist.iter();}
-	*bonditer() {yield* this.bondlist.iter();}
+	atomiter() {return this.atomlist.iter();}
+	bonditer() {return this.bondlist.iter();}
 
 
 	createatomtype(damp,density,elasticity) {
@@ -908,38 +945,30 @@ class PhyWorld {
 	}
 
 
-	findbond(a,b) {
-		// Return any bond that exists between A and B.
+	findbonds(a,b) {
+		// Return any bonds that exists between A and B.
 		if (a.bondlist.count>b.bondlist.count) {
 			let tmp=a;
 			a=b;
 			b=tmp;
 		}
+		let ret=[];
 		let link=a.bondlist.head;
 		while (link!==null) {
 			let bond=link.obj;
 			if (Object.is(bond.a,b) || Object.is(bond.b,b)) {
-				return bond;
+				ret+=[bond];
 			}
 			link=link.next;
 		}
-		return null;
+		return ret;
 	}
 
 
 	createbond(a,b,dist,tension) {
-		// Create a bond. If a bond between A and B already exists, replace it.
-		// If dist<0, use the current distance between the atoms.
-		if (dist<0.0) {
-			dist=a.pos.dist(b.pos);
-		}
-		let bond=this.findbond(a,b);
-		if (bond!==null) {
-			bond.dist=dist;
-			bond.tension=tension;
-		} else {
-			bond=new PhyBond(this,a,b,dist,tension);
-		}
+		// Create a bond. If dist<0, use the current distance between the atoms.
+		if (dist<0.0) {dist=a.pos.dist(b.pos);}
+		let bond=new PhyBond(this,a,b,dist,tension);
 		return bond;
 	}
 
@@ -947,7 +976,7 @@ class PhyWorld {
 	autobond(atomarr,tension) {
 		// Balance distance, mass, # of bonds, direction.
 		let count=atomarr.length;
-		if (count===0) {return;}
+		if (count===0 || isNaN(tension)) {return;}
 		let infoarr=new Array(count);
 		for (let i=0;i<count;i++) {
 			let info={
@@ -970,26 +999,28 @@ class PhyWorld {
 	}
 
 
-	createbox(cen,side,rad,dist,type) {
+	createbox(cen,side,rad,dist,type,tension=NaN) {
 		// O O O O
 		//  O O O
 		// O O O O
 		let pos=new Vector(cen);
 		let atomcombos=1;
 		let dim=this.dim;
-		for (let i=0;i<dim;i++) {atomcombos*=side;}
+		if (side.length===undefined) {side=(new Array(dim)).fill(side);}
+		for (let i=0;i<dim;i++) {atomcombos*=side[i];}
 		let atomarr=new Array(atomcombos);
 		for (let atomcombo=0;atomcombo<atomcombos;atomcombo++) {
 			// Find the coordinates of the atom.
 			let atomtmp=atomcombo;
 			for (let i=0;i<dim;i++) {
-				let x=atomtmp%side;
-				atomtmp=Math.floor(atomtmp/side);
-				pos[i]=cen[i]+(x*2-side+1)*dist;
+				let s=side[i],x=atomtmp%s;
+				atomtmp=Math.floor(atomtmp/s);
+				pos[i]=cen[i]+(x*2-s+1)*dist;
 			}
 			atomarr[atomcombo]=this.createatom(pos,rad,type);
 		}
-		this.autobond(atomarr,Infinity);
+		this.autobond(atomarr,tension);
+		return atomarr;
 	}
 
 
@@ -1001,6 +1032,7 @@ class PhyWorld {
 		if (steps<Infinity) {dt=time/steps;}
 		let rnd=this.rnd;
 		for (let step=0;step<steps;step++) {
+			if (this.stepcallback!==null) {this.stepcallback(dt);}
 			// Integrate atoms.
 			let link,next;
 			next=this.atomlist.head;
@@ -1020,7 +1052,7 @@ class PhyWorld {
 				link=link.next;
 			}
 			for (let i=0;i<bondcount;i++) {
-				bondarr[i].obj.update(dt);
+				bondarr[i].obj.update();
 			}
 			// Collide atoms.
 			this.broad.build();

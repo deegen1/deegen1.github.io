@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.07
+demo.js - v1.09
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -121,7 +121,7 @@ class PhyScene {
 			pos[0]=rnd.getf()*vieww;
 			pos[1]=rnd.getf()*viewh;
 			let atom=world.createatom(pos,0.004,normtype);
-			atom.userdata={isparticle:true};
+			atom.data={isparticle:true};
 		}
 		for (let k=0;k<3;k++) {
 			// world.createbox(6,0.007,0.007*.70,boxtype);
@@ -146,7 +146,7 @@ class PhyScene {
 				atomarr[atomcombo]=atom;
 				let r=32,g=128,b=0;
 				if (edge) {r=64;g=200;b=0;}
-				atom.userdata={isparticle:false,iscore:!edge,r:r,g:g,b:b};
+				atom.data={isparticle:false,iscore:!edge,r:r,g:g,b:b};
 			}
 			world.autobond(atomarr,6000);
 		}
@@ -157,18 +157,22 @@ class PhyScene {
 		playertype.gravity=new Vector([0,0]);
 		pos.set([vieww*0.5,viewh*0.33]);
 		this.playeratom=world.createatom(pos,0.035,playertype);
-		this.playeratom.userdata={isparticle:false};
+		this.playeratom.data={isparticle:false};
 		this.mouse.set(pos);
 		// populate userdata
 		for (let atom of world.atomiter()) {
-			atom.userdata.velcolor=0;
+			atom.data.velcolor=0;
+		}
+		// Static bonds kill performance.
+		for (let type of world.atomtypelist.iter()) {
+			for (let intr of type.intarr) {intr.statictension=0;}
 		}
 	}
 
 
 	update(time) {
 		if (!IsVisible(this.canvas)) {return true;}
-		// Prevent timesteps that are too large.
+		// Get the timestep. Prevent steps that are too large.
 		let delta=(time-this.frameprev)/1000;
 		delta=delta<this.framemax?delta:this.framemax;
 		delta=delta>0?delta:0;
@@ -178,7 +182,6 @@ class PhyScene {
 		let draw=this.draw;
 		let input=this.input;
 		let viewscale=draw.img.height;
-		// let vieww=draw.img.width/viewscale,viewh=draw.img.height/viewscale;
 		input.update();
 		world.update(delta);
 		draw.fill(0,0,0,255);
@@ -189,7 +192,7 @@ class PhyScene {
 		this.mouse[0]=mpos[0]/viewscale;
 		this.mouse[1]=mpos[1]/viewscale;
 		let player=this.playeratom;
-		let pdata=player.userdata;
+		let pdata=player.data;
 		let dir=this.mouse.sub(player.pos);
 		let mag=dir.sqr();
 		if (mag<Infinity) {
@@ -202,7 +205,7 @@ class PhyScene {
 		}
 		// Update atoms.
 		for (let atom of world.atomiter()) {
-			let data=atom.userdata;
+			let data=atom.data;
 			// Update the appearance.
 			let vel=atom.vel.mag();
 			data.velcolor=Math.max(data.velcolor*0.99,vel);
@@ -225,7 +228,10 @@ class PhyScene {
 		}
 		// Draw the HUD.
 		draw.setcolor(255,255,255,255);
-		draw.filltext(.005,.005,"time : "+this.framestr+"\ncount: "+world.atomlist.count,.019);
+		let diag="time : "+this.framestr;
+		diag+="\natoms: "+world.atomlist.count;
+		diag+="\nbonds: "+world.bondlist.count;
+		draw.filltext(.005,.005,diag,.019);
 		this.ctx.putImageData(draw.img.imgdata,0,0);
 		// Calculate the frame time.
 		this.framesum+=performance.now()-starttime;
@@ -252,7 +258,7 @@ class PhyScene {
 		if (dx*dx+dy*dy>=rad2) {return;}
 		let rad21=rad>1?(rad-1)*(rad-1):0;
 		// Fill in the circle at (x,y) with radius 'rad'.
-		let data=atom.userdata;
+		let data=atom.data;
 		let colrgba=draw.rgbatoint(data.r,data.g,data.b,255);
 		let coll=(colrgba&0x00ff00ff)>>>0;
 		let colh=(colrgba&0xff00ff00)>>>0;
@@ -260,7 +266,6 @@ class PhyScene {
 		let miny=Math.floor(y-rad+0.5),maxy=Math.ceil(y+rad-0.5);
 		miny=miny> 0?miny: 0;
 		maxy=maxy<dh?maxy:dh;
-		// PhyAssert(miny<maxy);
 		let imgdata32=img.data32;
 		let distmap=this.distmap;
 		for (;miny<maxy;miny++) {
@@ -278,7 +283,6 @@ class PhyScene {
 			// Normal version. Time FF: 2.582620, time CR: 2.692565
 			for (;minx<maxx;minx++) {
 				// Check if we can overwrite another atom's pixel, or if we need to blend them.
-				// PhyAssert(d2>=0 && d2<=rad2,[d2,rad2]);
 				let m2=distmap[minx];
 				let u=(m2-d2)*0.5,u1=u+0.5,u2=u-0.5;
 				// sqrt(m2)-sqrt(d2)>-1
@@ -302,7 +306,6 @@ class PhyScene {
 				d2+=2*dx+1;
 				dx++;
 			}
-			// PhyAssert(maxx>=dw*miny+dw || d2>=rad2,[d2,rad2]);
 		}
 	}
 
@@ -511,7 +514,6 @@ class StackScene {
 		let miny=Math.floor(y-rad+0.5),maxy=Math.ceil(y+rad-0.5);
 		miny=miny> 0?miny: 0;
 		maxy=maxy<dh?maxy:dh;
-		// PhyAssert(miny<maxy);
 		let imgdata32=img.data32;
 		let distmap=scene.distmap;
 		for (;miny<maxy;miny++) {
@@ -529,7 +531,6 @@ class StackScene {
 			// Normal version. Time FF: 2.582620, time CR: 2.692565
 			for (;minx<maxx;minx++) {
 				// Check if we can overwrite another atom's pixel, or if we need to blend them.
-				// PhyAssert(d2>=0 && d2<=rad2,[d2,rad2]);
 				let m2=distmap[minx];
 				let u=(m2-d2)*0.5,u1=u+0.5,u2=u-0.5;
 				// sqrt(m2)-sqrt(d2)>-1
@@ -553,7 +554,6 @@ class StackScene {
 				d2+=2*dx+1;
 				dx++;
 			}
-			// PhyAssert(maxx>=dw*miny+dw || d2>=rad2,[d2,rad2]);
 		}
 	}
 

@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-audio.js - v3.03
+audio.js - v3.04
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -55,13 +55,18 @@ History
      Sound instances now stop and start properly by recreating the audio node.
      Browser audio now gets muted and unmuted properly.
      Cleaned up SFX.parse() error reporting.
+3.04
+     Cleaned up duplicate variables.
 
 
 --------------------------------------------------------------------------------
 TODO
 
 
-Use module to put everything under Audio. namespace.
+Use module to put everything under Audio namespace.
+Reduce size to 20kb
+	Abandon realistic instruments.
+	Remove envelopes, biquad, and delay.
 
 Waveguides
 	https://www.osar.fr/notes/waveguides/
@@ -69,7 +74,6 @@ Waveguides
 	esis/assemblyscriptphysicalmodelingsynthesis.html
 
 AIVA or UDIO for midi creation.
-Remove envelopes, biquad, and delay?
 Better explanation of compiled form in article.
 
 UI
@@ -109,7 +113,7 @@ Allow inst to play effects
 
 
 //---------------------------------------------------------------------------------
-// Audio - v3.03
+// Audio - v3.04
 
 
 class _AudioSound {
@@ -1054,7 +1058,7 @@ class _AudioSFX {
 	}
 
 
-	fill(snd,start,len) {
+	fill(snd,fstart,flen) {
 		// Fills a sound or array with the effect's output.
 		let snddata=snd;
 		let sndlen =snd.length;
@@ -1064,14 +1068,14 @@ class _AudioSFX {
 			sndlen =snd.len;
 			sndfreq=snd.freq;
 		}
-		if (start===undefined) {start=0;}
-		if (len===undefined) {len=sndlen;}
-		if (start+len<sndlen) {sndlen=start+len;}
+		if (fstart===undefined) {fstart=0;}
+		if (flen===undefined) {flen=sndlen;}
+		if (fstart+flen<sndlen) {sndlen=fstart+flen;}
 		let sndrate=1/sndfreq;
 		const EXPR=0,ENV=1,TBL=2,TRI=3,PLS=4,SAW=5,SIN=6,SQR=7,NOI=8,DEL=9;
 		const OSC0=2,OSC1=7,FIL0=10,FIL1=17;
 		const VBITS=24,VMASK=(1<<VBITS)-1;
-		for (let sndpos=start;sndpos<sndlen;sndpos++) {
+		for (let sndpos=fstart;sndpos<sndlen;sndpos++) {
 			let di32=this.di32,df32=this.df32;
 			let stack=this.stack;
 			let n=0,nstop=di32.length;
@@ -2036,19 +2040,19 @@ class Audio {
 			} else {
 				// Instruments
 				type-=10;
-				let note=["A3","C4","C4","A6","A5","A8","B2","G3"][type];
-				let time=[3.0,2.2,2.2,5.3,3.0,0.1,0.2,0.2][type];
-				let freq=parsenote(argstr[a++],note,"note or frequency");
+				let note =["A3","C4","C4","A6","A5","A8","B2","G3"][type];
+				let ntime=[3.0,2.2,2.2,5.3,3.0,0.1,0.2,0.2][type];
+				let freq =parsenote(argstr[a++],note,"note or frequency");
 				vol=parsenum(argstr[a++],1,"volume");
-				time=parsenum(argstr[a],time,"length");
-				if      (type===0) {snd=Audio.createguitar(1,freq,0.2,time);}
-				else if (type===1) {snd=Audio.createxylophone(1,freq,0.5,time);}
-				else if (type===2) {snd=Audio.createmarimba(1,freq,0.5,time);}
-				else if (type===3) {snd=Audio.createglockenspiel(1,freq,0.5,time);}
-				else if (type===4) {snd=Audio.createmusicbox(1,freq,time);}
-				else if (type===5) {snd=Audio.createdrumhihat(1,freq,time);}
-				else if (type===6) {snd=Audio.createdrumkick(1,freq,time);}
-				else if (type===7) {snd=Audio.createdrumsnare(1,freq,time);}
+				ntime=parsenum(argstr[a],ntime,"length");
+				if      (type===0) {snd=Audio.createguitar(1,freq,0.2,ntime);}
+				else if (type===1) {snd=Audio.createxylophone(1,freq,0.5,ntime);}
+				else if (type===2) {snd=Audio.createmarimba(1,freq,0.5,ntime);}
+				else if (type===3) {snd=Audio.createglockenspiel(1,freq,0.5,ntime);}
+				else if (type===4) {snd=Audio.createmusicbox(1,freq,ntime);}
+				else if (type===5) {snd=Audio.createdrumhihat(1,freq,ntime);}
+				else if (type===6) {snd=Audio.createdrumkick(1,freq,ntime);}
+				else if (type===7) {snd=Audio.createdrumsnare(1,freq,ntime);}
 			}
 			// Add the new sound to the sub sequence.
 			if (!snd) {sepdelta=0;}

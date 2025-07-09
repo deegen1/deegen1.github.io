@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-input.js - v1.15
+input.js - v1.16
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -25,7 +25,7 @@ Controller support.
 
 
 //---------------------------------------------------------------------------------
-// Input - v1.15
+// Input - v1.16
 
 
 class Input {
@@ -61,8 +61,8 @@ class Input {
 		this.active=null;
 		this.scrollupdate=false;
 		this.scroll=[window.scrollX,window.scrollY];
-		this.mousepos=[NaN,NaN];
-		this.mouseraw=[NaN,NaN];
+		this.mousepos=[0,0];
+		this.mouseraw=[0,0];
 		this.mousez=0;
 		this.touchfocus=0;
 		this.clickpos=[0,0];

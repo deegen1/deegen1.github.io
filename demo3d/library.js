@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v1.07
+library.js - v1.10
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -13,10 +13,10 @@ Versions
 
 Input   - v1.15
 Random  - v1.09
-Vector  - v1.06
-Drawing - v3.09
-Audio   - v3.03
-Physics - v3.00
+Vector  - v2.00
+Drawing - v3.11
+Audio   - v3.04
+Physics - v3.01
 
 
 */
@@ -507,7 +507,7 @@ class Random {
 
 
 //---------------------------------------------------------------------------------
-// Vector - v1.06
+// Vector - v2.00
 
 
 class Vector extends Array {
@@ -516,23 +516,17 @@ class Vector extends Array {
 
 
 	constructor(elem) {
-		let l=elem.length;
-		if (l!==undefined) {
-			super(l);
-			for (let i=0;i<l;i++) {this[i]=elem[i];}
-		} else {
-			super(elem);
-			this.fill(0);
-		}
+		let arr=elem.length!==undefined;
+		super(arr?elem.length:elem);
+		this.set(arr?elem:0);
 	}
 
 
-	tostring() {
-		return "["+this.join(", ")+"]";
-	}
+	tostring() {return "["+this.join(", ")+"]";}
+	toString() {return this.tostring();}
 
 
-	set(val) {
+	set(val=0) {
 		let l=this.length,vl=val.length,i;
 		if (vl!==undefined) {
 			l=l<vl?l:vl;
@@ -548,11 +542,14 @@ class Vector extends Array {
 	// Algebra
 
 
-	neg() {
-		let u=this,len=this.length,r=new Vector(len);
-		for (let i=0;i<len;i++) {r[i]=-u[i];}
-		return r;
+	ineg() {
+		let u=this,len=this.length;
+		for (let i=0;i<len;i++) {u[i]=-u[i];}
+		return this;
 	}
+
+
+	neg() {return (new Vector(this)).ineg();}
 
 
 	iadd(v) {
@@ -563,12 +560,7 @@ class Vector extends Array {
 	}
 
 
-	add(v) {
-		// u+v
-		let u=this,len=this.length,r=new Vector(len);
-		for (let i=0;i<len;i++) {r[i]=u[i]+v[i];}
-		return r;
-	}
+	add(v) {return (new Vector(this)).iadd(v);}
 
 
 	isub(v) {
@@ -579,12 +571,7 @@ class Vector extends Array {
 	}
 
 
-	sub(v) {
-		// u-v
-		let u=this,len=this.length,r=new Vector(len);
-		for (let i=0;i<len;i++) {r[i]=u[i]-v[i];}
-		return r;
-	}
+	sub(v) {return (new Vector(this)).isub(v);}
 
 
 	imul(s) {
@@ -595,19 +582,17 @@ class Vector extends Array {
 	}
 
 
-	mul(s) {
-		// u*s
-		let u=this,len=this.length,r=new Vector(len);
-		for (let i=0;i<len;i++) {r[i]=u[i]*s;}
+	mul(v) {
+		// dot or scalar product
+		let u=this,len=this.length;
+		if (v.length!==undefined) {
+			let sum=0;
+			for (let i=0;i<len;i++) {sum+=u[i]*v[i];}
+			return sum;
+		}
+		let r=new Vector(len);
+		for (let i=0;i<len;i++) {r[i]=u[i]*v;}
 		return r;
-	}
-
-
-	dot(v) {
-		// u*v
-		let u=this,len=this.length,sum=0;
-		for (let i=0;i<len;i++) {sum+=u[i]*v[i];}
-		return sum;
 	}
 
 
@@ -615,12 +600,15 @@ class Vector extends Array {
 	// Geometry
 
 
-	dist(v) {
-		// |u-v|
+	dist2(v) {
+		// (u-v)^2
 		let u=this,len=this.length,sum=0,x;
 		for (let i=0;i<len;i++) {x=u[i]-v[i];sum+=x*x;}
-		return Math.sqrt(sum);
+		return sum;
 	}
+
+
+	dist(v) {return Math.sqrt(this.dist2(v));}
 
 
 	sqr() {
@@ -631,12 +619,26 @@ class Vector extends Array {
 	}
 
 
-	mag() {
-		// sqrt(u*u)
-		let u=this,len=this.length,sum=0,x;
-		for (let i=0;i<len;i++) {x=u[i];sum+=x*x;}
-		return Math.sqrt(sum);
+	mag() {return Math.sqrt(this.sqr());}
+
+
+	normalize() {
+		let u=this,len=this.length,mag=0,i,x;
+		for (i=0;i<len;i++) {
+			x=u[i];
+			mag+=x*x;
+		}
+		if (mag<1e-10) {
+			this.randomize();
+		} else {
+			mag=1.0/Math.sqrt(mag);
+			for (i=0;i<len;i++) {u[i]*=mag;}
+		}
+		return this;
 	}
+
+
+	norm() {return (new Vector(this)).normalize();}
 
 
 	randomize() {
@@ -657,37 +659,140 @@ class Vector extends Array {
 	}
 
 
-	static random(dim) {
-		return (new Vector(dim)).randomize();
+	static random(dim) {return (new Vector(dim)).randomize();}
+
+}
+
+
+class Matrix extends Array {
+
+	constructor(rows,cols) {
+		// Expected: (dim), (rows,cols), (Matrix), or (array,[rows,cols])
+		let val=0;
+		if (rows instanceof Matrix) {val=rows;rows=val.rows;cols=val.cols;}
+		else if (rows.length!==undefined) {val=rows;rows=cols[0];cols=cols[1];}
+		else if (cols===undefined) {cols=rows;}
+		super(rows*cols);
+		this.rows=rows;
+		this.cols=cols;
+		this.set(val);
 	}
 
 
-	normalize() {
-		let u=this,len=this.length,mag=0,i,x;
-		if (!len) {return;}
-		for (i=0;i<len;i++) {
-			x=u[i];
-			mag+=x*x;
-		}
-		if (mag<1e-10) {
-			this.randomize();
+	one() {
+		this.set(0);
+		let elem=this;
+		let cols=this.cols,rows=this.rows;
+		rows=rows<cols?rows:cols;
+		for (let i=0;i<rows;i++) {elem[i*cols+i]=1;}
+		return this;
+	}
+
+
+	set(val=0) {
+		let elem=this;
+		let elems=elem.length,vlen=val.length;
+		if (vlen===undefined) {
+			for (let i=0;i<elems;i++) {elem[i]=val;}
 		} else {
-			mag=1.0/Math.sqrt(mag);
-			for (i=0;i<len;i++) {u[i]*=mag;}
+			if (vlen!==elems) {throw `set length: ${elems}!=${vlen}`;}
+			for (let i=0;i<elems;i++) {elem[i]=val[i];}
 		}
 		return this;
 	}
 
 
-	norm() {
-		return (new Vector(this)).normalize();
+	mul(b) {
+		let aelem=this;
+		let arows=this.rows,acols=this.cols;
+		let aelems=this.length,belems=b.length;
+		if (b.length===undefined) {
+			// scalar
+			let m=new Matrix(this);
+			for (let i=0;i<aelems;i++) {m[i]*=b;}
+			return m;
+		} else if (!(b instanceof Matrix)) {
+			// vector
+			if (belems!==acols) {throw `mat*vec dimensions: ${acols}!=${belems}`;}
+			let v=new Vector(arows),i=0;
+			for (let r=0;r<arows;r++) {
+				let sum=0;
+				for (let c=0;c<acols;c++) {sum+=aelem[i++]*b[c];}
+				v[r]=sum;
+			}
+			return v;
+		}
+		// matrix
+		let brows=b.rows,bcols=b.cols,melems=arows*bcols;belems--;
+		if (acols!==brows) {throw `A*B needs cols(A)=rows(B): ${acols}, ${brows}`;}
+		let m=new Matrix(arows,bcols);
+		let belem=b,melem=m;
+		let aval=0,bval=0;
+		for (let i=0;i<melems;i++) {
+			// Multiply row r of A with column c of B.
+			let sum=melem[i];
+			while (bval<=belems) {
+				sum+=aelem[aval]*belem[bval];
+				aval++;
+				bval+=bcols;
+			}
+			melem[i]=sum;
+			bval-=belems;
+			if (bval===bcols) {bval=0;}
+			else {aval-=brows;}
+		}
+		return m;
+	}
+
+
+	static fromangles(angs) {
+		let dim=0,ang2=angs.length*2;
+		while (dim*(dim-1)<ang2) {dim++;}
+		return (new Matrix(dim,dim)).one().rotate(angs);
+	}
+
+
+	rotate(angs) {
+		// Perform a counter-clockwise, right-hand rotation given n*(n-1)/2 angles. In 3D,
+		// angles are expected in XYZ order.
+		//
+		// Rotation is about a plane, not along an axis. For a 2D space, we may only rotate
+		// about the XY plane, thus there is 1 axis of rotation.
+		if (angs.length===undefined) {angs=[angs];}
+		let dim=this.rows,a=(dim*(dim-1))>>>1;
+		if (dim!==this.cols || a!==angs.length) {
+			throw `invalid dimensions: ${dim}, ${this.cols}, ${a}, ${angs.length}`;
+		}
+		let elem=this;
+		for (let j=1;j<dim;j++) {
+			for (let i=0;i<j;i++) {
+				// We have
+				// (i,i)=cos   (i,j)=-sin
+				// (j,i)=sin   (j,j)=cos
+				let cs=Math.cos(angs[--a]);
+				let sn=Math.sin(angs[  a]);
+				// For each row r:
+				// (r,i)=(r,i)*cos+(r,j)*sin
+				// (r,j)=(r,j)*cos-(r,i)*sin
+				// (r,c)=(r,c) otherwise
+				let i0=i,j0=j;
+				for (let r=0;r<dim;r++) {
+					let t0=elem[i0],t1=elem[j0];
+					elem[i0]=t0*cs+t1*sn;
+					elem[j0]=t1*cs-t0*sn;
+					i0+=dim;
+					j0+=dim;
+				}
+			}
+		}
+		return this;
 	}
 
 }
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v3.09
+// Drawing - v3.11
 
 
 class _DrawTransform {
@@ -1920,10 +2025,10 @@ class Draw {
 						u0+=du;
 						let sx=p0x+u0*(c1x+u0*(c2x+u0*c3x)),lx=sx-x0;
 						let sy=p0y+u0*(c1y+u0*(c2y+u0*c3y)),ly=sy-y0;
-						let v=dx*lx+dy*ly;
-						v=v>0?(v<den?v/den:1):0;
-						lx-=dx*v;
-						ly-=dy*v;
+						let u=dx*lx+dy*ly;
+						u=u>0?(u<den?u/den:1):0;
+						lx-=dx*u;
+						ly-=dy*u;
 						let dist=lx*lx+ly*ly;
 						if (maxdist<dist) {
 							maxdist=dist;
@@ -2155,7 +2260,7 @@ class Draw {
 
 
 //---------------------------------------------------------------------------------
-// Audio - v3.03
+// Audio - v3.04
 
 
 class _AudioSound {
@@ -2661,7 +2766,7 @@ class _AudioSFX {
 
 
 	parse(seqstr) {
-		// Last node is returned. Node names must start with #.
+		// Last node is used as output. Node names must start with #.
 		// Translating addresses: (node_num+1)<<8+param_num
 		const EXPR=0,ENV=1,TBL=2,NOI=8,DEL=9,OSC0=2,OSC1=7,FIL0=10,FIL1=17;
 		const CON=0,VAR=1,OP=2,VBITS=24,VMASK=(1<<VBITS)-1,PBITS=8,PMASK=(1<<PBITS)-1;
@@ -3100,7 +3205,7 @@ class _AudioSFX {
 	}
 
 
-	fill(snd,start,len) {
+	fill(snd,fstart,flen) {
 		// Fills a sound or array with the effect's output.
 		let snddata=snd;
 		let sndlen =snd.length;
@@ -3110,14 +3215,14 @@ class _AudioSFX {
 			sndlen =snd.len;
 			sndfreq=snd.freq;
 		}
-		if (start===undefined) {start=0;}
-		if (len===undefined) {len=sndlen;}
-		if (start+len<sndlen) {sndlen=start+len;}
+		if (fstart===undefined) {fstart=0;}
+		if (flen===undefined) {flen=sndlen;}
+		if (fstart+flen<sndlen) {sndlen=fstart+flen;}
 		let sndrate=1/sndfreq;
 		const EXPR=0,ENV=1,TBL=2,TRI=3,PLS=4,SAW=5,SIN=6,SQR=7,NOI=8,DEL=9;
 		const OSC0=2,OSC1=7,FIL0=10,FIL1=17;
 		const VBITS=24,VMASK=(1<<VBITS)-1;
-		for (let sndpos=start;sndpos<sndlen;sndpos++) {
+		for (let sndpos=fstart;sndpos<sndlen;sndpos++) {
 			let di32=this.di32,df32=this.df32;
 			let stack=this.stack;
 			let n=0,nstop=di32.length;
@@ -4082,19 +4187,19 @@ class Audio {
 			} else {
 				// Instruments
 				type-=10;
-				let note=["A3","C4","C4","A6","A5","A8","B2","G3"][type];
-				let time=[3.0,2.2,2.2,5.3,3.0,0.1,0.2,0.2][type];
-				let freq=parsenote(argstr[a++],note,"note or frequency");
+				let note =["A3","C4","C4","A6","A5","A8","B2","G3"][type];
+				let ntime=[3.0,2.2,2.2,5.3,3.0,0.1,0.2,0.2][type];
+				let freq =parsenote(argstr[a++],note,"note or frequency");
 				vol=parsenum(argstr[a++],1,"volume");
-				time=parsenum(argstr[a],time,"length");
-				if      (type===0) {snd=Audio.createguitar(1,freq,0.2,time);}
-				else if (type===1) {snd=Audio.createxylophone(1,freq,0.5,time);}
-				else if (type===2) {snd=Audio.createmarimba(1,freq,0.5,time);}
-				else if (type===3) {snd=Audio.createglockenspiel(1,freq,0.5,time);}
-				else if (type===4) {snd=Audio.createmusicbox(1,freq,time);}
-				else if (type===5) {snd=Audio.createdrumhihat(1,freq,time);}
-				else if (type===6) {snd=Audio.createdrumkick(1,freq,time);}
-				else if (type===7) {snd=Audio.createdrumsnare(1,freq,time);}
+				ntime=parsenum(argstr[a],ntime,"length");
+				if      (type===0) {snd=Audio.createguitar(1,freq,0.2,ntime);}
+				else if (type===1) {snd=Audio.createxylophone(1,freq,0.5,ntime);}
+				else if (type===2) {snd=Audio.createmarimba(1,freq,0.5,ntime);}
+				else if (type===3) {snd=Audio.createglockenspiel(1,freq,0.5,ntime);}
+				else if (type===4) {snd=Audio.createmusicbox(1,freq,ntime);}
+				else if (type===5) {snd=Audio.createdrumhihat(1,freq,ntime);}
+				else if (type===6) {snd=Audio.createdrumkick(1,freq,ntime);}
+				else if (type===7) {snd=Audio.createdrumsnare(1,freq,ntime);}
 			}
 			// Add the new sound to the sub sequence.
 			if (!snd) {sepdelta=0;}
@@ -4270,7 +4375,7 @@ class Audio {
 
 
 //---------------------------------------------------------------------------------
-// Physics - v3.00
+// Physics - v3.01
 
 
 class PhyLink {
@@ -4389,25 +4494,19 @@ class PhyList {
 		if (link===null) {
 			return;
 		}
-		// PhyAssert(link.list===this);
-		// PhyAssert(this.count>0);
 		let prev=link.prev;
 		let next=link.next;
 		if (prev!==null) {
 			prev.next=next;
 		} else {
-			// PhyAssert(this.head===link);
 			this.head=next;
 		}
 		if (next!==null) {
 			next.prev=prev;
 		} else {
-			// PhyAssert(this.tail===link);
 			this.tail=prev;
 		}
 		this.count--;
-		// PhyAssert((this.count===0)===(this.head===null));
-		// PhyAssert((this.head===null)===(this.tail===null));
 		link.prev=null;
 		link.next=null;
 		link.list=null;
@@ -4595,6 +4694,7 @@ class PhyAtom {
 		this.worldlink=new PhyLink(this);
 		this.world=type.world;
 		this.world.atomlist.add(this.worldlink);
+		this.sleeping=false;
 		pos=new Vector(pos);
 		this.pos=pos;
 		this.vel=new Vector(pos.length);
@@ -4651,7 +4751,7 @@ class PhyAtom {
 		let ge=type.gravity;
 		ge=(ge===null?this.world.gravity:ge);
 		let dt0=type.dt0,dt1=type.dt1,dt2=type.dt2;
-		let pos,rad=this.rad;
+		let pos,rad=this.rad,energy=0;
 		for (let i=0;i<dim;i++) {
 			let vel=ve[i],acc=ge[i];
 			pos=vel*dt1+acc*dt2+pe[i];
@@ -4662,7 +4762,9 @@ class PhyAtom {
 			if (pos>b) {pos=b;vel=vel>0?-vel:vel;}
 			pe[i]=pos;
 			ve[i]=vel;
+			energy+=vel*vel;
 		}
+		this.sleeping=energy<1e-10;
 	}
 
 
@@ -4743,7 +4845,6 @@ class PhyAtom {
 class PhyBond {
 
 	constructor(world,a,b,dist,tension) {
-		// PhyAssert(!Object.is(a,b));
 		this.world=world;
 		this.worldlink=new PhyLink(this);
 		this.world.bondlist.add(this.worldlink);
@@ -4825,15 +4926,16 @@ class PhyBroadphase {
 	//
 	// Node structure:
 	//
-	//      0 parent
-	//      1 left
+	//      0 flags
+	//      1 parent
 	//      2 right
 	//      3 x min
 	//      4 x max
 	//      5 y min
 	//        ...
 	//
-	// If right<0, atom_id=~right.
+	// If flags&1: atom_id=right
+	// If flags&2: sleeping
 	//
 	// Center splitting.
 	// Flat construction.
@@ -4868,7 +4970,7 @@ class PhyBroadphase {
 		this.atomcnt=atomcnt;
 		if (atomcnt===0) {return;}
 		// Allocate working arrays.
-		let dim2=2*dim,nodesize=3+2*dim;
+		let dim2=2*dim,nodesize=3+dim2;
 		let treesize=atomcnt*(nodesize*3)-nodesize;
 		let memi=this.memi32;
 		if (memi===null || memi.length<treesize) {
@@ -4880,7 +4982,7 @@ class PhyBroadphase {
 		let memf=this.memf32;
 		let sortstart=nodesize*(atomcnt*2-1);
 		let leafstart=sortstart+atomcnt;
-		// Store atoms and their bounds.
+		// Store atoms and their bounds. atom_id*2+sleeping.
 		let slack=1+this.slack;
 		let leafidx=leafstart;
 		let atomlink=world.atomlist.head;
@@ -4889,7 +4991,7 @@ class PhyBroadphase {
 			let atom=atomlink.obj;
 			atomlink=atomlink.next;
 			atomarr[i]=atom;
-			memi[leafidx++]=i;
+			memi[leafidx++]=(i<<1)|atom.sleeping;
 			memi[sortstart+i]=leafidx;
 			let pos=atom.pos,rad=atom.rad*slack;
 			rad=rad>0?rad:-rad;
@@ -4901,12 +5003,12 @@ class PhyBroadphase {
 				memf[leafidx++]=x1;
 			}
 		}
-		memi[0]=-1;
-		memi[1]=sortstart+atomcnt;
+		memi[1]=-1;
+		memi[2]=sortstart+atomcnt;
 		let worklo=sortstart;
 		for (let work=0;work<sortstart;work+=nodesize) {
 			// Pop the top working range off the stack.
-			let workhi=memi[work+1],workcnt=workhi-worklo;
+			let workhi=memi[work+2],workcnt=workhi-worklo;
 			if (workcnt===1) {worklo++;continue;}
 			// Find the axis with the greatest range.
 			let sortaxis=-1;
@@ -4944,20 +5046,22 @@ class PhyBroadphase {
 			// Left follows immediately, right needs to be padded.
 			let l=work+nodesize;
 			let r=work+(sortdiv-worklo)*nodesize*2;
-			memi[l+1]=sortdiv;
-			memi[r+1]=workhi;
-			memi[work+1]=l;
+			memi[l+2]=sortdiv;
+			memi[r+2]=workhi;
 			memi[work+2]=r;
 		}
-		// Set parents and bounding boxes. Leaf = ~atom_id.
+		// Set parents and bounding boxes.
 		for (let n=sortstart-nodesize;n>=0;n-=nodesize) {
-			let l=memi[n+1],r=memi[n+2],ndim=n+nodesize;
-			if (l>=sortstart) {
-				l=memi[l-1];r=l;
-				memi[n+2]=~memi[l-1];
+			let l=n+nodesize,r=memi[n+2],ndim=n+nodesize;
+			if (r>=sortstart) {
+				l=memi[r-1];r=l;
+				let a=memi[l-1];
+				memi[n+2]=a>>>1;
+				memi[n  ]=((a&1)<<1)|1;
 			} else {
-				memi[l]=n;l+=3;
-				memi[r]=n;r+=3;
+				memi[n  ]=memi[l]&memi[r]&2;
+				memi[l+1]=n;l+=3;
+				memi[r+1]=n;r+=3;
 			}
 			let x,y;
 			for (let i=n+3;i<ndim;i+=2) {
@@ -4993,22 +5097,20 @@ class PhyBroadphase {
 		for (let n=randstart;n<randend;n+=nodesize) {
 			let orig=memi[n  ];
 			let next=memi[n+1];
+			let cnt =memi[n+2]-nodesize;
 			// Copy original right child and AABB.
-			let u=n+3,v=orig+3,stop=n+nodesize;
+			let u=n+2,v=orig+2,stop=n+nodesize;
 			while (u<stop) {memi[u++]=memi[v++];}
-			let r=memi[orig+2];
-			if (r<0) {
-				// Make next negative to let us know if it's a leaf.
-				memi[n+1]=~next;
-				memi[n+2]=~r;
-				continue;
-			}
-			let l=memi[orig+1];
+			// Set the flags on .next.
+			let f=memi[orig];
+			memi[n+1]=(next<<2)|f;
+			if (f&1) {continue;}
 			// Randomly swap the children.
+			let r=memi[orig+2];
+			let l=orig+nodesize;
 			if (swap<=1) {swap=rnd.getu32()|0x80000000;}
 			if (swap&1) {let tmp=l;l=r;r=tmp;}
 			swap>>>=1;
-			let cnt=memi[n+2]-nodesize;
 			let lcnt=(l<r?0:cnt)+r-l,rcnt=cnt-lcnt;
 			let lidx=n+nodesize,ridx=lidx+lcnt;
 			memi[lidx  ]=l;
@@ -5020,20 +5122,24 @@ class PhyBroadphase {
 		}
 		// Process leaves left to right.
 		for (let n=randstart;n<randend;n+=nodesize) {
-			let node=~memi[n+1];
-			if (node<0) {continue;}
+			let node=memi[n+1];
+			if (!(node&1)) {continue;}
+			let sleeping=node&2;
 			let atom=atomarr[memi[n+2]];
 			let nbnd=n+3,ndim=n+nodesize;
+			node>>>=2;
 			while (node<randend) {
 				let next=memi[node+1];
-				// Down - check for overlap.
-				let u=nbnd,v=node+3;
-				while (u<ndim && memf[u]<=memf[v+1] && memf[v]<=memf[u+1]) {u+=2;v+=2;}
-				if (u===ndim) {
-					if (next>=0) {next=node+nodesize;}
-					else {collide(atom,atomarr[memi[node+2]]);}
+				if (!(sleeping&next)) {
+					// Down - check for overlap.
+					let u=nbnd,v=node+3;
+					while (u<ndim && memf[u]<=memf[v+1] && memf[v]<=memf[u+1]) {u+=2;v+=2;}
+					if (u===ndim) {
+						if (!(next&1)) {node+=nodesize;continue;}
+						else {collide(atom,atomarr[memi[node+2]]);}
+					}
 				}
-				node=next<0?~next:next;
+				node=next>>>2;
 			}
 		}
 	}
@@ -5153,7 +5259,7 @@ class PhyWorld {
 	autobond(atomarr,tension) {
 		// Balance distance, mass, # of bonds, direction.
 		let count=atomarr.length;
-		if (count===0) {return;}
+		if (count===0 || isNaN(tension)) {return;}
 		let infoarr=new Array(count);
 		for (let i=0;i<count;i++) {
 			let info={
@@ -5176,7 +5282,7 @@ class PhyWorld {
 	}
 
 
-	createbox(cen,side,rad,dist,type) {
+	createbox(cen,side,rad,dist,type,tension=NaN) {
 		// O O O O
 		//  O O O
 		// O O O O
@@ -5195,7 +5301,7 @@ class PhyWorld {
 			}
 			atomarr[atomcombo]=this.createatom(pos,rad,type);
 		}
-		this.autobond(atomarr,Infinity);
+		this.autobond(atomarr,tension);
 	}
 
 
@@ -5226,7 +5332,7 @@ class PhyWorld {
 				link=link.next;
 			}
 			for (let i=0;i<bondcount;i++) {
-				bondarr[i].obj.update(dt);
+				bondarr[i].obj.update();
 			}
 			// Collide atoms.
 			this.broad.build();
