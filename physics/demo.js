@@ -807,16 +807,16 @@ class BVHScene {
 		draw.setcolor(255,255,255,255);
 		let bvhi=world.broad.memi32;
 		let bvhf=world.broad.memf32;
-		let nodelen=1,nodemax=8;
+		let nodelen=1,nodemax=8,nodesize=3+2*2;
 		let nodearr=new Array(nodemax);
 		nodearr[0]=0;
 		while (nodelen<nodemax) {
 			let stop=nodelen;
 			for (let i=0;i<stop && nodelen<nodemax;i++) {
-				let n=nodearr[i],leaf=bvhi[n+2];
-				if (leaf>=0) {
-					nodearr[i]=bvhi[n+1];
-					nodearr[nodelen++]=leaf;
+				let n=nodearr[i];
+				if (!(bvhi[n]&1)) {
+					nodearr[i]=n+nodesize;
+					nodearr[nodelen++]=bvhi[n+2];
 				}
 			}
 		}

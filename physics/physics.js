@@ -51,6 +51,7 @@ History
 TODO
 
 
+Check if BVH.collide is running correctly.
 Switch list to array
 	arr=new PhyArray("_atomidx"); // indexname="_atomidx"
 	arr.add(atom);                // obj[indexname]=...
