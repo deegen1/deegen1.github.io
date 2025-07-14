@@ -5306,7 +5306,7 @@ class PhyWorld {
 		}
 		for (let i=0;i<count;i++) {
 			let mainatom=infoarr[i].atom;
-			let rad=mainatom.rad*4.0;
+			let rad=mainatom.rad*4.1;
 			for (let j=0;j<i;j++) {
 				let atom=infoarr[j].atom;
 				if (Object.is(atom,mainatom)) {continue;}

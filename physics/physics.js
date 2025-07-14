@@ -53,7 +53,7 @@ History
 TODO
 
 
-Check if BVH.collide is running correctly.
+Remove world bounds. Add to timestep in demo.
 Switch list to array
 	arr=new PhyArray("_atomidx"); // indexname="_atomidx"
 	arr.add(atom);                // obj[indexname]=...
@@ -989,7 +989,7 @@ class PhyWorld {
 		}
 		for (let i=0;i<count;i++) {
 			let mainatom=infoarr[i].atom;
-			let rad=mainatom.rad*4.0;
+			let rad=mainatom.rad*4.1;
 			for (let j=0;j<i;j++) {
 				let atom=infoarr[j].atom;
 				if (Object.is(atom,mainatom)) {continue;}

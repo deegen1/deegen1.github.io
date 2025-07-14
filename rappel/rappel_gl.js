@@ -35,6 +35,9 @@ Sound effects
 
 player height = 2 units = 32 pixels
 
+https://stackoverflow.com/questions/12250953/drawing-an-image-using-webgl
+https://codepen.io/vskyberry/pen/wvKPGoY
+
 
 */
 /* npx eslint rappel.js -c ../../standards/eslint.js */
@@ -67,6 +70,7 @@ class Game {
 		this.initworld();
 		this.initaudio();
 		this.camera=new Vector(2);
+		this.init3d();
 		//this.initgraphics();
 		this.input=new Input();
 		this.input.disablenav();
@@ -302,14 +306,61 @@ class Game {
 	}
 
 
+	init3d() {
+		let ctx=this.canvas.getContext("webgl2");
+		this.ctx=ctx;
+		let vs=ctx.createShader(ctx.VERTEX_SHADER);
+		ctx.shaderSource(vs,`#version 300 es
+			in vec2 a_position;
+			in vec2 a_texcoord;
+			out vec2 v_texcoord;
+			void main() {
+				gl_Position = vec4(a_position,0,1);
+				v_texcoord = a_texcoord;
+			}
+		`);
+		ctx.compileShader(vs);
+		let fs=ctx.createShader(ctx.FRAGMENT_SHADER);
+		ctx.shaderSource(fs,`#version 300 es
+			precision highp float;
+			in vec2 v_texcoord;
+			uniform sampler2D u_texture;
+			out vec4 outColor;
+			void main() {
+				outColor = texture(u_texture, v_texcoord);
+			}
+		`);
+		ctx.compileShader(fs);
+		let prog=ctx.createProgram();
+		ctx.attachShader(prog,vs);
+		ctx.attachShader(prog,fs);
+		ctx.linkProgram(prog);
+		ctx.useProgram(prog);
+		let tex=ctx.createTexture();
+		ctx.bindTexture(ctx.TEXTURE_2D,tex);
+		ctx.texParameteri(ctx.TEXTURE_2D,ctx.TEXTURE_MIN_FILTER,ctx.NEAREST);
+		ctx.texParameteri(ctx.TEXTURE_2D,ctx.TEXTURE_MAG_FILTER,ctx.NEAREST);
+		let attrs=[
+			{var:"a_position",arr:[-1,-1,-1,1,1,1,1,-1]},
+			{var:"a_texcoord",arr:[0,1,0,0,1,0,1,1]}
+		];
+		for (let attr of attrs) {
+			let buf=ctx.createBuffer();
+			let loc=ctx.getAttribLocation(prog,attr.var);
+			ctx.enableVertexAttribArray(loc);
+			ctx.bindBuffer(ctx.ARRAY_BUFFER,buf);
+			ctx.bufferData(ctx.ARRAY_BUFFER,new Float32Array(attr.arr),ctx.STATIC_DRAW);
+			ctx.vertexAttribPointer(loc,2,ctx.FLOAT,false,0,0);
+		}
+	}
+
+
 	initgraphics(draww,drawh) {
 		// Setup the canvas
 		let canvas=this.canvas;
 		canvas.width=draww;
 		canvas.height=drawh;
 		canvas.style.imageRendering="pixelated";
-		this.ctx=this.canvas.getContext("2d",{alpha:false});
-		//this.ctx.imageSmoothingEnabled=false;
 		let draw=new Draw(draww,drawh);
 		this.draw=draw;
 		// Create a dark forest background.
@@ -650,7 +701,10 @@ class Game {
 		draw.filloval(mouse[0],mouse[1],6,6);
 		draw.filltext(5,5,"Click to throw",20);
 		draw.filltext(draww-5-this.framestr.length*11,5,this.framestr,20);
-		this.ctx.putImageData(draw.img.imgdata,0,0);
+		let ctx=this.ctx;
+		ctx.viewport(0,0,draww,drawh);
+		ctx.texImage2D(ctx.TEXTURE_2D,0,ctx.RGBA8,draww,drawh,0,ctx.RGBA,ctx.UNSIGNED_BYTE,draw.img.data8);
+		ctx.drawArrays(ctx.TRIANGLE_FAN,0,4);
 		// Calculate the frame time.
 		this.framesum+=performance.now()-starttime;
 		if (++this.frames>=100) {

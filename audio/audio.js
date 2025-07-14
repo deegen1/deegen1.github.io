@@ -95,11 +95,10 @@ Sound effects
 	Configure delay filter to cache at a static frequency. If rate is too
 	small accumulate till we have enough. If too large, split up and fill
 	multiple values. fill=delay_freq/play_freq
-	WASM fill.
 	Convert oscillator table to AVL tree. Allow vars for points.
 	If node=last, return node.y. Otherwise lerp node and next(node).
 	Store {parent,weight},{prev,next},{left,right},{x},{y} = 20 bytes
-	Go through sound design book. Thunder clap, etc.
+	Go through sound design book. Thunder, crickets, etc.
 	Dial up sound scratching. Use for electric guitar type sound.
 
 Allow inst to play effects
