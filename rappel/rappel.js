@@ -11,34 +11,42 @@ Copyright 2025 Alec Dee - MIT license - SPDX: MIT
 Notes
 
 
-Allow larger levels
-	make sure takes up full screen
-	follow player
-	take full screen, 480 for smallest side
-	move site link
+createshape
+	fix corner shape generation
+	check if bary.sqr()<=1
 
-Levels
-	terrain: rad space mat0 L x0 y0 [mat1] C x1 y1 ...
-	texture can be a name or 0x hex code
+check if anchor bond has been destroyed
 
-Charge up instead of wait timer.
+Make wall out of smaller atoms.
+Don't let inner atoms create bonds.
 
-Particles when movedir or player vel change
+Particles when movedir or player vel change.
+	point
+	circle
+	line
+	star
+	letters
+	effects:
+		glitter reflection
+		no static
+		can hit ropes
+		flickering: flames, sparkling, neon
+		smoke
+		gravity direction
+		damping
 
 Sound effects
-	mute button
-	hook throw
-	hook land
+	volume scaler init to 0
+	hook charge, throw, land
 	object-wall hit
 	music
-
 
 player height = 2 units = 32 pixels
 
 
 */
 /* npx eslint rappel.js -c ../../standards/eslint.js */
-/* global Random, Vector, Matrix, Draw, Audio, Input, PhyWorld */
+/* global Random, Vector, Matrix, Transform, Draw, Audio, Input, PhyWorld */
 
 
 function IsVisible(elem) {
@@ -53,11 +61,25 @@ function IsVisible(elem) {
 }
 
 
+class Particle {
+
+	constructor() {
+		// ang
+		// atom
+		// poly
+		// life
+		// color
+	}
+
+}
+
+
 class Game {
 
 	constructor(bannerid,divid) {
 		this.banner=document.getElementById(bannerid);
 		this.canvas=document.getElementById(divid);
+		this.canvas.style.imageRendering="pixelated";
 		this.rnd=new Random();
 		this.frames=0;
 		this.framesum=0;
@@ -67,7 +89,6 @@ class Game {
 		this.initworld();
 		this.initaudio();
 		this.camera=new Vector(2);
-		//this.initgraphics();
 		this.input=new Input();
 		this.input.disablenav();
 		this.mouse=new Vector(2);
@@ -100,42 +121,48 @@ class Game {
 		let movemat=world.createatomtype(0.01,1.0,0.98);
 		let bodymat=world.createatomtype(0.01,0.32,0.5);
 		let ropemat=world.createatomtype(0.90,1.1,0.5);
-		let hookmat=world.createatomtype(0.01,1.2,0.5);
 		this.wallmat=wallmat;
 		this.movemat=movemat;
 		this.bodymat=bodymat;
 		this.ropemat=ropemat;
-		this.hookmat=hookmat;
 		// Prevents collision between the player and hair.
 		wallmat.data.rgb=[140,170,140,255];
 		movemat.data.rgb=[255,255,255,255];
 		bodymat.data.rgb=[128,128,255,255];
 		bodymat.data.self=true;
 		ropemat.data.self=true;
-		hookmat.data.self=true;
 		// The rope needs to avoid collision most of the time.
-		function hookcall(a,b) {return state.hookcall(a,b);}
 		function ropecall(a,b) {return state.ropecall(a,b);}
-		for (let intr of hookmat.intarr) {intr.callback=hookcall;}
 		for (let intr of ropemat.intarr) {intr.callback=ropecall;}
 		for (let intr of bodymat.intarr) {
 			intr.vmul=1;
 			intr.statictension=600;
 		}
 		// Setup the player.
-		let bodyrad=0.5,headdist=0.75;
+		let bodyrad=0.5;
 		let ropes=16,ropebonds=16;
-		let roperad=0.17,ropelen=0.1;
-		this.updir=new Vector([0,-1]);
+		let roperad=0.17,ropelen=0.05;
 		this.click=0;
-		this.throwing=0;
+		this.throwing=-1;
 		this.charge=1;
 		this.hookpoly=new Draw.Poly(`
-			M -75 -20 L -40 -45 L 0 -45 C 70 -54 -18 -147 -70 -180 C 23 -182 158 -45 60 0
-			C 158 45 23 182 -70 180 C -18 147 70 54 0 45 L -40 45 L -75 20 Z
+			M0-45C70-45-18-147-70-180 23-182 158-45 60 0 158 45 23 182-70
+			180-18 147 70 45 0 45L-32 45C-58 45-75 27-75 0-75-27-58-45-32-45Z
 		`);
+		// Create the hair.
+		this.ropeatom=[];
+		let prev=null;
+		for (let i=0;i<ropes;i++) {
+			let atom=world.createatom(playerpos,roperad,ropemat);
+			this.ropeatom.push(atom);
+			for (let b=0;prev && b<ropebonds;b++) {
+				let bond=world.createbond(prev,atom,ropelen,600);
+				if (!b) {bond.data.rgb=[255,255,255,255];}
+			}
+			prev=atom;
+		}
+		this.ropeatom[0].data.hook=true;
 		// Create the body.
-		this.headdist=headdist;
 		this.bodyatom=[];
 		this.playermass=3;
 		this.playerpos=playerpos;
@@ -146,77 +173,46 @@ class Game {
 			let atom=world.createatom(pos.add(playerpos),bodyrad,bodymat);
 			this.bodyatom.push(atom);
 			for (let j=0;j<i;j++) {world.createbond(atom,this.bodyatom[j],-1,j?500:1000);}
+			let bond=world.createbond(prev,atom,-1,600);
 			if (i) {world.createbond(atom,this.bodyatom[0],bodyrad*0.25,0);}
-		}
-		// Create the hair.
-		this.ropeatom=[];
-		let prev=null;
-		let headpos=playerpos.add([0,-headdist]);
-		for (let i=0;i<ropes;i++) {
-			let mat=i?ropemat:hookmat;
-			let atom=world.createatom(headpos,roperad,mat);
-			this.ropeatom.push(atom);
-			for (let b=0;prev && b<ropebonds;b++) {
-				let bond=world.createbond(prev,atom,ropelen,600);
-				if (!b) {bond.data.rgb=[255,255,255,255];}
-			}
-			prev=atom;
-		}
-		for (let b=0;b<ropebonds;b++) {
-			world.createbond(prev,this.bodyatom[0],headdist,600);
+			else {bond.data.rgb=[255,255,255,255];}
 		}
 		// Set up the level.
 		this.worldw=200;
 		this.worldh=150;
-		world.createbox([13.3,26.7],10,0.27,0.13,wallmat);
-		world.createbox([22.0,20.0],10,0.27,0.13,wallmat);
-		world.createbox([30.7,26.7],10,0.27,0.13,wallmat);
+		world.createshape(2,wallmat,0.27,0.26,
+			[[-1.35,-1.35],[1.35,-1.35],[1.35,1.35],[-1.35,1.35]],
+			[[0,1],[1,2],[2,3],[3,0]],
+			[13.3,26.7]
+		);
+		world.createshape(2,wallmat,0.27,0.26,
+			[[-1.35,-1.35],[1.35,-1.35],[1.35,1.35],[-1.35,1.35]],
+			[[0,1],[1,2],[2,3],[3,0]],
+			[22.0,20.0]
+		);
+		world.createshape(2,wallmat,0.27,0.26,
+			[[-1.35,-1.35],[1.35,-1.35],[1.35,1.35],[-1.35,1.35]],
+			[[0,1],[1,2],[2,3],[3,0]],
+			[30.7,26.7]
+		);
 		world.createbox([22.0,16.7],10,0.27,0.13,movemat,5000);
-		this.addlines([
-			{x:0,y:0,mat:wallmat,rad:0.24,space:0.12,data:{rgb:[200,100,100]}},
-			{y:150},{x:200},{y:0},{x:0}
-		]);
-		//this.debugmap();
-	}
-
-
-	addlines(arr) {
-		// {x,y,mat,data,rad,space}
-		// if not set, copy previous
-		let ret=[];
-		let mat=null;
-		let data={};
-		let rad=NaN,space=NaN;
-		let lx=NaN,ly=NaN;
-		let last=arr[arr.length-1];
-		let skip=(arr[0].x===last.x && arr[0].y===last.y)?1:0;
-		for (let vert of arr) {
-			mat=vert.mat??mat;
-			rad=vert.rad??rad;
-			data=vert.data??data;
-			space=vert.space??space;
-			let nx=vert.x??lx,ny=vert.y??ly;
-			let dx=nx-lx,dy=ny-ly;
-			let dist=Math.sqrt(dx*dx+dy*dy);
-			if (dist>0) {
-				if (!mat) {throw "material not defined";}
-				if (!rad) {throw "radius not defined";}
-				let tmpspace=space>0?space:rad*0.5;
-				let count=(dist/tmpspace+0.5)|0;
-				count=count>2?count:2;
-				for (let c=skip;c<count;c++) {
-					let u=c/(count-1);
-					let pos=new Vector([lx+dx*u,ly+dy*u]);
-					let atom=this.world.createatom(pos,rad,mat);
-					Object.assign(atom.data,data);
-					ret.push(atom);
-				}
-				skip=1;
+		world.createshape(0,wallmat,4.0,1.0,
+			[[-3.8,-3.8],[203.8,-3.8],[203.8,153.8],[-3.8,153.8]],
+			[[0,1],[1,2],[2,3],[3,0]]
+		);
+		world.createshape(2,wallmat,0.24,0.24,
+			[[0,0],[16,0],[16,10],[0,10]],
+			[[0,1],[1,2],[2,3],[3,0]],
+			{vec:[14,28.5],ang:0.35}
+		);
+		for (let atom of world.atomiter()) {
+			if (Object.is(atom.type,wallmat)) {
+				let dist=atom.data._filldist;
+				if (dist<0) {atom.data.rgb=[32,32,32,255];}
 			}
-			lx=nx;
-			ly=ny;
 		}
-		return ret;
+		console.log("atoms:",world.atomlist.count);
+		//this.debugmap();
 	}
 
 
@@ -283,21 +279,25 @@ class Game {
 
 
 	resize() {
-		// Properly resize the canvas
-		//let maxw=this.worldw*16,maxh=this.worldh*16;
-		let draww=480,drawh=480;
+		// Properly resize the canvas.
+		let scale=16,mindim=480;
 		let banner=this.banner.clientHeight;
+		let maxw=this.worldw*scale|0,maxh=this.worldh*scale|0;
 		let winw=window.innerWidth,winh=window.innerHeight-banner;
-		if (winw<winh) {
-			drawh=(winh*draww/winw)|0;
-		} else {
-			draww=(winw*drawh/winh)|0;
-		}
-		let style =this.canvas.style;
-		style.left="0px";
-		style.top =banner+"px";
-		style.width =winw+"px";
-		style.height=winh+"px";
+		let winmax=mindim/(winw<winh?winw:winh);
+		let draww=winw*winmax|0;
+		let drawh=winh*winmax|0;
+		draww=draww<maxw?draww:maxw;
+		drawh=drawh<maxh?drawh:maxh;
+		let ratio=winw/draww,ratioh=winh/drawh;
+		ratio=ratio<ratioh?ratio:ratioh;
+		maxw=draww*ratio;
+		maxh=drawh*ratio;
+		let style=this.canvas.style;
+		style.left=(winw-maxw)*0.5+"px";
+		style.top=banner+"px";
+		style.width=maxw+"px";
+		style.height=maxh+"px";
 		this.initgraphics(draww,drawh);
 	}
 
@@ -307,57 +307,51 @@ class Game {
 		let canvas=this.canvas;
 		canvas.width=draww;
 		canvas.height=drawh;
-		canvas.style.imageRendering="pixelated";
-		this.ctx=this.canvas.getContext("2d",{alpha:false});
-		//this.ctx.imageSmoothingEnabled=false;
 		let draw=new Draw(draww,drawh);
+		draw.screencanvas(canvas);
 		this.draw=draw;
 		// Create a dark forest background.
 		let bg=new Draw.Image(draww,drawh);
 		this.background=bg;
-		draw.savestate();
+		draw.pushstate();
 		draw.setimage(bg);
 		draw.fill(0,0,0,255);
 		let tower=new Draw.Poly(`
-			M 100 1000 L 100 383 L 0 283 L 0 133 L 76 133 L 76 208 L 131 208 L 131 133
-			L 207 133 L 207 208 L 262 208 L 262 133 L 295 133 L 295 0 L 305 0 L 305 14
-			C 324 9 403 -5 365 32 C 440 53 450 77 555 79 C 518 108 419 96 360 84
-			C 352 55 313 73 305 74 L 305 133 L 338 133 L 338 208 L 393 208 L 393 133
-			L 469 133 L 469 208 L 524 208 L 524 133 L 600 133 L 600 133 L 600 283 L 500 383
-			L 500 1000 Z
+			M-200 0V-617L-300-717V-867h76v75h55v-75h76v75h55v-75H-5v-133H5v14c19-5 98-19 60
+			18 75 21 85 45 190 47-37 29-136 17-195 5-8-29-47-11-55-10v59H38v75H93v-75h76v75
+			h55v-75h76v150L200-617V0Z
 		`);
 		let tree=new Draw.Poly(`
-			M 375 1000 397 890 308 925 324 890 231 925 277 853 134 900 170 874 68 888 100
-			866 0 871 185 763 92 783 122 758 31 763 212 652 114 660 145 642 76 644 248 545
-			157 557 175 543 111 547 242 458 191 469 200 452 150 453 291 365 229 376 248 363
-			190 352 317 279 268 290 282 275 228 268 340 202 296 211 315 198 273 191 369 133
-			337 142 354 128 319 133 423 49 527 131 496 127 509 144 474 130 575 190 533 196
-			554 208 501 200 622 273 567 279 591 297 525 275 658 360 592 360 613 382 545 363
-			690 452 635 452 666 470 599 459 728 553 661 539 699 567 597 545 765 649 700 642
-			730 662 627 646 807 762 728 760 741 784 656 759 837 867 749 856 780 891 673 869
-			713 907 565 852 620 931 525 894 542 924 451 889 471 1000 Z
+			M-43 0l22-110-89 35 16-35-93 35 46-72-143 47 36-26-102 14 32-22-100 5 185-108-93
+			20 30-25-91 5 181-111-98 8 31-18-69 2 172-99-91 12 18-14-64 4 131-89-51 11 9-17
+			-50 1 141-88-62 11 19-13-58-11 127-73-49 11 14-15-54-7 112-66-44 9 19-13-42-7 96
+			-58-32 9 17-14-35 5 104-84 104 82-31-4 13 17-35-14 101 60-42 6 21 12-53-8 121 73
+			-55 6 24 18-66-22 133 85-66 0 21 22-68-19 145 89-55 0 31 18-67-11 129 94-67-14
+			38 28-102-22 168 104-65-7 30 20-103-16 180 116-79-2 13 24-85-25 181 108-88-11 31
+			35-107-22 40 38-148-55 55 79-95-37 17 30-91-35 20 111Z
 		`);
-		let trees=200;
-		let xspan=1/17;
+		let trees=400;
+		let xspan=1/23,towery=drawh*0.90;
 		let rnd=new Random(9);
 		for (let tid=0;tid<trees;tid++) {
 			let u=tid/(trees-1),z=2-1*u;
-			if (tid===((trees*0.75)|0)) {
-				draw.setcolor(16,16,16,255);
-				draw.fillpoly(tower,new Draw.Transform({x:draww*0.33,y:drawh*0.33,scale:0.2}));
-			}
 			// Have trees get closer, and place each row in a zig-zag pattern.
-			let scale=0.1*(1+Math.abs(rnd.getnorm()))/z;
-			let y=drawh*1.3/z-250+(rnd.getf()*0.02-0.01)*drawh;
+			let scale=0.08*(1+Math.abs(rnd.getnorm()))/z;
+			let y=drawh*(0.3+0.9*u+rnd.getf()*0.04-0.02);
 			let x=(u%xspan)/xspan;
-			x=(((u/xspan)&1)?1-x:x)+(rnd.getf()-0.5)*xspan;
-			x=draww*x-400*scale;
+			x=(((u/xspan)&1)?1-x:x)+(rnd.getf()*0.5-0.25)*xspan;
+			x*=draww;
+			if (y>towery) {
+				draw.setcolor(16,16,16,255);
+				draw.fillpoly(tower,new Draw.Transform({x:draww*0.43,y:drawh*0.75,scale:0.2}));
+				towery=Infinity;
+			}
 			// Shade based on proximity.
 			let c=1/(3-2*u);
 			draw.setcolor(60*c,80*c,60*c,255);
 			draw.fillpoly(tree,new Draw.Transform({x:x,y:y,scale:scale}));
 		}
-		draw.loadstate();
+		draw.popstate();
 		this.distmap=new Float32Array(draww*drawh);
 	}
 
@@ -368,7 +362,8 @@ class Game {
 		let draw=this.draw,img=draw.img;
 		// Check if it's on the screen.
 		let dw=img.width,dh=img.height,scale=16;
-		let x=(atom.pos[0]-this.camera[0])*scale,y=(atom.pos[1]-this.camera[1])*scale;
+		let x=(atom.pos[0]-this.camera[0])*scale;
+		let y=(atom.pos[1]-this.camera[1])*scale;
 		let dx=(x>1?(x<dw?x:dw):1)-0.5-x;
 		let dy=(y>1?(y<dh?y:dh):1)-0.5-y;
 		let rad=atom.rad*scale+0.5,rad2=rad*rad;
@@ -402,7 +397,8 @@ class Game {
 				let u=(m2-d2)*0.5,u1=u+0.5,u2=u-0.5;
 				// sqrt(m2)-sqrt(d2)>-1
 				if (u1>0 || m2>u1*u1) {
-					distmap[minx]=d2<m2?d2:m2;
+					// Only write the distance if we're inside the border.
+					if (d2<=rad21 && d2<m2) {distmap[minx]=d2;}
 					// rad-dist>1 and sqrt(m2)-sqrt(d2)>1
 					if (d2<=rad21 && u2>0 && d2<u2*u2) {
 						imgdata32[minx]=colrgba;
@@ -443,14 +439,10 @@ class Game {
 
 
 	ropecall(a,b) {
-		return this.throwing>=3 && (!a.type.data.self || !b.type.data.self);
-	}
-
-
-	hookcall(a,b) {
-		if (!this.ropecall(a,b)) {return false;}
-		if (this.throwing<4) {
-			this.throwing=5;
+		let throwing=this.throwing;
+		if (throwing<2 || (a.type.data.self && b.type.data.self)) {return false;}
+		if (throwing<3 && (a.data.hook || b.data.hook)) {
+			this.throwing=4;
 			this.world.createbond(a,b,a.rad+b.rad,20000).breakdist=1e+9;
 		}
 		return true;
@@ -472,69 +464,28 @@ class Game {
 		}
 		playerpos.imul(1/bodyatom.length);
 		playervel.imul(1/bodyatom.length);
-		let head=ropeatom[ropeatom.length-1];
-		let updir=this.updir;
-		updir.set(head.pos.sub(playerpos));
 		// Check for click.
 		let throwing=this.throwing;
-		let charge=this.charge+0.5*dt;
-		charge=charge<1?charge:1;
+		let charge=this.charge;
 		let click=input.getkeydown(input.MOUSE.LEFT)?1:0;
 		if (this.click!==click) {this.click=click;} else {click=2;}
-		if (this.throwing>=4) {
-			// The player is hooked.
-			throwing=4;
-			if (click===0) {
-				charge=0;
-				throwing=0;
-			}
-		} else {
-			// Estimate where the ground is based on static bonds.
-			let mass=0,maxmass=this.playermass;
-			let dir=new Vector(2);
-			for (let atom of bodyatom) {
-				for (let bond of atom.bondlist.iter()) {
-					if (bond.breakdist<Infinity) {
-						let b=Object.is(atom,bond.a)?bond.b:bond.a;
-						let bmass=b.mass<maxmass?b.mass:maxmass;
-						let bdir=playerpos.sub(b.pos).normalize();
-						dir.iadd(bdir.imul(bmass));
-						mass+=bmass;
-					}
-				}
-			}
-			if (mass>=maxmass/10) {
-				updir.set(dir).normalize();
-				// Center the player hair.
-				if (throwing<3) {
-					let dif=updir.mul(this.headdist);
-					dif.iadd(playerpos).isub(head.pos);
-					head.vel.iadd(dif);
-					head.pos.iadd(dif);
-				}
-			}
-			// Throw if we can, or release.
-			if (charge>=1 && (throwing<=0 || throwing===3)) {
-				throwing=1;
-			}
-			if (this.click===1 && throwing===1) {
-				throwing=2;
-			}
-			if (click===0) {
-				if (throwing===2) {throwing=3;charge=0.4;}
-				else if (throwing===3) {throwing=1;}
-			}
+		// Throw if we can, or release.
+		if (throwing<=0 || charge<=0) {
+			throwing=this.click?1:0;
+			charge=0;
 		}
-		updir.normalize();
+		charge+=[0,1,-0.75][throwing]*dt;
+		charge=charge<1?charge:1;
+		if (click===0) {throwing=[0,2,0,0,0][throwing];}
+		else if (throwing>3) {throwing=3;}
 		let hook=ropeatom[0];
-		this.charge=charge;
 		if (this.throwing!==throwing) {
-			// body, rope, hook
-			let coefs=[0.70,0.25,0.05];
-			if (throwing<4) {
+			// body, rope, hook, damp
+			let coefs=[0.70,0.25,0.05,0.90];
+			if (throwing<3) {
 				for (let atom of ropeatom) {
-					if (throwing>1) {
-						atom.pos.set(head.pos);
+					if (throwing>0) {
+						atom.pos.set(playerpos);
 						atom.vel.set(playervel);
 					}
 					// Delete any temporary bonds on the rope.
@@ -542,14 +493,16 @@ class Game {
 						if (bond.breakdist<Infinity) {bond.release();}
 					}
 				}
-				coefs=[0.990,0.009,0.001];
+				coefs=[0.990,0.00942,0.00058,0.90];
 				// Throw the hook according to the player's velocity.
-				if (throwing===3) {
-					coefs=[0.990,0.0012,0.0088];
-					let lookdir=mouse.sub(head.pos).normalize();
-					hook.vel.iadd(lookdir.mul(45));
+				if (throwing===2) {
+					coefs=[0.990,0.0015,0.0085,0.01];
+					let lookdir=mouse.sub(playerpos).normalize();
+					hook.vel.iadd(lookdir.mul(45*charge));
 				}
 			}
+			this.ropemat.damp=coefs[3];
+			this.ropemat.dt=0;
 			// Rebalance masses.
 			let totalmass=this.playermass,mass;
 			mass=totalmass*coefs[0]/bodyatom.length;
@@ -559,13 +512,21 @@ class Game {
 			hook.mass=totalmass*coefs[2];
 			this.throwing=throwing;
 		}
-		if (throwing===2) {
+		this.charge=charge;
+		if (throwing===1) {
 			// Charging.
-			let mid=ropeatom[4];
-			mid.vel.iadd(playerpos.sub(mid.pos));
-			mid.pos.set(playerpos);
-			let spin=hook.pos.sub(playerpos).imul(160*dt);
-			hook.vel.iadd([-spin[1],spin[0]]);
+			let rad=0.3+charge*0.8;
+			let ang=performance.now()*0.001*25.0;
+			let len=ropeatom.length;
+			for (let i=0;i<len;i++) {
+				let u=1-i/(len-1);
+				let r=u*rad,a=ang-1.5*u*charge;
+				let atom=ropeatom[i];
+				let pos=new Vector([Math.cos(a)*r,Math.sin(a)*r]);
+				pos.iadd(playerpos).isub(atom.pos);
+				atom.vel.iadd(pos);
+				atom.pos.iadd(pos);
+			}
 		}
 	}
 
@@ -600,12 +561,17 @@ class Game {
 		draw.img.data32.set(this.background.data32);
 		world.update(dt);
 		this.updateplayer(dt);
+		// Center the camera on the player.
 		let camera=this.camera;
-		camera.set(this.playerpos);
-		camera[0]-=draww*0.5/16;
-		camera[1]-=drawh*0.5/16;
-		if (camera[0]<0) {camera[0]=0;}
-		if (camera[1]<0) {camera[1]=0;}
+		let drawmax=[draww,drawh];
+		let worldmax=[this.worldw,this.worldh];
+		for (let i=0;i<2;i++) {
+			let ds=drawmax[i]/scale;
+			let pos=this.playerpos[i]-ds*0.5;
+			let max=worldmax[i]-ds;
+			pos=pos<max?pos:max;
+			camera[i]=pos>0?pos:0;
+		}
 		// Draw the atoms.
 		this.distmap.fill(Infinity);
 		for (let atom of world.atomiter()) {
@@ -613,20 +579,6 @@ class Game {
 			if (rgb===undefined) {rgb=atom.type.data.rgb;}
 			if (rgb===undefined) {continue;}
 			this.drawatom(atom,rgb);
-		}
-		// Draw the charge timer.
-		let charge=this.charge;
-		if (this.throwing===0 && charge<1) {
-			let arcs=128;
-			let u=charge>0.9?(1-charge)*10:1;
-			let rad0=20.0,rad1=26.0;
-			let [x,y]=this.playerpos.sub(camera).mul(scale);
-			let ang=-Math.PI*0.5,amul=-Math.PI*2*charge/(arcs-1);
-			let poly=new Draw.Poly();
-			for (let a=0;a<arcs;a++) {poly.lineto(Math.cos(ang)*rad0+x,Math.sin(ang)*rad0+y);ang+=amul;}
-			for (let a=0;a<arcs;a++) {ang-=amul;poly.lineto(Math.cos(ang)*rad1+x,Math.sin(ang)*rad1+y);}
-			draw.setcolor(255-155*u,255-155*u,255-55*u,u*255);
-			draw.fillpoly(poly);
 		}
 		// Draw the bonds.
 		draw.linewidth=3;
@@ -639,18 +591,18 @@ class Game {
 		}
 		draw.linewidth=1;
 		// Draw the hook.
-		draw.setcolor(100,100,100,255);
 		let h0=this.ropeatom[0].pos.sub(camera).mul(scale);
 		let h1=this.ropeatom[1].pos.sub(camera).mul(scale);
 		let angle=Math.atan2(h0[1]-h1[1],h0[0]-h1[0]);
 		let trans=new Draw.Transform({x:h0[0],y:h0[1],angle:angle,scale:0.04});
+		draw.setcolor(100,100,100,255);
 		draw.fillpoly(this.hookpoly,trans);
 		// Draw the HUD.
 		draw.setcolor(255,255,255,255);
 		draw.filloval(mouse[0],mouse[1],6,6);
 		draw.filltext(5,5,"Click to throw",20);
 		draw.filltext(draww-5-this.framestr.length*11,5,this.framestr,20);
-		this.ctx.putImageData(draw.img.imgdata,0,0);
+		draw.screenflip();
 		// Calculate the frame time.
 		this.framesum+=performance.now()-starttime;
 		if (++this.frames>=100) {

@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.09
+demo.js - v1.10
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -51,8 +51,8 @@ class PhyScene {
 		canvas.width=drawwidth;
 		canvas.height=drawheight;
 		this.canvas=canvas;
-		this.ctx=this.canvas.getContext("2d");
 		this.draw=new Draw(drawwidth,drawheight);
+		this.draw.screencanvas(canvas);
 		this.input=new Input(canvas);
 		this.input.disablenav();
 		this.mouse=new Vector(2);
@@ -232,7 +232,7 @@ class PhyScene {
 		diag+="\natoms: "+world.atomlist.count;
 		diag+="\nbonds: "+world.bondlist.count;
 		draw.filltext(.005,.005,diag,.019);
-		this.ctx.putImageData(draw.img.imgdata,0,0);
+		draw.screenflip();
 		// Calculate the frame time.
 		this.framesum+=performance.now()-starttime;
 		if (++this.frames>=60) {
@@ -280,14 +280,14 @@ class PhyScene {
 			d2+=dx*dx;
 			minx+=dw*miny;
 			maxx+=dw*miny;
-			// Normal version. Time FF: 2.582620, time CR: 2.692565
 			for (;minx<maxx;minx++) {
 				// Check if we can overwrite another atom's pixel, or if we need to blend them.
 				let m2=distmap[minx];
 				let u=(m2-d2)*0.5,u1=u+0.5,u2=u-0.5;
 				// sqrt(m2)-sqrt(d2)>-1
 				if (u1>0 || m2>u1*u1) {
-					distmap[minx]=d2<m2?d2:m2;
+					// Only write the distance if we're inside the border.
+					if (d2<=rad21 && d2<m2) {distmap[minx]=d2;}
 					// rad-dist>1 and sqrt(m2)-sqrt(d2)>1
 					if (d2<=rad21 && u2>0 && d2<u2*u2) {
 						imgdata32[minx]=colrgba;
@@ -334,8 +334,8 @@ class StackScene {
 			canvas.style.width ="100%";
 			canvas.style.height="200px";
 			scene.canvas=canvas;
-			scene.ctx=canvas.getContext("2d");
 			scene.draw=new Draw(canvas);
+			scene.draw.screencanvas(canvas);
 			scene.distmap=new Float32Array(0);
 			scene.drawn=false;
 			this.scenearr.push(scene);
@@ -489,7 +489,7 @@ class StackScene {
 				let c=pos0[p+2]*u+pos1[p+2]*v;
 				this.drawatom(scene,x*scale,y*scale,rad,c);
 			}
-			scene.ctx.putImageData(draw.img.imgdata,0,0);
+			draw.screenflip();
 			scene.drawn=true;
 		}
 	}
@@ -514,6 +514,7 @@ class StackScene {
 		let miny=Math.floor(y-rad+0.5),maxy=Math.ceil(y+rad-0.5);
 		miny=miny> 0?miny: 0;
 		maxy=maxy<dh?maxy:dh;
+		// PhyAssert(miny<maxy);
 		let imgdata32=img.data32;
 		let distmap=scene.distmap;
 		for (;miny<maxy;miny++) {
@@ -528,14 +529,14 @@ class StackScene {
 			d2+=dx*dx;
 			minx+=dw*miny;
 			maxx+=dw*miny;
-			// Normal version. Time FF: 2.582620, time CR: 2.692565
 			for (;minx<maxx;minx++) {
 				// Check if we can overwrite another atom's pixel, or if we need to blend them.
 				let m2=distmap[minx];
 				let u=(m2-d2)*0.5,u1=u+0.5,u2=u-0.5;
 				// sqrt(m2)-sqrt(d2)>-1
 				if (u1>0 || m2>u1*u1) {
-					distmap[minx]=d2<m2?d2:m2;
+					// Only write the distance if we're inside the border.
+					if (d2<=rad21 && d2<m2) {distmap[minx]=d2;}
 					// rad-dist>1 and sqrt(m2)-sqrt(d2)>1
 					if (d2<=rad21 && u2>0 && d2<u2*u2) {
 						imgdata32[minx]=colrgba;
@@ -582,8 +583,8 @@ class OscillationScene {
 			canvas.style.width ="100%";
 			canvas.style.height="200px";
 			scene.canvas=canvas;
-			scene.ctx=canvas.getContext("2d");
 			scene.draw=new Draw(canvas);
+			scene.draw.screencanvas(canvas);
 			scene.drawn=false;
 			this.scenearr.push(scene);
 		}
@@ -725,7 +726,7 @@ class OscillationScene {
 				let y1=pos0[b+1]*u+pos1[b+1]*v;
 				draw.drawline(x0,y0,x1,y1);
 			}
-			scene.ctx.putImageData(draw.img.imgdata,0,0);
+			draw.screenflip();
 			scene.drawn=true;
 		}
 	}
@@ -746,8 +747,8 @@ class BVHScene {
 		canvas.style.width ="100%";
 		canvas.style.height="200px";
 		this.canvas=canvas;
-		this.ctx=canvas.getContext("2d");
 		this.draw=new Draw(canvas);
+		this.draw.screencanvas(canvas);
 		this.drawn=false;
 		this.frameprev=0;
 		// Set up stack.
@@ -855,7 +856,7 @@ class BVHScene {
 			if (energy===0) {atom.vel.randomize();}
 			atom.vel.imul(normenergy);
 		}
-		this.ctx.putImageData(draw.img.imgdata,0,0);
+		draw.screenflip();
 		this.drawn=true;
 	}
 

@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v3.04
+physics.js - v3.05
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -47,13 +47,20 @@ History
      Added stepcallback() to allow manual tweaks before each timestep.
 3.04
      Fixed autobond creating multiple bonds.
+3.05
+     Added createshape() to dynamically fill shapes.
 
 
 --------------------------------------------------------------------------------
 TODO
 
 
+Update demo to be fullscreen.
 Remove world bounds. Add to timestep in demo.
+createshape
+	Fill vertices first.
+	corner dist = 1-bary_coord.sqr()
+	Simplex and inside/outside tests for n>2.
 Switch list to array
 	arr=new PhyArray("_atomidx"); // indexname="_atomidx"
 	arr.add(atom);                // obj[indexname]=...
@@ -67,15 +74,19 @@ Better sleeping
 	What to do if gravity is changed after sleeping?
 	If bonded with a sleeping atom, consider sleeping.
 	If a bond is released, wake up both atoms.
+BVH
+	Change AABB structure from [x0,y0,x1,y1] to [x0,y0] [x1,y1].
+	Add generic functions
+	AddLeaf(min,max,obj)
+	TestRay(colfunc)
+	TestBox(colfunc)
 Add static bonds to article.
 New article: friction with springs.
 Remove static bonds if another bond is formed afterwards?
-Only create static if veldif>0?
 Use module to put everything under Phy namespace.
 Motors: linear, angular, range. Add acceleration?
 Reduce to 20kb.
 Scale pvmul like calcdt.
-Change BVH AABB structure from [x0,y0,x1,y1] to [x0,y0] [x1,y1].
 
 
 */
@@ -84,7 +95,7 @@ Change BVH AABB structure from [x0,y0,x1,y1] to [x0,y0] [x1,y1].
 
 
 //---------------------------------------------------------------------------------
-// Physics - v3.04
+// Physics - v3.05
 
 
 class PhyLink {
@@ -273,7 +284,7 @@ class PhyAtomType {
 		this.vmul=elasticity;
 		this.vpmul=1.0;
 		this.statictension=50;
-		this.staticdist=1.25;
+		this.staticdist=1.0;
 		this.bound=true;
 		this.dt =NaN;
 		this.dt0=0;
@@ -544,7 +555,7 @@ class PhyAtom {
 		// Create an electrostatic bond between the atoms.
 		if (bonded===0 && intr.statictension>0) {
 			let bond=a.world.createbond(a,b,rad,intr.statictension);
-			bond.breakdist=rad*intr.staticdist;
+			bond.breakdist=rad+(a.rad<b.rad?a.rad:b.rad)*intr.staticdist;
 		}
 		// Push the atoms apart.
 		let aposmul=posdif*bmass,avelmul=veldif*bmass;
@@ -1023,6 +1034,139 @@ class PhyWorld {
 			atomarr[atomcombo]=this.createatom(pos,rad,type);
 		}
 		this.autobond(atomarr,tension);
+		return atomarr;
+	}
+
+
+	createshape(fill,mat,minrad,spacing,vertarr,facearr,transform=null,bonddist=NaN,bondtension=NaN,bondbreak=Infinity) {
+		// Fill types: 0 Outline, 1 Uniform, 2 Greedy.
+		//
+		// Atoms and bonds are placed *before* applying transform.
+		// Radii and bond lengths will be rescaled if needed.
+		let dim=this.dim;
+		if (dim!==2) {throw `Only implemented for 2 dimensions: ${dim}`;}
+		if (!(spacing>1e-10 && minrad>1e-10)) {throw `Invalid spacing: ${spacing}, ${minrad}`;}
+		let iter=spacing*0.25;
+		let subspace=spacing*0.5;
+		// Find the bounds of our shape.
+		let bndmin=(new Vector(dim)).set(Infinity);
+		let bndmax=(new Vector(dim)).set(-Infinity);
+		for (let vert of vertarr) {
+			bndmin.imin(vert);
+			bndmax.imax(vert);
+		}
+		bndmin.isub(spacing);
+		bndmax.iadd(spacing);
+		let newface=[];
+		for (let face of facearr) {
+			if (face.length!==dim) {throw `invalid face: ${face}`;}
+			let vert=new Array(dim);
+			for (let i=0;i<dim;i++) {vert[i]=new Vector(vertarr[face[i]]);}
+			newface.push(vert);
+		}
+		// Loop through each cell.
+		let cellarr=[];
+		let cellpos=new Vector(bndmin);
+		let minpos=new Vector(dim);
+		while (true) {
+			// Get the distance to the nearest edge and determine if we're inside.
+			let mindist=Infinity;
+			let parity=0;
+			for (let face of newface) {
+				let a=face[0],b=face[1];
+				let dif=b.sub(a);
+				let u=cellpos.sub(a).mul(dif)/dif.sqr();
+				u=u>0?u:0;
+				u=u<1?u:1;
+				let pos=a.add(dif.mul(u));
+				let dist=pos.dist2(cellpos);
+				if (mindist>dist) {
+					mindist=dist;
+					minpos.set(pos);
+				}
+				let eps=1e-10;
+				let cy=cellpos[1]-a[1];
+				if ((cy>=eps && cy<=dif[1]-eps) || (cy<=-eps && cy>=dif[1]+eps)) {
+					let x=a[0]+cy*dif[0]/dif[1];
+					parity^=x<cellpos[0]?1:0;
+				}
+			}
+			// If we're outside, clamp to the edge.
+			mindist=Math.sqrt(mindist)*(parity && fill?-1:1);
+			if (mindist<0) {minpos.set(cellpos);}
+			else if (mindist<spacing) {mindist=0;}
+			if (mindist<=0) {cellarr.push({pos:minpos.copy(),dist:mindist});}
+			// Advance to next cell. Skip gaps if we're far from a face.
+			let skip=(fill===2?Math.abs(mindist):mindist)-spacing*2-iter;
+			if (skip>0) {cellpos[0]+=(skip/iter|0)*iter;}
+			let i;
+			for (i=0;i<dim;i++) {
+				cellpos[i]+=iter;
+				if (cellpos[i]<bndmax[i]) {break;}
+				cellpos[i]=bndmin[i];
+			}
+			if (i>=dim) {break;}
+		}
+		// Prep bonds.
+		if (!(bondtension>0 && bondbreak>0 && bonddist>0)) {bonddist=NaN;}
+		bonddist*=bonddist<Infinity?bonddist:1;
+		let bondarr=[];
+		// Fill from the center outward.
+		cellarr.sort((l,r)=>l.dist-r.dist);
+		let cells=cellarr.length;
+		let mincheck=-1;
+		let atomarr=[];
+		for (let c=0;c<cells;c++) {
+			let cell=cellarr[c];
+			cellpos=cell.pos;
+			let cellrad=fill===2 && cell.dist<0?spacing-cell.dist:minrad;
+			let atoms=atomarr.length,atom;
+			if (mincheck<0 && cell.dist>=0) {mincheck=atoms;fill=0;}
+			let i=mincheck>0?mincheck:0,j=i;
+			for (;i<atoms;i++) {
+				atom=atomarr[i];
+				let dist=atom.pos.dist(cellpos);
+				let rad;
+				if (fill===2) {rad=dist-atom.rad<subspace?0:dist;}
+				else {rad=dist<spacing?0:minrad;}
+				cellrad=cellrad<rad?cellrad:rad;
+				if (cellrad<minrad) {break;}
+			}
+			if (i>=atoms) {
+				atom=this.createatom(cellpos,cellrad,mat);
+				atom.data._filldist=cell.dist;
+				// Bond before transforming.
+				for (let b of atomarr) {
+					let dist=b.pos.dist2(cellpos);
+					if (dist<bonddist) {
+						let bond=this.createbond(atom,b,Math.sqrt(dist),bondtension);
+						bond.breakdist=bondbreak;
+						bondarr.push(bond);
+					}
+				}
+				atomarr.push(atom);
+			}
+			// Move the rejection atom nearer to the front.
+			j+=(i-j)>>1;
+			atomarr[i]=atomarr[j];
+			atomarr[j]=atom;
+		}
+		//let rnd=new Random();
+		transform=new Transform(transform??{dim:dim});
+		for (let atom of atomarr) {
+			atom.pos=transform.apply(atom.pos);
+			//atom.data.rgb=[rnd.modu32(256),rnd.modu32(256),rnd.modu32(256),255];
+		}
+		// Rescale everything based on transform.
+		let scale=Math.pow(transform.mat.det(),1/dim);
+		for (let bond of bondarr) {
+			bond.dist*=scale;
+			bond.breakdist*=scale;
+		}
+		for (let atom of atomarr) {
+			atom.rad*=scale;
+			atom.updateconstants();
+		}
 		return atomarr;
 	}
 

@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v1.06
+library.js - v1.08
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -14,7 +14,7 @@ Versions
 Input   - v1.15
 Random  - v1.09
 Vector  - v1.06
-Drawing - v3.09
+Drawing - v3.14
 Audio   - v3.03
 
 
@@ -686,7 +686,7 @@ class Vector extends Array {
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v3.09
+// Drawing - v3.14
 
 
 class _DrawTransform {
@@ -1020,7 +1020,7 @@ class _DrawPoly {
 			else if (c==="l")  {type=5;}
 			else if (c==="C")  {type=6;}
 			else if (c==="c")  {type=7;}
-			else if (isnum(c)) {type=2;i--;}
+			else if (isnum(c)) {type=4;i--;}
 			else {continue;}
 			let off=[0,0];
 			if ((type&1) && this.vertidx) {
@@ -1148,14 +1148,8 @@ class _DrawImage {
 	resize(width,height) {
 		this.width=width;
 		this.height=height;
-		if (width<1 || height<1) {
-			width=1;
-			height=1;
-		}
-		this.data8  =new Uint8Array(width*height*4);
-		this.datac8 =new Uint8ClampedArray(this.data8.buffer);
-		this.data32 =new Uint32Array(this.data8.buffer);
-		this.imgdata=new ImageData(this.datac8,width,height);
+		this.data8 =new Uint8Array(width*height*4);
+		this.data32=new Uint32Array(this.data8.buffer);
 	}
 
 
@@ -1223,12 +1217,30 @@ class _DrawImage {
 	todataurl() {
 		// Returns a data string for use in <img src="..."> objects.
 		let canv=document.createElement("canvas");
-		canv.width=this.width;
-		canv.height=this.height;
-		canv.getContext("2d").putImageData(this.imgdata);
+		let width=this.width,height=this.height;
+		canv.width=width;
+		canv.height=height;
+		let imgdata=new ImageData(new Uint8ClampedArray(this.data8.buffer),width,height);
+		canv.getContext("2d").putImageData(imgdata);
 		let strdata=canv.toDataURL("image/png");
 		canv.remove();
 		return strdata;
+	}
+
+
+	getpixel(x,y) {
+		if (x<0 || x>=this.width || y<0 || y>=this.height) {
+			throw `invalid pixel: ${x}, ${y}`;
+		}
+		return this.data32[y*this.height+x];
+	}
+
+
+	setpixel(x,y,rgba) {
+		if (x<0 || x>=this.width || y<0 || y>=this.height) {
+			throw `invalid pixel: ${x}, ${y}`;
+		}
+		this.data32[y*this.height+x]=rgba;
 	}
 
 }
@@ -1451,6 +1463,9 @@ class Draw {
 		let con=this.constructor;
 		Object.assign(this,con);
 		if (con.def===null) {con.def=this;}
+		this.canvas   =null;
+		this.ctxgl    =null;
+		this.ctx2d    =null;
 		// Image info
 		this.img      =new con.Image(width,height);
 		this.rgba     =new Uint8ClampedArray([0,1,2,3]);
@@ -1475,6 +1490,81 @@ class Draw {
 		this.tmptrans =new con.Transform();
 		this.tmppoly  =new con.Poly();
 		this.tmpline  =[];
+	}
+
+
+	screencanvas(canvas) {
+		// Rendering to a webgl texture is faster in firefox. Otherwise use 2d.
+		if (Object.is(this.canvas,canvas)) {return;}
+		this.canvas=canvas;
+		try {
+			let ctx=canvas.getContext("webgl2");
+			let vs=ctx.createShader(ctx.VERTEX_SHADER);
+			ctx.shaderSource(vs,`#version 300 es
+				in vec2 a_position;
+				in vec2 a_texcoord;
+				out vec2 v_texcoord;
+				void main() {
+					gl_Position=vec4(a_position,0,1);
+					v_texcoord=a_texcoord;
+				}
+			`);
+			ctx.compileShader(vs);
+			let fs=ctx.createShader(ctx.FRAGMENT_SHADER);
+			ctx.shaderSource(fs,`#version 300 es
+				precision highp float;
+				in vec2 v_texcoord;
+				uniform sampler2D u_texture;
+				out vec4 outColor;
+				void main() {
+					outColor=texture(u_texture,v_texcoord);
+				}
+			`);
+			ctx.compileShader(fs);
+			let prog=ctx.createProgram();
+			ctx.attachShader(prog,vs);
+			ctx.attachShader(prog,fs);
+			ctx.linkProgram(prog);
+			ctx.useProgram(prog);
+			let tex=ctx.createTexture();
+			ctx.bindTexture(ctx.TEXTURE_2D,tex);
+			ctx.texParameteri(ctx.TEXTURE_2D,ctx.TEXTURE_MIN_FILTER,ctx.NEAREST);
+			ctx.texParameteri(ctx.TEXTURE_2D,ctx.TEXTURE_WRAP_S,ctx.CLAMP_TO_EDGE);
+			ctx.texParameteri(ctx.TEXTURE_2D,ctx.TEXTURE_WRAP_T,ctx.CLAMP_TO_EDGE);
+			let attrs=[
+				{var:"a_position",arr:[-1,-1,-1,1,1,1,1,-1]},
+				{var:"a_texcoord",arr:[0,1,0,0,1,0,1,1]}
+			];
+			for (let attr of attrs) {
+				let buf=ctx.createBuffer();
+				let loc=ctx.getAttribLocation(prog,attr.var);
+				ctx.enableVertexAttribArray(loc);
+				ctx.bindBuffer(ctx.ARRAY_BUFFER,buf);
+				ctx.bufferData(ctx.ARRAY_BUFFER,new Float32Array(attr.arr),ctx.STATIC_DRAW);
+				ctx.vertexAttribPointer(loc,2,ctx.FLOAT,false,0,0);
+			}
+			this.ctxgl=ctx;
+		} catch(e) {
+			console.log("failed to get webgl2 context:",e);
+			this.ctx2d=canvas.getContext("2d");
+		}
+	}
+
+
+	screenflip() {
+		// Render to webgl or 2d.
+		let img=this.img;
+		let imgw=img.width,imgh=img.height;
+		let ctx=this.ctxgl;
+		if (ctx===null) {
+			let cdata=new Uint8ClampedArray(img.data8.buffer);
+			let idata=new ImageData(cdata,imgw,imgh);
+			this.ctx2d.putImageData(idata,0,0);
+		} else {
+			ctx.viewport(0,0,imgw,imgh);
+			ctx.texImage2D(ctx.TEXTURE_2D,0,ctx.RGBA8,imgw,imgh,0,ctx.RGBA,ctx.UNSIGNED_BYTE,img.data8);
+			ctx.drawArrays(ctx.TRIANGLE_FAN,0,4);
+		}
 	}
 
 
@@ -1522,6 +1612,16 @@ class Draw {
 	}
 
 
+	inttorgba(i) {
+		let rgba32=this.rgba32;
+		let tmp=rgba32[0];
+		rgba32[0]=i;
+		let rgba=this.rgba.slice();
+		rgba32[0]=tmp;
+		return rgba;
+	}
+
+
 	// ----------------------------------------
 	// Transforms
 	// point -> scale -> rotate -> offset -> view offset -> view scale
@@ -1533,7 +1633,7 @@ class Draw {
 	}
 
 
-	savestate() {
+	pushstate() {
 		let mem=this.stack[this.stackidx++];
 		if (mem===undefined) {
 			mem={
@@ -1553,7 +1653,7 @@ class Draw {
 	}
 
 
-	loadstate() {
+	popstate() {
 		if (this.stackidx<=0) {throw "loading null stack";}
 		let mem=this.stack[--this.stackidx];
 		this.img=mem.img;
@@ -1602,22 +1702,22 @@ class Draw {
 
 	fill(r=0,g=0,b=0,a=255) {
 		// Fills the current image with a solid color.
-		// imgdata.fill(rgba) was ~25% slower during testing.
+		// data32.fill(rgba) was ~25% slower during testing.
 		let rgba=this.rgbatoint(r,g,b,a);
-		let imgdata=this.img.data32;
+		let data32=this.img.data32;
 		let i=this.img.width*this.img.height;
 		while (i>7) {
-			imgdata[--i]=rgba;
-			imgdata[--i]=rgba;
-			imgdata[--i]=rgba;
-			imgdata[--i]=rgba;
-			imgdata[--i]=rgba;
-			imgdata[--i]=rgba;
-			imgdata[--i]=rgba;
-			imgdata[--i]=rgba;
+			data32[--i]=rgba;
+			data32[--i]=rgba;
+			data32[--i]=rgba;
+			data32[--i]=rgba;
+			data32[--i]=rgba;
+			data32[--i]=rgba;
+			data32[--i]=rgba;
+			data32[--i]=rgba;
 		}
 		while (i>0) {
-			imgdata[--i]=rgba;
+			data32[--i]=rgba;
 		}
 	}
 
@@ -1919,10 +2019,10 @@ class Draw {
 						u0+=du;
 						let sx=p0x+u0*(c1x+u0*(c2x+u0*c3x)),lx=sx-x0;
 						let sy=p0y+u0*(c1y+u0*(c2y+u0*c3y)),ly=sy-y0;
-						let v=dx*lx+dy*ly;
-						v=v>0?(v<den?v/den:1):0;
-						lx-=dx*v;
-						ly-=dy*v;
+						let u=dx*lx+dy*ly;
+						u=u>0?(u<den?u/den:1):0;
+						lx-=dx*u;
+						ly-=dy*u;
 						let dist=lx*lx+ly*ly;
 						if (maxdist<dist) {
 							maxdist=dist;

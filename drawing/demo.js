@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.08
+demo.js - v1.09
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -540,10 +540,10 @@ class DrawDemo1 {
 		canvas.height=dh;
 		canvas.style.width="80%";
 		this.canvas=canvas;
-		this.ctx=this.canvas.getContext("2d");
 		this.input=new Input(canvas);
 		this.touched=false;
 		this.draw=new Draw(dw,dh);
+		this.draw.screencanvas(canvas);
 		let rnd=new Random();
 		this.rnd=rnd;
 		this.stararr=Array.from({length:1000},_=>({
@@ -639,7 +639,7 @@ class DrawDemo1 {
 		this.fps=fps;
 		draw.setcolor(0xffffffff);
 		draw.filltext(5,5,"FPS: "+fps.toFixed(2),16);
-		this.ctx.putImageData(draw.img.imgdata,0,0);
+		this.draw.screenflip();
 	}
 
 }
@@ -654,27 +654,24 @@ class DrawDemo2 {
 
 	constructor() {
 		let canvas=document.getElementById("perfcanvas");
+		this.canvas=canvas;
 		this.conout=document.getElementById("perftable");
 		this.tests=11;
 		this.clipdim=60;
 		this.clippad=4;
 		canvas.width=this.clipdim*4+this.clippad*3;
 		canvas.height=this.clipdim*2+this.clippad*1;
-		this.canvas=canvas;
-		this.ctx=this.canvas.getContext("2d");
 		canvas.style.width="95%";
 		canvas.style.imageRendering="pixelated";
-		this.draw=new Draw();
-		let back=new Draw.Image(1000,1000);
-		this.draw.setimage(back);
+		this.draw=new Draw(canvas.width,canvas.height);
+		this.draw.screencanvas(canvas);
 		this.restart();
 	}
 
 
 	restart() {
-		let data=this.ctx.getImageData(0,0,this.canvas.width,this.canvas.height);
-		data.data.fill(0);
-		this.ctx.putImageData(data,0,0);
+		this.draw.fill(0,0,0,0);
+		this.draw.screenflip();
 		this.baseline=0;
 		let out=this.conout;
 		out.innerHTML="<br>".repeat(this.tests);
@@ -942,11 +939,13 @@ class DrawDemo2 {
 	update() {
 		let rnd=new Random(10);
 		let test=this.test++;
-		let imgwidth=this.canvas.width;
-		let imgheight=this.canvas.height;
 		let tests=-1;
 		// Fill the background with static.
 		let draw=this.draw;
+		draw.pushstate();
+		let imgw=1000,imgh=1000;
+		let tmpimg=new Draw.Image(imgw,imgh);
+		draw.setimage(tmpimg);
 		let data32=draw.img.data32,datalen=data32.length;
 		for (let i=0;i<datalen;i++) {data32[i]=rnd.getu32();}
 		let t0=performance.now();
@@ -958,8 +957,8 @@ class DrawDemo2 {
 				draw.rgba32[0]=rnd.getu32();
 				let rad=rnd.getf()*16;
 				pixels+=rad*rad;
-				let x=rnd.getf()*(imgwidth -rad*2)+rad;
-				let y=rnd.getf()*(imgheight-rad*2)+rad;
+				let x=rnd.getf()*(imgw-rad*2)+rad;
+				let y=rnd.getf()*(imgh-rad*2)+rad;
 				switch (test) {
 					case 0:
 						// Baseline
@@ -989,24 +988,24 @@ class DrawDemo2 {
 				draw.rgba32[0]=rnd.getu32();
 				let w=rnd.getf()*16;
 				let h=rnd.getf()*16;
-				let x=rnd.getf()*(imgwidth -w);
-				let y=rnd.getf()*(imgheight-h);
+				let x=rnd.getf()*(imgw-w);
+				let y=rnd.getf()*(imgh-h);
 				pixels+=w*h;
 				draw.fillrect(x,y,w,h);
 			}
 		} else if (test===5) {
 			// Cached image circles.
 			draw.setcolor(255,255,255,255);
-			draw.savestate();
+			draw.pushstate();
 			let rad=16;
 			let cache=new Draw.Image(2*rad,2*rad);
 			draw.setimage(cache);
 			draw.filloval(rad,rad,rad,rad);
-			draw.loadstate();
+			draw.popstate();
 			for (tests=0;(tests&0x1ff)!==0 || performance.now()<tstop;tests++) {
 				draw.rgba32[0]=rnd.getu32();
-				let x=rnd.getf()*(imgwidth-2*cache.width)+cache.width;
-				let y=rnd.getf()*(imgheight-2*cache.height)+cache.height;
+				let x=rnd.getf()*(imgw-2*cache.width)+cache.width;
+				let y=rnd.getf()*(imgh-2*cache.height)+cache.height;
 				draw.drawimage(cache,x,y);
 			}
 			pixels+=tests*cache.width*cache.height;
@@ -1014,10 +1013,10 @@ class DrawDemo2 {
 			// Lines.
 			for (tests=0;(tests&0x1ff)!==0 || performance.now()<tstop;tests++) {
 				draw.rgba32[0]=rnd.getu32();
-				let x0=rnd.getf()*imgwidth;
-				let y0=rnd.getf()*imgheight;
-				let x1=rnd.getf()*imgwidth;
-				let y1=rnd.getf()*imgheight;
+				let x0=rnd.getf()*imgw;
+				let y0=rnd.getf()*imgh;
+				let x1=rnd.getf()*imgw;
+				let y1=rnd.getf()*imgh;
 				let dx=x1-x0,dy=y1-y0;
 				pixels+=Math.sqrt(dx*dx+dy*dy);
 				switch (test) {
@@ -1037,7 +1036,7 @@ class DrawDemo2 {
 			// Text.
 			let text=" !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_`abcdefghijklmnopqrstuvwxyz{|}~█";
 			let rect=draw.textrect("@",16);
-			let textw=imgwidth-rect.w,texth=imgheight-rect.h;
+			let textw=imgw-rect.w,texth=imgh-rect.h;
 			let area=rect.w*rect.h;
 			for (tests=0;(tests&0x1ff)!==0 || performance.now()<tstop;tests++) {
 				draw.rgba32[0]=rnd.getu32();
@@ -1064,14 +1063,15 @@ class DrawDemo2 {
 		let unit=test?"px":"call";
 		let names=["Baseline","Oval alias","Oval smooth","Oval poly","Rect poly","Image cache","Line alias","Line poly","Text poly"];
 		this.log(names[test].padEnd(11)+": "+t0.toFixed(3).padStart(6," ")+" ns/"+unit);
+		draw.popstate();
 		// Draw preview.
 		if (!test) {return true;}
 		let dim=this.clipdim,pad=this.clippad;
 		let img=new Draw.Image(dim,dim);
-		draw.savestate();
+		draw.setcolor(255,255,255,255);
+		draw.pushstate();
 		draw.setimage(img);
 		draw.fill(0,0,0,255);
-		draw.setcolor(255,255,255,255);
 		let cen=Math.floor(dim/2);
 		let rad=dim*0.40;
 		if (test===1) {
@@ -1119,9 +1119,10 @@ class DrawDemo2 {
 				ipos++;
 			}
 		}
-		draw.loadstate();
+		draw.popstate();
 		let winx=((test-1)%4)*(dim+pad),winy=Math.floor((test-1)/4)*(dim+pad);
-		this.ctx.putImageData(img.imgdata,winx,winy);
+		draw.drawimage(img,winx,winy);
+		draw.screenflip();
 		return true;
 	}
 

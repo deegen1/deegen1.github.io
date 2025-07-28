@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v3.12
+drawing.js - v3.17
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -79,46 +79,70 @@ History
 3.12
      Added getpixel, setpixel, and inttorgba.
      Fixed fromstring() parsing numbers as Z instead of L.
+3.13
+     Rendering to screen is now done with webgl, which is faster in firefox.
+     Added screencanvas() and screenflip() to handle rendering.
+     Removed ImageData and C8 types from images.
+     Renamed savestate/loadstate to push/pop.
+3.15
+     Fixed error when parsing compressed SVG strings.
+3.16
+     Added H,h,V,v to fromstring().
 
 
 --------------------------------------------------------------------------------
 TODO
 
 
+fillpoly drawing too much
+	let x=50,y=50;
+	let ang=-Math.PI*0.5,amul=-Math.PI*2*0.437600;
+	let poly=new Draw.Poly();
+	poly.lineto(Math.cos(ang)*20+x,Math.sin(ang)*20+y);ang+=amul;
+	poly.lineto(Math.cos(ang)*20+x,Math.sin(ang)*20+y);
+	poly.lineto(Math.cos(ang)*26+x,Math.sin(ang)*26+y);ang-=amul;
+	poly.lineto(Math.cos(ang)*26+x,Math.sin(ang)*26+y);
+	draw.setcolor(255,255,255,255);
+	draw.fillpoly(poly);
+
 Use module to put everything under Draw namespace.
+
 Try to reduce size to 30kb.
 	Optimize font glyphs. Use /100 or /60 instead of /1000. Optimize svg.
+
 Rewrite article.
+
 Simplify _DrawTransform
-	Remove data[]
-	Use object and world to differentiate.
-	Add "degree" to params to allow rotation in degrees.
-	point -> object offset -> world scale -> world rotate -> world offset
-	remove undo() and replace with inverse().
+	Replace with matrix/vector math.
+	Just apply transforms directly, since we usually rebuild it anyway.
+
 Tracing
 	v4.0
 	Limit length of sharp corners to 2x thickness.
 	Rounded corners: set midpoint distance to thickness.
 	For inline, go through path in reverse.
 	Add traceoval, tracerect.
+
 polyfill
 	Per-subpath color. "F" specifies colors for following segments.
 	Allow for different blend modes.
 	If we call moveto(), close the previous subpath.
+
 DrawPoly
 	normalize, scale, shift
 	closestpoint(point,transform)
 	pointinside(point,transform)
 	Add circular arcs. Use in rappel.js charge timer.
-	Add v,V,h,H.
+	Optimize fromstring(). Create tests for parsing paths.
 	Stop segmenting subcurves if they're offscreen.
+
 filltext/textrect
 	Add backspaces and tabs.
 	For filltext, use untransformed offset. Apply transform when drawing.
+
 DrawImage
 	Redo setpixel, getpixel, fill, rgbatoint, etc so it's always
 	(a<<24)|(r<<16)|(g<<28)|b
-
 
 Tracing draft
 	c2x=(c2x-c1x)*3;c1x=(c1x-p0x)*3;c3x-=p0x+c2x;c2x-=c1x;
@@ -178,7 +202,7 @@ Tracing draft
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v3.12
+// Drawing - v3.17
 
 
 class _DrawTransform {
@@ -497,11 +521,12 @@ class _DrawPoly {
 		// Parses an SVG path. Supports M, Z, L, C.
 		this.begin();
 		let type,j,len=str.length;
-		let params=[2,0,2,6],v=[0,0,0,0,0,0];
+		let params=[2,0,2,1,2,6],v=[0,0,0,0,0,0];
 		function isnum(c) {
-			c=c.length!==undefined?c.charCodeAt(0):c;
+			c=c.charCodeAt(0);
 			return c>42 && c<58 && c!==44 && c!==47;
 		}
+		let last=4;
 		for (let i=0;i<len;) {
 			let c=str[i++];
 			if      (c==="M")  {type=0;}
@@ -510,24 +535,31 @@ class _DrawPoly {
 			else if (c==="z")  {type=3;}
 			else if (c==="L")  {type=4;}
 			else if (c==="l")  {type=5;}
-			else if (c==="C")  {type=6;}
-			else if (c==="c")  {type=7;}
-			else if (isnum(c)) {type=4;i--;}
+			else if (c==="H")  {type=6;}
+			else if (c==="h")  {type=7;}
+			else if (c==="V")  {type=8;}
+			else if (c==="v")  {type=9;}
+			else if (c==="C")  {type=10;}
+			else if (c==="c")  {type=11;}
+			else if (isnum(c) || c==="-") {type=last;i--;}
 			else {continue;}
-			let off=[0,0];
-			if ((type&1) && this.vertidx) {
+			last=type<4?4:type;
+			let prev=[0,0];
+			if (this.vertidx) {
 				let l=this.vertarr[this.vertidx-1];
-				off=[l.x,l.y];
+				prev=[l.x,l.y];
 			}
-			let p=params[type>>1];
-			for (let t=0;t<p;t++) {
-				for (j=i;j<len && !isnum(str.charCodeAt(j));j++) {}
-				for (i=j;i<len && isnum(str.charCodeAt(i));i++) {}
+			let off=(type&1)?prev:[0,0];
+			let p=params[type>>1],t=0;
+			if (type>5 && type<10) {v[0]=prev[0];v[1]=prev[1];t=type>7?1:0;}
+			for (;t<p;t++) {
+				for (j=i;j<len && !isnum(str[j]);j++) {}
+				for (i=j;i<len && isnum(str[i]) && (i===j || str[i]!=="-");i++) {}
 				v[t]=parseFloat(str.substring(j,i))+off[t&1];
 			}
-			if      (type<2) {this.moveto(v[0],v[1]);}
-			else if (type<4) {this.close();}
-			else if (type<6) {this.lineto(v[0],v[1]);}
+			if      (type<2 ) {this.moveto(v[0],v[1]);}
+			else if (type<4 ) {this.close();}
+			else if (type<10) {this.lineto(v[0],v[1]);}
 			else {this.curveto(v[0],v[1],v[2],v[3],v[4],v[5]);}
 		}
 	}
@@ -587,6 +619,7 @@ class _DrawPoly {
 
 	addoval(x,y,xrad,yrad) {
 		// David Ellsworth and Spencer Mortensen constants.
+		yrad=yrad??xrad;
 		const a=1.00005519,b=0.55342686,c=0.99873585;
 		let ax=-a*xrad,ay=a*yrad;
 		let bx=-b*xrad,by=b*yrad;
@@ -640,14 +673,8 @@ class _DrawImage {
 	resize(width,height) {
 		this.width=width;
 		this.height=height;
-		if (width<1 || height<1) {
-			width=1;
-			height=1;
-		}
-		this.data8  =new Uint8Array(width*height*4);
-		this.datac8 =new Uint8ClampedArray(this.data8.buffer);
-		this.data32 =new Uint32Array(this.data8.buffer);
-		this.imgdata=new ImageData(this.datac8,width,height);
+		this.data8 =new Uint8Array(width*height*4);
+		this.data32=new Uint32Array(this.data8.buffer);
 	}
 
 
@@ -715,9 +742,11 @@ class _DrawImage {
 	todataurl() {
 		// Returns a data string for use in <img src="..."> objects.
 		let canv=document.createElement("canvas");
-		canv.width=this.width;
-		canv.height=this.height;
-		canv.getContext("2d").putImageData(this.imgdata);
+		let width=this.width,height=this.height;
+		canv.width=width;
+		canv.height=height;
+		let imgdata=new ImageData(new Uint8ClampedArray(this.data8.buffer),width,height);
+		canv.getContext("2d").putImageData(imgdata);
 		let strdata=canv.toDataURL("image/png");
 		canv.remove();
 		return strdata;
@@ -959,6 +988,9 @@ class Draw {
 		let con=this.constructor;
 		Object.assign(this,con);
 		if (con.def===null) {con.def=this;}
+		this.canvas   =null;
+		this.ctxgl    =null;
+		this.ctx2d    =null;
 		// Image info
 		this.img      =new con.Image(width,height);
 		this.rgba     =new Uint8ClampedArray([0,1,2,3]);
@@ -983,6 +1015,81 @@ class Draw {
 		this.tmptrans =new con.Transform();
 		this.tmppoly  =new con.Poly();
 		this.tmpline  =[];
+	}
+
+
+	screencanvas(canvas) {
+		// Rendering to a webgl texture is faster in firefox. Otherwise use 2d.
+		if (Object.is(this.canvas,canvas)) {return;}
+		this.canvas=canvas;
+		try {
+			let ctx=canvas.getContext("webgl2");
+			let vs=ctx.createShader(ctx.VERTEX_SHADER);
+			ctx.shaderSource(vs,`#version 300 es
+				in vec2 a_position;
+				in vec2 a_texcoord;
+				out vec2 v_texcoord;
+				void main() {
+					gl_Position=vec4(a_position,0,1);
+					v_texcoord=a_texcoord;
+				}
+			`);
+			ctx.compileShader(vs);
+			let fs=ctx.createShader(ctx.FRAGMENT_SHADER);
+			ctx.shaderSource(fs,`#version 300 es
+				precision highp float;
+				in vec2 v_texcoord;
+				uniform sampler2D u_texture;
+				out vec4 outColor;
+				void main() {
+					outColor=texture(u_texture,v_texcoord);
+				}
+			`);
+			ctx.compileShader(fs);
+			let prog=ctx.createProgram();
+			ctx.attachShader(prog,vs);
+			ctx.attachShader(prog,fs);
+			ctx.linkProgram(prog);
+			ctx.useProgram(prog);
+			let tex=ctx.createTexture();
+			ctx.bindTexture(ctx.TEXTURE_2D,tex);
+			ctx.texParameteri(ctx.TEXTURE_2D,ctx.TEXTURE_MIN_FILTER,ctx.NEAREST);
+			ctx.texParameteri(ctx.TEXTURE_2D,ctx.TEXTURE_WRAP_S,ctx.CLAMP_TO_EDGE);
+			ctx.texParameteri(ctx.TEXTURE_2D,ctx.TEXTURE_WRAP_T,ctx.CLAMP_TO_EDGE);
+			let attrs=[
+				{var:"a_position",arr:[-1,-1,-1,1,1,1,1,-1]},
+				{var:"a_texcoord",arr:[0,1,0,0,1,0,1,1]}
+			];
+			for (let attr of attrs) {
+				let buf=ctx.createBuffer();
+				let loc=ctx.getAttribLocation(prog,attr.var);
+				ctx.enableVertexAttribArray(loc);
+				ctx.bindBuffer(ctx.ARRAY_BUFFER,buf);
+				ctx.bufferData(ctx.ARRAY_BUFFER,new Float32Array(attr.arr),ctx.STATIC_DRAW);
+				ctx.vertexAttribPointer(loc,2,ctx.FLOAT,false,0,0);
+			}
+			this.ctxgl=ctx;
+		} catch(e) {
+			console.log("failed to get webgl2 context:",e);
+			this.ctx2d=canvas.getContext("2d");
+		}
+	}
+
+
+	screenflip() {
+		// Render to webgl or 2d.
+		let img=this.img;
+		let imgw=img.width,imgh=img.height;
+		let ctx=this.ctxgl;
+		if (ctx===null) {
+			let cdata=new Uint8ClampedArray(img.data8.buffer);
+			let idata=new ImageData(cdata,imgw,imgh);
+			this.ctx2d.putImageData(idata,0,0);
+		} else {
+			ctx.viewport(0,0,imgw,imgh);
+			ctx.texImage2D(ctx.TEXTURE_2D,0,ctx.RGBA8,imgw,imgh,0,ctx.RGBA,ctx.UNSIGNED_BYTE,img.data8);
+			ctx.drawArrays(ctx.TRIANGLE_FAN,0,4);
+		}
 	}
 
 
@@ -1051,7 +1158,7 @@ class Draw {
 	}
 
 
-	savestate() {
+	pushstate() {
 		let mem=this.stack[this.stackidx++];
 		if (mem===undefined) {
 			mem={
@@ -1071,7 +1178,7 @@ class Draw {
 	}
 
 
-	loadstate() {
+	popstate() {
 		if (this.stackidx<=0) {throw "loading null stack";}
 		let mem=this.stack[--this.stackidx];
 		this.img=mem.img;
@@ -1120,22 +1227,22 @@ class Draw {
 
 	fill(r=0,g=0,b=0,a=255) {
 		// Fills the current image with a solid color.
-		// imgdata.fill(rgba) was ~25% slower during testing.
+		// data32.fill(rgba) was ~25% slower during testing.
 		let rgba=this.rgbatoint(r,g,b,a);
-		let imgdata=this.img.data32;
+		let data32=this.img.data32;
 		let i=this.img.width*this.img.height;
 		while (i>7) {
-			imgdata[--i]=rgba;
-			imgdata[--i]=rgba;
-			imgdata[--i]=rgba;
-			imgdata[--i]=rgba;
-			imgdata[--i]=rgba;
-			imgdata[--i]=rgba;
-			imgdata[--i]=rgba;
-			imgdata[--i]=rgba;
+			data32[--i]=rgba;
+			data32[--i]=rgba;
+			data32[--i]=rgba;
+			data32[--i]=rgba;
+			data32[--i]=rgba;
+			data32[--i]=rgba;
+			data32[--i]=rgba;
+			data32[--i]=rgba;
 		}
 		while (i>0) {
-			imgdata[--i]=rgba;
+			data32[--i]=rgba;
 		}
 	}
 
@@ -1244,6 +1351,7 @@ class Draw {
 
 
 	filloval(x,y,xrad,yrad) {
+		yrad=yrad??xrad;
 		let poly=this.tmppoly,trans=this.tmptrans;
 		trans.set(this.deftrans).addoffset(x,y).mulscale(xrad,yrad);
 		poly.begin();
