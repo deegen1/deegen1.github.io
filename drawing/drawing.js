@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v3.17
+drawing.js - v3.18
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -88,6 +88,8 @@ History
      Fixed error when parsing compressed SVG strings.
 3.16
      Added H,h,V,v to fromstring().
+3.18
+     rgbatoint() and setcolor() now use the same formula.
 
 
 --------------------------------------------------------------------------------
@@ -202,7 +204,7 @@ Tracing draft
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v3.17
+// Drawing - v3.18
 
 
 class _DrawTransform {
@@ -1107,6 +1109,12 @@ class Draw {
 
 	setcolor(r,g,b,a) {
 		// Accepts: int, [r,g,b,a], {r,g,b,a}
+		this.rgba32[0]=this.rgbatoint(r,g,b,a);
+	}
+
+
+	rgbatoint(r,g,b,a) {
+		// Convert an RGBA array to a int regardless of endianness.
 		if (g===undefined) {
 			if (r instanceof Array) {
 				a=r[3]??255;b=r[2]??255;g=r[1]??255;r=r[0]??255;
@@ -1116,21 +1124,12 @@ class Draw {
 				a=(r>>>0)&255;b=(r>>>8)&255;g=(r>>>16)&255;r>>>=24;
 			}
 		}
-		this.rgba[0]=r>0?(r<255?(r|0):255):0;
-		this.rgba[1]=g>0?(g<255?(g|0):255):0;
-		this.rgba[2]=b>0?(b<255?(b|0):255):0;
-		this.rgba[3]=a>0?(a<255?(a|0):255):0;
-	}
-
-
-	rgbatoint(r,g,b,a) {
-		// Convert an RGBA array to a int regardless of endianness.
 		let tmp=this.rgba32[0];
 		let rgba=this.rgba;
-		rgba[0]=r;
-		rgba[1]=g;
-		rgba[2]=b;
-		rgba[3]=a;
+		rgba[0]=r>0?(r<255?(r|0):255):0;
+		rgba[1]=g>0?(g<255?(g|0):255):0;
+		rgba[2]=b>0?(b<255?(b|0):255):0;
+		rgba[3]=a>0?(a<255?(a|0):255):0;
 		rgba=this.rgba32[0];
 		this.rgba32[0]=tmp;
 		return rgba;

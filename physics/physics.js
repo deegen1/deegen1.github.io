@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v3.05
+physics.js - v3.06
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -49,24 +49,28 @@ History
      Fixed autobond creating multiple bonds.
 3.05
      Added createshape() to dynamically fill shapes.
+3.06
+     In createshape, used barycentric magnitude to emphasize vertices and
+     edges. Fixed bond distance calculations for greedy filling.
 
 
 --------------------------------------------------------------------------------
 TODO
 
 
-Update demo to be fullscreen.
-Remove world bounds. Add to timestep in demo.
 createshape
-	Fill vertices first.
-	corner dist = 1-bary_coord.sqr()
-	Simplex and inside/outside tests for n>2.
+	Inside/outside test for dim>2.
+	Simplex distance calculation for dim>2.
+	Instead of checking each cell for overlap with atoms, remove cells every
+	time an atom is created.
+
 Switch list to array
 	arr=new PhyArray("_atomidx"); // indexname="_atomidx"
 	arr.add(atom);                // obj[indexname]=...
 	arr.remove(atom);             // obj[indexname]=-1
 	remove tmpmem and bvh.atomarr
 	Keep objects allocated in the array, since we'll add and remove them a lot.
+
 Better sleeping
 	sleeptime+=dt
 	if vel>1e-10: sleeptime=0
@@ -74,12 +78,16 @@ Better sleeping
 	What to do if gravity is changed after sleeping?
 	If bonded with a sleeping atom, consider sleeping.
 	If a bond is released, wake up both atoms.
+
 BVH
+	AABB isn't properly separating [-inf,-inf].
 	Change AABB structure from [x0,y0,x1,y1] to [x0,y0] [x1,y1].
 	Add generic functions
 	AddLeaf(min,max,obj)
 	TestRay(colfunc)
 	TestBox(colfunc)
+
+Remove world bounds. Add to timestep in demo.
 Add static bonds to article.
 New article: friction with springs.
 Remove static bonds if another bond is formed afterwards?
@@ -95,7 +103,7 @@ Scale pvmul like calcdt.
 
 
 //---------------------------------------------------------------------------------
-// Physics - v3.05
+// Physics - v3.06
 
 
 class PhyLink {
@@ -438,7 +446,7 @@ class PhyAtom {
 		this.typelink.remove();
 		let link;
 		while ((link=this.bondlist.head)!==null) {
-			link.release();
+			link.obj.release();
 		}
 	}
 
@@ -1067,7 +1075,7 @@ class PhyWorld {
 		// Loop through each cell.
 		let cellarr=[];
 		let cellpos=new Vector(bndmin);
-		let minpos=new Vector(dim);
+		let minpos=new Vector(dim),minbary=new Vector(dim);
 		while (true) {
 			// Get the distance to the nearest edge and determine if we're inside.
 			let mindist=Infinity;
@@ -1083,6 +1091,8 @@ class PhyWorld {
 				if (mindist>dist) {
 					mindist=dist;
 					minpos.set(pos);
+					minbary[0]=u;
+					minbary[1]=1-u;
 				}
 				let eps=1e-10;
 				let cy=cellpos[1]-a[1];
@@ -1091,11 +1101,14 @@ class PhyWorld {
 					parity^=x<cellpos[0]?1:0;
 				}
 			}
-			// If we're outside, clamp to the edge.
+			// If we're outside, clamp to the edge. Sort edges based on
+			// barycenter to give vertices and edges better definition.
 			mindist=Math.sqrt(mindist)*(parity && fill?-1:1);
-			if (mindist<0) {minpos.set(cellpos);}
-			else if (mindist<spacing) {mindist=0;}
-			if (mindist<=0) {cellarr.push({pos:minpos.copy(),dist:mindist});}
+			if (mindist<spacing) {
+				if (mindist<0) {minpos.set(cellpos);}
+				else {mindist=Math.max(1-minbary.sqr(),0);}
+				cellarr.push({pos:minpos.copy(),dist:mindist});
+			}
 			// Advance to next cell. Skip gaps if we're far from a face.
 			let skip=(fill===2?Math.abs(mindist):mindist)-spacing*2-iter;
 			if (skip>0) {cellpos[0]+=(skip/iter|0)*iter;}
@@ -1109,7 +1122,7 @@ class PhyWorld {
 		}
 		// Prep bonds.
 		if (!(bondtension>0 && bondbreak>0 && bonddist>0)) {bonddist=NaN;}
-		bonddist*=bonddist<Infinity?bonddist:1;
+		bonddist-=minrad*2;
 		let bondarr=[];
 		// Fill from the center outward.
 		cellarr.sort((l,r)=>l.dist-r.dist);
@@ -1119,9 +1132,10 @@ class PhyWorld {
 		for (let c=0;c<cells;c++) {
 			let cell=cellarr[c];
 			cellpos=cell.pos;
-			let cellrad=fill===2 && cell.dist<0?spacing-cell.dist:minrad;
+			let celldist=cell.dist<0?cell.dist:0;
+			let cellrad=fill===2 && celldist<0?spacing-celldist:minrad;
 			let atoms=atomarr.length,atom;
-			if (mincheck<0 && cell.dist>=0) {mincheck=atoms;fill=0;}
+			if (mincheck<0 && celldist>=0) {mincheck=atoms;fill=0;}
 			let i=mincheck>0?mincheck:0,j=i;
 			for (;i<atoms;i++) {
 				atom=atomarr[i];
@@ -1134,14 +1148,12 @@ class PhyWorld {
 			}
 			if (i>=atoms) {
 				atom=this.createatom(cellpos,cellrad,mat);
-				atom.data._filldist=cell.dist;
+				atom.data._filldist=celldist;
 				// Bond before transforming.
 				for (let b of atomarr) {
-					let dist=b.pos.dist2(cellpos);
-					if (dist<bonddist) {
-						let bond=this.createbond(atom,b,Math.sqrt(dist),bondtension);
-						bond.breakdist=bondbreak;
-						bondarr.push(bond);
+					let dist=b.pos.dist(cellpos);
+					if (dist<atom.rad+b.rad+bonddist) {
+						bondarr.push(this.createbond(atom,b,dist,bondtension));
 					}
 				}
 				atomarr.push(atom);
@@ -1151,21 +1163,17 @@ class PhyWorld {
 			atomarr[i]=atomarr[j];
 			atomarr[j]=atom;
 		}
-		//let rnd=new Random();
+		// Transform and rescale everything.
 		transform=new Transform(transform??{dim:dim});
+		let scale=Math.pow(transform.mat.det(),1/dim);
 		for (let atom of atomarr) {
 			atom.pos=transform.apply(atom.pos);
-			//atom.data.rgb=[rnd.modu32(256),rnd.modu32(256),rnd.modu32(256),255];
-		}
-		// Rescale everything based on transform.
-		let scale=Math.pow(transform.mat.det(),1/dim);
-		for (let bond of bondarr) {
-			bond.dist*=scale;
-			bond.breakdist*=scale;
-		}
-		for (let atom of atomarr) {
 			atom.rad*=scale;
 			atom.updateconstants();
+		}
+		for (let bond of bondarr) {
+			bond.dist=bond.a.pos.dist(bond.b.pos);
+			bond.breakdist=bondbreak*scale;
 		}
 		return atomarr;
 	}

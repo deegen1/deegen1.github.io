@@ -1,9 +1,9 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v1.08
+library.js - v14.54
 
-Copyright 2024 Alec Dee - MIT license - SPDX: MIT
+Copyright 2025 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
 
 
@@ -11,11 +11,11 @@ Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 Versions
 
 
-Input   - v1.15
+Input   - v1.16
 Random  - v1.09
-Vector  - v1.06
-Drawing - v3.14
-Audio   - v3.03
+Vector  - v3.01
+Drawing - v3.18
+Audio   - v3.04
 
 
 */
@@ -24,7 +24,7 @@ Audio   - v3.03
 
 
 //---------------------------------------------------------------------------------
-// Input - v1.15
+// Input - v1.16
 
 
 class Input {
@@ -60,8 +60,8 @@ class Input {
 		this.active=null;
 		this.scrollupdate=false;
 		this.scroll=[window.scrollX,window.scrollY];
-		this.mousepos=[NaN,NaN];
-		this.mouseraw=[NaN,NaN];
+		this.mousepos=[0,0];
+		this.mouseraw=[0,0];
 		this.mousez=0;
 		this.touchfocus=0;
 		this.clickpos=[0,0];
@@ -506,7 +506,7 @@ class Random {
 
 
 //---------------------------------------------------------------------------------
-// Vector - v1.06
+// Vector - v3.01
 
 
 class Vector extends Array {
@@ -515,75 +515,125 @@ class Vector extends Array {
 
 
 	constructor(elem) {
-		let l=elem.length;
-		if (l!==undefined) {
-			super(l);
-			for (let i=0;i<l;i++) {this[i]=elem[i];}
-		} else {
-			super(elem);
-			this.fill(0);
+		let arr=elem.length!==undefined;
+		super(arr?elem.length:elem);
+		this.set(arr?elem:0);
+	}
+
+
+	tostring() {return "["+this.join(", ")+"]";}
+	toString() {return this.tostring();}
+
+
+	sanitize(v) {
+		// Converts v to a vector or throws an error.
+		let len=this.length,vlen=v.length;
+		if (vlen!==undefined) {
+			if (vlen!==len) {throw `Incompatible lengths: ${len}, ${vlen}`;}
+			return v;
+		} else if (!isNaN(v)) {
+			return (new Vector(len)).set(v);
 		}
+		throw `Unrecognized vector type: ${typeof v}`;
 	}
 
 
-	tostring() {
-		return "["+this.join(", ")+"]";
-	}
-
-
-	set(val) {
-		let l=this.length,vl=val.length,i;
-		if (vl!==undefined) {
-			l=l<vl?l:vl;
-			for (i=0;i<l;i++) {this[i]=val[i];}
+	set(v=0) {
+		let len=this.length,vlen=v.length;
+		if (vlen!==undefined) {
+			len=len<vlen?len:vlen;
+			for (let i=0;i<len;i++) {this[i]=v[i];}
+		} else if (!isNaN(v)) {
+			for (let i=0;i<len;i++) {this[i]=v;}
 		} else {
-			for (i=0;i<l;i++) {this[i]=val;}
+			throw `Unrecognized vector type: ${typeof v}`;
 		}
 		return this;
 	}
+
+
+	copy() {return new Vector(this);}
+
+
+	// ----------------------------------------
+	// Comparison
+
+
+	static cmp(u,v) {
+		// return -1, 0, 1
+		let ulen=u.length,vlen=v.length;
+		let len=ulen<vlen?ulen:vlen;
+		for (let i=0;i<len;i++) {
+			let x=u[i],y=v[i];
+			if (x!==y) {return x<y?-1:1;}
+		}
+		if (ulen===vlen) {return 0;}
+		return ulen<vlen?-1:1;
+	}
+
+
+	static lt(u,v) {return u.cmp(v)<0;}
+	static le(u,v) {return u.cmp(v)<=0;}
+
+
+	imin(v) {
+		v=this.sanitize(v);
+		let u=this,len=this.length;
+		for (let i=0;i<len;i++) {let x=u[i],y=v[i];u[i]=x<y?x:y;}
+		return this;
+	}
+
+
+	min(v) {return this.copy().imin(v);}
+
+
+	imax(v) {
+		v=this.sanitize(v);
+		let u=this,len=this.length;
+		for (let i=0;i<len;i++) {let x=u[i],y=v[i];u[i]=x>y?x:y;}
+		return this;
+	}
+
+
+	max(v) {return this.copy().imax(v);}
 
 
 	// ----------------------------------------
 	// Algebra
 
 
-	neg() {
-		let u=this,len=this.length,r=new Vector(len);
-		for (let i=0;i<len;i++) {r[i]=-u[i];}
-		return r;
+	ineg() {
+		let u=this,len=this.length;
+		for (let i=0;i<len;i++) {u[i]=-u[i];}
+		return this;
 	}
+
+
+	neg() {return this.copy().ineg();}
 
 
 	iadd(v) {
 		// u+=v
+		v=this.sanitize(v);
 		let u=this,len=this.length;
 		for (let i=0;i<len;i++) {u[i]+=v[i];}
 		return this;
 	}
 
 
-	add(v) {
-		// u+v
-		let u=this,len=this.length,r=new Vector(len);
-		for (let i=0;i<len;i++) {r[i]=u[i]+v[i];}
-		return r;
-	}
+	add(v) {return this.copy().iadd(v);}
 
 
 	isub(v) {
 		// u-=v
+		v=this.sanitize(v);
 		let u=this,len=this.length;
 		for (let i=0;i<len;i++) {u[i]-=v[i];}
 		return this;
 	}
 
 
-	sub(v) {
-		// u-v
-		let u=this,len=this.length,r=new Vector(len);
-		for (let i=0;i<len;i++) {r[i]=u[i]-v[i];}
-		return r;
-	}
+	sub(v) {return this.copy().isub(v);}
 
 
 	imul(s) {
@@ -594,19 +644,18 @@ class Vector extends Array {
 	}
 
 
-	mul(s) {
-		// u*s
-		let u=this,len=this.length,r=new Vector(len);
-		for (let i=0;i<len;i++) {r[i]=u[i]*s;}
+	mul(v) {
+		// dot or scalar product
+		let u=this,len=this.length,vlen=v.length;
+		if (vlen!==undefined) {
+			if (vlen!==len) {throw `Incompatible lengths: ${len}, ${vlen}`;}
+			let sum=0;
+			for (let i=0;i<len;i++) {sum+=u[i]*v[i];}
+			return sum;
+		}
+		let r=new Vector(len);
+		for (let i=0;i<len;i++) {r[i]=u[i]*v;}
 		return r;
-	}
-
-
-	dot(v) {
-		// u*v
-		let u=this,len=this.length,sum=0;
-		for (let i=0;i<len;i++) {sum+=u[i]*v[i];}
-		return sum;
 	}
 
 
@@ -614,12 +663,16 @@ class Vector extends Array {
 	// Geometry
 
 
-	dist(v) {
-		// |u-v|
+	dist2(v) {
+		// (u-v)^2
+		v=this.sanitize(v);
 		let u=this,len=this.length,sum=0,x;
 		for (let i=0;i<len;i++) {x=u[i]-v[i];sum+=x*x;}
-		return Math.sqrt(sum);
+		return sum;
 	}
+
+
+	dist(v) {return Math.sqrt(this.dist2(v));}
 
 
 	sqr() {
@@ -630,12 +683,22 @@ class Vector extends Array {
 	}
 
 
-	mag() {
-		// sqrt(u*u)
-		let u=this,len=this.length,sum=0,x;
-		for (let i=0;i<len;i++) {x=u[i];sum+=x*x;}
-		return Math.sqrt(sum);
+	mag() {return Math.sqrt(this.sqr());}
+
+
+	normalize() {
+		let u=this,len=this.length,mag=0,i,x;
+		for (i=0;i<len;i++) {
+			x=u[i];
+			mag+=x*x;
+		}
+		mag=mag>1e-10?1.0/Math.sqrt(mag):NaN;
+		for (i=0;i<len;i++) {u[i]*=mag;}
+		return this;
 	}
+
+
+	norm() {return this.copy().normalize();}
 
 
 	randomize() {
@@ -656,37 +719,363 @@ class Vector extends Array {
 	}
 
 
-	static random(dim) {
-		return (new Vector(dim)).randomize();
+	static random(dim) {return (new Vector(dim)).randomize();}
+
+}
+
+
+class Matrix extends Array {
+
+	constructor(rows,cols) {
+		// Expected: (dim), (rows,cols), (Matrix), or (array,[rows,cols])
+		let val=0;
+		if (rows instanceof Matrix) {val=rows;rows=val.rows;cols=val.cols;}
+		else if (rows.length!==undefined) {val=rows;rows=cols[0];cols=cols[1];}
+		else if (cols===undefined) {cols=rows;}
+		super(rows*cols);
+		this.rows=rows;
+		this.cols=cols;
+		this.set(val);
 	}
 
 
-	normalize() {
-		let u=this,len=this.length,mag=0,i,x;
-		if (!len) {return;}
-		for (i=0;i<len;i++) {
-			x=u[i];
-			mag+=x*x;
-		}
-		if (mag<1e-10) {
-			this.randomize();
+	one() {
+		this.set(0);
+		let elem=this;
+		let cols=this.cols,rows=this.rows;
+		rows=rows<cols?rows:cols;
+		for (let i=0;i<rows;i++) {elem[i*cols+i]=1;}
+		return this;
+	}
+
+
+	set(val=0) {
+		let elem=this;
+		let elems=elem.length,vlen=val.length;
+		if (vlen===undefined) {
+			for (let i=0;i<elems;i++) {elem[i]=val;}
 		} else {
-			mag=1.0/Math.sqrt(mag);
-			for (i=0;i<len;i++) {u[i]*=mag;}
+			if (vlen!==elems) {throw `set length: ${elems}!=${vlen}`;}
+			for (let i=0;i<elems;i++) {elem[i]=val[i];}
 		}
 		return this;
 	}
 
 
-	norm() {
-		return (new Vector(this)).normalize();
+	mul(b) {
+		let aelem=this;
+		let arows=this.rows,acols=this.cols;
+		let aelems=this.length,belems=b.length;
+		if (b.length===undefined) {
+			// scalar
+			let m=new Matrix(this);
+			for (let i=0;i<aelems;i++) {m[i]*=b;}
+			return m;
+		} else if (!(b instanceof Matrix)) {
+			// vector
+			if (belems!==acols) {throw `mat*vec dimensions: ${acols}!=${belems}`;}
+			let v=new Vector(arows),i=0;
+			for (let r=0;r<arows;r++) {
+				let sum=0;
+				for (let c=0;c<acols;c++) {sum+=aelem[i++]*b[c];}
+				v[r]=sum;
+			}
+			return v;
+		}
+		// matrix
+		let brows=b.rows,bcols=b.cols,melems=arows*bcols;belems--;
+		if (acols!==brows) {throw `A*B needs cols(A)=rows(B): ${acols}, ${brows}`;}
+		let m=new Matrix(arows,bcols);
+		let belem=b,melem=m;
+		let aval=0,bval=0;
+		for (let i=0;i<melems;i++) {
+			// Multiply row r of A with column c of B.
+			let sum=melem[i];
+			while (bval<=belems) {
+				sum+=aelem[aval]*belem[bval];
+				aval++;
+				bval+=bcols;
+			}
+			melem[i]=sum;
+			bval-=belems;
+			if (bval===bcols) {bval=0;}
+			else {aval-=brows;}
+		}
+		return m;
+	}
+
+
+	det() {
+		let rows=this.rows,cols=this.cols;
+		if (rows!==cols) {return 0;}
+		if (rows===0) {return 1;}
+		// Copy the matrix. Use the upper triangular form to compute the determinant.
+		let elem=new Matrix(this);
+		let sign=0;
+		for (let i=0;i<cols-1;i++) {
+			// Find a row with an invertible element in column i.
+			let dval=i*cols,sval=dval,j;
+			let inv=NaN;
+			for (j=i;j<rows;j++) {
+				inv=1/elem[sval+i];
+				if (inv>-Infinity && inv<Infinity) {break;}
+				sval+=cols;
+			}
+			if (j===rows) {return 0;}
+			if (sval!==dval) {
+				sign^=1;
+				for (let c=i;c<cols;c++) {
+					let tmp=elem[sval+c];
+					elem[sval+c]=elem[dval+c];
+					elem[dval+c]=tmp;
+				}
+			}
+			for (let c=i+1;c<cols;c++) {
+				elem[dval+c]*=inv;
+			}
+			for (let r=i+1;r<cols;r++) {
+				sval=r*cols;
+				let mul=elem[sval+i];
+				for (let c=i+1;c<cols;c++) {
+					elem[sval+c]-=elem[dval+c]*mul;
+				}
+			}
+		}
+		// We have the matrix in upper triangular form. Multiply the diagonals to get the
+		// determinant.
+		let det=elem[0];
+		for (let i=1;i<cols;i++) {
+			det=det*elem[i*cols+i];
+		}
+		return sign?-det:det;
+	}
+
+
+	inv() {
+		// Returns the multiplicative inverse of A.
+		let rows=this.rows,cols=this.cols;
+		if (rows!==cols) {throw `Can only invert square matrices: ${rows}, ${cols}`;}
+		let ret=new Matrix(this);
+		let elem=ret;
+		let perm=new Array(cols);
+		for (let i=0;i<cols;i++) {perm[i]=i;}
+		for (let i=0;i<rows;i++) {
+			// Find a row with an invertible element in column i.
+			let dval=i*cols,sval=dval,j;
+			let inv=NaN;
+			for (j=i;j<rows;j++) {
+				inv=1/elem[sval+i];
+				if (inv>-Infinity && inv<Infinity) {break;}
+				sval+=cols;
+			}
+			if (j===rows) {throw `Unable to find an invertible element.`;}
+			// Swap the desired row with row i. Then put row i in reduced echelon form.
+			if (sval!==dval) {
+				for (let c=0;c<cols;c++) {
+					let tmp=elem[sval+c];
+					elem[sval+c]=elem[dval+c];
+					elem[dval+c]=tmp;
+				}
+			}
+			let tmp=perm[i];perm[i]=perm[j];perm[j]=tmp;
+			// Put the row into reduced echelon form. Since entry (i,i)=1 and (i,i')=1*inv,
+			// set (i,i)=inv.
+			for (let c=0;c<cols;c++) {
+				if (c!==i) {elem[dval+c]*=inv;}
+			}
+			elem[dval+i]=inv;
+			// Perform row operations with row i to clear column i for all other rows in A.
+			// Entry (j,i') will be 0 in the augmented matrix, and (i,i') will be inv, hence
+			// (j,i')=(j,i')-(j,i)*(i,i')=-(j,i)*inv.
+			for (let r=0;r<rows;r++) {
+				if (r===i) {continue;}
+				sval=r*cols;
+				let mul=elem[sval+i];
+				for (let c=0;c<cols;c++) {
+					if (c!==i) {elem[sval+c]-=elem[dval+c]*mul;}
+				}
+				elem[sval+i]=-elem[dval+i]*mul;
+			}
+		}
+		// Re-order columns due to swapped rows.
+		let tmp=new Array(cols);
+		for (let r=0;r<rows;r++) {
+			let dval=r*cols;
+			for (let i=0;i<cols;i++) {tmp[i]=elem[dval+i];}
+			for (let i=0;i<cols;i++) {elem[dval+perm[i]]=tmp[i];}
+		}
+		return ret;
+	}
+
+
+	static fromangles(angs) {
+		let dim=0,ang2=(angs.length??1)*2;
+		while (dim*(dim-1)<ang2) {dim++;}
+		return (new Matrix(dim,dim)).one().rotate(angs);
+	}
+
+
+	rotate(angs) {
+		// Perform a counter-clockwise, right-hand rotation given n*(n-1)/2 angles. In 3D,
+		// angles are expected in XYZ order.
+		//
+		// Rotation is about a plane, not along an axis. For a 2D space, we may only rotate
+		// about the XY plane, thus there is 1 axis of rotation.
+		if (angs.length===undefined) {angs=[angs];}
+		let dim=this.rows,a=(dim*(dim-1))>>>1;
+		if (dim!==this.cols || a!==angs.length) {
+			throw `invalid dimensions: ${dim}, ${this.cols}, ${a}, ${angs.length}`;
+		}
+		let elem=this;
+		for (let j=1;j<dim;j++) {
+			for (let i=0;i<j;i++) {
+				// We have
+				// (i,i)=cos   (i,j)=-sin
+				// (j,i)=sin   (j,j)=cos
+				let cs=Math.cos(angs[--a]);
+				let sn=Math.sin(angs[  a]);
+				// For each row r:
+				// (r,i)=(r,i)*cos+(r,j)*sin
+				// (r,j)=(r,j)*cos-(r,i)*sin
+				// (r,c)=(r,c) otherwise
+				let i0=i,j0=j;
+				for (let r=0;r<dim;r++) {
+					let t0=elem[i0],t1=elem[j0];
+					elem[i0]=t0*cs+t1*sn;
+					elem[j0]=t1*cs-t0*sn;
+					i0+=dim;
+					j0+=dim;
+				}
+			}
+		}
+		return this;
+	}
+
+}
+
+
+class Transform {
+
+	// mat*point+vec
+
+
+	constructor(params) {
+		// Accepts: transform, mat, vec, dim, {mat,vec,dim,scale,ang}
+		// Parse what we're given.
+		let mat=null,vec=null,dim=NaN;
+		let scale=null,ang=null;
+		if (params instanceof Transform) {
+			mat=new Matrix(params.mat);
+			vec=new Vector(params.vec);
+		} else if (params instanceof Matrix) {
+			mat=new Matrix(params);
+		} else if ((params instanceof Vector) || params.length!==undefined) {
+			vec=new Vector(params);
+		} else if (!isNaN(params)) {
+			dim=params;
+		} else {
+			mat=params.mat??null;
+			vec=params.vec??null;
+			dim=params.dim??NaN;
+			scale=params.scale??null;
+			ang=params.ang??null;
+		}
+		// Reconstruct what we're missing.
+		if (isNaN(dim)) {
+			if (vec!==null) {dim=vec.length;}
+			else if (mat!==null) {dim=mat.rows;}
+		}
+		if (isNaN(dim)) {throw "no dimension";}
+		if (vec===null) {vec=new Vector(dim);}
+		if (mat===null) {mat=(new Matrix(dim)).one();}
+		if (vec.length!==dim) {throw `vec dimension: ${vec.length}, ${dim}`;}
+		if (mat.rows!==dim || mat.cols!==dim) {throw `mat dimensions: (${mat.rows},${mat.cols}), ${dim}`;}
+		this.mat=mat;
+		this.vec=vec;
+		if (scale!==null) {this.scalemat(scale);}
+		if (ang!==null) {this.rotatemat(ang);}
+	}
+
+
+	apply(point) {
+		// (A.apply(B)).apply(P) = A.apply(B.apply(P))
+		let mat=this.mat,vec=this.vec;
+		if (!(point instanceof Transform)) {return mat.mul(point).iadd(vec);}
+		return new Transform({mat:mat.mul(point.mat),vec:mat.mul(point.vec).iadd(vec)});
+	}
+
+
+	inv() {
+		let inv=this.mat.inv();
+		return new Transform({mat:inv,vec:inv.mul(this.vec).ineg()});
+	}
+
+
+	reset() {
+		this.mat.one();
+		this.vec.set(0);
+		return this;
+	}
+
+
+	shift(vec) {
+		this.vec.iadd(vec);
+		return this;
+	}
+
+
+	scalevec(muls) {
+		let vec=this.vec,dim=vec.length;
+		if (muls.length===undefined) {muls=(new Array(dim)).fill(muls);}
+		if (muls.length!==dim) {throw `Invalid dimensions: ${muls.length}, ${dim}`;}
+		for (let i=0;i<dim;i++) {vec[i]*=muls[i];}
+		return this;
+	}
+
+
+	scalemat(muls) {
+		let mat=this.mat,dim=this.vec.length,dim2=dim*dim;
+		if (muls.length===undefined) {muls=(new Array(dim)).fill(muls);}
+		if (muls.length!==dim) {throw `Invalid dimensions: ${muls.length}, ${dim}`;}
+		for (let i=0;i<dim2;i++) {mat[i]*=muls[(i/dim)|0];}
+		return this;
+	}
+
+
+	scale(muls) {
+		return this.scalevec(muls).scalemat(muls);
+	}
+
+
+	rotatevec(angs) {
+		let rot=Matrix.fromangles(angs);
+		this.vec.set(rot.mul(this.vec));
+		return this;
+	}
+
+
+	rotatemat(angs) {
+		let rot=Matrix.fromangles(angs);
+		this.mat.set(rot.mul(this.mat));
+		return this;
+	}
+
+
+	rotate(angs) {
+		return this.rotatevec(angs).rotatemat(angs);
+	}
+
+
+	lookat() {
+		// https://math.stackexchange.com/questions/180418
+		throw "not implemented";
 	}
 
 }
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v3.14
+// Drawing - v3.18
 
 
 class _DrawTransform {
@@ -1005,11 +1394,12 @@ class _DrawPoly {
 		// Parses an SVG path. Supports M, Z, L, C.
 		this.begin();
 		let type,j,len=str.length;
-		let params=[2,0,2,6],v=[0,0,0,0,0,0];
+		let params=[2,0,2,1,2,6],v=[0,0,0,0,0,0];
 		function isnum(c) {
-			c=c.length!==undefined?c.charCodeAt(0):c;
+			c=c.charCodeAt(0);
 			return c>42 && c<58 && c!==44 && c!==47;
 		}
+		let last=4;
 		for (let i=0;i<len;) {
 			let c=str[i++];
 			if      (c==="M")  {type=0;}
@@ -1018,24 +1408,31 @@ class _DrawPoly {
 			else if (c==="z")  {type=3;}
 			else if (c==="L")  {type=4;}
 			else if (c==="l")  {type=5;}
-			else if (c==="C")  {type=6;}
-			else if (c==="c")  {type=7;}
-			else if (isnum(c)) {type=4;i--;}
+			else if (c==="H")  {type=6;}
+			else if (c==="h")  {type=7;}
+			else if (c==="V")  {type=8;}
+			else if (c==="v")  {type=9;}
+			else if (c==="C")  {type=10;}
+			else if (c==="c")  {type=11;}
+			else if (isnum(c) || c==="-") {type=last;i--;}
 			else {continue;}
-			let off=[0,0];
-			if ((type&1) && this.vertidx) {
+			last=type<4?4:type;
+			let prev=[0,0];
+			if (this.vertidx) {
 				let l=this.vertarr[this.vertidx-1];
-				off=[l.x,l.y];
+				prev=[l.x,l.y];
 			}
-			let p=params[type>>1];
-			for (let t=0;t<p;t++) {
-				for (j=i;j<len && !isnum(str.charCodeAt(j));j++) {}
-				for (i=j;i<len && isnum(str.charCodeAt(i));i++) {}
+			let off=(type&1)?prev:[0,0];
+			let p=params[type>>1],t=0;
+			if (type>5 && type<10) {v[0]=prev[0];v[1]=prev[1];t=type>7?1:0;}
+			for (;t<p;t++) {
+				for (j=i;j<len && !isnum(str[j]);j++) {}
+				for (i=j;i<len && isnum(str[i]) && (i===j || str[i]!=="-");i++) {}
 				v[t]=parseFloat(str.substring(j,i))+off[t&1];
 			}
-			if      (type<2) {this.moveto(v[0],v[1]);}
-			else if (type<4) {this.close();}
-			else if (type<6) {this.lineto(v[0],v[1]);}
+			if      (type<2 ) {this.moveto(v[0],v[1]);}
+			else if (type<4 ) {this.close();}
+			else if (type<10) {this.lineto(v[0],v[1]);}
 			else {this.curveto(v[0],v[1],v[2],v[3],v[4],v[5]);}
 		}
 	}
@@ -1095,6 +1492,7 @@ class _DrawPoly {
 
 	addoval(x,y,xrad,yrad) {
 		// David Ellsworth and Spencer Mortensen constants.
+		yrad=yrad??xrad;
 		const a=1.00005519,b=0.55342686,c=0.99873585;
 		let ax=-a*xrad,ay=a*yrad;
 		let bx=-b*xrad,by=b*yrad;
@@ -1582,6 +1980,12 @@ class Draw {
 
 	setcolor(r,g,b,a) {
 		// Accepts: int, [r,g,b,a], {r,g,b,a}
+		this.rgba32[0]=this.rgbatoint(r,g,b,a);
+	}
+
+
+	rgbatoint(r,g,b,a) {
+		// Convert an RGBA array to a int regardless of endianness.
 		if (g===undefined) {
 			if (r instanceof Array) {
 				a=r[3]??255;b=r[2]??255;g=r[1]??255;r=r[0]??255;
@@ -1591,21 +1995,12 @@ class Draw {
 				a=(r>>>0)&255;b=(r>>>8)&255;g=(r>>>16)&255;r>>>=24;
 			}
 		}
-		this.rgba[0]=r>0?(r<255?(r|0):255):0;
-		this.rgba[1]=g>0?(g<255?(g|0):255):0;
-		this.rgba[2]=b>0?(b<255?(b|0):255):0;
-		this.rgba[3]=a>0?(a<255?(a|0):255):0;
-	}
-
-
-	rgbatoint(r,g,b,a) {
-		// Convert an RGBA array to a int regardless of endianness.
 		let tmp=this.rgba32[0];
 		let rgba=this.rgba;
-		rgba[0]=r;
-		rgba[1]=g;
-		rgba[2]=b;
-		rgba[3]=a;
+		rgba[0]=r>0?(r<255?(r|0):255):0;
+		rgba[1]=g>0?(g<255?(g|0):255):0;
+		rgba[2]=b>0?(b<255?(b|0):255):0;
+		rgba[3]=a>0?(a<255?(a|0):255):0;
 		rgba=this.rgba32[0];
 		this.rgba32[0]=tmp;
 		return rgba;
@@ -1826,6 +2221,7 @@ class Draw {
 
 
 	filloval(x,y,xrad,yrad) {
+		yrad=yrad??xrad;
 		let poly=this.tmppoly,trans=this.tmptrans;
 		trans.set(this.deftrans).addoffset(x,y).mulscale(xrad,yrad);
 		poly.begin();
@@ -2254,7 +2650,7 @@ class Draw {
 
 
 //---------------------------------------------------------------------------------
-// Audio - v3.03
+// Audio - v3.04
 
 
 class _AudioSound {
@@ -2760,7 +3156,7 @@ class _AudioSFX {
 
 
 	parse(seqstr) {
-		// Last node is returned. Node names must start with #.
+		// Last node is used as output. Node names must start with #.
 		// Translating addresses: (node_num+1)<<8+param_num
 		const EXPR=0,ENV=1,TBL=2,NOI=8,DEL=9,OSC0=2,OSC1=7,FIL0=10,FIL1=17;
 		const CON=0,VAR=1,OP=2,VBITS=24,VMASK=(1<<VBITS)-1,PBITS=8,PMASK=(1<<PBITS)-1;
@@ -3199,7 +3595,7 @@ class _AudioSFX {
 	}
 
 
-	fill(snd,start,len) {
+	fill(snd,fstart,flen) {
 		// Fills a sound or array with the effect's output.
 		let snddata=snd;
 		let sndlen =snd.length;
@@ -3209,14 +3605,14 @@ class _AudioSFX {
 			sndlen =snd.len;
 			sndfreq=snd.freq;
 		}
-		if (start===undefined) {start=0;}
-		if (len===undefined) {len=sndlen;}
-		if (start+len<sndlen) {sndlen=start+len;}
+		if (fstart===undefined) {fstart=0;}
+		if (flen===undefined) {flen=sndlen;}
+		if (fstart+flen<sndlen) {sndlen=fstart+flen;}
 		let sndrate=1/sndfreq;
 		const EXPR=0,ENV=1,TBL=2,TRI=3,PLS=4,SAW=5,SIN=6,SQR=7,NOI=8,DEL=9;
 		const OSC0=2,OSC1=7,FIL0=10,FIL1=17;
 		const VBITS=24,VMASK=(1<<VBITS)-1;
-		for (let sndpos=start;sndpos<sndlen;sndpos++) {
+		for (let sndpos=fstart;sndpos<sndlen;sndpos++) {
 			let di32=this.di32,df32=this.df32;
 			let stack=this.stack;
 			let n=0,nstop=di32.length;
@@ -4181,19 +4577,19 @@ class Audio {
 			} else {
 				// Instruments
 				type-=10;
-				let note=["A3","C4","C4","A6","A5","A8","B2","G3"][type];
-				let time=[3.0,2.2,2.2,5.3,3.0,0.1,0.2,0.2][type];
-				let freq=parsenote(argstr[a++],note,"note or frequency");
+				let note =["A3","C4","C4","A6","A5","A8","B2","G3"][type];
+				let ntime=[3.0,2.2,2.2,5.3,3.0,0.1,0.2,0.2][type];
+				let freq =parsenote(argstr[a++],note,"note or frequency");
 				vol=parsenum(argstr[a++],1,"volume");
-				time=parsenum(argstr[a],time,"length");
-				if      (type===0) {snd=Audio.createguitar(1,freq,0.2,time);}
-				else if (type===1) {snd=Audio.createxylophone(1,freq,0.5,time);}
-				else if (type===2) {snd=Audio.createmarimba(1,freq,0.5,time);}
-				else if (type===3) {snd=Audio.createglockenspiel(1,freq,0.5,time);}
-				else if (type===4) {snd=Audio.createmusicbox(1,freq,time);}
-				else if (type===5) {snd=Audio.createdrumhihat(1,freq,time);}
-				else if (type===6) {snd=Audio.createdrumkick(1,freq,time);}
-				else if (type===7) {snd=Audio.createdrumsnare(1,freq,time);}
+				ntime=parsenum(argstr[a],ntime,"length");
+				if      (type===0) {snd=Audio.createguitar(1,freq,0.2,ntime);}
+				else if (type===1) {snd=Audio.createxylophone(1,freq,0.5,ntime);}
+				else if (type===2) {snd=Audio.createmarimba(1,freq,0.5,ntime);}
+				else if (type===3) {snd=Audio.createglockenspiel(1,freq,0.5,ntime);}
+				else if (type===4) {snd=Audio.createmusicbox(1,freq,ntime);}
+				else if (type===5) {snd=Audio.createdrumhihat(1,freq,ntime);}
+				else if (type===6) {snd=Audio.createdrumkick(1,freq,ntime);}
+				else if (type===7) {snd=Audio.createdrumsnare(1,freq,ntime);}
 			}
 			// Add the new sound to the sub sequence.
 			if (!snd) {sepdelta=0;}

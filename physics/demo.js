@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.10
+demo.js - v1.11
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -44,14 +44,9 @@ class PhyScene {
 	constructor(divid,bannerid) {
 		this.banner=document.getElementById(bannerid);
 		// Setup the canvas
-		this.drawratio=9/16;
-		let drawheight=1000;
-		let drawwidth=Math.floor(drawheight*this.drawratio);
 		let canvas=document.getElementById(divid);
-		canvas.width=drawwidth;
-		canvas.height=drawheight;
 		this.canvas=canvas;
-		this.draw=new Draw(drawwidth,drawheight);
+		this.draw=new Draw(1,1);
 		this.draw.screencanvas(canvas);
 		this.input=new Input(canvas);
 		this.input.disablenav();
@@ -62,7 +57,6 @@ class PhyScene {
 		this.framestr="0.0 ms";
 		this.framemax=1/30;
 		this.frameprev=0;
-		this.initworld();
 		let state=this;
 		function resize() {state.resize();}
 		window.addEventListener("resize",resize);
@@ -78,32 +72,19 @@ class PhyScene {
 
 	resize() {
 		// Properly resize the canvas
-		let canvas =this.canvas;
-		let elem   =canvas;
-		let offleft=elem.clientLeft;
-		let offtop =elem.clientTop;
-		while (elem) {
-			offleft+=elem.offsetLeft;
-			offtop +=elem.offsetTop;
-			elem=elem.offsetParent;
-		}
-		let pscale=1; // window.devicePixelRatio;
-		offleft=0; // Phones will rescale horizontally.
-		let width =Math.floor(pscale*(window.innerWidth-offleft));
-		let height=Math.floor(pscale*(window.innerHeight-offtop));
-		let ratio =this.drawratio;
-		if (width<height*ratio) {
-			height=Math.floor(width/ratio);
-		} else {
-			width =Math.floor(height*ratio);
-		}
-		canvas.style.width =width +"px";
-		canvas.style.height=height+"px";
-		canvas.width =width;
-		canvas.height=height;
-		this.banner.style.width=width+"px";
-		this.draw.img.resize(width,height);
-		this.distmap=new Float32Array(width*height);
+		let banner=this.banner.clientHeight;
+		let winw=window.innerWidth,winh=window.innerHeight-banner;
+		let draww=winw>>>1;
+		let drawh=winh>>>1;
+		let canvas=this.canvas;
+		canvas.width=draww;
+		canvas.height=drawh;
+		let style=this.canvas.style;
+		style.width=winw+"px";
+		style.height=winh+"px";
+		this.draw.img.resize(draww,drawh);
+		this.distmap=new Float32Array(draww*drawh);
+		this.initworld();
 	}
 
 
@@ -112,21 +93,25 @@ class PhyScene {
 		let world=this.world;
 		world.maxsteptime=1/180;
 		world.gravity.set([0,0.1]);
-		let viewh=1.0,vieww=this.drawratio;
+		let draww=this.draw.img.width;
+		let drawh=this.draw.img.height;
+		let scale=Math.sqrt(draww*drawh);
+		this.scale=scale;
+		let worldw=draww/scale,worldh=drawh/scale;
 		let normtype=world.createatomtype(0.01,1.0,0.98);
 		let boxtype=world.createatomtype(0.02,0.8,0.98);
 		let rnd=new Random(2);
 		let pos=new Vector(world.dim);
 		for (let p=0;p<3000;p++) {
-			pos[0]=rnd.getf()*vieww;
-			pos[1]=rnd.getf()*viewh;
-			let atom=world.createatom(pos,0.004,normtype);
+			pos[0]=rnd.getf()*worldw;
+			pos[1]=rnd.getf()*worldh;
+			let atom=world.createatom(pos,0.005,normtype);
 			atom.data={isparticle:true};
 		}
 		for (let k=0;k<3;k++) {
 			// world.createbox(6,0.007,0.007*.70,boxtype);
-			let cen=new Vector([(0.3+k*0.2)*vieww,0.3]);
-			let side=6,rad=0.007,dist=0.007*.70;
+			let cen=new Vector([[0.3,0.5,0.7][k]*worldw,[0.4,0.2,0.4][k]*worldh]);
+			let side=6,rad=0.008,dist=rad*.70;
 			pos=new Vector(cen);
 			let atomcombos=1;
 			let dim=world.dim;
@@ -146,16 +131,16 @@ class PhyScene {
 				atomarr[atomcombo]=atom;
 				let r=32,g=128,b=0;
 				if (edge) {r=64;g=200;b=0;}
-				atom.data={isparticle:false,iscore:!edge,r:r,g:g,b:b};
+				atom.data={isparticle:false,iscore:!edge,rgb:[r,g,b,255]};
 			}
 			world.autobond(atomarr,6000);
 		}
 		world.bndmin=new Vector([0,0]);
-		world.bndmax=new Vector([vieww,1]);
+		world.bndmax=new Vector([worldw,worldh]);
 		let playertype=world.createatomtype(0.0,Infinity,.3);
 		playertype.bound=false;
 		playertype.gravity=new Vector([0,0]);
-		pos.set([vieww*0.5,viewh*0.33]);
+		pos.set([worldw*0.5,worldh*0.33]);
 		this.playeratom=world.createatom(pos,0.035,playertype);
 		this.playeratom.data={isparticle:false};
 		this.mouse.set(pos);
@@ -181,27 +166,28 @@ class PhyScene {
 		let world=this.world;
 		let draw=this.draw;
 		let input=this.input;
-		let viewscale=draw.img.height;
+		let scale=this.scale;
 		input.update();
 		world.update(delta);
 		draw.fill(0,0,0,255);
-		draw.setscale(viewscale,viewscale);
+		draw.setscale(scale,scale);
 		this.distmap.fill(Infinity);
 		// Move the player. Pulse the player atom until moved.
-		let mpos=input.getmousepos();
-		this.mouse[0]=mpos[0]/viewscale;
-		this.mouse[1]=mpos[1]/viewscale;
+		let mpos=new Vector(input.getmousepos());
+		this.mouse=mpos.imul(1/scale);
 		let player=this.playeratom;
 		let pdata=player.data;
 		let dir=this.mouse.sub(player.pos);
 		let mag=dir.sqr();
-		if (mag<Infinity) {
+		if (this.mouse.sqr()!==0 && mag<Infinity && delta>1e-10) {
 			pdata.isparticle=true;
+		}
+		if (pdata.isparticle) {
 			player.vel=dir.mul(mag>1e-6?0.2/delta:0);
 		} else if (!pdata.isparticle) {
 			let pframe=((performance.now()/1000)*0.5)%1;
 			let u=Math.floor((Math.sin(pframe*Math.PI*2)+1.0)*0.5*255.0);
-			pdata.r=u;pdata.g=u;pdata.b=255;
+			pdata.rgb=[u,u,255,255];
 		}
 		// Update atoms.
 		for (let atom of world.atomiter()) {
@@ -212,14 +198,10 @@ class PhyScene {
 			if (data.isparticle) {
 				let u=data.velcolor*(256*4);
 				u=Math.floor(u<255?u:255);
-				data.r=u;
-				data.g=0;
-				data.b=255-u;
+				data.rgb=[u,0,255-u,255];
 			} else if (data.iscore) {
 				let u=Math.min(data.velcolor*3,1);
-				data.r=(32+128*u)|0;
-				data.g=(128+64*u)|0;
-				data.b=(0+64*u)|0;
+				data.rgb=[(32+128*u)|0,(128+64*u)|0,(0+64*u)|0,255];
 			}
 			this.drawatom(atom);
 			if (atom.delete!==undefined) {
@@ -231,7 +213,7 @@ class PhyScene {
 		let diag="time : "+this.framestr;
 		diag+="\natoms: "+world.atomlist.count;
 		diag+="\nbonds: "+world.bondlist.count;
-		draw.filltext(.005,.005,diag,.019);
+		draw.filltext(0.005,0.005,diag,0.019);
 		draw.screenflip();
 		// Calculate the frame time.
 		this.framesum+=performance.now()-starttime;
@@ -250,7 +232,7 @@ class PhyScene {
 		// Overlap is judged by the center of the pixel (.5,.5).
 		let draw=this.draw,img=draw.img;
 		// Check if it's on the screen.
-		let dw=img.width,dh=img.height,scale=dh;
+		let dw=img.width,dh=img.height,scale=this.scale;
 		let x=atom.pos[0]*scale,y=atom.pos[1]*scale;
 		let dx=(x>1?(x<dw?x:dw):1)-0.5-x;
 		let dy=(y>1?(y<dh?y:dh):1)-0.5-y;
@@ -258,8 +240,7 @@ class PhyScene {
 		if (dx*dx+dy*dy>=rad2) {return;}
 		let rad21=rad>1?(rad-1)*(rad-1):0;
 		// Fill in the circle at (x,y) with radius 'rad'.
-		let data=atom.data;
-		let colrgba=draw.rgbatoint(data.r,data.g,data.b,255);
+		let colrgba=draw.rgbatoint(atom.data.rgb);
 		let coll=(colrgba&0x00ff00ff)>>>0;
 		let colh=(colrgba&0xff00ff00)>>>0;
 		let colh2=colh>>>8;

@@ -11,15 +11,6 @@ Copyright 2025 Alec Dee - MIT license - SPDX: MIT
 Notes
 
 
-createshape
-	fix corner shape generation
-	check if bary.sqr()<=1
-
-check if anchor bond has been destroyed
-
-Make wall out of smaller atoms.
-Don't let inner atoms create bonds.
-
 Particles when movedir or player vel change.
 	point
 	circle
@@ -118,14 +109,17 @@ class Game {
 		let playerpos=new Vector([20,27]);
 		// Setup world materials.
 		let wallmat=world.createatomtype(1.0,Infinity,0.95);
+		let fillmat=world.createatomtype(1.0,Infinity,0.95);
 		let movemat=world.createatomtype(0.01,1.0,0.98);
 		let bodymat=world.createatomtype(0.01,0.32,0.5);
 		let ropemat=world.createatomtype(0.90,1.1,0.5);
+		this.fillmat=fillmat;
 		this.wallmat=wallmat;
 		this.movemat=movemat;
 		this.bodymat=bodymat;
 		this.ropemat=ropemat;
 		// Prevents collision between the player and hair.
+		fillmat.data.rgb=[ 32, 32, 32,255];
 		wallmat.data.rgb=[140,170,140,255];
 		movemat.data.rgb=[255,255,255,255];
 		bodymat.data.rgb=[128,128,255,255];
@@ -138,6 +132,7 @@ class Game {
 			intr.vmul=1;
 			intr.statictension=600;
 		}
+		for (let intr of fillmat.intarr) {intr.statictension=0;}
 		// Setup the player.
 		let bodyrad=0.5;
 		let ropes=16,ropebonds=16;
@@ -180,23 +175,34 @@ class Game {
 		// Set up the level.
 		this.worldw=200;
 		this.worldh=150;
+		let d=1.19;
 		world.createshape(2,wallmat,0.27,0.26,
-			[[-1.35,-1.35],[1.35,-1.35],[1.35,1.35],[-1.35,1.35]],
+			[[-d,-d],[d,-d],[d,d],[-d,d]],
 			[[0,1],[1,2],[2,3],[3,0]],
 			[13.3,26.7]
 		);
 		world.createshape(2,wallmat,0.27,0.26,
-			[[-1.35,-1.35],[1.35,-1.35],[1.35,1.35],[-1.35,1.35]],
+			[[-d,-d],[d,-d],[d,d],[-d,d]],
 			[[0,1],[1,2],[2,3],[3,0]],
 			[22.0,20.0]
 		);
 		world.createshape(2,wallmat,0.27,0.26,
-			[[-1.35,-1.35],[1.35,-1.35],[1.35,1.35],[-1.35,1.35]],
+			[[-d,-d],[d,-d],[d,d],[-d,d]],
 			[[0,1],[1,2],[2,3],[3,0]],
 			[30.7,26.7]
 		);
-		world.createbox([22.0,16.7],10,0.27,0.13,movemat,5000);
-		world.createshape(0,wallmat,4.0,1.0,
+		world.createshape(1,movemat,0.27,0.26,
+			[[-d,-d],[d,-d],[d,d],[-d,d]],
+			[[0,1],[1,2],[2,3],[3,0]],
+			{vec:[22.0,16.7]},
+			0.6,5000,0.75
+		);
+		//world.createbox([22.0,16.7],10,0.27,0.13,movemat,5000);
+		world.createshape(0,wallmat,0.27,0.26,
+			[[-0,-0],[200,-0],[200,150],[-0,150]],
+			[[0,1],[1,2],[2,3],[3,0]]
+		);
+		world.createshape(0,fillmat,4.0,1.0,
 			[[-3.8,-3.8],[203.8,-3.8],[203.8,153.8],[-3.8,153.8]],
 			[[0,1],[1,2],[2,3],[3,0]]
 		);
@@ -205,13 +211,16 @@ class Game {
 			[[0,1],[1,2],[2,3],[3,0]],
 			{vec:[14,28.5],ang:0.35}
 		);
+		//let rnd=new Random();
 		for (let atom of world.atomiter()) {
 			if (Object.is(atom.type,wallmat)) {
 				let dist=atom.data._filldist;
-				if (dist<0) {atom.data.rgb=[32,32,32,255];}
+				if (dist<0) {atom.type=fillmat;}
+				//atom.data.rgb=[rnd.modu32(256),rnd.modu32(256),rnd.modu32(256),255];
 			}
 		}
 		console.log("atoms:",world.atomlist.count);
+		console.log("bonds:",world.bondlist.count);
 		//this.debugmap();
 	}
 
@@ -443,7 +452,7 @@ class Game {
 		if (throwing<2 || (a.type.data.self && b.type.data.self)) {return false;}
 		if (throwing<3 && (a.data.hook || b.data.hook)) {
 			this.throwing=4;
-			this.world.createbond(a,b,a.rad+b.rad,20000).breakdist=1e+9;
+			this.world.createbond(a,b,a.rad+b.rad,20000).breakdist=NaN;
 		}
 		return true;
 	}
@@ -476,9 +485,16 @@ class Game {
 		}
 		charge+=[0,1,-0.75][throwing]*dt;
 		charge=charge<1?charge:1;
-		if (click===0) {throwing=[0,2,0,0,0][throwing];}
-		else if (throwing>3) {throwing=3;}
 		let hook=ropeatom[0];
+		if (click===0) {
+			throwing=[0,2,0,0,0][throwing];
+		} else if (throwing>=3) {
+			// Check if the anchor point has been deleted.
+			throwing=0;
+			for (let bond of hook.bondlist.iter()) {
+				if (isNaN(bond.breakdist)) {throwing=3;}
+			}
+		}
 		if (this.throwing!==throwing) {
 			// body, rope, hook, damp
 			let coefs=[0.70,0.25,0.05,0.90];
@@ -490,7 +506,7 @@ class Game {
 					}
 					// Delete any temporary bonds on the rope.
 					for (let bond of atom.bondlist.iter()) {
-						if (bond.breakdist<Infinity) {bond.release();}
+						if (!(bond.breakdist===Infinity)) {bond.release();}
 					}
 				}
 				coefs=[0.990,0.00942,0.00058,0.90];
