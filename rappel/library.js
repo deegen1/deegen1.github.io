@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v14.54
+library.js - v14.55
 
 Copyright 2025 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -16,7 +16,7 @@ Random  - v1.09
 Vector  - v3.01
 Drawing - v3.18
 Audio   - v3.04
-Physics - v3.06
+Physics - v3.07
 
 
 */
@@ -4766,7 +4766,7 @@ class Audio {
 
 
 //---------------------------------------------------------------------------------
-// Physics - v3.06
+// Physics - v3.07
 
 
 class PhyLink {
@@ -4917,7 +4917,6 @@ class PhyAtomInteraction {
 		this.vpmul=0;
 		this.statictension=0;
 		this.staticdist=0;
-		this.callback=null;
 		this.updateconstants();
 	}
 
@@ -5221,7 +5220,7 @@ class PhyAtom {
 		veldif=veldif*intr.vmul+posdif*intr.vpmul;
 		posdif*=intr.pmul;
 		// If we have a callback, allow it to handle the collision.
-		let callback=intr.callback;
+		let callback=a.world.collcallback;
 		if (callback!==null && !callback(a,b,norm,veldif,posdif)) {return;}
 		// Create an electrostatic bond between the atoms.
 		if (bonded===0 && intr.statictension>0) {
@@ -5577,6 +5576,7 @@ class PhyWorld {
 		this.tmpvec=new Vector(dim);
 		this.broad=new PhyBroadphase(this);
 		this.stepcallback=null;
+		this.collcallback=null;
 	}
 
 

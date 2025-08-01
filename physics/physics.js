@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v3.06
+physics.js - v3.07
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -52,11 +52,18 @@ History
 3.06
      In createshape, used barycentric magnitude to emphasize vertices and
      edges. Fixed bond distance calculations for greedy filling.
+3.07
+     Changed atom type callback to a global collision callback.
 
 
 --------------------------------------------------------------------------------
 TODO
 
+
+callbacks
+	atomdelcallback, only call once
+	bonddelcallback, only call once
+	process deletions at start of main loop
 
 createshape
 	Inside/outside test for dim>2.
@@ -103,7 +110,7 @@ Scale pvmul like calcdt.
 
 
 //---------------------------------------------------------------------------------
-// Physics - v3.06
+// Physics - v3.07
 
 
 class PhyLink {
@@ -254,7 +261,6 @@ class PhyAtomInteraction {
 		this.vpmul=0;
 		this.statictension=0;
 		this.staticdist=0;
-		this.callback=null;
 		this.updateconstants();
 	}
 
@@ -558,7 +564,7 @@ class PhyAtom {
 		veldif=veldif*intr.vmul+posdif*intr.vpmul;
 		posdif*=intr.pmul;
 		// If we have a callback, allow it to handle the collision.
-		let callback=intr.callback;
+		let callback=a.world.collcallback;
 		if (callback!==null && !callback(a,b,norm,veldif,posdif)) {return;}
 		// Create an electrostatic bond between the atoms.
 		if (bonded===0 && intr.statictension>0) {
@@ -914,6 +920,7 @@ class PhyWorld {
 		this.tmpvec=new Vector(dim);
 		this.broad=new PhyBroadphase(this);
 		this.stepcallback=null;
+		this.collcallback=null;
 	}
 
 

@@ -11,6 +11,9 @@ Copyright 2025 Alec Dee - MIT license - SPDX: MIT
 Notes
 
 
+faster if collcallback is static?
+Add .data to world and put game in it.
+
 Particles when movedir or player vel change.
 	point
 	circle
@@ -25,6 +28,8 @@ Particles when movedir or player vel change.
 		smoke
 		gravity direction
 		damping
+	createparticle(pos,vel,size,type,color)
+	heap sort by (1-life)*size/dist
 
 Sound effects
 	volume scaler init to 0
@@ -108,26 +113,26 @@ class Game {
 		world.gravity.set([0,6.66]);
 		let playerpos=new Vector([20,27]);
 		// Setup world materials.
-		let wallmat=world.createatomtype(1.0,Infinity,0.95);
 		let fillmat=world.createatomtype(1.0,Infinity,0.95);
-		let movemat=world.createatomtype(0.01,1.0,0.98);
-		let bodymat=world.createatomtype(0.01,0.32,0.5);
-		let ropemat=world.createatomtype(0.90,1.1,0.5);
+		let wallmat=world.createatomtype(1.0,Infinity,0.95);
+		let normmat=world.createatomtype(0.01,1.00,0.98);
+		let bodymat=world.createatomtype(0.01,0.32,0.50);
+		let ropemat=world.createatomtype(0.90,1.10,0.50);
+		let partmat=world.createatomtype(0.50,1e-9,0.50);
 		this.fillmat=fillmat;
 		this.wallmat=wallmat;
-		this.movemat=movemat;
+		this.normmat=normmat;
 		this.bodymat=bodymat;
 		this.ropemat=ropemat;
+		this.partmat=partmat;
 		// Prevents collision between the player and hair.
 		fillmat.data.rgb=[ 32, 32, 32,255];
 		wallmat.data.rgb=[140,170,140,255];
-		movemat.data.rgb=[255,255,255,255];
+		normmat.data.rgb=[255,255,255,255];
 		bodymat.data.rgb=[128,128,255,255];
 		bodymat.data.self=true;
 		ropemat.data.self=true;
 		// The rope needs to avoid collision most of the time.
-		function ropecall(a,b) {return state.ropecall(a,b);}
-		for (let intr of ropemat.intarr) {intr.callback=ropecall;}
 		for (let intr of bodymat.intarr) {
 			intr.vmul=1;
 			intr.statictension=600;
@@ -159,6 +164,7 @@ class Game {
 		this.ropeatom[0].data.hook=true;
 		// Create the body.
 		this.bodyatom=[];
+		this.hookang=0;
 		this.playermass=3;
 		this.playerpos=playerpos;
 		this.playervel=new Vector(2);
@@ -191,13 +197,13 @@ class Game {
 			[[0,1],[1,2],[2,3],[3,0]],
 			[30.7,26.7]
 		);
-		world.createshape(1,movemat,0.27,0.26,
+		world.createshape(1,normmat,0.27,0.26,
 			[[-d,-d],[d,-d],[d,d],[-d,d]],
 			[[0,1],[1,2],[2,3],[3,0]],
 			{vec:[22.0,16.7]},
 			0.6,5000,0.75
 		);
-		//world.createbox([22.0,16.7],10,0.27,0.13,movemat,5000);
+		//world.createbox([22.0,16.7],10,0.27,0.13,normmat,5000);
 		world.createshape(0,wallmat,0.27,0.26,
 			[[-0,-0],[200,-0],[200,150],[-0,150]],
 			[[0,1],[1,2],[2,3],[3,0]]
@@ -221,6 +227,9 @@ class Game {
 		}
 		console.log("atoms:",world.atomlist.count);
 		console.log("bonds:",world.bondlist.count);
+		world.collcallback=function(a,b,norm,veldif,posdif) {
+			return state.collcallback(a,b,norm,veldif,posdif);
+		};
 		//this.debugmap();
 	}
 
@@ -440,6 +449,8 @@ class Game {
 		this.audio=audio;
 		this.bgsnd=Audio.sequencer(``);
 		this.bgsndinst=null;
+		this.basicsnd=Audio.SFX.defsnd("thud",1,100,0.4);
+		this.basicsum=0;
 	}
 
 
@@ -447,12 +458,20 @@ class Game {
 	// Player
 
 
-	ropecall(a,b) {
-		let throwing=this.throwing;
-		if (throwing<2 || (a.type.data.self && b.type.data.self)) {return false;}
-		if (throwing<3 && (a.data.hook || b.data.hook)) {
-			this.throwing=4;
-			this.world.createbond(a,b,a.rad+b.rad,20000).breakdist=NaN;
+	collcallback(a,b,norm,veldif,posdif) {
+		const FILL=0,WALL=1,NORM=2,BODY=3,ROPE=4,PART=5;
+		let aid=a.type.id,bid=b.type.id;
+		if ((aid===FILL || aid===WALL) && (bid===FILL || bid===WALL)) {
+			return false;
+		}
+		let adata=a.data,bdata=b.data;
+		if (aid===ROPE || bid===ROPE) {
+			if (this.throwing<2) {return false;}
+			if (aid===bid || aid===BODY || bid===BODY) {return false;}
+			if (adata.hook || bdata.hook) {
+				this.throwing=4;
+				this.world.createbond(a,b,a.rad+b.rad,20000).breakdist=NaN;
+			}
 		}
 		return true;
 	}
@@ -532,7 +551,8 @@ class Game {
 		if (throwing===1) {
 			// Charging.
 			let rad=0.3+charge*0.8;
-			let ang=performance.now()*0.001*25.0;
+			let ang=(this.hookang+dt*25.0)%(Math.PI*2);
+			this.hookang=ang;
 			let len=ropeatom.length;
 			for (let i=0;i<len;i++) {
 				let u=1-i/(len-1);
@@ -553,7 +573,7 @@ class Game {
 
 	update(time) {
 		// Get the timestep. Prevent steps that are too large.
-		let dt=(time-this.frameprev)/1000;
+		let dt=(time-this.frameprev)*0.001;
 		dt=dt<this.framemax?dt:this.framemax;
 		dt=dt>0?dt:0;
 		this.frameprev=time;
@@ -577,6 +597,13 @@ class Game {
 		draw.img.data32.set(this.background.data32);
 		world.update(dt);
 		this.updateplayer(dt);
+		/*if (this.basicsum>1e-5) {
+			let vol=this.basicsum/1000;
+			vol=vol>0?vol:0;
+			vol=vol<1?vol:1;
+			this.basicsnd.play(vol);
+		}
+		this.basicsum=0;*/
 		// Center the camera on the player.
 		let camera=this.camera;
 		let drawmax=[draww,drawh];
