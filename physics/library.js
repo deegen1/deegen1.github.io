@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v14.54
+library.js - v14.58
 
 Copyright 2025 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -11,414 +11,16 @@ Copyright 2025 Alec Dee - MIT license - SPDX: MIT
 Versions
 
 
-Input   - v1.16
 Random  - v1.09
-Vector  - v3.01
-Drawing - v3.18
+Vector  - v3.02
+Input   - v1.16
+Drawing - v3.20
 Audio   - v3.04
 
 
 */
 /* npx eslint library.js -c ../../standards/eslint.js */
 /* global */
-
-
-//---------------------------------------------------------------------------------
-// Input - v1.16
-
-
-class Input {
-
-	static KEY={
-		A: 65, B: 66, C: 67, D: 68, E: 69, F: 70, G: 71, H: 72, I: 73, J: 74,
-		K: 75, L: 76, M: 77, N: 78, O: 79, P: 80, Q: 81, R: 82, S: 83, T: 84,
-		U: 85, V: 86, W: 87, X: 88, Y: 89, Z: 90,
-		0: 48, 1: 49, 2: 50, 3: 51, 4: 52, 5: 53, 6: 54, 7: 55, 8: 56, 9: 57,
-		SPACE: 32,
-		LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40
-	};
-
-
-	static MOUSE={
-		LEFT: 256, MID: 257, RIGHT: 258
-	};
-
-
-	constructor(focus) {
-		this.focus=null;
-		this.focustab=null;
-		this.focustouch=null;
-		if (focus!==undefined && focus!==null) {
-			this.focus=focus;
-			// An element needs to have a tabIndex to be focusable.
-			this.focustab=focus.tabIndex;
-			this.focustouch=focus.style.touchAction;
-			if (focus.tabIndex<0) {
-				focus.tabIndex=1;
-			}
-		}
-		this.active=null;
-		this.scrollupdate=false;
-		this.scroll=[window.scrollX,window.scrollY];
-		this.mousepos=[0,0];
-		this.mouseraw=[0,0];
-		this.mousez=0;
-		this.touchfocus=0;
-		this.clickpos=[0,0];
-		this.repeatdelay=0.5;
-		this.repeatrate=0.05;
-		this.navkeys={32:1,37:1,38:1,39:1,40:1};
-		this.stopnav=0;
-		this.stopnavfocus=0;
-		this.keystate={};
-		this.listeners=[];
-		this.initmouse();
-		this.initkeyboard();
-		this.reset();
-		for (let i=0;i<this.listeners.length;i++) {
-			let list=this.listeners[i];
-			document.addEventListener(list[0],list[1],list[2]);
-		}
-	}
-
-
-	release() {
-		if (this.focus!==null) {
-			this.focus.tabIndex=this.focustab;
-		}
-		this.enablenav();
-		for (let i=0;i<this.listeners.length;i++) {
-			let list=this.listeners[i];
-			document.removeEventListener(list[0],list[1],list[2]);
-		}
-		this.listeners=[];
-		this.reset();
-	}
-
-
-	reset() {
-		this.mousez=0;
-		let statearr=Object.values(this.keystate);
-		let statelen=statearr.length;
-		for (let i=0;i<statelen;i++) {
-			let state=statearr[i];
-			state.down=0;
-			state.hit=0;
-			state.repeat=0;
-			state.time=null;
-			state.active=null;
-			state.isactive=0;
-		}
-		this.active=null;
-	}
-
-
-	update() {
-		// Process keys that are active.
-		let focus=this.focus===null?document.hasFocus():Object.is(document.activeElement,this.focus);
-		if (this.touchfocus!==0) {focus=true;}
-		this.stopnavfocus=focus?this.stopnav:0;
-		let time=performance.now()/1000.0;
-		let delay=time-this.repeatdelay;
-		let rate=1.0/this.repeatrate;
-		let state=this.active;
-		let active=null;
-		let down,next;
-		while (state!==null) {
-			next=state.active;
-			down=focus?state.down:0;
-			state.down=down;
-			if (down>0) {
-				let repeat=Math.floor((delay-state.time)*rate);
-				state.repeat=(repeat>0 && (repeat&1)===0)?state.repeat+1:0;
-			} else {
-				state.repeat=0;
-				state.hit=0;
-			}
-			state.isactive=down?1:0;
-			if (state.isactive!==0) {
-				state.active=active;
-				active=state;
-			}
-			state=next;
-		}
-		this.active=active;
-	}
-
-
-	disablenav() {
-		this.stopnav=1;
-		if (this.focus!==null) {
-			this.focus.style.touchAction="pinch-zoom";
-		}
-	}
-
-
-	enablenav() {
-		this.stopnav=0;
-		if (this.focus!==null) {
-			this.focus.style.touchAction=this.focustouch;
-		}
-	}
-
-
-	makeactive(code) {
-		let state=this.keystate[code];
-		if (state===null || state===undefined) {
-			state=null;
-		} else if (state.isactive===0) {
-			state.isactive=1;
-			state.active=this.active;
-			this.active=state;
-		}
-		return state;
-	}
-
-
-	// ----------------------------------------
-	// Mouse
-
-
-	initmouse() {
-		let state=this;
-		this.MOUSE=this.constructor.MOUSE;
-		let keys=Object.keys(this.MOUSE);
-		for (let i=0;i<keys.length;i++) {
-			let code=this.MOUSE[keys[i]];
-			this.keystate[code]={
-				name: "MOUSE."+keys[i],
-				code: code
-			};
-		}
-		// Mouse controls.
-		function mousemove(evt) {
-			state.setmousepos(evt.pageX,evt.pageY);
-		}
-		function mousewheel(evt) {
-			state.addmousez(evt.deltaY<0?-1:1);
-		}
-		function mousedown(evt) {
-			if (evt.button===0) {
-				state.setkeydown(state.MOUSE.LEFT);
-				state.clickpos=state.mousepos.slice();
-			}
-		}
-		function mouseup(evt) {
-			if (evt.button===0) {
-				state.setkeyup(state.MOUSE.LEFT);
-			}
-		}
-		function onscroll() {
-			// Update relative position on scroll.
-			if (state.scrollupdate) {
-				let difx=window.scrollX-state.scroll[0];
-				let dify=window.scrollY-state.scroll[1];
-				state.setmousepos(state.mouseraw[0]+difx,state.mouseraw[1]+dify);
-			}
-		}
-		// Touch controls.
-		function touchmove(evt) {
-			let touch=evt.touches;
-			if (touch.length===1) {
-				touch=touch.item(0);
-				state.setkeydown(state.MOUSE.LEFT);
-				state.setmousepos(touch.pageX,touch.pageY);
-			} else {
-				// This is probably a gesture.
-				state.setkeyup(state.MOUSE.LEFT);
-			}
-		}
-		function touchstart(evt) {
-			// We need to manually determine if the user has touched our focused object.
-			state.touchfocus=1;
-			let focus=state.focus;
-			if (focus!==null) {
-				let touch=evt.touches.item(0);
-				let rect=state.getrect(focus);
-				let x=touch.pageX-rect.x;
-				let y=touch.pageY-rect.y;
-				if (x<0 || x>=rect.w || y<0 || y>=rect.h) {
-					state.touchfocus=0;
-				}
-			}
-			// touchstart doesn't generate a separate mousemove event.
-			touchmove(evt);
-			state.clickpos=state.mousepos.slice();
-		}
-		function touchend() {
-			state.touchfocus=0;
-			state.setkeyup(state.MOUSE.LEFT);
-		}
-		function touchcancel() {
-			state.touchfocus=0;
-			state.setkeyup(state.MOUSE.LEFT);
-		}
-		this.listeners=this.listeners.concat([
-			["mousemove"  ,mousemove  ,false],
-			["mousewheel" ,mousewheel ,false],
-			["mousedown"  ,mousedown  ,false],
-			["mouseup"    ,mouseup    ,false],
-			["scroll"     ,onscroll   ,false],
-			["touchstart" ,touchstart ,false],
-			["touchmove"  ,touchmove  ,false],
-			["touchend"   ,touchend   ,false],
-			["touchcancel",touchcancel,false]
-		]);
-	}
-
-
-	getrect(elem) {
-		let width  =elem.scrollWidth;
-		let height =elem.scrollHeight;
-		let offleft=elem.clientLeft;
-		let offtop =elem.clientTop;
-		while (elem) {
-			offleft+=elem.offsetLeft;
-			offtop +=elem.offsetTop;
-			elem=elem.offsetParent;
-		}
-		return {x:offleft,y:offtop,w:width,h:height};
-	}
-
-
-	setmousepos(x,y) {
-		this.mouseraw[0]=x;
-		this.mouseraw[1]=y;
-		this.scroll[0]=window.scrollX;
-		this.scroll[1]=window.scrollY;
-		let focus=this.focus;
-		if (focus!==null) {
-			let rect=this.getrect(focus);
-			// If the focus is a canvas, scroll size can differ from pixel size.
-			x=(x-rect.x)*((focus.width||focus.scrollWidth)/rect.w);
-			y=(y-rect.y)*((focus.height||focus.scrollHeight)/rect.h);
-		}
-		this.mousepos[0]=x;
-		this.mousepos[1]=y;
-	}
-
-
-	getmousepos() {
-		return this.mousepos.slice();
-	}
-
-
-	getclickpos() {
-		return this.clickpos.slice();
-	}
-
-
-	addmousez(dif) {
-		this.mousez+=dif;
-	}
-
-
-	getmousez() {
-		let z=this.mousez;
-		this.mousez=0;
-		return z;
-	}
-
-
-	// ----------------------------------------
-	// Keyboard
-
-
-	initkeyboard() {
-		let state=this;
-		this.KEY=this.constructor.KEY;
-		let keys=Object.keys(this.KEY);
-		for (let i=0;i<keys.length;i++) {
-			let code=this.KEY[keys[i]];
-			this.keystate[code]={
-				name: "KEY."+keys[i],
-				code: code
-			};
-		}
-		function keydown(evt) {
-			state.setkeydown(evt.keyCode);
-			if (state.stopnavfocus!==0 && state.navkeys[evt.keyCode]) {evt.preventDefault();}
-		}
-		function keyup(evt) {
-			state.setkeyup(evt.keyCode);
-		}
-		this.listeners=this.listeners.concat([
-			["keydown",keydown,false],
-			["keyup"  ,keyup  ,false]
-		]);
-	}
-
-
-	setkeydown(code) {
-		let state=this.makeactive(code);
-		if (state!==null) {
-			if (state.down===0) {
-				state.down=1;
-				state.hit=1;
-				state.repeat=0;
-				state.time=performance.now()/1000.0;
-			}
-		}
-	}
-
-
-	setkeyup(code) {
-		let state=this.makeactive(code);
-		if (state!==null) {
-			state.down=0;
-			state.hit=0;
-			state.repeat=0;
-			state.time=null;
-		}
-	}
-
-
-	getkeydown(code) {
-		// code can be an array of key codes.
-		if (code===null || code===undefined) {return 0;}
-		if (code.length===undefined) {code=[code];}
-		let keystate=this.keystate;
-		for (let i=0;i<code.length;i++) {
-			let state=keystate[code[i]];
-			if (state!==null && state!==undefined && state.down>0) {
-				return 1;
-			}
-		}
-		return 0;
-	}
-
-
-	getkeyhit(code) {
-		// code can be an array of key codes.
-		if (code===null || code===undefined) {return 0;}
-		if (code.length===undefined) {code=[code];}
-		let keystate=this.keystate;
-		for (let i=0;i<code.length;i++) {
-			let state=keystate[code[i]];
-			if (state!==null && state!==undefined && state.hit>0) {
-				state.hit=0;
-				return 1;
-			}
-		}
-		return 0;
-	}
-
-
-	getkeyrepeat(code) {
-		// code can be an array of key codes.
-		if (code===null || code===undefined) {return 0;}
-		if (code.length===undefined) {code=[code];}
-		let keystate=this.keystate;
-		for (let i=0;i<code.length;i++) {
-			let state=keystate[code[i]];
-			if (state!==null && state!==undefined && state.repeat===1) {
-				return 1;
-			}
-		}
-		return 0;
-	}
-
-}
 
 
 //---------------------------------------------------------------------------------
@@ -506,7 +108,7 @@ class Random {
 
 
 //---------------------------------------------------------------------------------
-// Vector - v3.01
+// Vector - v3.02
 
 
 class Vector extends Array {
@@ -997,6 +599,13 @@ class Transform {
 	}
 
 
+	set(b) {
+		this.mat.set(b.mat);
+		this.vec.set(b.vec);
+		return this;
+	}
+
+
 	apply(point) {
 		// (A.apply(B)).apply(P) = A.apply(B.apply(P))
 		let mat=this.mat,vec=this.vec;
@@ -1075,179 +684,405 @@ class Transform {
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v3.18
+// Input - v1.16
 
 
-class _DrawTransform {
+class Input {
 
-	static MATXX=0;
-	static MATXY=1;
-	static MATX =2;
-	static MATYX=3;
-	static MATYY=4;
-	static MATY =5;
-	static MULX =6;
-	static MULY =7;
-	static ANG  =8;
-	static ROTX =9;
-	static ROTY =10;
-	static OFFX =11;
-	static OFFY =12;
+	static KEY={
+		A: 65, B: 66, C: 67, D: 68, E: 69, F: 70, G: 71, H: 72, I: 73, J: 74,
+		K: 75, L: 76, M: 77, N: 78, O: 79, P: 80, Q: 81, R: 82, S: 83, T: 84,
+		U: 85, V: 86, W: 87, X: 88, Y: 89, Z: 90,
+		0: 48, 1: 49, 2: 50, 3: 51, 4: 52, 5: 53, 6: 54, 7: 55, 8: 56, 9: 57,
+		SPACE: 32,
+		LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40
+	};
 
 
-	constructor(params) {
-		this.data=new Float64Array([1,0,0,0,1,0,1,1,0,1,0,0,0]);
-		if (params!==undefined) {this.set(params);}
+	static MOUSE={
+		LEFT: 256, MID: 257, RIGHT: 258
+	};
+
+
+	constructor(focus) {
+		this.focus=null;
+		this.focustab=null;
+		this.focustouch=null;
+		if (focus!==undefined && focus!==null) {
+			this.focus=focus;
+			// An element needs to have a tabIndex to be focusable.
+			this.focustab=focus.tabIndex;
+			this.focustouch=focus.style.touchAction;
+			if (focus.tabIndex<0) {
+				focus.tabIndex=1;
+			}
+		}
+		this.active=null;
+		this.scrollupdate=false;
+		this.scroll=[window.scrollX,window.scrollY];
+		this.mousepos=[0,0];
+		this.mouseraw=[0,0];
+		this.mousez=0;
+		this.touchfocus=0;
+		this.clickpos=[0,0];
+		this.repeatdelay=0.5;
+		this.repeatrate=0.05;
+		this.navkeys={32:1,37:1,38:1,39:1,40:1};
+		this.stopnav=0;
+		this.stopnavfocus=0;
+		this.keystate={};
+		this.listeners=[];
+		this.initmouse();
+		this.initkeyboard();
+		this.reset();
+		for (let i=0;i<this.listeners.length;i++) {
+			let list=this.listeners[i];
+			document.addEventListener(list[0],list[1],list[2]);
+		}
+	}
+
+
+	release() {
+		if (this.focus!==null) {
+			this.focus.tabIndex=this.focustab;
+		}
+		this.enablenav();
+		for (let i=0;i<this.listeners.length;i++) {
+			let list=this.listeners[i];
+			document.removeEventListener(list[0],list[1],list[2]);
+		}
+		this.listeners=[];
+		this.reset();
 	}
 
 
 	reset() {
-		this.data.set([1,0,0,0,1,0,1,1,0,1,0,0,0]);
-	}
-
-
-	set(params) {
-		// Accepts: transforms, arrays, {x,y,angle,scale,xscale,yscale}
-		let data=this.data;
-		if (params instanceof _DrawTransform) {
-			data.set(params.data);
-		} else if (params.length) {
-			if (params.length!==data.length) {throw "param length";}
-			data.set(params);
-		} else {
-			data[11]=params.x??0;
-			data[12]=params.y??0;
-			let ang=(params.angle??0)%6.283185307;
-			data[ 8]=ang;
-			data[ 9]=Math.cos(ang);
-			data[10]=Math.sin(ang);
-			let scale=params.scale??1;
-			data[ 6]=params.xscale??scale;
-			data[ 7]=params.yscale??scale;
-			this.calcmatrix();
+		this.mousez=0;
+		let statearr=Object.values(this.keystate);
+		let statelen=statearr.length;
+		for (let i=0;i<statelen;i++) {
+			let state=statearr[i];
+			state.down=0;
+			state.hit=0;
+			state.repeat=0;
+			state.time=null;
+			state.active=null;
+			state.isactive=0;
 		}
-		return this;
+		this.active=null;
 	}
 
 
-	calcmatrix() {
-		// Precalculates the transformation matrix.
-		// point -> scale -> rotate -> offset
-		let data=this.data;
-		data[0]= data[ 9]*data[6];
-		data[1]=-data[10]*data[7];
-		data[2]= data[11];
-		data[3]= data[10]*data[6];
-		data[4]= data[ 9]*data[7];
-		data[5]= data[12];
-	}
-
-
-	setangle(ang) {
-		let data=this.data;
-		ang%=6.283185307;
-		data[ 8]=ang;
-		data[ 9]=Math.cos(ang);
-		data[10]=Math.sin(ang);
-		this.calcmatrix();
-		return this;
-	}
-
-
-	addangle(ang) {
-		return this.setangle(this.data[8]+ang);
-	}
-
-
-	getangle() {
-		return this.data[3];
-	}
-
-
-	setscale(x,y) {
-		if (y===undefined) {
-			if (!x.length) {y=x;}
-			else {y=x[1];x=x[0];}
+	update() {
+		// Process keys that are active.
+		let focus=this.focus===null?document.hasFocus():Object.is(document.activeElement,this.focus);
+		if (this.touchfocus!==0) {focus=true;}
+		this.stopnavfocus=focus?this.stopnav:0;
+		let time=performance.now()/1000.0;
+		let delay=time-this.repeatdelay;
+		let rate=1.0/this.repeatrate;
+		let state=this.active;
+		let active=null;
+		let down,next;
+		while (state!==null) {
+			next=state.active;
+			down=focus?state.down:0;
+			state.down=down;
+			if (down>0) {
+				let repeat=Math.floor((delay-state.time)*rate);
+				state.repeat=(repeat>0 && (repeat&1)===0)?state.repeat+1:0;
+			} else {
+				state.repeat=0;
+				state.hit=0;
+			}
+			state.isactive=down?1:0;
+			if (state.isactive!==0) {
+				state.active=active;
+				active=state;
+			}
+			state=next;
 		}
-		this.data[6]=x;
-		this.data[7]=y;
-		this.calcmatrix();
-		return this;
+		this.active=active;
 	}
 
 
-	mulscale(x,y) {
-		if (y===undefined) {
-			if (!x.length) {y=x;}
-			else {y=x[1];x=x[0];}
+	disablenav() {
+		this.stopnav=1;
+		if (this.focus!==null) {
+			this.focus.style.touchAction="pinch-zoom";
 		}
-		this.data[6]*=x;
-		this.data[7]*=y;
-		this.calcmatrix();
-		return this;
 	}
 
 
-	getscale() {
-		return [this.data[6],this.data[7]];
-	}
-
-
-	setoffset(x,y) {
-		if (y===undefined) {y=x[1];x=x[0];}
-		let data=this.data;
-		data[11]=x;
-		data[12]=y;
-		data[2]=data[11];
-		data[5]=data[12];
-		return this;
-	}
-
-
-	addoffset(x,y,apply) {
-		if (y===undefined) {y=x[1];x=x[0];}
-		let data=this.data;
-		if (apply) {
-			let w=x;
-			x=w*data[0]+y*data[1];
-			y=w*data[3]+y*data[4];
+	enablenav() {
+		this.stopnav=0;
+		if (this.focus!==null) {
+			this.focus.style.touchAction=this.focustouch;
 		}
-		data[11]+=x;
-		data[12]+=y;
-		data[2]=data[11];
-		data[5]=data[12];
-		return this;
 	}
 
 
-	getoffset() {
-		return [this.data[11],this.data[12]];
+	makeactive(code) {
+		let state=this.keystate[code];
+		if (state===null || state===undefined) {
+			state=null;
+		} else if (state.isactive===0) {
+			state.isactive=1;
+			state.active=this.active;
+			this.active=state;
+		}
+		return state;
 	}
 
 
-	apply(x,y) {
-		// Applies all transformations to a point.
-		if (y===undefined) {y=x[1];x=x[0];}
-		let data=this.data,w=x;
-		x=w*data[0]+y*data[1]+data[2];
-		y=w*data[3]+y*data[4]+data[5];
-		return [x,y];
+	// ----------------------------------------
+	// Mouse
+
+
+	initmouse() {
+		let state=this;
+		this.MOUSE=this.constructor.MOUSE;
+		let keys=Object.keys(this.MOUSE);
+		for (let i=0;i<keys.length;i++) {
+			let code=this.MOUSE[keys[i]];
+			this.keystate[code]={
+				name: "MOUSE."+keys[i],
+				code: code
+			};
+		}
+		// Mouse controls.
+		function mousemove(evt) {
+			state.setmousepos(evt.pageX,evt.pageY);
+		}
+		function mousewheel(evt) {
+			state.addmousez(evt.deltaY<0?-1:1);
+		}
+		function mousedown(evt) {
+			if (evt.button===0) {
+				state.setkeydown(state.MOUSE.LEFT);
+				state.clickpos=state.mousepos.slice();
+			}
+		}
+		function mouseup(evt) {
+			if (evt.button===0) {
+				state.setkeyup(state.MOUSE.LEFT);
+			}
+		}
+		function onscroll() {
+			// Update relative position on scroll.
+			if (state.scrollupdate) {
+				let difx=window.scrollX-state.scroll[0];
+				let dify=window.scrollY-state.scroll[1];
+				state.setmousepos(state.mouseraw[0]+difx,state.mouseraw[1]+dify);
+			}
+		}
+		// Touch controls.
+		function touchmove(evt) {
+			let touch=evt.touches;
+			if (touch.length===1) {
+				touch=touch.item(0);
+				state.setkeydown(state.MOUSE.LEFT);
+				state.setmousepos(touch.pageX,touch.pageY);
+			} else {
+				// This is probably a gesture.
+				state.setkeyup(state.MOUSE.LEFT);
+			}
+		}
+		function touchstart(evt) {
+			// We need to manually determine if the user has touched our focused object.
+			state.touchfocus=1;
+			let focus=state.focus;
+			if (focus!==null) {
+				let touch=evt.touches.item(0);
+				let rect=state.getrect(focus);
+				let x=touch.pageX-rect.x;
+				let y=touch.pageY-rect.y;
+				if (x<0 || x>=rect.w || y<0 || y>=rect.h) {
+					state.touchfocus=0;
+				}
+			}
+			// touchstart doesn't generate a separate mousemove event.
+			touchmove(evt);
+			state.clickpos=state.mousepos.slice();
+		}
+		function touchend() {
+			state.touchfocus=0;
+			state.setkeyup(state.MOUSE.LEFT);
+		}
+		function touchcancel() {
+			state.touchfocus=0;
+			state.setkeyup(state.MOUSE.LEFT);
+		}
+		this.listeners=this.listeners.concat([
+			["mousemove"  ,mousemove  ,false],
+			["mousewheel" ,mousewheel ,false],
+			["mousedown"  ,mousedown  ,false],
+			["mouseup"    ,mouseup    ,false],
+			["scroll"     ,onscroll   ,false],
+			["touchstart" ,touchstart ,false],
+			["touchmove"  ,touchmove  ,false],
+			["touchend"   ,touchend   ,false],
+			["touchcancel",touchcancel,false]
+		]);
 	}
 
 
-	undo(x,y) {
-		// Applies the inverse transform to [x,y].
-		if (y===undefined) {y=x[1];x=x[0];}
-		let data=this.data,w=x;
-		let det=data[0]*data[4]-data[1]*data[3];
-		w-=data[2];
-		y-=data[5];
-		x=(w*data[4]-y*data[1])/det;
-		y=(y*data[0]-w*data[3])/det;
-		return [x,y];
+	getrect(elem) {
+		let width  =elem.scrollWidth;
+		let height =elem.scrollHeight;
+		let offleft=elem.clientLeft;
+		let offtop =elem.clientTop;
+		while (elem) {
+			offleft+=elem.offsetLeft;
+			offtop +=elem.offsetTop;
+			elem=elem.offsetParent;
+		}
+		return {x:offleft,y:offtop,w:width,h:height};
+	}
+
+
+	setmousepos(x,y) {
+		this.mouseraw[0]=x;
+		this.mouseraw[1]=y;
+		this.scroll[0]=window.scrollX;
+		this.scroll[1]=window.scrollY;
+		let focus=this.focus;
+		if (focus!==null) {
+			let rect=this.getrect(focus);
+			// If the focus is a canvas, scroll size can differ from pixel size.
+			x=(x-rect.x)*((focus.width||focus.scrollWidth)/rect.w);
+			y=(y-rect.y)*((focus.height||focus.scrollHeight)/rect.h);
+		}
+		this.mousepos[0]=x;
+		this.mousepos[1]=y;
+	}
+
+
+	getmousepos() {
+		return this.mousepos.slice();
+	}
+
+
+	getclickpos() {
+		return this.clickpos.slice();
+	}
+
+
+	addmousez(dif) {
+		this.mousez+=dif;
+	}
+
+
+	getmousez() {
+		let z=this.mousez;
+		this.mousez=0;
+		return z;
+	}
+
+
+	// ----------------------------------------
+	// Keyboard
+
+
+	initkeyboard() {
+		let state=this;
+		this.KEY=this.constructor.KEY;
+		let keys=Object.keys(this.KEY);
+		for (let i=0;i<keys.length;i++) {
+			let code=this.KEY[keys[i]];
+			this.keystate[code]={
+				name: "KEY."+keys[i],
+				code: code
+			};
+		}
+		function keydown(evt) {
+			state.setkeydown(evt.keyCode);
+			if (state.stopnavfocus!==0 && state.navkeys[evt.keyCode]) {evt.preventDefault();}
+		}
+		function keyup(evt) {
+			state.setkeyup(evt.keyCode);
+		}
+		this.listeners=this.listeners.concat([
+			["keydown",keydown,false],
+			["keyup"  ,keyup  ,false]
+		]);
+	}
+
+
+	setkeydown(code) {
+		let state=this.makeactive(code);
+		if (state!==null) {
+			if (state.down===0) {
+				state.down=1;
+				state.hit=1;
+				state.repeat=0;
+				state.time=performance.now()/1000.0;
+			}
+		}
+	}
+
+
+	setkeyup(code) {
+		let state=this.makeactive(code);
+		if (state!==null) {
+			state.down=0;
+			state.hit=0;
+			state.repeat=0;
+			state.time=null;
+		}
+	}
+
+
+	getkeydown(code) {
+		// code can be an array of key codes.
+		if (code===null || code===undefined) {return 0;}
+		if (code.length===undefined) {code=[code];}
+		let keystate=this.keystate;
+		for (let i=0;i<code.length;i++) {
+			let state=keystate[code[i]];
+			if (state!==null && state!==undefined && state.down>0) {
+				return 1;
+			}
+		}
+		return 0;
+	}
+
+
+	getkeyhit(code) {
+		// code can be an array of key codes.
+		if (code===null || code===undefined) {return 0;}
+		if (code.length===undefined) {code=[code];}
+		let keystate=this.keystate;
+		for (let i=0;i<code.length;i++) {
+			let state=keystate[code[i]];
+			if (state!==null && state!==undefined && state.hit>0) {
+				state.hit=0;
+				return 1;
+			}
+		}
+		return 0;
+	}
+
+
+	getkeyrepeat(code) {
+		// code can be an array of key codes.
+		if (code===null || code===undefined) {return 0;}
+		if (code.length===undefined) {code=[code];}
+		let keystate=this.keystate;
+		for (let i=0;i<code.length;i++) {
+			let state=keystate[code[i]];
+			if (state!==null && state!==undefined && state.repeat===1) {
+				return 1;
+			}
+		}
+		return 0;
 	}
 
 }
+
+
+//---------------------------------------------------------------------------------
+// Drawing - v3.20
 
 
 class _DrawPoly {
@@ -1391,48 +1226,48 @@ class _DrawPoly {
 
 
 	fromstring(str) {
-		// Parses an SVG path. Supports M, Z, L, C.
+		// Parses an SVG path. Supports Z M L H V C.
 		this.begin();
-		let type,j,len=str.length;
-		let params=[2,0,2,1,2,6],v=[0,0,0,0,0,0];
-		function isnum(c) {
-			c=c.charCodeAt(0);
-			return c>42 && c<58 && c!==44 && c!==47;
-		}
-		let last=4;
-		for (let i=0;i<len;) {
-			let c=str[i++];
-			if      (c==="M")  {type=0;}
-			else if (c==="m")  {type=1;}
-			else if (c==="Z")  {type=2;}
-			else if (c==="z")  {type=3;}
-			else if (c==="L")  {type=4;}
-			else if (c==="l")  {type=5;}
-			else if (c==="H")  {type=6;}
-			else if (c==="h")  {type=7;}
-			else if (c==="V")  {type=8;}
-			else if (c==="v")  {type=9;}
-			else if (c==="C")  {type=10;}
-			else if (c==="c")  {type=11;}
-			else if (isnum(c) || c==="-") {type=last;i--;}
-			else {continue;}
-			last=type<4?4:type;
-			let prev=[0,0];
+		let type=2,rel=0,len=str.length,i=0,c;
+		let params=[0,3,3,1,2,63],v=[0,0,0,0,0,0],off=[0,0];
+		function gc() {c=i<len?str.charCodeAt(i++):255;}
+		gc();
+		while (i<len) {
+			// If it's a number, repeat last type. Otherwise, determine if Zz Mm Ll Hh Vv Cc.
+			if (c<45 || c>57 || c===47) {
+				let l=c&32,h=c-l;
+				gc();
+				if      (h===90) {type=0;}
+				else if (h===77) {type=1;}
+				else if (h===76) {type=2;}
+				else if (h===72) {type=3;}
+				else if (h===86) {type=4;}
+				else if (h===67) {type=5;}
+				else {continue;}
+				rel=l;
+			}
+			// Relative offset.
 			if (this.vertidx) {
 				let l=this.vertarr[this.vertidx-1];
-				prev=[l.x,l.y];
+				off[0]=l.x;off[1]=l.y;
 			}
-			let off=(type&1)?prev:[0,0];
-			let p=params[type>>1],t=0;
-			if (type>5 && type<10) {v[0]=prev[0];v[1]=prev[1];t=type>7?1:0;}
-			for (;t<p;t++) {
-				for (j=i;j<len && !isnum(str[j]);j++) {}
-				for (i=j;i<len && isnum(str[i]) && (i===j || str[i]!=="-");i++) {}
-				v[t]=parseFloat(str.substring(j,i))+off[t&1];
+			let p=params[type];
+			for (let j=0;j<6;j++) {
+				// Only parse floats if they're needed for this type. Format: \s*-?\d*(\.\d*)?
+				let sign=1,mul=1,base=off[j&1],num=0;
+				if ((p>>>j)&1) {
+					base=rel?base:0;
+					while (c<33) {gc();}
+					if (c===45) {gc();sign=-1;}
+					while (c>47 && c<58) {num=c-48+num*10;gc();}
+					if (c===46) {gc();}
+					while (c>47 && c<58) {mul/=10;num+=(c-48)*mul;gc();}
+				}
+				v[j]=sign*num+base;
 			}
-			if      (type<2 ) {this.moveto(v[0],v[1]);}
-			else if (type<4 ) {this.close();}
-			else if (type<10) {this.lineto(v[0],v[1]);}
+			if      (type<1) {this.close();type=1;}
+			else if (type<2) {this.moveto(v[0],v[1]);type=2;}
+			else if (type<5) {this.lineto(v[0],v[1]);}
 			else {this.curveto(v[0],v[1],v[2],v[3],v[4],v[5]);}
 		}
 	}
@@ -1847,7 +1682,6 @@ class _DrawFont {
 class Draw {
 
 	// Put these under the Draw namespace.
-	static Transform=_DrawTransform;
 	static Poly     =_DrawPoly;
 	static Font     =_DrawFont;
 	static Image    =_DrawImage;
@@ -1872,20 +1706,15 @@ class Draw {
 		let col=this.rgba32[0];
 		for (let i=0;i<32;i+=8) {this.rgbashift[(col>>>i)&255]=i;}
 		this.rgba32[0]=0xffffffff;
-		// Screen transforms
-		this.viewoffx =0.0;
-		this.viewoffy =0.0;
-		this.viewmulx =1.0;
-		this.viewmuly =1.0;
-		// Object transforms
+		// State
 		this.deffont  =new con.Font();
-		this.deftrans =new con.Transform();
+		this.deftrans =new Transform(2);
 		this.defpoly  =new con.Poly();
 		this.stack    =[];
 		this.stackidx =0;
 		// Rendering variables
 		this.linewidth=1.0;
-		this.tmptrans =new con.Transform();
+		this.tmptrans =new Transform(2);
 		this.tmppoly  =new con.Poly();
 		this.tmpline  =[];
 	}
@@ -1943,7 +1772,7 @@ class Draw {
 			}
 			this.ctxgl=ctx;
 		} catch(e) {
-			console.log("failed to get webgl2 context:",e);
+			// console.log("failed to get webgl2 context:",e);
 			this.ctx2d=canvas.getContext("2d");
 		}
 	}
@@ -2018,8 +1847,7 @@ class Draw {
 
 
 	// ----------------------------------------
-	// Transforms
-	// point -> scale -> rotate -> offset -> view offset -> view scale
+	// State
 
 
 	resetstate() {
@@ -2034,7 +1862,7 @@ class Draw {
 			mem={
 				img  :null,
 				rgba :null,
-				trans:new this.constructor.Transform(),
+				trans:new Transform(2),
 				poly :null,
 				font :null
 			};
@@ -2059,36 +1887,8 @@ class Draw {
 	}
 
 
-	transformpoint(x,y) {
-		let [ox,oy]=this.deftrans.apply(x,y);
-		ox=(ox-this.viewoffx)*this.viewmulx;
-		oy=(oy-this.viewoffy)*this.viewmuly;
-		return [ox,oy];
-	}
-
-
-	setviewscale(x,y) {
-		this.viewmulx=x;
-		this.viewmuly=y;
-	}
-
-
-	setviewoffset(x,y) {
-		this.viewoffx=x;
-		this.viewoffy=y;
-	}
-
-
 	settransform(trans) {return this.deftrans.set(trans);}
-	setangle(ang)  {return this.deftrans.setangle(ang);}
-	addangle(ang)  {return this.deftrans.addangle(ang);}
-	getangle()     {return this.deftrans.getangle();}
-	setscale(x,y)  {return this.deftrans.setscale(x,y);}
-	mulscale(x,y)  {return this.deftrans.mulscale(x,y);}
-	getscale()     {return this.deftrans.getscale();}
-	setoffset(x,y) {return this.deftrans.setoffset(x,y);}
-	addoffset(x,y) {return this.deftrans.addoffset(x,y);}
-	getoffset()    {return this.deftrans.getoffset();}
+	gettransform() {return this.deftrans;}
 
 
 	// ----------------------------------------
@@ -2207,10 +2007,9 @@ class Draw {
 
 
 	fillrect(x,y,w,h) {
-		let poly=this.tmppoly,trans=this.tmptrans;
-		trans.set(this.deftrans).addoffset(x,y).mulscale(w,h);
+		let poly=this.tmppoly,trans=this.deftrans;
 		poly.begin();
-		poly.addrect(0,0,1,1);
+		poly.addrect(x,y,w,h);
 		this.fillpoly(poly,trans);
 	}
 
@@ -2222,10 +2021,9 @@ class Draw {
 
 	filloval(x,y,xrad,yrad) {
 		yrad=yrad??xrad;
-		let poly=this.tmppoly,trans=this.tmptrans;
-		trans.set(this.deftrans).addoffset(x,y).mulscale(xrad,yrad);
+		let poly=this.tmppoly,trans=this.deftrans;
 		poly.begin();
-		poly.addoval(0,0,1,1);
+		poly.addoval(x,y,xrad,yrad);
 		this.fillpoly(poly,trans);
 	}
 
@@ -2243,9 +2041,9 @@ class Draw {
 		let font=this.deffont,glyphs=font.glyphs;
 		if (scale===undefined) {scale=font.defscale;}
 		let len=str.length;
-		let xpos=0,lh=font.lineheight;
+		let xpos=0,ypos=0,lh=font.lineheight;
 		let trans=this.tmptrans;
-		trans.set(this.deftrans).addoffset(x,y).mulscale(scale,scale);
+		trans.set(this.deftrans).scale(scale);
 		for (let i=0;i<len;i++) {
 			let c=str.charCodeAt(i);
 			let g=glyphs[c];
@@ -2258,11 +2056,10 @@ class Draw {
 					throw "missing tab";
 				} else if (c===10) {
 					// EOL
-					trans.addoffset(-xpos,lh,true);
+					ypos+=lh;
 					xpos=0;
 				} else if (c===13) {
 					// linefeed
-					trans.addoffset(-xpos,0,true);
 					xpos=0;
 				} else {
 					g=font.unknown;
@@ -2271,8 +2068,8 @@ class Draw {
 					continue;
 				}
 			}
+			trans.vec.set(trans.mat.mul([xpos,ypos])).iadd([x,y]);
 			this.fillpoly(g.poly,trans);
-			trans.addoffset(g.width,0,true);
 			xpos+=g.width;
 		}
 	}
@@ -2318,16 +2115,15 @@ class Draw {
 		// Keep JS as simple as possible to be efficient. Keep micro optimization in WASM.
 		// ~~x = fast floor(x)
 		if (poly===undefined) {poly=this.defpoly;}
-		trans=trans===undefined?this.deftrans:this.tmptrans.set(trans);
+		if (trans===undefined) {trans=this.deftrans;}
+		else if (!(trans instanceof Transform)) {trans=new Transform(trans);}
 		const curvemaxdist2=0.01;
 		let iw=this.img.width,ih=this.img.height;
 		let alpha=this.rgba[3]/255.0;
 		if (poly.vertidx<3 || iw<1 || ih<1 || alpha<1e-4) {return;}
 		// Screenspace transformation.
-		let vmulx=this.viewmulx,voffx=this.viewoffx;
-		let vmuly=this.viewmuly,voffy=this.viewoffy;
-		let matxx=trans.data[0]*vmulx,matxy=trans.data[1]*vmulx,matx=(trans.data[2]-voffx)*vmulx;
-		let matyx=trans.data[3]*vmuly,matyy=trans.data[4]*vmuly,maty=(trans.data[5]-voffy)*vmuly;
+		let matxx=trans.mat[0],matxy=trans.mat[1],matx=trans.vec[0];
+		let matyx=trans.mat[2],matyy=trans.mat[3],maty=trans.vec[1];
 		// Perform a quick AABB-OBB overlap test.
 		// Define the transformed bounding box.
 		let aabb=poly.aabb;

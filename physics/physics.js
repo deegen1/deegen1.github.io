@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v3.07
+physics.js - v3.09
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -54,6 +54,10 @@ History
      edges. Fixed bond distance calculations for greedy filling.
 3.07
      Changed atom type callback to a global collision callback.
+3.08
+     Fixed double releasing atoms and bonds.
+3.09
+     Fixed memory allocation for broadphase BVH.
 
 
 --------------------------------------------------------------------------------
@@ -61,9 +65,10 @@ TODO
 
 
 callbacks
-	atomdelcallback, only call once
-	bonddelcallback, only call once
+	atomdelcallback
+	bonddelcallback
 	process deletions at start of main loop
+	add to release queue
 
 createshape
 	Inside/outside test for dim>2.
@@ -94,6 +99,7 @@ BVH
 	TestRay(colfunc)
 	TestBox(colfunc)
 
+Fix tree diagram in article.
 Remove world bounds. Add to timestep in demo.
 Add static bonds to article.
 New article: friction with springs.
@@ -106,11 +112,11 @@ Scale pvmul like calcdt.
 
 */
 /* npx eslint physics.js -c ../../standards/eslint.js */
-/* global Vector, Random */
+/* global Vector, Transform, Random */
 
 
 //---------------------------------------------------------------------------------
-// Physics - v3.07
+// Physics - v3.09
 
 
 class PhyLink {
@@ -316,8 +322,8 @@ class PhyAtomType {
 			link.obj.intarr[id]=null;
 			link=link.next;
 		}
-		this.worldlink.remove();
 		this.atomlist.clear();
+		this.worldlink.remove();
 	}
 
 
@@ -447,13 +453,14 @@ class PhyAtom {
 
 
 	release() {
+		if (this.deleted) {return;}
 		this.deleted=true;
-		this.worldlink.remove();
-		this.typelink.remove();
 		let link;
 		while ((link=this.bondlist.head)!==null) {
 			link.obj.release();
 		}
+		this.typelink.remove();
+		this.worldlink.remove();
 	}
 
 
@@ -525,13 +532,13 @@ class PhyAtom {
 		let b0=a,b1=b;
 		if (a.bondlist.count>b.bondlist.count) {b0=b;b1=a;}
 		let link=b0.bondlist.head;
-		let bonded=0;
+		let bonded=null;
 		while (link!==null) {
 			let bond=link.obj;
 			link=link.next;
 			if (Object.is(bond.a,b1) || Object.is(bond.b,b1)) {
 				rad=rad<bond.dist?rad:bond.dist;
-				bonded=1;
+				bonded=bond;
 			}
 		}
 		if (dist>=rad*rad) {return;}
@@ -565,9 +572,9 @@ class PhyAtom {
 		posdif*=intr.pmul;
 		// If we have a callback, allow it to handle the collision.
 		let callback=a.world.collcallback;
-		if (callback!==null && !callback(a,b,norm,veldif,posdif)) {return;}
+		if (callback!==null && !callback(a,b,norm,veldif,posdif,bonded)) {return;}
 		// Create an electrostatic bond between the atoms.
-		if (bonded===0 && intr.statictension>0) {
+		if (bonded===null && intr.statictension>0) {
 			let bond=a.world.createbond(a,b,rad,intr.statictension);
 			bond.breakdist=rad+(a.rad<b.rad?a.rad:b.rad)*intr.staticdist;
 		}
@@ -607,10 +614,11 @@ class PhyBond {
 
 
 	release () {
+		if (this.deleted) {return;}
 		this.deleted=true;
-		this.worldlink.remove();
 		this.alink.remove();
 		this.blink.remove();
+		this.worldlink.remove();
 	}
 
 
@@ -698,7 +706,7 @@ class PhyBroadphase {
 		this.slack=0.05;
 		this.atomcnt=0;
 		this.atomarr=null;
-		this.memi32=null;
+		this.memi32=[];
 		this.memf32=null;
 	}
 
@@ -706,7 +714,7 @@ class PhyBroadphase {
 	release() {
 		this.atomarr=null;
 		this.atomcnt=0;
-		this.memi32=null;
+		this.memi32=[];
 		this.memf32=null;
 	}
 
@@ -723,27 +731,27 @@ class PhyBroadphase {
 		if (atomcnt===0) {return;}
 		// Allocate working arrays.
 		let dim2=2*dim,nodesize=3+dim2;
-		let treesize=atomcnt*(nodesize*3)-nodesize;
+		let sortstart=nodesize*(atomcnt*2-1);
+		let treesize=sortstart*2;
 		let memi=this.memi32;
-		if (memi===null || memi.length<treesize) {
+		if (memi.length<treesize) {
 			memi=new Int32Array(treesize*2);
 			this.memi32=memi;
 			this.memf32=new Float32Array(memi.buffer);
 			this.atomarr=new Array(atomcnt*2);
 		}
 		let memf=this.memf32;
-		let sortstart=nodesize*(atomcnt*2-1);
-		let leafstart=sortstart+atomcnt;
 		// Store atoms and their bounds. atom_id*2+sleeping.
+		let leafstart=sortstart+atomcnt;
 		let slack=1+this.slack;
 		let leafidx=leafstart;
-		let atomlink=world.atomlist.head;
 		let atomarr=this.atomarr;
+		let atomlink=world.atomlist.head;
 		for (let i=0;i<atomcnt;i++) {
 			let atom=atomlink.obj;
 			atomlink=atomlink.next;
 			atomarr[i]=atom;
-			memi[leafidx++]=(i<<1)|atom.sleeping;
+			memi[leafidx++]=(i<<1)|(atom.sleeping?1:0);
 			memi[sortstart+i]=leafidx;
 			let pos=atom.pos,rad=atom.rad*slack;
 			rad=rad>0?rad:-rad;
@@ -921,6 +929,7 @@ class PhyWorld {
 		this.broad=new PhyBroadphase(this);
 		this.stepcallback=null;
 		this.collcallback=null;
+		this.data={};
 	}
 
 

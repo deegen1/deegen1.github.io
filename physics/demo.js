@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.11
+demo.js - v1.12
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -170,7 +170,8 @@ class PhyScene {
 		input.update();
 		world.update(delta);
 		draw.fill(0,0,0,255);
-		draw.setscale(scale,scale);
+		let trans=draw.gettransform();
+		trans.reset().scale(scale);
 		this.distmap.fill(Infinity);
 		// Move the player. Pulse the player atom until moved.
 		let mpos=new Vector(input.getmousepos());

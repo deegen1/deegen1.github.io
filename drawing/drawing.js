@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v3.18
+drawing.js - v3.20
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -90,13 +90,29 @@ History
      Added H,h,V,v to fromstring().
 3.18
      rgbatoint() and setcolor() now use the same formula.
+3.19
+     Simplified fromstring() and fixed float parsing for strings like: .1.2.3
+3.20
+     Replaced DrawTransform with vector library Transform.
 
 
 --------------------------------------------------------------------------------
 TODO
 
 
-fillpoly drawing too much
+Try to reduce size to 30kb.
+	Optimize font glyphs. Use /100 or /60 instead of /1000. Optimize svg.
+	33x60
+	Get font down to 5kb.
+	Remove GL rendering.
+
+fillpoly
+	Per-subpath color. "F" specifies colors for following segments.
+	Allow for different blend modes.
+	Stop segmenting subcurves if they're offscreen.
+	Try F32/I32 arrays.
+	Remove math.min/max.
+	drawing too much:
 	let x=50,y=50;
 	let ang=-Math.PI*0.5,amul=-Math.PI*2*0.437600;
 	let poly=new Draw.Poly();
@@ -107,16 +123,23 @@ fillpoly drawing too much
 	draw.setcolor(255,255,255,255);
 	draw.fillpoly(poly);
 
-Use module to put everything under Draw namespace.
+DrawPoly
+	Remove addstrip().
+	If we call moveto(), close the previous subpath.
+	normalize, scale, shift
+	closestpoint(point,transform)
+	pointinside(point,transform)
+	Add circular arcs.
 
-Try to reduce size to 30kb.
-	Optimize font glyphs. Use /100 or /60 instead of /1000. Optimize svg.
+filltext/textrect
+	Add backspaces and tabs.
+
+DrawImage
+	Redo setpixel, getpixel, fill, rgbatoint, etc so it's always
+	(a<<24)|(r<<16)|(g<<28)|b
 
 Rewrite article.
-
-Simplify _DrawTransform
-	Replace with matrix/vector math.
-	Just apply transforms directly, since we usually rebuild it anyway.
+Use module to put everything under Draw namespace.
 
 Tracing
 	v4.0
@@ -124,27 +147,6 @@ Tracing
 	Rounded corners: set midpoint distance to thickness.
 	For inline, go through path in reverse.
 	Add traceoval, tracerect.
-
-polyfill
-	Per-subpath color. "F" specifies colors for following segments.
-	Allow for different blend modes.
-	If we call moveto(), close the previous subpath.
-
-DrawPoly
-	normalize, scale, shift
-	closestpoint(point,transform)
-	pointinside(point,transform)
-	Add circular arcs. Use in rappel.js charge timer.
-	Optimize fromstring(). Create tests for parsing paths.
-	Stop segmenting subcurves if they're offscreen.
-
-filltext/textrect
-	Add backspaces and tabs.
-	For filltext, use untransformed offset. Apply transform when drawing.
-
-DrawImage
-	Redo setpixel, getpixel, fill, rgbatoint, etc so it's always
-	(a<<24)|(r<<16)|(g<<28)|b
 
 Tracing draft
 	c2x=(c2x-c1x)*3;c1x=(c1x-p0x)*3;c3x-=p0x+c2x;c2x-=c1x;
@@ -201,182 +203,11 @@ Tracing draft
 
 */
 /* npx eslint drawing.js -c ../../standards/eslint.js */
+/* global Transform */
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v3.18
-
-
-class _DrawTransform {
-
-	static MATXX=0;
-	static MATXY=1;
-	static MATX =2;
-	static MATYX=3;
-	static MATYY=4;
-	static MATY =5;
-	static MULX =6;
-	static MULY =7;
-	static ANG  =8;
-	static ROTX =9;
-	static ROTY =10;
-	static OFFX =11;
-	static OFFY =12;
-
-
-	constructor(params) {
-		this.data=new Float64Array([1,0,0,0,1,0,1,1,0,1,0,0,0]);
-		if (params!==undefined) {this.set(params);}
-	}
-
-
-	reset() {
-		this.data.set([1,0,0,0,1,0,1,1,0,1,0,0,0]);
-	}
-
-
-	set(params) {
-		// Accepts: transforms, arrays, {x,y,angle,scale,xscale,yscale}
-		let data=this.data;
-		if (params instanceof _DrawTransform) {
-			data.set(params.data);
-		} else if (params.length) {
-			if (params.length!==data.length) {throw "param length";}
-			data.set(params);
-		} else {
-			data[11]=params.x??0;
-			data[12]=params.y??0;
-			let ang=(params.angle??0)%6.283185307;
-			data[ 8]=ang;
-			data[ 9]=Math.cos(ang);
-			data[10]=Math.sin(ang);
-			let scale=params.scale??1;
-			data[ 6]=params.xscale??scale;
-			data[ 7]=params.yscale??scale;
-			this.calcmatrix();
-		}
-		return this;
-	}
-
-
-	calcmatrix() {
-		// Precalculates the transformation matrix.
-		// point -> scale -> rotate -> offset
-		let data=this.data;
-		data[0]= data[ 9]*data[6];
-		data[1]=-data[10]*data[7];
-		data[2]= data[11];
-		data[3]= data[10]*data[6];
-		data[4]= data[ 9]*data[7];
-		data[5]= data[12];
-	}
-
-
-	setangle(ang) {
-		let data=this.data;
-		ang%=6.283185307;
-		data[ 8]=ang;
-		data[ 9]=Math.cos(ang);
-		data[10]=Math.sin(ang);
-		this.calcmatrix();
-		return this;
-	}
-
-
-	addangle(ang) {
-		return this.setangle(this.data[8]+ang);
-	}
-
-
-	getangle() {
-		return this.data[3];
-	}
-
-
-	setscale(x,y) {
-		if (y===undefined) {
-			if (!x.length) {y=x;}
-			else {y=x[1];x=x[0];}
-		}
-		this.data[6]=x;
-		this.data[7]=y;
-		this.calcmatrix();
-		return this;
-	}
-
-
-	mulscale(x,y) {
-		if (y===undefined) {
-			if (!x.length) {y=x;}
-			else {y=x[1];x=x[0];}
-		}
-		this.data[6]*=x;
-		this.data[7]*=y;
-		this.calcmatrix();
-		return this;
-	}
-
-
-	getscale() {
-		return [this.data[6],this.data[7]];
-	}
-
-
-	setoffset(x,y) {
-		if (y===undefined) {y=x[1];x=x[0];}
-		let data=this.data;
-		data[11]=x;
-		data[12]=y;
-		data[2]=data[11];
-		data[5]=data[12];
-		return this;
-	}
-
-
-	addoffset(x,y,apply) {
-		if (y===undefined) {y=x[1];x=x[0];}
-		let data=this.data;
-		if (apply) {
-			let w=x;
-			x=w*data[0]+y*data[1];
-			y=w*data[3]+y*data[4];
-		}
-		data[11]+=x;
-		data[12]+=y;
-		data[2]=data[11];
-		data[5]=data[12];
-		return this;
-	}
-
-
-	getoffset() {
-		return [this.data[11],this.data[12]];
-	}
-
-
-	apply(x,y) {
-		// Applies all transformations to a point.
-		if (y===undefined) {y=x[1];x=x[0];}
-		let data=this.data,w=x;
-		x=w*data[0]+y*data[1]+data[2];
-		y=w*data[3]+y*data[4]+data[5];
-		return [x,y];
-	}
-
-
-	undo(x,y) {
-		// Applies the inverse transform to [x,y].
-		if (y===undefined) {y=x[1];x=x[0];}
-		let data=this.data,w=x;
-		let det=data[0]*data[4]-data[1]*data[3];
-		w-=data[2];
-		y-=data[5];
-		x=(w*data[4]-y*data[1])/det;
-		y=(y*data[0]-w*data[3])/det;
-		return [x,y];
-	}
-
-}
+// Drawing - v3.20
 
 
 class _DrawPoly {
@@ -520,48 +351,48 @@ class _DrawPoly {
 
 
 	fromstring(str) {
-		// Parses an SVG path. Supports M, Z, L, C.
+		// Parses an SVG path. Supports Z M L H V C.
 		this.begin();
-		let type,j,len=str.length;
-		let params=[2,0,2,1,2,6],v=[0,0,0,0,0,0];
-		function isnum(c) {
-			c=c.charCodeAt(0);
-			return c>42 && c<58 && c!==44 && c!==47;
-		}
-		let last=4;
-		for (let i=0;i<len;) {
-			let c=str[i++];
-			if      (c==="M")  {type=0;}
-			else if (c==="m")  {type=1;}
-			else if (c==="Z")  {type=2;}
-			else if (c==="z")  {type=3;}
-			else if (c==="L")  {type=4;}
-			else if (c==="l")  {type=5;}
-			else if (c==="H")  {type=6;}
-			else if (c==="h")  {type=7;}
-			else if (c==="V")  {type=8;}
-			else if (c==="v")  {type=9;}
-			else if (c==="C")  {type=10;}
-			else if (c==="c")  {type=11;}
-			else if (isnum(c) || c==="-") {type=last;i--;}
-			else {continue;}
-			last=type<4?4:type;
-			let prev=[0,0];
+		let type=2,rel=0,len=str.length,i=0,c;
+		let params=[0,3,3,1,2,63],v=[0,0,0,0,0,0],off=[0,0];
+		function gc() {c=i<len?str.charCodeAt(i++):255;}
+		gc();
+		while (i<len) {
+			// If it's a number, repeat last type. Otherwise, determine if Zz Mm Ll Hh Vv Cc.
+			if (c<45 || c>57 || c===47) {
+				let l=c&32,h=c-l;
+				gc();
+				if      (h===90) {type=0;}
+				else if (h===77) {type=1;}
+				else if (h===76) {type=2;}
+				else if (h===72) {type=3;}
+				else if (h===86) {type=4;}
+				else if (h===67) {type=5;}
+				else {continue;}
+				rel=l;
+			}
+			// Relative offset.
 			if (this.vertidx) {
 				let l=this.vertarr[this.vertidx-1];
-				prev=[l.x,l.y];
+				off[0]=l.x;off[1]=l.y;
 			}
-			let off=(type&1)?prev:[0,0];
-			let p=params[type>>1],t=0;
-			if (type>5 && type<10) {v[0]=prev[0];v[1]=prev[1];t=type>7?1:0;}
-			for (;t<p;t++) {
-				for (j=i;j<len && !isnum(str[j]);j++) {}
-				for (i=j;i<len && isnum(str[i]) && (i===j || str[i]!=="-");i++) {}
-				v[t]=parseFloat(str.substring(j,i))+off[t&1];
+			let p=params[type];
+			for (let j=0;j<6;j++) {
+				// Only parse floats if they're needed for this type. Format: \s*-?\d*(\.\d*)?
+				let sign=1,mul=1,base=off[j&1],num=0;
+				if ((p>>>j)&1) {
+					base=rel?base:0;
+					while (c<33) {gc();}
+					if (c===45) {gc();sign=-1;}
+					while (c>47 && c<58) {num=c-48+num*10;gc();}
+					if (c===46) {gc();}
+					while (c>47 && c<58) {mul/=10;num+=(c-48)*mul;gc();}
+				}
+				v[j]=sign*num+base;
 			}
-			if      (type<2 ) {this.moveto(v[0],v[1]);}
-			else if (type<4 ) {this.close();}
-			else if (type<10) {this.lineto(v[0],v[1]);}
+			if      (type<1) {this.close();type=1;}
+			else if (type<2) {this.moveto(v[0],v[1]);type=2;}
+			else if (type<5) {this.lineto(v[0],v[1]);}
 			else {this.curveto(v[0],v[1],v[2],v[3],v[4],v[5]);}
 		}
 	}
@@ -580,7 +411,7 @@ class _DrawPoly {
 	}
 
 
-	// addpoly(poly,transform) {
+	// addpoly(poly,trans) {
 	// 	return this;
 	// }
 
@@ -976,7 +807,6 @@ class _DrawFont {
 class Draw {
 
 	// Put these under the Draw namespace.
-	static Transform=_DrawTransform;
 	static Poly     =_DrawPoly;
 	static Font     =_DrawFont;
 	static Image    =_DrawImage;
@@ -1001,20 +831,15 @@ class Draw {
 		let col=this.rgba32[0];
 		for (let i=0;i<32;i+=8) {this.rgbashift[(col>>>i)&255]=i;}
 		this.rgba32[0]=0xffffffff;
-		// Screen transforms
-		this.viewoffx =0.0;
-		this.viewoffy =0.0;
-		this.viewmulx =1.0;
-		this.viewmuly =1.0;
-		// Object transforms
+		// State
 		this.deffont  =new con.Font();
-		this.deftrans =new con.Transform();
+		this.deftrans =new Transform(2);
 		this.defpoly  =new con.Poly();
 		this.stack    =[];
 		this.stackidx =0;
 		// Rendering variables
 		this.linewidth=1.0;
-		this.tmptrans =new con.Transform();
+		this.tmptrans =new Transform(2);
 		this.tmppoly  =new con.Poly();
 		this.tmpline  =[];
 	}
@@ -1147,8 +972,7 @@ class Draw {
 
 
 	// ----------------------------------------
-	// Transforms
-	// point -> scale -> rotate -> offset -> view offset -> view scale
+	// State
 
 
 	resetstate() {
@@ -1163,7 +987,7 @@ class Draw {
 			mem={
 				img  :null,
 				rgba :null,
-				trans:new this.constructor.Transform(),
+				trans:new Transform(2),
 				poly :null,
 				font :null
 			};
@@ -1188,36 +1012,8 @@ class Draw {
 	}
 
 
-	transformpoint(x,y) {
-		let [ox,oy]=this.deftrans.apply(x,y);
-		ox=(ox-this.viewoffx)*this.viewmulx;
-		oy=(oy-this.viewoffy)*this.viewmuly;
-		return [ox,oy];
-	}
-
-
-	setviewscale(x,y) {
-		this.viewmulx=x;
-		this.viewmuly=y;
-	}
-
-
-	setviewoffset(x,y) {
-		this.viewoffx=x;
-		this.viewoffy=y;
-	}
-
-
 	settransform(trans) {return this.deftrans.set(trans);}
-	setangle(ang)  {return this.deftrans.setangle(ang);}
-	addangle(ang)  {return this.deftrans.addangle(ang);}
-	getangle()     {return this.deftrans.getangle();}
-	setscale(x,y)  {return this.deftrans.setscale(x,y);}
-	mulscale(x,y)  {return this.deftrans.mulscale(x,y);}
-	getscale()     {return this.deftrans.getscale();}
-	setoffset(x,y) {return this.deftrans.setoffset(x,y);}
-	addoffset(x,y) {return this.deftrans.addoffset(x,y);}
-	getoffset()    {return this.deftrans.getoffset();}
+	gettransform() {return this.deftrans;}
 
 
 	// ----------------------------------------
@@ -1336,10 +1132,9 @@ class Draw {
 
 
 	fillrect(x,y,w,h) {
-		let poly=this.tmppoly,trans=this.tmptrans;
-		trans.set(this.deftrans).addoffset(x,y).mulscale(w,h);
+		let poly=this.tmppoly,trans=this.deftrans;
 		poly.begin();
-		poly.addrect(0,0,1,1);
+		poly.addrect(x,y,w,h);
 		this.fillpoly(poly,trans);
 	}
 
@@ -1351,10 +1146,9 @@ class Draw {
 
 	filloval(x,y,xrad,yrad) {
 		yrad=yrad??xrad;
-		let poly=this.tmppoly,trans=this.tmptrans;
-		trans.set(this.deftrans).addoffset(x,y).mulscale(xrad,yrad);
+		let poly=this.tmppoly,trans=this.deftrans;
 		poly.begin();
-		poly.addoval(0,0,1,1);
+		poly.addoval(x,y,xrad,yrad);
 		this.fillpoly(poly,trans);
 	}
 
@@ -1372,9 +1166,9 @@ class Draw {
 		let font=this.deffont,glyphs=font.glyphs;
 		if (scale===undefined) {scale=font.defscale;}
 		let len=str.length;
-		let xpos=0,lh=font.lineheight;
+		let xpos=0,ypos=0,lh=font.lineheight;
 		let trans=this.tmptrans;
-		trans.set(this.deftrans).addoffset(x,y).mulscale(scale,scale);
+		trans.set(this.deftrans).scale(scale);
 		for (let i=0;i<len;i++) {
 			let c=str.charCodeAt(i);
 			let g=glyphs[c];
@@ -1387,11 +1181,10 @@ class Draw {
 					throw "missing tab";
 				} else if (c===10) {
 					// EOL
-					trans.addoffset(-xpos,lh,true);
+					ypos+=lh;
 					xpos=0;
 				} else if (c===13) {
 					// linefeed
-					trans.addoffset(-xpos,0,true);
 					xpos=0;
 				} else {
 					g=font.unknown;
@@ -1400,8 +1193,8 @@ class Draw {
 					continue;
 				}
 			}
+			trans.vec.set(trans.mat.mul([xpos,ypos])).iadd([x,y]);
 			this.fillpoly(g.poly,trans);
-			trans.addoffset(g.width,0,true);
 			xpos+=g.width;
 		}
 	}
@@ -1447,16 +1240,15 @@ class Draw {
 		// Keep JS as simple as possible to be efficient. Keep micro optimization in WASM.
 		// ~~x = fast floor(x)
 		if (poly===undefined) {poly=this.defpoly;}
-		trans=trans===undefined?this.deftrans:this.tmptrans.set(trans);
+		if (trans===undefined) {trans=this.deftrans;}
+		else if (!(trans instanceof Transform)) {trans=new Transform(trans);}
 		const curvemaxdist2=0.01;
 		let iw=this.img.width,ih=this.img.height;
 		let alpha=this.rgba[3]/255.0;
 		if (poly.vertidx<3 || iw<1 || ih<1 || alpha<1e-4) {return;}
 		// Screenspace transformation.
-		let vmulx=this.viewmulx,voffx=this.viewoffx;
-		let vmuly=this.viewmuly,voffy=this.viewoffy;
-		let matxx=trans.data[0]*vmulx,matxy=trans.data[1]*vmulx,matx=(trans.data[2]-voffx)*vmulx;
-		let matyx=trans.data[3]*vmuly,matyy=trans.data[4]*vmuly,maty=(trans.data[5]-voffy)*vmuly;
+		let matxx=trans.mat[0],matxy=trans.mat[1],matx=trans.vec[0];
+		let matyx=trans.mat[2],matyy=trans.mat[3],maty=trans.vec[1];
 		// Perform a quick AABB-OBB overlap test.
 		// Define the transformed bounding box.
 		let aabb=poly.aabb;
