@@ -1725,7 +1725,7 @@ class Draw {
 		if (Object.is(this.canvas,canvas)) {return;}
 		this.canvas=canvas;
 		try {
-			let ctx=canvas.getContext("webgl2");
+			let ctx=canvas.getContext("webgl2",{preserveDrawingBuffer:true});
 			let vs=ctx.createShader(ctx.VERTEX_SHADER);
 			ctx.shaderSource(vs,`#version 300 es
 				in vec2 a_position;
@@ -1771,8 +1771,7 @@ class Draw {
 				ctx.vertexAttribPointer(loc,2,ctx.FLOAT,false,0,0);
 			}
 			this.ctxgl=ctx;
-		} catch(e) {
-			// console.log("failed to get webgl2 context:",e);
+		} catch {
 			this.ctx2d=canvas.getContext("2d");
 		}
 	}
@@ -1788,8 +1787,14 @@ class Draw {
 			let idata=new ImageData(cdata,imgw,imgh);
 			this.ctx2d.putImageData(idata,0,0);
 		} else {
-			ctx.viewport(0,0,imgw,imgh);
-			ctx.texImage2D(ctx.TEXTURE_2D,0,ctx.RGBA8,imgw,imgh,0,ctx.RGBA,ctx.UNSIGNED_BYTE,img.data8);
+			if (this.glw!==imgw || this.glh!==imgh) {
+				this.glw=imgw;
+				this.glh=imgh;
+				ctx.viewport(0,0,imgw,imgh);
+				ctx.texImage2D(ctx.TEXTURE_2D,0,ctx.RGBA8,imgw,imgh,0,ctx.RGBA,ctx.UNSIGNED_BYTE,img.data8);
+			} else {
+				ctx.texSubImage2D(ctx.TEXTURE_2D,0,0,0,imgw,imgh,ctx.RGBA,ctx.UNSIGNED_BYTE,img.data8);
+			}
 			ctx.drawArrays(ctx.TRIANGLE_FAN,0,4);
 		}
 	}

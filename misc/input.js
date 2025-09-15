@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-input.js - v1.16
+input.js - v1.17
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -12,12 +12,20 @@ Notes
 
 
 --------------------------------------------------------------------------------
+History
+
+
+1.17
+     Changed keyhit to keychange to track presses and releases.
+
+
+--------------------------------------------------------------------------------
 TODO
 
 
 Remove relative mouse coordinates. Always use absolute.
-Add event queues for key presses?
 Controller support.
+developer.mozilla.org/en-US/docs/Web/API/Gamepad_API/Using_the_Gamepad_API
 
 
 */
@@ -25,7 +33,7 @@ Controller support.
 
 
 //---------------------------------------------------------------------------------
-// Input - v1.16
+// Input - v1.17
 
 
 class Input {
@@ -103,8 +111,9 @@ class Input {
 		let statelen=statearr.length;
 		for (let i=0;i<statelen;i++) {
 			let state=statearr[i];
+			state.next=0;
 			state.down=0;
-			state.hit=0;
+			state.last=0;
 			state.repeat=0;
 			state.time=null;
 			state.active=null;
@@ -127,14 +136,14 @@ class Input {
 		let down,next;
 		while (state!==null) {
 			next=state.active;
-			down=focus?state.down:0;
+			state.last=state.down;
+			down=focus?state.next:0;
 			state.down=down;
 			if (down>0) {
 				let repeat=Math.floor((delay-state.time)*rate);
 				state.repeat=(repeat>0 && (repeat&1)===0)?state.repeat+1:0;
 			} else {
 				state.repeat=0;
-				state.hit=0;
 			}
 			state.isactive=down?1:0;
 			if (state.isactive!==0) {
@@ -353,9 +362,8 @@ class Input {
 	setkeydown(code) {
 		let state=this.makeactive(code);
 		if (state!==null) {
-			if (state.down===0) {
-				state.down=1;
-				state.hit=1;
+			if (state.next===0) {
+				state.next=1;
 				state.repeat=0;
 				state.time=performance.now()/1000.0;
 			}
@@ -366,8 +374,7 @@ class Input {
 	setkeyup(code) {
 		let state=this.makeactive(code);
 		if (state!==null) {
-			state.down=0;
-			state.hit=0;
+			state.next=0;
 			state.repeat=0;
 			state.time=null;
 		}
@@ -375,33 +382,29 @@ class Input {
 
 
 	getkeydown(code) {
-		// code can be an array of key codes.
+		// Returns 1 if held down.
 		if (code===null || code===undefined) {return 0;}
-		if (code.length===undefined) {code=[code];}
-		let keystate=this.keystate;
-		for (let i=0;i<code.length;i++) {
-			let state=keystate[code[i]];
-			if (state!==null && state!==undefined && state.down>0) {
-				return 1;
-			}
-		}
-		return 0;
+		let state=this.keystate[code];
+		return state!==undefined?state.down:0;
 	}
 
 
-	getkeyhit(code) {
-		// code can be an array of key codes.
+	getkeychange(code) {
+		// Returns value if key state has changed.
+		// -1 = release
+		//  0 = no change
+		//  1 = pressed
 		if (code===null || code===undefined) {return 0;}
-		if (code.length===undefined) {code=[code];}
-		let keystate=this.keystate;
-		for (let i=0;i<code.length;i++) {
-			let state=keystate[code[i]];
-			if (state!==null && state!==undefined && state.hit>0) {
-				state.hit=0;
-				return 1;
-			}
-		}
-		return 0;
+		let state=this.keystate[code];
+		return state!==undefined?state.down-state.last:0;
+	}
+
+
+	keyclear(code) {
+		// Clears any state change.
+		if (code===null || code===undefined) {return;}
+		let state=this.keystate[code];
+		if (state!==undefined) {state.last=state.down;}
 	}
 
 

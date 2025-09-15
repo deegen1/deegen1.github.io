@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-vector.js - v3.03
+vector.js - v3.04
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -43,6 +43,8 @@ History
      Transform.set allows Transform() init arguments.
      Transform.shift allows applying the matrix to the shift.
      Added aliases to Transform arguments.
+3.04
+     Normalize will once again return a random vector if mag<eps.
 
 
 --------------------------------------------------------------------------------
@@ -70,7 +72,7 @@ Article on random angle generation.
 
 
 //---------------------------------------------------------------------------------
-// Vector - v3.03
+// Vector - v3.04
 
 
 class Vector extends Array {
@@ -256,8 +258,12 @@ class Vector extends Array {
 			x=u[i];
 			mag+=x*x;
 		}
-		mag=mag>1e-10?1.0/Math.sqrt(mag):NaN;
-		for (i=0;i<len;i++) {u[i]*=mag;}
+		if (mag>1e-10) {
+			mag=1/Math.sqrt(mag);
+			for (i=0;i<len;i++) {u[i]*=mag;}
+		} else {
+			this.randomize();
+		}
 		return this;
 	}
 

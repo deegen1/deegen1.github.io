@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v3.09
+physics.js - v3.11
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -58,6 +58,11 @@ History
      Fixed double releasing atoms and bonds.
 3.09
      Fixed memory allocation for broadphase BVH.
+3.10
+     Reordered collcallback() to allow tweaking the AtomInteraction.
+3.11
+     Push coefficient now scales with dt.
+     Damping coefficients are updated per-loop, instead of per-atom.
 
 
 --------------------------------------------------------------------------------
@@ -107,7 +112,6 @@ Remove static bonds if another bond is formed afterwards?
 Use module to put everything under Phy namespace.
 Motors: linear, angular, range. Add acceleration?
 Reduce to 20kb.
-Scale pvmul like calcdt.
 
 
 */
@@ -116,7 +120,7 @@ Scale pvmul like calcdt.
 
 
 //---------------------------------------------------------------------------------
-// Physics - v3.09
+// Physics - v3.11
 
 
 class PhyLink {
@@ -260,11 +264,16 @@ class PhyList {
 class PhyAtomInteraction {
 
 	constructor(a,b) {
+		this.world=a.world;
+		this.worldlink=new PhyLink(this);
+		this.world.intrlist.add(this.worldlink);
 		this.a=a;
 		this.b=b;
 		this.pmul=0;
 		this.vmul=0;
 		this.vpmul=0;
+		this.dt=NaN;
+		this.push0=0;
 		this.statictension=0;
 		this.staticdist=0;
 		this.updateconstants();
@@ -281,6 +290,14 @@ class PhyAtomInteraction {
 	}
 
 
+	calcdt(dt) {
+		if (this.dt===dt) {return;}
+		this.dt=dt;
+		let ipush=1-this.pmul;
+		this.push0=ipush>0?1-Math.pow(ipush,dt):1;
+	}
+
+
 	static get(a,b) {
 		if (a.type!==undefined) {a=a.type;}
 		if (b.type!==undefined) {b=b.type;}
@@ -292,7 +309,7 @@ class PhyAtomInteraction {
 
 class PhyAtomType {
 
-	constructor(world,id,damp,density,elasticity) {
+	constructor(world,id,damp,density,elasticity=1,push=1,statictension=50) {
 		this.world=world;
 		this.worldlink=new PhyLink(this);
 		this.atomlist=new PhyList();
@@ -300,10 +317,10 @@ class PhyAtomType {
 		this.intarr=[];
 		this.damp=damp;
 		this.density=density;
-		this.pmul=1.0;
+		this.pmul=push;
 		this.vmul=elasticity;
 		this.vpmul=1.0;
-		this.statictension=50;
+		this.statictension=statictension;
 		this.staticdist=1.0;
 		this.bound=true;
 		this.dt =NaN;
@@ -317,7 +334,7 @@ class PhyAtomType {
 
 	release() {
 		let id=this.id;
-		let link=this.world.atomtypelist.head;
+		let link=this.world.typelist.head;
 		while (link!==null) {
 			link.obj.intarr[id]=null;
 			link=link.next;
@@ -482,7 +499,7 @@ class PhyAtom {
 	}
 
 
-	update(dt) {
+	update() {
 		// Move the particle and apply damping to the velocity.
 		// acc+=gravity
 		// pos+=vel*dt1+acc*dt2
@@ -492,7 +509,6 @@ class PhyAtom {
 		let bndmax=world.bndmax;
 		let pe=this.pos,ve=this.vel,b;
 		let dim=pe.length,type=this.type;
-		if (type.dt!==dt) {type.updateconstants(dt);}
 		let bound=type.bound;
 		let ge=type.gravity;
 		ge=(ge===null?this.world.gravity:ge);
@@ -565,14 +581,14 @@ class PhyAtom {
 			norm[i]*=den;
 			veldif+=(avel[i]-bvel[i])*norm[i];
 		}
-		let intr=a.type.intarr[b.type.id];
 		let posdif=rad-dist;
+		// If we have a callback, allow it to handle the collision.
+		let intr=a.type.intarr[b.type.id];
+		let callback=a.world.collcallback;
+		if (callback!==null && !callback(intr,a,b,norm,veldif,posdif,bonded)) {return;}
+		posdif*=intr.push0;
 		veldif=veldif>0?veldif:0;
 		veldif=veldif*intr.vmul+posdif*intr.vpmul;
-		posdif*=intr.pmul;
-		// If we have a callback, allow it to handle the collision.
-		let callback=a.world.collcallback;
-		if (callback!==null && !callback(a,b,norm,veldif,posdif,bonded)) {return;}
 		// Create an electrostatic bond between the atoms.
 		if (bonded===null && intr.statictension>0) {
 			let bond=a.world.createbond(a,b,rad,intr.statictension);
@@ -921,7 +937,8 @@ class PhyWorld {
 		this.gravity[dim-1]=0.2;
 		this.bndmin=(new Vector(dim)).set(-Infinity);
 		this.bndmax=(new Vector(dim)).set( Infinity);
-		this.atomtypelist=new PhyList();
+		this.typelist=new PhyList();
+		this.intrlist=new PhyList();
 		this.atomlist=new PhyList();
 		this.bondlist=new PhyList();
 		this.tmpmem=[];
@@ -935,7 +952,8 @@ class PhyWorld {
 
 	release() {
 		this.atomlist.release();
-		this.atomtypelist.release();
+		this.typelist.release();
+		this.intrlist.release();
 		this.bondlist.release();
 		this.broad.release();
 	}
@@ -956,10 +974,10 @@ class PhyWorld {
 	bonditer() {return this.bondlist.iter();}
 
 
-	createatomtype(damp,density,elasticity) {
+	createatomtype(damp,density,elasticity=1,push=1,statictension=50) {
 		// Assume types are sorted from smallest to largest.
 		// Find if there's any missing ID or add to the end.
-		let link=this.atomtypelist.head;
+		let link=this.typelist.head;
 		let id=0;
 		while (link!==null) {
 			let nextid=link.obj.id;
@@ -967,9 +985,9 @@ class PhyWorld {
 			id=nextid+1;
 			link=link.next;
 		}
-		let type=new PhyAtomType(this,id,damp,density,elasticity);
-		this.atomtypelist.addbefore(type.worldlink,link);
-		link=this.atomtypelist.head;
+		let type=new PhyAtomType(this,id,damp,density,elasticity,push,statictension);
+		this.typelist.addbefore(type.worldlink,link);
+		link=this.typelist.head;
 		while (link!==null) {
 			PhyAtomType.initinteraction(link.obj,type);
 			link=link.next;
@@ -1204,12 +1222,23 @@ class PhyWorld {
 		let rnd=this.rnd;
 		for (let step=0;step<steps;step++) {
 			if (this.stepcallback!==null) {this.stepcallback(dt);}
-			// Integrate atoms.
 			let link,next;
+			// Update types and interactions.
+			link=this.typelist.head;
+			while (link!==null) {
+				link.obj.updateconstants(dt);
+				link=link.next;
+			}
+			link=this.intrlist.head;
+			while (link!==null) {
+				link.obj.calcdt(dt);
+				link=link.next;
+			}
+			// Integrate atoms.
 			next=this.atomlist.head;
 			while ((link=next)!==null) {
 				next=next.next;
-				link.obj.update(dt);
+				link.obj.update();
 			}
 			// Integrate bonds after atoms or vel will be counted twice.
 			// Randomize the evaluation order to reduce oscillations.

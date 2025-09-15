@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-audio.js - v3.04
+audio.js - v3.07
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -57,6 +57,11 @@ History
      Cleaned up SFX.parse() error reporting.
 3.04
      Cleaned up duplicate variables.
+3.05
+     Updating master volume will update all playing instances.
+3.07
+     Added the floor _ operator to SFX.
+     Fixed a big in the linked list of queue'd sounds.
 
 
 --------------------------------------------------------------------------------
@@ -64,16 +69,18 @@ TODO
 
 
 Use module to put everything under Audio namespace.
+
 Reduce size to 20kb
 	Abandon realistic instruments.
 	Remove envelopes, biquad, and delay.
+	Swap sound instance linked lists to array like in physics.js.
 
 Waveguides
 	https://www.osar.fr/notes/waveguides/
 	https://petersalomonsen.com/articles/assemblyscriptphysicalmodelingsynth
 	esis/assemblyscriptphysicalmodelingsynthesis.html
+	fs/f-phase
 
-AIVA or UDIO for midi creation.
 Better explanation of compiled form in article.
 
 UI
@@ -84,11 +91,13 @@ UI
 	Start/resume/reset.
 	Syntax highlighting.
 
-Sequencer
-	Swap length and volume in sequencer, since we never set the volume.
+Sequencerv2
+	[time (s)] [inst] [freq] [vol] [len]
+	' comment
 	Get rid of case sensitivity.
 
 Sound effects
+	Add rounding operator @
 	Optimize %mod lines in sfx.fill().
 	Speed up input processing. Move constants to different section?
 	Simplify attribute naming in namemap[].
@@ -112,7 +121,7 @@ Allow inst to play effects
 
 
 //---------------------------------------------------------------------------------
-// Audio - v3.04
+// Audio - v3.07
 
 
 class _AudioSound {
@@ -712,7 +721,7 @@ class _AudioSFX {
 				continue;
 			} else if (s1-s0<2 && c0 && (c0<48 || c0>57)) {
 				// Operator.
-				tval=findc(" ~+-*%/^<>",c0);
+				tval=findc(" ~_+-*%/^<>",c0);
 				if (tval<0) {error("invalid operator",s0,s1);}
 				tid=OP;
 			} else if (c0) {
@@ -745,12 +754,12 @@ class _AudioSFX {
 					if (type===TBL && i===5) {continue;}
 					let h=0;
 					for (let p of stack) {
-						h+=p.type!==OP?1:(p.val<2?0:-1);
+						h+=p.type!==OP?1:(p.val<3?0:-1);
 						if (h<=0) {error("not enough operands in expression: "+node.str,s0-1);}
 					}
 					// Sum everything left in the stack.
 					while (h-->1) {
-						let p={type:OP,val:2},l=stack.length;
+						let p={type:OP,val:3},l=stack.length;
 						stack.push(p);
 						while (l>2 && stack[l-2].type!==OP) {stack[l]=stack[l-1];l--;}
 						stack[l]=p;
@@ -759,21 +768,22 @@ class _AudioSFX {
 					for (let j=0;j<stack.length;j++) {
 						let p=stack[j];
 						if (p.type===OP) {
-							let min=p.val<2?1:2;
+							let min=p.val<3?1:2;
 							let p1=stack[h-min],p2=stack[h-1];
 							if (p1.type===CON && p2.type===CON) {
 								let v1=p1.val,v2=p2.val;
 								switch (p.val) {
-									case 0: break;
-									case 1: v1=-v1;break;
-									case 2: v1+=v2;break;
-									case 3: v1-=v2;break;
-									case 4: v1*=v2;break;
-									case 5: v1%=v2;break;
-									case 6: v1/=v2;break;
-									case 7: v1=Math.pow(v1,v2);break;
-									case 8: v1=v1<v2?v1:v2;break;
-									case 9: v1=v1>v2?v1:v2;break;
+									case 0 : break;
+									case 1 : v1=-v1;break;
+									case 2 : v1=Math.floor(v1);break;
+									case 3 : v1+=v2;break;
+									case 4 : v1-=v2;break;
+									case 5 : v1*=v2;break;
+									case 6 : v1%=v2;break;
+									case 7 : v1/=v2;break;
+									case 8 : v1=Math.pow(v1,v2);break;
+									case 9 : v1=v1<v2?v1:v2;break;
+									case 10: v1=v1>v2?v1:v2;break;
 								}
 								h-=min;
 								p.type=CON;
@@ -831,7 +841,7 @@ class _AudioSFX {
 					def=[NaN,NaN,0,0];
 					size+=len;
 				} else if (type>=FIL0 && type<=FIL1) {
-					size+=11;
+					size+=10;
 					def=[NaN,1,1,NaN];
 				} else {
 					error("unknown known type: "+type,s0-1);
@@ -1042,11 +1052,11 @@ class _AudioSFX {
 			throw "Biquad type not recognized: "+type;
 		}
 		let df32=this.df32;
-		df32[n+11]=b0/a0;
-		df32[n+12]=b1/a0;
-		df32[n+13]=b2/a0;
-		df32[n+14]=a1/a0;
-		df32[n+15]=a2/a0;
+		df32[n+10]=b0/a0;
+		df32[n+11]=b1/a0;
+		df32[n+12]=b2/a0;
+		df32[n+13]=a1/a0;
+		df32[n+14]=a2/a0;
 	}
 
 
@@ -1087,27 +1097,31 @@ class _AudioSFX {
 					let sstop=di32[n++],s=0;
 					// Loop through each source.
 					// Process the RPN expression. Memory IO is expensive so try to minimize it.
-					// The first element will always be [x] or ~[x].
+					// The first element will always be [x], ~[x], or floor([x]).
 					let tmp=di32[n++],op=tmp>>>VBITS,src=(tmp&VMASK)>>>0;
 					n+=n===src;
 					let val=df32[src];
-					if (op) {val=-val;}
+					switch (op) {
+						case 1: val=-val;break;
+						case 2: val=Math.floor(val);break;
+					}
 					while (n<sstop) {
 						tmp=di32[n++];op=tmp>>>VBITS;src=(tmp&VMASK)>>>0;
 						let x=val;
-						if (src) {n+=n===src;x=df32[src];if (op<2) {stack[s++]=val;}}
-						else if (op>1) {val=stack[--s];}
+						if (src) {n+=n===src;x=df32[src];if (op<3) {stack[s++]=val;}}
+						else if (op>2) {val=stack[--s];}
 						switch (op) {
-							case 0: val= x;break;
-							case 1: val=-x;break;
-							case 2: val+=x;break;
-							case 3: val-=x;break;
-							case 4: val*=x;break;
-							case 5: val%=x;break;
-							case 6: val/=x;break;
-							case 7: val=Math.pow(val,x);break;
-							case 8: val=val<x?val:x;break;
-							case 9: val=val>x?val:x;break;
+							case 0 : val= x;break;
+							case 1 : val=-x;break;
+							case 2 : val=Math.floor(x);break;
+							case 3 : val+=x;break;
+							case 4 : val-=x;break;
+							case 5 : val*=x;break;
+							case 6 : val%=x;break;
+							case 7 : val/=x;break;
+							case 8 : val=Math.pow(val,x);break;
+							case 9 : val=val<x?val:x;break;
+							case 10: val=val>x?val:x;break;
 						}
 					}
 					// Set a value in the node.
@@ -1173,18 +1187,24 @@ class _AudioSFX {
 					let sig=df32[n+3];
 					let pos=di32[n+4];
 					let len=next-n-5;
-					// Add the latest input.
 					if (++pos>=len) {pos=0;}
-					di32[n+4]=pos;
-					df32[n+5+pos]=sig;
-					// Interpolate the delayed output.
+					// Allpass the delayed output.
 					del=del<max?del:max;
 					del=del>0?del*sndfreq:0;
+					/*let i=del>>>0;
+					let f=del-i;
+					let ap=(1-f)/(1+f);
+					i=pos-i;i=i<0?i+len:i;
+					out=ap*(sig-df32[n])+df32[n+5+i];*/
+					// Interpolate the delayed output.
 					let i=del>>>0,j;
 					let f=del-i;
 					i=pos-i;i=i<0?i+len:i;
 					j=i-1  ;j=j<0?j+len:j;
 					out=df32[n+5+i]*(1-f)+df32[n+5+j]*f;
+					// Add the latest input.
+					di32[n+4]=pos;
+					df32[n+5+pos]=sig;
 				} else if (type>=FIL0 && type<=FIL1) {
 					// Biquad filters.
 					let freq=df32[n+1],bw=df32[n+2],gain=df32[n+3];
@@ -1192,16 +1212,13 @@ class _AudioSFX {
 						df32[n+5]=freq;df32[n+6]=bw;df32[n+7]=gain;
 						this.biquadcoefs(n,type,freq/sndfreq,bw,gain);
 					}
-					// Process the input. y1 is kept in df32[n] as the previous output.
-					let x =df32[n+4];
-					let x1=df32[n+8],x2=df32[n+ 9];
-					let y1=df32[n  ],y2=df32[n+10];
-					out=df32[n+11]*x+df32[n+12]*x1+df32[n+13]*x2-df32[n+14]*y1-df32[n+15]*y2;
-					df32[n+ 8]=x;
-					df32[n+ 9]=x1;
-					df32[n+10]=y1;
+					// Process the input. Direct form 2 transposed.
+					let x=df32[n+4];
+					out=df32[n+10]*x+df32[n+8];
+					df32[n+8]=df32[n+11]*x-df32[n+13]*out+df32[n+9];
+					df32[n+9]=df32[n+12]*x-df32[n+14]*out;
 				}
-				out=!isNaN(out)?out:0;
+				out=isNaN(out)?0:out;
 				df32[n]=out;
 				n=next;
 			}
@@ -1268,12 +1285,16 @@ class _AudioInstance {
 		// Audio player link
 		this.audio  =audio;
 		this.audprev=null;
-		this.audnext=audio.queue;
+		let next=audio.queue;
+		this.audnext=next;
+		if (next!==null) {next.audprev=this;}
 		audio.queue =this;
 		// Sound link
 		this.snd    =snd;
 		this.sndprev=null;
-		this.sndnext=snd.queue;
+		next=snd.queue;
+		this.sndnext=next;
+		if (next!==null) {next.sndprev=this;}
 		snd.queue   =this;
 		// Misc
 		this.volume =vol;
@@ -1285,11 +1306,11 @@ class _AudioInstance {
 		let ctx=audio.ctx;
 		this.ctx=ctx;
 		this.ctxpan=ctx.createStereoPanner();
-		this.setpan(pan);
 		this.ctxpan.connect(ctx.destination);
 		this.ctxgain=ctx.createGain();
-		this.setvolume(vol);
 		this.ctxgain.connect(this.ctxpan);
+		this.setpan(pan);
+		this.setvolume(vol);
 		let ctxsrc=ctx.createBufferSource();
 		this.ctxsrc=ctxsrc;
 		let st=this;
@@ -1380,7 +1401,7 @@ class _AudioInstance {
 		// +1: 100% right channel
 		if (pan<-1) {pan=-1;}
 		else if (pan>1) {pan=1;}
-		else if (isNaN(pan)) {pan=0;}
+		else if (isNaN(pan)) {pan=this.pan;}
 		this.pan=pan;
 		if (!this.done) {
 			this.ctxpan.pan.value=this.pan;
@@ -1389,7 +1410,7 @@ class _AudioInstance {
 
 
 	setvolume(vol) {
-		if (isNaN(vol)) {vol=1;}
+		vol=isNaN(vol)?this.volume:vol;
 		this.volume=vol;
 		if (!this.done) {
 			vol*=this.audio.volume;
@@ -1534,7 +1555,7 @@ class _AudioEnvelope {
 
 
 class _AudioBiquad {
-	// Biquad filter type 1
+	// Biquad filter
 	// https://shepazu.github.io/Audio-EQ-Cookbook/audio-eq-cookbook.html
 	// lingain(db)  = exp(db/(ln(10)*40))
 	// bandwidth(Q) = sinh^-1(0.5/Q)*2/ln(2)
@@ -1564,26 +1585,19 @@ class _AudioBiquad {
 
 
 	clear() {
-		this.x1=0;
-		this.x2=0;
-		this.y1=0;
-		this.y2=0;
+		this.s1=0;
+		this.s2=0;
 	}
 
 
 	process(x) {
-		let y=this.b0*x+this.b1*this.x1+this.b2*this.x2
-		               -this.a1*this.y1-this.a2*this.y2;
-		if (!(y>-Infinity && y<Infinity)) {y=0;}
-		this.x2=this.x1;
-		this.x1=x;
-		this.y2=this.y1;
-		this.y1=y;
+		// transposed direct form 2
+		let y  =this.b0*x+this.s1;
+		y=y>-Infinity && y<Infinity?y:0;
+		this.s1=this.b1*x-this.a1*y+this.s2;
+		this.s2=this.b2*x-this.a2*y;
 		return y;
 	}
-
-
-	prev() {return this.y1;}
 
 
 	response(rate) {
@@ -1712,21 +1726,23 @@ class Audio {
 	static randinc=0;
 
 
-	constructor(freq=44100) {
+	constructor(mute=0,volume=1,autoupdate=true,freq=44100) {
 		Object.assign(this,this.constructor);
 		this.freq=freq;
 		this.queue=null;
-		this.volume=1;
+		this.volume=volume;
 		let ctx=new AudioContext({latencyHint:"interactive",sampleRate:freq});
 		this.ctx=ctx;
 		// 2 = Audio mute, 1 = browser mute
-		this.muted=2;
+		this.muted=mute?2:0;
 		this.mutefunc=function(){ctx.resume();};
 		this.updatetime=NaN;
 		if (!Audio.def) {Audio.initdef(this);}
-		let st=this;
-		function update() {if (st.update()) {requestAnimationFrame(update);}}
-		update();
+		if (autoupdate) {
+			let st=this;
+			function update() {if (st.update()) {requestAnimationFrame(update);}}
+			update();
+		}
 	}
 
 
@@ -1741,6 +1757,18 @@ class Audio {
 			Audio.randacc=(Audio.noise1()*0xffffffff)>>>0;
 		}
 		return def;
+	}
+
+
+	setvolume(vol) {
+		// Update the volume of all instances.
+		if (this.volume===vol) {return;}
+		this.volume=vol;
+		let inst=this.queue;
+		while (inst!==null) {
+			inst.setvolume();
+			inst=inst.audnext;
+		}
 	}
 
 
@@ -1769,8 +1797,8 @@ class Audio {
 		}
 		// Track time played while audio is suspended. Restart or remove sounds if needed.
 		let inst=this.queue;
-		while (inst) {
-			let next=inst.next;
+		while (inst!==null) {
+			let next=inst.audnext;
 			if ((muted || inst.muted) && inst.playing) {
 				let time=inst.time;
 				if (!inst.muted) {

@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-ui.js - v1.00
+ui.js - v1.01
 
 Copyright 2025 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -18,6 +18,9 @@ History
 1.00
      Created for Rappel's Tower.
      Added text, poly, and sliders.
+1.01
+     Split updating and rendering.
+     Consumes input by calling getkeyhit().
 
 
 --------------------------------------------------------------------------------
@@ -26,15 +29,16 @@ TODO
 
 Add GEAR_POLY.
 Fix poly bounding box calculation.
+Buttons
 
 
 */
 /* npx eslint ui.js -c ../../standards/eslint.js */
-/* global */
+/* global Transform, Draw */
 
 
 //---------------------------------------------------------------------------------
-// UI - v1.00
+// UI - v1.01
 
 
 class UI {
@@ -50,7 +54,7 @@ class UI {
 		this.draw=draw;
 		this.input=input;
 		this.nodes=[];
-		this.grabbing=null;
+		this.grabbing=false;
 		this.focus=null;
 	}
 
@@ -71,17 +75,69 @@ class UI {
 	}
 
 
-	render() {this.update(true);}
-
-
-	update(render=false) {
+	update() {
 		// If we're rendering, ignore inputs.
 		let typemap={"text":0,"poly":1,"slider":2};
 		let input=this.input;
 		let draw=this.draw,img=draw.img;
 		let dw=img.width,dh=img.height;
 		let [mx,my]=input.getmousepos();
-		let focus=render?this.focus:null;
+		let grabbing=this.grabbing;
+		let focus=this.focus;
+		// If we're not grabbing something, check if we're focused on anything.
+		if (!grabbing) {
+			focus=null;
+			for (let node of this.nodes) {
+				let type=typemap[node.type];
+				let nx=node.x,ny=node.y,nw=node.w,nh=node.h;
+				// if (nw<0) {nx+=nw;nw=-nw;}
+				// if (nh<0) {ny+=nh;nh=-nh;}
+				if (nx>=dw || ny>=dh || nx+nw<=0 || ny+nh<=0) {
+					continue;
+				}
+				if (type<2) {continue;}
+				if (mx>=nx && my>=ny && mx<nx+nw && my<ny+nh) {
+					focus=node;
+				}
+			}
+		}
+		// Check if we've starting clicking on something. Eat the input if we have focus.
+		let key=input.MOUSE.LEFT;
+		if (!input.getkeydown(key)) {
+			grabbing=false;
+		} else if (focus!==null) {
+			let hit=input.getkeychange(key);
+			grabbing=(grabbing || hit>0)?true:false;
+		}
+		if (grabbing || this.grabbing) {input.keyclear(key);}
+		this.grabbing=grabbing;
+		this.focus=focus;
+		// If we're grabbing something, update its value.
+		if (grabbing) {
+			let node=focus;
+			let type=typemap[node.type];
+			let nx=node.x,ny=node.y,nw=node.w,nh=node.h;
+			if (type===2) {
+				let rad=(nw<nh?nw:nh)*0.5;
+				let x0=nx+rad,y0=ny+rad;
+				let dx=nx+nw-rad-x0,dy=ny+nh-rad-y0;
+				let u=((mx-x0)*dx+(my-y0)*dy)/(dx*dx+dy*dy);
+				u=u>0?(u<1?u:1):0;
+				if (node.value!==u) {
+					node.value=u;
+					let call=node.onchange;
+					if (call!==null) {call(node);}
+				}
+			}
+		}
+	}
+
+
+	render() {
+		let typemap={"text":0,"poly":1,"slider":2};
+		let draw=this.draw,img=draw.img;
+		let dw=img.width,dh=img.height;
+		let focus=this.focus;
 		draw.pushstate();
 		draw.resetstate();
 		for (let node of this.nodes) {
@@ -92,10 +148,7 @@ class UI {
 			if (nx>=dw || ny>=dh || nx+nw<=0 || ny+nh<=0) {
 				continue;
 			}
-			if (!render && mx>=nx && my>=ny && mx<nx+nw && my<ny+nh) {
-				focus=node;
-			}
-			let onmouse=focus===node;
+			let onmouse=Object.is(focus,node);
 			draw.setcolor(255,255,255,255);
 			if (type===0) {
 				draw.filltext(nx,ny,node.value,node.size);
@@ -116,7 +169,6 @@ class UI {
 				draw.linewidth=lw;
 			}
 		}
-		this.focus=focus;
 		draw.popstate();
 	}
 
@@ -138,9 +190,11 @@ class UI {
 	}
 
 
-	addslider(x,y,w,h) {
+	addslider(x,y,w,h,value=0,min=0,max=1) {
 		let node=this.addnode("slider",x,y,w,h);
-		node.value=0;
+		value=value>min?value:min;
+		value=value<max?value:max;
+		node.value=value;
 		return node;
 	}
 

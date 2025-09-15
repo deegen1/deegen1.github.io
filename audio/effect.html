@@ -143,6 +143,18 @@ spellcheck="false">'Electricity
 #sig : LPF F 3000 I #saw0 #saw1 + 0.5 < -0.5 >
 #out : ENV S 2 I #sig</textarea>
 <script>MusicMaker.initsub("sub5_play","sub5_editor");</script>
+<button id="sub6_play">&#9658; Play</button>
+<textarea id="sub6_editor" class="codeblock musiceditor"
+spellcheck="false">'Karplus-Strong String
+#freq: 100
+#rate: 1 #freq /
+#slide: 0.5
+#sig1: NOISE H 10 L -10
+#sig : ENV A 0 S #rate R 0 I #sig1 -1 &gt; 1 &lt;
+#line: DEL M 0.1 T #rate I #val
+#val : #line #sig + #val - #slide * #val +
+#out : ENV A 0 S 0 R 3 I #val</textarea>
+<script>MusicMaker.initsub("sub6_play","sub6_editor");</script>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Motivation ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
@@ -274,7 +286,7 @@ filters) I chose to ignore to get something out the door.</p>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-</div><div id="footer">Created on 27 Jan 2025 - Modified on 13 Apr 2025<br>
+</div><div id="footer">Created on 27 Jan 2025 - Modified on 12 Sep 2025<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>

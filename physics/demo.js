@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.12
+demo.js - v1.14
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -149,7 +149,7 @@ class PhyScene {
 			atom.data.velcolor=0;
 		}
 		// Static bonds kill performance.
-		for (let type of world.atomtypelist.iter()) {
+		for (let type of world.typelist.iter()) {
 			for (let intr of type.intarr) {intr.statictension=0;}
 		}
 	}
@@ -750,7 +750,7 @@ class BVHScene {
 			atom.vel.randomize().imul(this.normenergy);
 		}
 		// Static bonds kill performance.
-		for (let type of world.atomtypelist.iter()) {
+		for (let type of world.typelist.iter()) {
 			for (let intr of type.intarr) {intr.statictension=0;}
 		}
 		// Launch.

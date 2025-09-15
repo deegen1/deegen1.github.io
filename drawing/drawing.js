@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v3.20
+drawing.js - v3.24
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -94,6 +94,13 @@ History
      Simplified fromstring() and fixed float parsing for strings like: .1.2.3
 3.20
      Replaced DrawTransform with vector library Transform.
+3.21
+     Switched to texSubImage2D.
+3.22
+     Removed addstrip() and added addpoly().
+     The DrawPoly constructor can now handle other polygons.
+3.23
+     drawimage() now supports non-integer coordinates with a 25% speed penalty.
 
 
 --------------------------------------------------------------------------------
@@ -104,7 +111,9 @@ Try to reduce size to 30kb.
 	Optimize font glyphs. Use /100 or /60 instead of /1000. Optimize svg.
 	33x60
 	Get font down to 5kb.
-	Remove GL rendering.
+	Remove webgl?
+
+setcolorf(1.0,1.0,1.0,1.0)
 
 fillpoly
 	Per-subpath color. "F" specifies colors for following segments.
@@ -124,7 +133,7 @@ fillpoly
 	draw.fillpoly(poly);
 
 DrawPoly
-	Remove addstrip().
+	fromstring() handle transform
 	If we call moveto(), close the previous subpath.
 	normalize, scale, shift
 	closestpoint(point,transform)
@@ -207,7 +216,7 @@ Tracing draft
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v3.20
+// Drawing - v3.24
 
 
 class _DrawPoly {
@@ -218,12 +227,16 @@ class _DrawPoly {
 	static CURVE=3;
 
 
-	constructor(str) {
+	constructor(str,trans) {
 		// Copy static variables.
 		Object.assign(this,this.constructor);
 		this.vertarr=new Array();
 		this.begin();
-		if (str) {this.fromstring(str);}
+		if (str) {
+			if (trans) {trans=new Transform(trans);}
+			if (str instanceof _DrawPoly) {this.addpoly(str,trans);}
+			else {this.fromstring(str);}
+		}
 	}
 
 
@@ -398,22 +411,17 @@ class _DrawPoly {
 	}
 
 
-	addstrip(points) {
-		// Assumes a loop of [x0,y0,x1,y1,...] where every pair is a separate line.
-		let len=points.length;
-		if (len<=0 || (len%2)!==0) {return;}
-		this.moveto(points[0],points[1]);
-		for (let i=2;i<len;i+=2) {
-			this.lineto(points[i],points[i+1]);
+	addpoly(poly,trans) {
+		let varr=poly.vertarr,vidx=poly.vertidx;
+		for (let i=0;i<vidx;i++) {
+			let v=varr[i],x=v.x,y=v.y,t=v.type;
+			if (trans) {[x,y]=trans.apply([x,y]);}
+			if (t===this.MOVE) {this.moveto(x,y);}
+			else if (t===this.CLOSE) {this.close();}
+			else {this.addvert(t,x,y);}
 		}
-		this.close();
 		return this;
 	}
-
-
-	// addpoly(poly,trans) {
-	// 	return this;
-	// }
 
 
 	addline(x0,y0,x1,y1,rad) {
@@ -445,8 +453,7 @@ class _DrawPoly {
 
 
 	addrect(x,y,w,h) {
-		this.addstrip([x,y,x+w,y,x+w,y+h,x,y+h]);
-		return this;
+		return this.moveto(x,y).lineto(x+w,y).lineto(x+w,y+h).lineto(x,y+h).close();
 	}
 
 
@@ -807,9 +814,9 @@ class _DrawFont {
 class Draw {
 
 	// Put these under the Draw namespace.
-	static Poly     =_DrawPoly;
-	static Font     =_DrawFont;
-	static Image    =_DrawImage;
+	static Poly =_DrawPoly;
+	static Font =_DrawFont;
+	static Image=_DrawImage;
 
 
 	// The default context used for drawing functions.
@@ -821,8 +828,8 @@ class Draw {
 		Object.assign(this,con);
 		if (con.def===null) {con.def=this;}
 		this.canvas   =null;
-		this.ctxgl    =null;
 		this.ctx2d    =null;
+		this.ctxgl    =null;
 		// Image info
 		this.img      =new con.Image(width,height);
 		this.rgba     =new Uint8ClampedArray([0,1,2,3]);
@@ -850,7 +857,7 @@ class Draw {
 		if (Object.is(this.canvas,canvas)) {return;}
 		this.canvas=canvas;
 		try {
-			let ctx=canvas.getContext("webgl2");
+			let ctx=canvas.getContext("webgl2",{preserveDrawingBuffer:true});
 			let vs=ctx.createShader(ctx.VERTEX_SHADER);
 			ctx.shaderSource(vs,`#version 300 es
 				in vec2 a_position;
@@ -896,8 +903,7 @@ class Draw {
 				ctx.vertexAttribPointer(loc,2,ctx.FLOAT,false,0,0);
 			}
 			this.ctxgl=ctx;
-		} catch(e) {
-			console.log("failed to get webgl2 context:",e);
+		} catch {
 			this.ctx2d=canvas.getContext("2d");
 		}
 	}
@@ -913,8 +919,14 @@ class Draw {
 			let idata=new ImageData(cdata,imgw,imgh);
 			this.ctx2d.putImageData(idata,0,0);
 		} else {
-			ctx.viewport(0,0,imgw,imgh);
-			ctx.texImage2D(ctx.TEXTURE_2D,0,ctx.RGBA8,imgw,imgh,0,ctx.RGBA,ctx.UNSIGNED_BYTE,img.data8);
+			if (this.glw!==imgw || this.glh!==imgh) {
+				this.glw=imgw;
+				this.glh=imgh;
+				ctx.viewport(0,0,imgw,imgh);
+				ctx.texImage2D(ctx.TEXTURE_2D,0,ctx.RGBA8,imgw,imgh,0,ctx.RGBA,ctx.UNSIGNED_BYTE,img.data8);
+			} else {
+				ctx.texSubImage2D(ctx.TEXTURE_2D,0,0,0,imgw,imgh,ctx.RGBA,ctx.UNSIGNED_BYTE,img.data8);
+			}
 			ctx.drawArrays(ctx.TRIANGLE_FAN,0,4);
 		}
 	}
@@ -1046,62 +1058,64 @@ class Draw {
 		// Draw an image with alpha blending.
 		// Note << and imul() implicitly cast floor().
 		let dst=this.img;
-		dx=(dx===undefined)?0:(dx|0);
-		dy=(dy===undefined)?0:(dy|0);
-		dw=(dw===undefined || dw>src.width )?src.width :(dx|0);
-		dh=(dh===undefined || dh>src.height)?src.height:(dh|0);
+		dx=dx??0;
+		let ix=Math.floor(dx),fx0=dx-ix,fx1=1-fx0;
+		dy=dy??0;
+		let iy=Math.floor(dy),fy0=dy-iy,fy1=1-fy0;
+		let iw=(dw===undefined || dw>src.width )?src.width :ix;
+		let ih=(dh===undefined || dh>src.height)?src.height:iy;
 		let sx=0,sy=0;
-		dw+=dx;
-		if (dx<0) {sx=-dx;dx=0;}
-		dw=(dw>dst.width?dst.width:dw)-dx;
-		dh+=dy;
-		if (dy<0) {sy=-dy;dy=0;}
-		dh=(dh>dst.height?dst.height:dh)-dy;
-		if (dw<=0 || dh<=0) {return;}
-		let dstdata=dst.data32,drow=dy*dst.width+dx,dinc=dst.width-dw;
-		let srcdata=src.data32,srow=sy*src.width+sx,sinc=src.width-dw;
-		let ystop=drow+dst.width*dh,xstop=drow+dw;
-		let amul=this.rgba[3],amul0=amul/255.0,amul1=amul*(256.0/65025.0);
-		let filllim=amul0>0?255/amul0:Infinity;
-		let ashift=this.rgbashift[3],amask=(255<<ashift)>>>0,namask=(~amask)>>>0;
+		iw+=ix;
+		if (ix<0) {sx=-ix;ix=0;}
+		iw=(iw>dst.width?dst.width:iw)-ix;
+		ih+=iy;
+		if (iy<0) {sy=-iy;iy=0;}
+		ih=(ih>dst.height?dst.height:ih)-iy;
+		if (iw<=0 || ih<=0) {return;}
+		let m00=Math.round(fx0*fy0*256),m01=Math.round(fx0*fy1*256);
+		let m10=Math.round(fx1*fy0*256),m11=256-m00-m01-m10;
+		let dstdata=dst.data32,drow=iy*dst.width+ix,dinc=dst.width-iw;
+		let srcdata=src.data32,srow=sy*src.width+sx,sinc=src.width-iw;
+		let ystop=drow+dst.width*ih,xstop=drow+iw;
+		let amul=this.rgba[3];
+		let ashift=this.rgbashift[3],namask=(~(255<<ashift))>>>0;
 		let maskl=0x00ff00ff&namask,maskh=0xff00ff00&namask;
-		let sa,da,l,h,tmp;
-		dw=dst.width;
+		let sw=src.width,sh=src.height;
+		iw=dst.width;
+		const imul=Math.imul;
 		while (drow<ystop) {
+			let stop0=srow+sw-sx,stop1=++sy<sh?stop0:0;
+			let s10=srcdata[srow];
+			let s11=srow<stop1?srcdata[srow+sw]:0;
 			while (drow<xstop) {
+				// Interpolate 2x2 source pixels.
+				srow++;
+				let s00=s10,s01=s11;
+				s10=srow<stop0?srcdata[srow]:0;
+				s11=srow<stop1?srcdata[srow+sw]:0;
+				const m=0x00ff00ff;
+				let cl=imul(s00&m,m00)+imul(s01&m,m01)+imul(s10&m,m10)+imul(s11&m,m11);
+				let ch=imul((s00>>>8)&m,m00)+imul((s01>>>8)&m,m01)+imul((s10>>>8)&m,m10)+imul((s11>>>8)&m,m11);
+				src=(ch&0xff00ff00)|((cl>>>8)&m);
+				let sa=(src>>>ashift)&255;
+				if (sa<=0) {drow++;continue;}
 				// a = sa + da*(1-sa)
 				// c = (sc*sa + dc*da*(1-sa)) / a
-				src=srcdata[srow++];
-				sa=(src>>>ashift)&255;
-				src&=namask;
-				if (sa>=filllim) {
-					dstdata[drow++]=src|((sa*amul0)<<ashift);
-					continue;
-				}
-				if (sa<=0) {drow++;continue;}
-				tmp=dstdata[drow];
-				da=(tmp>>>ashift)&255;
-				if (da===0) {
-					dstdata[drow++]=src|((sa*amul0)<<ashift);
-					continue;
-				}
 				// Approximate blending by expanding sa from [0,255] to [0,256].
-				if (da===255) {
-					sa*=amul1;
-					da=amask;
-				} else {
-					sa*=amul;
-					da=sa*255+da*(65025-sa);
-					sa=(sa*65280+(da>>>1))/da;
-					da=((da+32512)/65025)<<ashift;
-				}
-				l=tmp&0x00ff00ff;
-				h=tmp&0xff00ff00;
+				src&=namask;
+				let tmp=dstdata[drow];
+				let da=(tmp>>>ashift)&255;
+				sa*=amul;
+				da=sa*255+da*(65025-sa);
+				sa=(sa*65280+(da>>>1))/da;
+				da=((da+32512)/65025)<<ashift;
+				let l=tmp&0x00ff00ff;
+				let h=tmp&0xff00ff00;
 				dstdata[drow++]=da|
-					(((Math.imul((src&0x00ff00ff)-l,sa)>>>8)+l)&maskl)|
-					((Math.imul(((src>>>8)&0x00ff00ff)-(h>>>8),sa)+h)&maskh);
+					(((imul((src&m)-l,sa)>>>8)+l)&maskl)|
+					((imul(((src>>>8)&m)-(h>>>8),sa)+h)&maskh);
 			}
-			xstop+=dw;
+			xstop+=iw;
 			drow+=dinc;
 			srow+=sinc;
 		}
@@ -1112,11 +1126,11 @@ class Draw {
 	// Paths
 
 
-	beginpath() {return this.defpoly.begin();}
-	closepath() {return this.defpoly.close();}
-	moveto(x,y) {return this.defpoly.moveto(x,y);}
-	lineto(x,y) {return this.defpoly.lineto(x,y);}
-	curveto(x0,y0,x1,y1,x2,y2) {return this.defpoly.curveto(x0,y0,x1,y1,x2,y2);}
+	beginpath() {return this.defpoly.begin(...arguments);}
+	closepath() {return this.defpoly.close(...arguments);}
+	moveto() {return this.defpoly.moveto(...arguments);}
+	lineto() {return this.defpoly.lineto(...arguments);}
+	curveto() {return this.defpoly.curveto(...arguments);}
 
 
 	// ----------------------------------------
@@ -1551,10 +1565,9 @@ class Draw {
 						da=tmp+0.49;
 					}
 					// imul() implicitly casts floor(sa).
-					let col=(da<<ashift)
+					imgdata[x]=(da<<ashift)
 						|(((Math.imul((dst&0x00ff00ff)-coll,sa)>>>8)+coll)&maskl)
 						|((Math.imul(((dst>>>8)&0x00ff00ff)-colh8,sa)+colh)&maskh);
-					imgdata[x]=col;
 				} while (++x<xstop);
 			}
 			x=xstop;

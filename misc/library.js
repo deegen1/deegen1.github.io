@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v15.61
+library.js - v15.73
 
 Copyright 2025 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -12,12 +12,12 @@ Versions
 
 
 Random  - v1.09
-Vector  - v3.03
-Input   - v1.16
-Drawing - v3.20
-UI      - v1.00
-Audio   - v3.04
-Physics - v3.09
+Vector  - v3.04
+Input   - v1.17
+Drawing - v3.24
+UI      - v1.01
+Audio   - v3.07
+Physics - v3.11
 
 
 */
@@ -110,7 +110,7 @@ class Random {
 
 
 //---------------------------------------------------------------------------------
-// Vector - v3.03
+// Vector - v3.04
 
 
 class Vector extends Array {
@@ -296,8 +296,12 @@ class Vector extends Array {
 			x=u[i];
 			mag+=x*x;
 		}
-		mag=mag>1e-10?1.0/Math.sqrt(mag):NaN;
-		for (i=0;i<len;i++) {u[i]*=mag;}
+		if (mag>1e-10) {
+			mag=1/Math.sqrt(mag);
+			for (i=0;i<len;i++) {u[i]*=mag;}
+		} else {
+			this.randomize();
+		}
 		return this;
 	}
 
@@ -689,7 +693,7 @@ class Transform {
 
 
 //---------------------------------------------------------------------------------
-// Input - v1.16
+// Input - v1.17
 
 
 class Input {
@@ -767,8 +771,9 @@ class Input {
 		let statelen=statearr.length;
 		for (let i=0;i<statelen;i++) {
 			let state=statearr[i];
+			state.next=0;
 			state.down=0;
-			state.hit=0;
+			state.last=0;
 			state.repeat=0;
 			state.time=null;
 			state.active=null;
@@ -791,14 +796,14 @@ class Input {
 		let down,next;
 		while (state!==null) {
 			next=state.active;
-			down=focus?state.down:0;
+			state.last=state.down;
+			down=focus?state.next:0;
 			state.down=down;
 			if (down>0) {
 				let repeat=Math.floor((delay-state.time)*rate);
 				state.repeat=(repeat>0 && (repeat&1)===0)?state.repeat+1:0;
 			} else {
 				state.repeat=0;
-				state.hit=0;
 			}
 			state.isactive=down?1:0;
 			if (state.isactive!==0) {
@@ -1017,9 +1022,8 @@ class Input {
 	setkeydown(code) {
 		let state=this.makeactive(code);
 		if (state!==null) {
-			if (state.down===0) {
-				state.down=1;
-				state.hit=1;
+			if (state.next===0) {
+				state.next=1;
 				state.repeat=0;
 				state.time=performance.now()/1000.0;
 			}
@@ -1030,8 +1034,7 @@ class Input {
 	setkeyup(code) {
 		let state=this.makeactive(code);
 		if (state!==null) {
-			state.down=0;
-			state.hit=0;
+			state.next=0;
 			state.repeat=0;
 			state.time=null;
 		}
@@ -1039,33 +1042,29 @@ class Input {
 
 
 	getkeydown(code) {
-		// code can be an array of key codes.
+		// Returns 1 if held down.
 		if (code===null || code===undefined) {return 0;}
-		if (code.length===undefined) {code=[code];}
-		let keystate=this.keystate;
-		for (let i=0;i<code.length;i++) {
-			let state=keystate[code[i]];
-			if (state!==null && state!==undefined && state.down>0) {
-				return 1;
-			}
-		}
-		return 0;
+		let state=this.keystate[code];
+		return state!==undefined?state.down:0;
 	}
 
 
-	getkeyhit(code) {
-		// code can be an array of key codes.
+	getkeychange(code) {
+		// Returns value if key state has changed.
+		// -1 = release
+		//  0 = no change
+		//  1 = pressed
 		if (code===null || code===undefined) {return 0;}
-		if (code.length===undefined) {code=[code];}
-		let keystate=this.keystate;
-		for (let i=0;i<code.length;i++) {
-			let state=keystate[code[i]];
-			if (state!==null && state!==undefined && state.hit>0) {
-				state.hit=0;
-				return 1;
-			}
-		}
-		return 0;
+		let state=this.keystate[code];
+		return state!==undefined?state.down-state.last:0;
+	}
+
+
+	keyclear(code) {
+		// Clears any state change.
+		if (code===null || code===undefined) {return;}
+		let state=this.keystate[code];
+		if (state!==undefined) {state.last=state.down;}
 	}
 
 
@@ -1087,7 +1086,7 @@ class Input {
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v3.20
+// Drawing - v3.24
 
 
 class _DrawPoly {
@@ -1098,12 +1097,16 @@ class _DrawPoly {
 	static CURVE=3;
 
 
-	constructor(str) {
+	constructor(str,trans) {
 		// Copy static variables.
 		Object.assign(this,this.constructor);
 		this.vertarr=new Array();
 		this.begin();
-		if (str) {this.fromstring(str);}
+		if (str) {
+			if (trans) {trans=new Transform(trans);}
+			if (str instanceof _DrawPoly) {this.addpoly(str,trans);}
+			else {this.fromstring(str);}
+		}
 	}
 
 
@@ -1278,22 +1281,17 @@ class _DrawPoly {
 	}
 
 
-	addstrip(points) {
-		// Assumes a loop of [x0,y0,x1,y1,...] where every pair is a separate line.
-		let len=points.length;
-		if (len<=0 || (len%2)!==0) {return;}
-		this.moveto(points[0],points[1]);
-		for (let i=2;i<len;i+=2) {
-			this.lineto(points[i],points[i+1]);
+	addpoly(poly,trans) {
+		let varr=poly.vertarr,vidx=poly.vertidx;
+		for (let i=0;i<vidx;i++) {
+			let v=varr[i],x=v.x,y=v.y,t=v.type;
+			if (trans) {[x,y]=trans.apply([x,y]);}
+			if (t===this.MOVE) {this.moveto(x,y);}
+			else if (t===this.CLOSE) {this.close();}
+			else {this.addvert(t,x,y);}
 		}
-		this.close();
 		return this;
 	}
-
-
-	// addpoly(poly,trans) {
-	// 	return this;
-	// }
 
 
 	addline(x0,y0,x1,y1,rad) {
@@ -1325,8 +1323,7 @@ class _DrawPoly {
 
 
 	addrect(x,y,w,h) {
-		this.addstrip([x,y,x+w,y,x+w,y+h,x,y+h]);
-		return this;
+		return this.moveto(x,y).lineto(x+w,y).lineto(x+w,y+h).lineto(x,y+h).close();
 	}
 
 
@@ -1687,9 +1684,9 @@ class _DrawFont {
 class Draw {
 
 	// Put these under the Draw namespace.
-	static Poly     =_DrawPoly;
-	static Font     =_DrawFont;
-	static Image    =_DrawImage;
+	static Poly =_DrawPoly;
+	static Font =_DrawFont;
+	static Image=_DrawImage;
 
 
 	// The default context used for drawing functions.
@@ -1701,8 +1698,8 @@ class Draw {
 		Object.assign(this,con);
 		if (con.def===null) {con.def=this;}
 		this.canvas   =null;
-		this.ctxgl    =null;
 		this.ctx2d    =null;
+		this.ctxgl    =null;
 		// Image info
 		this.img      =new con.Image(width,height);
 		this.rgba     =new Uint8ClampedArray([0,1,2,3]);
@@ -1730,7 +1727,7 @@ class Draw {
 		if (Object.is(this.canvas,canvas)) {return;}
 		this.canvas=canvas;
 		try {
-			let ctx=canvas.getContext("webgl2");
+			let ctx=canvas.getContext("webgl2",{preserveDrawingBuffer:true});
 			let vs=ctx.createShader(ctx.VERTEX_SHADER);
 			ctx.shaderSource(vs,`#version 300 es
 				in vec2 a_position;
@@ -1776,8 +1773,7 @@ class Draw {
 				ctx.vertexAttribPointer(loc,2,ctx.FLOAT,false,0,0);
 			}
 			this.ctxgl=ctx;
-		} catch(e) {
-			console.log("failed to get webgl2 context:",e);
+		} catch {
 			this.ctx2d=canvas.getContext("2d");
 		}
 	}
@@ -1793,8 +1789,14 @@ class Draw {
 			let idata=new ImageData(cdata,imgw,imgh);
 			this.ctx2d.putImageData(idata,0,0);
 		} else {
-			ctx.viewport(0,0,imgw,imgh);
-			ctx.texImage2D(ctx.TEXTURE_2D,0,ctx.RGBA8,imgw,imgh,0,ctx.RGBA,ctx.UNSIGNED_BYTE,img.data8);
+			if (this.glw!==imgw || this.glh!==imgh) {
+				this.glw=imgw;
+				this.glh=imgh;
+				ctx.viewport(0,0,imgw,imgh);
+				ctx.texImage2D(ctx.TEXTURE_2D,0,ctx.RGBA8,imgw,imgh,0,ctx.RGBA,ctx.UNSIGNED_BYTE,img.data8);
+			} else {
+				ctx.texSubImage2D(ctx.TEXTURE_2D,0,0,0,imgw,imgh,ctx.RGBA,ctx.UNSIGNED_BYTE,img.data8);
+			}
 			ctx.drawArrays(ctx.TRIANGLE_FAN,0,4);
 		}
 	}
@@ -1926,62 +1928,64 @@ class Draw {
 		// Draw an image with alpha blending.
 		// Note << and imul() implicitly cast floor().
 		let dst=this.img;
-		dx=(dx===undefined)?0:(dx|0);
-		dy=(dy===undefined)?0:(dy|0);
-		dw=(dw===undefined || dw>src.width )?src.width :(dx|0);
-		dh=(dh===undefined || dh>src.height)?src.height:(dh|0);
+		dx=dx??0;
+		let ix=Math.floor(dx),fx0=dx-ix,fx1=1-fx0;
+		dy=dy??0;
+		let iy=Math.floor(dy),fy0=dy-iy,fy1=1-fy0;
+		let iw=(dw===undefined || dw>src.width )?src.width :ix;
+		let ih=(dh===undefined || dh>src.height)?src.height:iy;
 		let sx=0,sy=0;
-		dw+=dx;
-		if (dx<0) {sx=-dx;dx=0;}
-		dw=(dw>dst.width?dst.width:dw)-dx;
-		dh+=dy;
-		if (dy<0) {sy=-dy;dy=0;}
-		dh=(dh>dst.height?dst.height:dh)-dy;
-		if (dw<=0 || dh<=0) {return;}
-		let dstdata=dst.data32,drow=dy*dst.width+dx,dinc=dst.width-dw;
-		let srcdata=src.data32,srow=sy*src.width+sx,sinc=src.width-dw;
-		let ystop=drow+dst.width*dh,xstop=drow+dw;
-		let amul=this.rgba[3],amul0=amul/255.0,amul1=amul*(256.0/65025.0);
-		let filllim=amul0>0?255/amul0:Infinity;
-		let ashift=this.rgbashift[3],amask=(255<<ashift)>>>0,namask=(~amask)>>>0;
+		iw+=ix;
+		if (ix<0) {sx=-ix;ix=0;}
+		iw=(iw>dst.width?dst.width:iw)-ix;
+		ih+=iy;
+		if (iy<0) {sy=-iy;iy=0;}
+		ih=(ih>dst.height?dst.height:ih)-iy;
+		if (iw<=0 || ih<=0) {return;}
+		let m00=Math.round(fx0*fy0*256),m01=Math.round(fx0*fy1*256);
+		let m10=Math.round(fx1*fy0*256),m11=256-m00-m01-m10;
+		let dstdata=dst.data32,drow=iy*dst.width+ix,dinc=dst.width-iw;
+		let srcdata=src.data32,srow=sy*src.width+sx,sinc=src.width-iw;
+		let ystop=drow+dst.width*ih,xstop=drow+iw;
+		let amul=this.rgba[3];
+		let ashift=this.rgbashift[3],namask=(~(255<<ashift))>>>0;
 		let maskl=0x00ff00ff&namask,maskh=0xff00ff00&namask;
-		let sa,da,l,h,tmp;
-		dw=dst.width;
+		let sw=src.width,sh=src.height;
+		iw=dst.width;
+		const imul=Math.imul;
 		while (drow<ystop) {
+			let stop0=srow+sw-sx,stop1=++sy<sh?stop0:0;
+			let s10=srcdata[srow];
+			let s11=srow<stop1?srcdata[srow+sw]:0;
 			while (drow<xstop) {
+				// Interpolate 2x2 source pixels.
+				srow++;
+				let s00=s10,s01=s11;
+				s10=srow<stop0?srcdata[srow]:0;
+				s11=srow<stop1?srcdata[srow+sw]:0;
+				const m=0x00ff00ff;
+				let cl=imul(s00&m,m00)+imul(s01&m,m01)+imul(s10&m,m10)+imul(s11&m,m11);
+				let ch=imul((s00>>>8)&m,m00)+imul((s01>>>8)&m,m01)+imul((s10>>>8)&m,m10)+imul((s11>>>8)&m,m11);
+				src=(ch&0xff00ff00)|((cl>>>8)&m);
+				let sa=(src>>>ashift)&255;
+				if (sa<=0) {drow++;continue;}
 				// a = sa + da*(1-sa)
 				// c = (sc*sa + dc*da*(1-sa)) / a
-				src=srcdata[srow++];
-				sa=(src>>>ashift)&255;
-				src&=namask;
-				if (sa>=filllim) {
-					dstdata[drow++]=src|((sa*amul0)<<ashift);
-					continue;
-				}
-				if (sa<=0) {drow++;continue;}
-				tmp=dstdata[drow];
-				da=(tmp>>>ashift)&255;
-				if (da===0) {
-					dstdata[drow++]=src|((sa*amul0)<<ashift);
-					continue;
-				}
 				// Approximate blending by expanding sa from [0,255] to [0,256].
-				if (da===255) {
-					sa*=amul1;
-					da=amask;
-				} else {
-					sa*=amul;
-					da=sa*255+da*(65025-sa);
-					sa=(sa*65280+(da>>>1))/da;
-					da=((da+32512)/65025)<<ashift;
-				}
-				l=tmp&0x00ff00ff;
-				h=tmp&0xff00ff00;
+				src&=namask;
+				let tmp=dstdata[drow];
+				let da=(tmp>>>ashift)&255;
+				sa*=amul;
+				da=sa*255+da*(65025-sa);
+				sa=(sa*65280+(da>>>1))/da;
+				da=((da+32512)/65025)<<ashift;
+				let l=tmp&0x00ff00ff;
+				let h=tmp&0xff00ff00;
 				dstdata[drow++]=da|
-					(((Math.imul((src&0x00ff00ff)-l,sa)>>>8)+l)&maskl)|
-					((Math.imul(((src>>>8)&0x00ff00ff)-(h>>>8),sa)+h)&maskh);
+					(((imul((src&m)-l,sa)>>>8)+l)&maskl)|
+					((imul(((src>>>8)&m)-(h>>>8),sa)+h)&maskh);
 			}
-			xstop+=dw;
+			xstop+=iw;
 			drow+=dinc;
 			srow+=sinc;
 		}
@@ -1992,11 +1996,11 @@ class Draw {
 	// Paths
 
 
-	beginpath() {return this.defpoly.begin();}
-	closepath() {return this.defpoly.close();}
-	moveto(x,y) {return this.defpoly.moveto(x,y);}
-	lineto(x,y) {return this.defpoly.lineto(x,y);}
-	curveto(x0,y0,x1,y1,x2,y2) {return this.defpoly.curveto(x0,y0,x1,y1,x2,y2);}
+	beginpath() {return this.defpoly.begin(...arguments);}
+	closepath() {return this.defpoly.close(...arguments);}
+	moveto() {return this.defpoly.moveto(...arguments);}
+	lineto() {return this.defpoly.lineto(...arguments);}
+	curveto() {return this.defpoly.curveto(...arguments);}
 
 
 	// ----------------------------------------
@@ -2431,10 +2435,9 @@ class Draw {
 						da=tmp+0.49;
 					}
 					// imul() implicitly casts floor(sa).
-					let col=(da<<ashift)
+					imgdata[x]=(da<<ashift)
 						|(((Math.imul((dst&0x00ff00ff)-coll,sa)>>>8)+coll)&maskl)
 						|((Math.imul(((dst>>>8)&0x00ff00ff)-colh8,sa)+colh)&maskh);
-					imgdata[x]=col;
 				} while (++x<xstop);
 			}
 			x=xstop;
@@ -2451,7 +2454,7 @@ class Draw {
 
 
 //---------------------------------------------------------------------------------
-// UI - v1.00
+// UI - v1.01
 
 
 class UI {
@@ -2467,7 +2470,7 @@ class UI {
 		this.draw=draw;
 		this.input=input;
 		this.nodes=[];
-		this.grabbing=null;
+		this.grabbing=false;
 		this.focus=null;
 	}
 
@@ -2488,17 +2491,69 @@ class UI {
 	}
 
 
-	render() {this.update(true);}
-
-
-	update(render=false) {
+	update() {
 		// If we're rendering, ignore inputs.
 		let typemap={"text":0,"poly":1,"slider":2};
 		let input=this.input;
 		let draw=this.draw,img=draw.img;
 		let dw=img.width,dh=img.height;
 		let [mx,my]=input.getmousepos();
-		let focus=render?this.focus:null;
+		let grabbing=this.grabbing;
+		let focus=this.focus;
+		// If we're not grabbing something, check if we're focused on anything.
+		if (!grabbing) {
+			focus=null;
+			for (let node of this.nodes) {
+				let type=typemap[node.type];
+				let nx=node.x,ny=node.y,nw=node.w,nh=node.h;
+				// if (nw<0) {nx+=nw;nw=-nw;}
+				// if (nh<0) {ny+=nh;nh=-nh;}
+				if (nx>=dw || ny>=dh || nx+nw<=0 || ny+nh<=0) {
+					continue;
+				}
+				if (type<2) {continue;}
+				if (mx>=nx && my>=ny && mx<nx+nw && my<ny+nh) {
+					focus=node;
+				}
+			}
+		}
+		// Check if we've starting clicking on something. Eat the input if we have focus.
+		let key=input.MOUSE.LEFT;
+		if (!input.getkeydown(key)) {
+			grabbing=false;
+		} else if (focus!==null) {
+			let hit=input.getkeychange(key);
+			grabbing=(grabbing || hit>0)?true:false;
+		}
+		if (grabbing || this.grabbing) {input.keyclear(key);}
+		this.grabbing=grabbing;
+		this.focus=focus;
+		// If we're grabbing something, update its value.
+		if (grabbing) {
+			let node=focus;
+			let type=typemap[node.type];
+			let nx=node.x,ny=node.y,nw=node.w,nh=node.h;
+			if (type===2) {
+				let rad=(nw<nh?nw:nh)*0.5;
+				let x0=nx+rad,y0=ny+rad;
+				let dx=nx+nw-rad-x0,dy=ny+nh-rad-y0;
+				let u=((mx-x0)*dx+(my-y0)*dy)/(dx*dx+dy*dy);
+				u=u>0?(u<1?u:1):0;
+				if (node.value!==u) {
+					node.value=u;
+					let call=node.onchange;
+					if (call!==null) {call(node);}
+				}
+			}
+		}
+	}
+
+
+	render() {
+		let typemap={"text":0,"poly":1,"slider":2};
+		let draw=this.draw,img=draw.img;
+		let dw=img.width,dh=img.height;
+		let focus=this.focus;
 		draw.pushstate();
 		draw.resetstate();
 		for (let node of this.nodes) {
@@ -2509,10 +2564,7 @@ class UI {
 			if (nx>=dw || ny>=dh || nx+nw<=0 || ny+nh<=0) {
 				continue;
 			}
-			if (!render && mx>=nx && my>=ny && mx<nx+nw && my<ny+nh) {
-				focus=node;
-			}
-			let onmouse=focus===node;
+			let onmouse=Object.is(focus,node);
 			draw.setcolor(255,255,255,255);
 			if (type===0) {
 				draw.filltext(nx,ny,node.value,node.size);
@@ -2533,7 +2585,6 @@ class UI {
 				draw.linewidth=lw;
 			}
 		}
-		this.focus=focus;
 		draw.popstate();
 	}
 
@@ -2555,9 +2606,11 @@ class UI {
 	}
 
 
-	addslider(x,y,w,h) {
+	addslider(x,y,w,h,value=0,min=0,max=1) {
 		let node=this.addnode("slider",x,y,w,h);
-		node.value=0;
+		value=value>min?value:min;
+		value=value<max?value:max;
+		node.value=value;
 		return node;
 	}
 
@@ -2565,7 +2618,7 @@ class UI {
 
 
 //---------------------------------------------------------------------------------
-// Audio - v3.04
+// Audio - v3.07
 
 
 class _AudioSound {
@@ -3165,7 +3218,7 @@ class _AudioSFX {
 				continue;
 			} else if (s1-s0<2 && c0 && (c0<48 || c0>57)) {
 				// Operator.
-				tval=findc(" ~+-*%/^<>",c0);
+				tval=findc(" ~_+-*%/^<>",c0);
 				if (tval<0) {error("invalid operator",s0,s1);}
 				tid=OP;
 			} else if (c0) {
@@ -3198,12 +3251,12 @@ class _AudioSFX {
 					if (type===TBL && i===5) {continue;}
 					let h=0;
 					for (let p of stack) {
-						h+=p.type!==OP?1:(p.val<2?0:-1);
+						h+=p.type!==OP?1:(p.val<3?0:-1);
 						if (h<=0) {error("not enough operands in expression: "+node.str,s0-1);}
 					}
 					// Sum everything left in the stack.
 					while (h-->1) {
-						let p={type:OP,val:2},l=stack.length;
+						let p={type:OP,val:3},l=stack.length;
 						stack.push(p);
 						while (l>2 && stack[l-2].type!==OP) {stack[l]=stack[l-1];l--;}
 						stack[l]=p;
@@ -3212,21 +3265,22 @@ class _AudioSFX {
 					for (let j=0;j<stack.length;j++) {
 						let p=stack[j];
 						if (p.type===OP) {
-							let min=p.val<2?1:2;
+							let min=p.val<3?1:2;
 							let p1=stack[h-min],p2=stack[h-1];
 							if (p1.type===CON && p2.type===CON) {
 								let v1=p1.val,v2=p2.val;
 								switch (p.val) {
-									case 0: break;
-									case 1: v1=-v1;break;
-									case 2: v1+=v2;break;
-									case 3: v1-=v2;break;
-									case 4: v1*=v2;break;
-									case 5: v1%=v2;break;
-									case 6: v1/=v2;break;
-									case 7: v1=Math.pow(v1,v2);break;
-									case 8: v1=v1<v2?v1:v2;break;
-									case 9: v1=v1>v2?v1:v2;break;
+									case 0 : break;
+									case 1 : v1=-v1;break;
+									case 2 : v1=Math.floor(v1);break;
+									case 3 : v1+=v2;break;
+									case 4 : v1-=v2;break;
+									case 5 : v1*=v2;break;
+									case 6 : v1%=v2;break;
+									case 7 : v1/=v2;break;
+									case 8 : v1=Math.pow(v1,v2);break;
+									case 9 : v1=v1<v2?v1:v2;break;
+									case 10: v1=v1>v2?v1:v2;break;
 								}
 								h-=min;
 								p.type=CON;
@@ -3284,7 +3338,7 @@ class _AudioSFX {
 					def=[NaN,NaN,0,0];
 					size+=len;
 				} else if (type>=FIL0 && type<=FIL1) {
-					size+=11;
+					size+=10;
 					def=[NaN,1,1,NaN];
 				} else {
 					error("unknown known type: "+type,s0-1);
@@ -3495,11 +3549,11 @@ class _AudioSFX {
 			throw "Biquad type not recognized: "+type;
 		}
 		let df32=this.df32;
-		df32[n+11]=b0/a0;
-		df32[n+12]=b1/a0;
-		df32[n+13]=b2/a0;
-		df32[n+14]=a1/a0;
-		df32[n+15]=a2/a0;
+		df32[n+10]=b0/a0;
+		df32[n+11]=b1/a0;
+		df32[n+12]=b2/a0;
+		df32[n+13]=a1/a0;
+		df32[n+14]=a2/a0;
 	}
 
 
@@ -3540,27 +3594,31 @@ class _AudioSFX {
 					let sstop=di32[n++],s=0;
 					// Loop through each source.
 					// Process the RPN expression. Memory IO is expensive so try to minimize it.
-					// The first element will always be [x] or ~[x].
+					// The first element will always be [x], ~[x], or floor([x]).
 					let tmp=di32[n++],op=tmp>>>VBITS,src=(tmp&VMASK)>>>0;
 					n+=n===src;
 					let val=df32[src];
-					if (op) {val=-val;}
+					switch (op) {
+						case 1: val=-val;break;
+						case 2: val=Math.floor(val);break;
+					}
 					while (n<sstop) {
 						tmp=di32[n++];op=tmp>>>VBITS;src=(tmp&VMASK)>>>0;
 						let x=val;
-						if (src) {n+=n===src;x=df32[src];if (op<2) {stack[s++]=val;}}
-						else if (op>1) {val=stack[--s];}
+						if (src) {n+=n===src;x=df32[src];if (op<3) {stack[s++]=val;}}
+						else if (op>2) {val=stack[--s];}
 						switch (op) {
-							case 0: val= x;break;
-							case 1: val=-x;break;
-							case 2: val+=x;break;
-							case 3: val-=x;break;
-							case 4: val*=x;break;
-							case 5: val%=x;break;
-							case 6: val/=x;break;
-							case 7: val=Math.pow(val,x);break;
-							case 8: val=val<x?val:x;break;
-							case 9: val=val>x?val:x;break;
+							case 0 : val= x;break;
+							case 1 : val=-x;break;
+							case 2 : val=Math.floor(x);break;
+							case 3 : val+=x;break;
+							case 4 : val-=x;break;
+							case 5 : val*=x;break;
+							case 6 : val%=x;break;
+							case 7 : val/=x;break;
+							case 8 : val=Math.pow(val,x);break;
+							case 9 : val=val<x?val:x;break;
+							case 10: val=val>x?val:x;break;
 						}
 					}
 					// Set a value in the node.
@@ -3626,18 +3684,24 @@ class _AudioSFX {
 					let sig=df32[n+3];
 					let pos=di32[n+4];
 					let len=next-n-5;
-					// Add the latest input.
 					if (++pos>=len) {pos=0;}
-					di32[n+4]=pos;
-					df32[n+5+pos]=sig;
-					// Interpolate the delayed output.
+					// Allpass the delayed output.
 					del=del<max?del:max;
 					del=del>0?del*sndfreq:0;
+					/*let i=del>>>0;
+					let f=del-i;
+					let ap=(1-f)/(1+f);
+					i=pos-i;i=i<0?i+len:i;
+					out=ap*(sig-df32[n])+df32[n+5+i];*/
+					// Interpolate the delayed output.
 					let i=del>>>0,j;
 					let f=del-i;
 					i=pos-i;i=i<0?i+len:i;
 					j=i-1  ;j=j<0?j+len:j;
 					out=df32[n+5+i]*(1-f)+df32[n+5+j]*f;
+					// Add the latest input.
+					di32[n+4]=pos;
+					df32[n+5+pos]=sig;
 				} else if (type>=FIL0 && type<=FIL1) {
 					// Biquad filters.
 					let freq=df32[n+1],bw=df32[n+2],gain=df32[n+3];
@@ -3645,16 +3709,13 @@ class _AudioSFX {
 						df32[n+5]=freq;df32[n+6]=bw;df32[n+7]=gain;
 						this.biquadcoefs(n,type,freq/sndfreq,bw,gain);
 					}
-					// Process the input. y1 is kept in df32[n] as the previous output.
-					let x =df32[n+4];
-					let x1=df32[n+8],x2=df32[n+ 9];
-					let y1=df32[n  ],y2=df32[n+10];
-					out=df32[n+11]*x+df32[n+12]*x1+df32[n+13]*x2-df32[n+14]*y1-df32[n+15]*y2;
-					df32[n+ 8]=x;
-					df32[n+ 9]=x1;
-					df32[n+10]=y1;
+					// Process the input. Direct form 2 transposed.
+					let x=df32[n+4];
+					out=df32[n+10]*x+df32[n+8];
+					df32[n+8]=df32[n+11]*x-df32[n+13]*out+df32[n+9];
+					df32[n+9]=df32[n+12]*x-df32[n+14]*out;
 				}
-				out=!isNaN(out)?out:0;
+				out=isNaN(out)?0:out;
 				df32[n]=out;
 				n=next;
 			}
@@ -3721,12 +3782,16 @@ class _AudioInstance {
 		// Audio player link
 		this.audio  =audio;
 		this.audprev=null;
-		this.audnext=audio.queue;
+		let next=audio.queue;
+		this.audnext=next;
+		if (next!==null) {next.audprev=this;}
 		audio.queue =this;
 		// Sound link
 		this.snd    =snd;
 		this.sndprev=null;
-		this.sndnext=snd.queue;
+		next=snd.queue;
+		this.sndnext=next;
+		if (next!==null) {next.sndprev=this;}
 		snd.queue   =this;
 		// Misc
 		this.volume =vol;
@@ -3738,11 +3803,11 @@ class _AudioInstance {
 		let ctx=audio.ctx;
 		this.ctx=ctx;
 		this.ctxpan=ctx.createStereoPanner();
-		this.setpan(pan);
 		this.ctxpan.connect(ctx.destination);
 		this.ctxgain=ctx.createGain();
-		this.setvolume(vol);
 		this.ctxgain.connect(this.ctxpan);
+		this.setpan(pan);
+		this.setvolume(vol);
 		let ctxsrc=ctx.createBufferSource();
 		this.ctxsrc=ctxsrc;
 		let st=this;
@@ -3833,7 +3898,7 @@ class _AudioInstance {
 		// +1: 100% right channel
 		if (pan<-1) {pan=-1;}
 		else if (pan>1) {pan=1;}
-		else if (isNaN(pan)) {pan=0;}
+		else if (isNaN(pan)) {pan=this.pan;}
 		this.pan=pan;
 		if (!this.done) {
 			this.ctxpan.pan.value=this.pan;
@@ -3842,7 +3907,7 @@ class _AudioInstance {
 
 
 	setvolume(vol) {
-		if (isNaN(vol)) {vol=1;}
+		vol=isNaN(vol)?this.volume:vol;
 		this.volume=vol;
 		if (!this.done) {
 			vol*=this.audio.volume;
@@ -3987,7 +4052,7 @@ class _AudioEnvelope {
 
 
 class _AudioBiquad {
-	// Biquad filter type 1
+	// Biquad filter
 	// https://shepazu.github.io/Audio-EQ-Cookbook/audio-eq-cookbook.html
 	// lingain(db)  = exp(db/(ln(10)*40))
 	// bandwidth(Q) = sinh^-1(0.5/Q)*2/ln(2)
@@ -4017,26 +4082,19 @@ class _AudioBiquad {
 
 
 	clear() {
-		this.x1=0;
-		this.x2=0;
-		this.y1=0;
-		this.y2=0;
+		this.s1=0;
+		this.s2=0;
 	}
 
 
 	process(x) {
-		let y=this.b0*x+this.b1*this.x1+this.b2*this.x2
-		               -this.a1*this.y1-this.a2*this.y2;
-		if (!(y>-Infinity && y<Infinity)) {y=0;}
-		this.x2=this.x1;
-		this.x1=x;
-		this.y2=this.y1;
-		this.y1=y;
+		// transposed direct form 2
+		let y  =this.b0*x+this.s1;
+		y=y>-Infinity && y<Infinity?y:0;
+		this.s1=this.b1*x-this.a1*y+this.s2;
+		this.s2=this.b2*x-this.a2*y;
 		return y;
 	}
-
-
-	prev() {return this.y1;}
 
 
 	response(rate) {
@@ -4165,21 +4223,23 @@ class Audio {
 	static randinc=0;
 
 
-	constructor(freq=44100) {
+	constructor(mute=0,volume=1,autoupdate=true,freq=44100) {
 		Object.assign(this,this.constructor);
 		this.freq=freq;
 		this.queue=null;
-		this.volume=1;
+		this.volume=volume;
 		let ctx=new AudioContext({latencyHint:"interactive",sampleRate:freq});
 		this.ctx=ctx;
 		// 2 = Audio mute, 1 = browser mute
-		this.muted=2;
+		this.muted=mute?2:0;
 		this.mutefunc=function(){ctx.resume();};
 		this.updatetime=NaN;
 		if (!Audio.def) {Audio.initdef(this);}
-		let st=this;
-		function update() {if (st.update()) {requestAnimationFrame(update);}}
-		update();
+		if (autoupdate) {
+			let st=this;
+			function update() {if (st.update()) {requestAnimationFrame(update);}}
+			update();
+		}
 	}
 
 
@@ -4194,6 +4254,18 @@ class Audio {
 			Audio.randacc=(Audio.noise1()*0xffffffff)>>>0;
 		}
 		return def;
+	}
+
+
+	setvolume(vol) {
+		// Update the volume of all instances.
+		if (this.volume===vol) {return;}
+		this.volume=vol;
+		let inst=this.queue;
+		while (inst!==null) {
+			inst.setvolume();
+			inst=inst.audnext;
+		}
 	}
 
 
@@ -4222,8 +4294,8 @@ class Audio {
 		}
 		// Track time played while audio is suspended. Restart or remove sounds if needed.
 		let inst=this.queue;
-		while (inst) {
-			let next=inst.next;
+		while (inst!==null) {
+			let next=inst.audnext;
 			if ((muted || inst.muted) && inst.playing) {
 				let time=inst.time;
 				if (!inst.muted) {
@@ -4680,7 +4752,7 @@ class Audio {
 
 
 //---------------------------------------------------------------------------------
-// Physics - v3.09
+// Physics - v3.11
 
 
 class PhyLink {
@@ -4824,11 +4896,16 @@ class PhyList {
 class PhyAtomInteraction {
 
 	constructor(a,b) {
+		this.world=a.world;
+		this.worldlink=new PhyLink(this);
+		this.world.intrlist.add(this.worldlink);
 		this.a=a;
 		this.b=b;
 		this.pmul=0;
 		this.vmul=0;
 		this.vpmul=0;
+		this.dt=NaN;
+		this.push0=0;
 		this.statictension=0;
 		this.staticdist=0;
 		this.updateconstants();
@@ -4845,6 +4922,14 @@ class PhyAtomInteraction {
 	}
 
 
+	calcdt(dt) {
+		if (this.dt===dt) {return;}
+		this.dt=dt;
+		let ipush=1-this.pmul;
+		this.push0=ipush>0?1-Math.pow(ipush,dt):1;
+	}
+
+
 	static get(a,b) {
 		if (a.type!==undefined) {a=a.type;}
 		if (b.type!==undefined) {b=b.type;}
@@ -4856,7 +4941,7 @@ class PhyAtomInteraction {
 
 class PhyAtomType {
 
-	constructor(world,id,damp,density,elasticity) {
+	constructor(world,id,damp,density,elasticity=1,push=1,statictension=50) {
 		this.world=world;
 		this.worldlink=new PhyLink(this);
 		this.atomlist=new PhyList();
@@ -4864,10 +4949,10 @@ class PhyAtomType {
 		this.intarr=[];
 		this.damp=damp;
 		this.density=density;
-		this.pmul=1.0;
+		this.pmul=push;
 		this.vmul=elasticity;
 		this.vpmul=1.0;
-		this.statictension=50;
+		this.statictension=statictension;
 		this.staticdist=1.0;
 		this.bound=true;
 		this.dt =NaN;
@@ -4881,7 +4966,7 @@ class PhyAtomType {
 
 	release() {
 		let id=this.id;
-		let link=this.world.atomtypelist.head;
+		let link=this.world.typelist.head;
 		while (link!==null) {
 			link.obj.intarr[id]=null;
 			link=link.next;
@@ -5046,7 +5131,7 @@ class PhyAtom {
 	}
 
 
-	update(dt) {
+	update() {
 		// Move the particle and apply damping to the velocity.
 		// acc+=gravity
 		// pos+=vel*dt1+acc*dt2
@@ -5056,7 +5141,6 @@ class PhyAtom {
 		let bndmax=world.bndmax;
 		let pe=this.pos,ve=this.vel,b;
 		let dim=pe.length,type=this.type;
-		if (type.dt!==dt) {type.updateconstants(dt);}
 		let bound=type.bound;
 		let ge=type.gravity;
 		ge=(ge===null?this.world.gravity:ge);
@@ -5129,14 +5213,14 @@ class PhyAtom {
 			norm[i]*=den;
 			veldif+=(avel[i]-bvel[i])*norm[i];
 		}
-		let intr=a.type.intarr[b.type.id];
 		let posdif=rad-dist;
+		// If we have a callback, allow it to handle the collision.
+		let intr=a.type.intarr[b.type.id];
+		let callback=a.world.collcallback;
+		if (callback!==null && !callback(intr,a,b,norm,veldif,posdif,bonded)) {return;}
+		posdif*=intr.push0;
 		veldif=veldif>0?veldif:0;
 		veldif=veldif*intr.vmul+posdif*intr.vpmul;
-		posdif*=intr.pmul;
-		// If we have a callback, allow it to handle the collision.
-		let callback=a.world.collcallback;
-		if (callback!==null && !callback(a,b,norm,veldif,posdif,bonded)) {return;}
 		// Create an electrostatic bond between the atoms.
 		if (bonded===null && intr.statictension>0) {
 			let bond=a.world.createbond(a,b,rad,intr.statictension);
@@ -5485,7 +5569,8 @@ class PhyWorld {
 		this.gravity[dim-1]=0.2;
 		this.bndmin=(new Vector(dim)).set(-Infinity);
 		this.bndmax=(new Vector(dim)).set( Infinity);
-		this.atomtypelist=new PhyList();
+		this.typelist=new PhyList();
+		this.intrlist=new PhyList();
 		this.atomlist=new PhyList();
 		this.bondlist=new PhyList();
 		this.tmpmem=[];
@@ -5499,7 +5584,8 @@ class PhyWorld {
 
 	release() {
 		this.atomlist.release();
-		this.atomtypelist.release();
+		this.typelist.release();
+		this.intrlist.release();
 		this.bondlist.release();
 		this.broad.release();
 	}
@@ -5520,10 +5606,10 @@ class PhyWorld {
 	bonditer() {return this.bondlist.iter();}
 
 
-	createatomtype(damp,density,elasticity) {
+	createatomtype(damp,density,elasticity=1,push=1,statictension=50) {
 		// Assume types are sorted from smallest to largest.
 		// Find if there's any missing ID or add to the end.
-		let link=this.atomtypelist.head;
+		let link=this.typelist.head;
 		let id=0;
 		while (link!==null) {
 			let nextid=link.obj.id;
@@ -5531,9 +5617,9 @@ class PhyWorld {
 			id=nextid+1;
 			link=link.next;
 		}
-		let type=new PhyAtomType(this,id,damp,density,elasticity);
-		this.atomtypelist.addbefore(type.worldlink,link);
-		link=this.atomtypelist.head;
+		let type=new PhyAtomType(this,id,damp,density,elasticity,push,statictension);
+		this.typelist.addbefore(type.worldlink,link);
+		link=this.typelist.head;
 		while (link!==null) {
 			PhyAtomType.initinteraction(link.obj,type);
 			link=link.next;
@@ -5768,12 +5854,23 @@ class PhyWorld {
 		let rnd=this.rnd;
 		for (let step=0;step<steps;step++) {
 			if (this.stepcallback!==null) {this.stepcallback(dt);}
-			// Integrate atoms.
 			let link,next;
+			// Update types and interactions.
+			link=this.typelist.head;
+			while (link!==null) {
+				link.obj.updateconstants(dt);
+				link=link.next;
+			}
+			link=this.intrlist.head;
+			while (link!==null) {
+				link.obj.calcdt(dt);
+				link=link.next;
+			}
+			// Integrate atoms.
 			next=this.atomlist.head;
 			while ((link=next)!==null) {
 				next=next.next;
-				link.obj.update(dt);
+				link.obj.update();
 			}
 			// Integrate bonds after atoms or vel will be counted twice.
 			// Randomize the evaluation order to reduce oscillations.
