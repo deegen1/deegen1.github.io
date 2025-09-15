@@ -1017,7 +1017,6 @@ class Game {
 			let sndacc=data.sndacc;
 			if (sndacc>=type.sndfire) {
 				type.sndacc+=sndacc;
-console.log(sndacc);
 				sndacc=-type.sndfire;
 			}
 			sndacc*=decay;
