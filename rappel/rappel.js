@@ -121,7 +121,7 @@ class Game {
 		let bodymat=world.createatomtype(0.01,5*.84/( 9*.7854),0.25);
 		let ropemat=world.createatomtype(0.50,5*.08/(20*.0804),0.00);
 		let hookmat=world.createatomtype(0.01,5*.08/(10*.0804),0.25);
-		let edgemat=world.createatomtype(0.01,5*.08/(10*.0804),0.00,1,4950);
+		let edgemat=world.createatomtype(0.01,5*.08/(10*.0804),0.00,1,9950);
 		let partmat=world.createatomtype(0.50,1e-9,0.50,1,NaN);
 		let leafmat=world.createatomtype(0.75,1e-8,0.00,1,0);
 		let runemat=world.createatomtype(0.95,1e-8,0.25,0.2,NaN);
