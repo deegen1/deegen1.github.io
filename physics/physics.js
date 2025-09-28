@@ -82,12 +82,14 @@ createshape
 	Simplex distance calculation for dim>2.
 	Instead of checking each cell for overlap with atoms, remove cells every
 	time an atom is created.
+	Why are the sometimes holes?
 
 Switch list to array
 	arr=new PhyArray("_atomidx"); // indexname="_atomidx"
 	arr.add(atom);                // obj[indexname]=...
 	arr.remove(atom);             // obj[indexname]=-1
 	remove tmpmem and bvh.atomarr
+	Randomize bonds with gcd(con,bonds)=1, i=mod(bonds), i+=con
 	Keep objects allocated in the array, since we'll add and remove them a lot.
 
 Better sleeping
@@ -97,6 +99,7 @@ Better sleeping
 	What to do if gravity is changed after sleeping?
 	If bonded with a sleeping atom, consider sleeping.
 	If a bond is released, wake up both atoms.
+	If vel<mag, sleep for longer and longer durations.
 
 BVH
 	AABB isn't properly separating [-inf,-inf].

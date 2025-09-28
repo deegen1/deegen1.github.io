@@ -34,7 +34,7 @@ History
 4.00
      Created background music and added sound effects.
 5.00
-     Created tower level with timer.
+     Created tower demo with timer.
      Added biome regions.
 
 
