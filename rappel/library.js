@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v15.73
+library.js - v15.74
 
 Copyright 2025 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -17,7 +17,7 @@ Input   - v1.17
 Drawing - v3.24
 UI      - v1.01
 Audio   - v3.07
-Physics - v3.11
+Physics - v3.12
 
 
 */
@@ -2897,8 +2897,8 @@ class _AudioSound {
 	}
 
 
-	play(volume,pan,freq) {
-		return this.audio.play(this,volume,pan,freq);
+	play(volume,pan,time,freq) {
+		return this.audio.play(this,volume,pan,time,freq);
 	}
 
 
@@ -3777,7 +3777,7 @@ class _AudioInstance {
 	// We can only call start/stop once. In order to pause a buffer node, we need to
 	// destroy and recreate the node.
 
-	constructor(snd,vol=1.0,pan=0.0) {
+	constructor(snd,vol=1.0,pan=0.0,time=0,freq) {
 		let audio=snd.audio;
 		// Audio player link
 		this.audio  =audio;
@@ -3795,7 +3795,7 @@ class _AudioInstance {
 		snd.queue   =this;
 		// Misc
 		this.volume =vol;
-		this.rate   =1.0;
+		this.rate   =(freq??audio.freq)/audio.freq;
 		this.playing=false;
 		this.done   =false;
 		this.muted  =audio.muted;
@@ -3815,17 +3815,18 @@ class _AudioInstance {
 		ctxsrc.buffer=snd.ctxbuf;
 		ctxsrc.connect(this.ctxgain);
 		if (snd.ctxbuf) {
-			if (!this.muted) {ctxsrc.start(0,0,snd.time);}
+			if (!this.muted) {ctxsrc.start(0,time,snd.time);}
 			this.playing=true;
 		}
-		this.time=-performance.now()*0.001;
+		this.time=time-performance.now()*0.001;
 	}
 
 
 	remove() {
 		if (this.done) {return;}
 		this.done=true;
-		if (this.playing) {this.time+=performance.now()*0.001;}
+		let time=this.time+(this.playing?performance.now()*0.001:0);
+		this.time=time<this.snd.time?time:this.snd.time;
 		this.playing=false;
 		let audio=this.snd.audio;
 		let audprev=this.audprev;
@@ -4269,8 +4270,8 @@ class Audio {
 	}
 
 
-	play(snd,volume,pan,freq) {
-		return new _AudioInstance(snd,volume,pan,freq);
+	play(snd,volume,pan,time,freq) {
+		return new _AudioInstance(snd,volume,pan,time,freq);
 	}
 
 
@@ -4752,7 +4753,7 @@ class Audio {
 
 
 //---------------------------------------------------------------------------------
-// Physics - v3.11
+// Physics - v3.12
 
 
 class PhyLink {
@@ -4817,11 +4818,11 @@ class PhyList {
 
 
 	add(link) {
-		this.addafter(link,null);
+		this.addafter(link);
 	}
 
 
-	addafter(link,prev) {
+	addafter(link,prev=null) {
 		// Inserts the link after prev.
 		link.remove();
 		let next;
@@ -4844,7 +4845,7 @@ class PhyList {
 	}
 
 
-	addbefore(link,next) {
+	addbefore(link,next=null) {
 		// Inserts the link before next.
 		link.remove();
 		let prev;
@@ -5085,7 +5086,7 @@ class PhyAtom {
 	constructor(pos,rad,type) {
 		this.worldlink=new PhyLink(this);
 		this.world=type.world;
-		this.world.atomlist.add(this.worldlink);
+		this.world.atomlist.addbefore(this.worldlink);
 		this.deleted=false;
 		this.sleeping=false;
 		pos=new Vector(pos);
@@ -5717,6 +5718,7 @@ class PhyWorld {
 		//
 		// Atoms and bonds are placed *before* applying transform.
 		// Radii and bond lengths will be rescaled if needed.
+		// Unrolled ops are 5x as fast.
 		let dim=this.dim;
 		if (dim!==2) {throw `Only implemented for 2 dimensions: ${dim}`;}
 		if (!(spacing>1e-10 && minrad>1e-10)) {throw `Invalid spacing: ${spacing}, ${minrad}`;}
@@ -5742,29 +5744,43 @@ class PhyWorld {
 		let cellarr=[];
 		let cellpos=new Vector(bndmin);
 		let minpos=new Vector(dim),minbary=new Vector(dim);
+		let dif=new Vector(dim);
 		while (true) {
 			// Get the distance to the nearest edge and determine if we're inside.
 			let mindist=Infinity;
 			let parity=0;
 			for (let face of newface) {
+				// dif=b-a, u=(pos-a)*dif/dif^2
 				let a=face[0],b=face[1];
-				let dif=b.sub(a);
-				let u=cellpos.sub(a).mul(dif)/dif.sqr();
-				u=u>0?u:0;
-				u=u<1?u:1;
-				let pos=a.add(dif.mul(u));
-				let dist=pos.dist2(cellpos);
-				if (mindist>dist) {
-					mindist=dist;
-					minpos.set(pos);
-					minbary[0]=u;
-					minbary[1]=1-u;
+				let u=0,den=0,dist=0;
+				for (let i=0;i<dim;i++) {
+					let x=a[i],d=b[i]-x;
+					dif[i]=d;
+					den+=d*d;
+					u+=(cellpos[i]-x)*d;
 				}
+				u=u>0?u:0;
+				u=u<den?u/den:1;
 				let eps=1e-10;
 				let cy=cellpos[1]-a[1];
 				if ((cy>=eps && cy<=dif[1]-eps) || (cy<=-eps && cy>=dif[1]+eps)) {
 					let x=a[0]+cy*dif[0]/dif[1];
 					parity^=x<cellpos[0]?1:0;
+				}
+				// dif=dif*u+a, dist=(dif-cellpos)^2
+				for (let i=0;i<dim;i++) {
+					let d=dif[i];
+					dif[i]=d=d*u+a[i];
+					d-=cellpos[i];
+					dist+=d*d;
+				}
+				if (mindist>dist) {
+					mindist=dist;
+					let tmp=minpos;
+					minpos=dif;
+					dif=tmp;
+					minbary[0]=u;
+					minbary[1]=1-u;
 				}
 			}
 			// If we're outside, clamp to the edge. Sort edges based on
@@ -5773,10 +5789,10 @@ class PhyWorld {
 			if (mindist<spacing) {
 				if (mindist<0) {minpos.set(cellpos);}
 				else {mindist=Math.max(1-minbary.sqr(),0);}
-				cellarr.push({pos:minpos.copy(),dist:mindist});
+				cellarr.push({dist:mindist,pos:minpos.copy()});
 			}
 			// Advance to next cell. Skip gaps if we're far from a face.
-			let skip=(fill===2?Math.abs(mindist):mindist)-spacing*2-iter;
+			let skip=(fill===2 && mindist<0?-mindist:mindist)-spacing*2-iter;
 			if (skip>0) {cellpos[0]+=(skip/iter|0)*iter;}
 			let i;
 			for (i=0;i<dim;i++) {
@@ -5792,7 +5808,7 @@ class PhyWorld {
 		let bondarr=[];
 		// Fill from the center outward.
 		cellarr.sort((l,r)=>l.dist-r.dist);
-		let cells=cellarr.length;
+		let cells=cellarr.length,atoms=0;
 		let mincheck=-1;
 		let atomarr=[];
 		for (let c=0;c<cells;c++) {
@@ -5800,34 +5816,42 @@ class PhyWorld {
 			cellpos=cell.pos;
 			let celldist=cell.dist<0?cell.dist:0;
 			let cellrad=fill===2 && celldist<0?spacing-celldist:minrad;
-			let atoms=atomarr.length,atom;
+			// Find the largest radius we can fill.
+			let atom;
 			if (mincheck<0 && celldist>=0) {mincheck=atoms;fill=0;}
-			let i=mincheck>0?mincheck:0,j=i;
+			let i=mincheck>0?mincheck:0,i0=i;
 			for (;i<atoms;i++) {
 				atom=atomarr[i];
-				let dist=atom.pos.dist(cellpos);
-				let rad;
-				if (fill===2) {rad=dist-atom.rad<subspace?0:dist;}
-				else {rad=dist<spacing?0:minrad;}
+				let rad=0,a=atom.pos;
+				for (let j=0;j<dim;j++) {
+					let d=cellpos[j]-a[j];
+					rad+=d*d;
+				}
+				rad=Math.sqrt(rad);
+				let cutoff=fill===2?subspace+atom.rad:spacing;
+				if (rad<minrad || rad<cutoff) {break;}
 				cellrad=cellrad<rad?cellrad:rad;
-				if (cellrad<minrad) {break;}
 			}
 			if (i>=atoms) {
 				atom=this.createatom(cellpos,cellrad,mat);
 				atom.data._filldist=celldist;
 				// Bond before transforming.
-				for (let b of atomarr) {
-					let dist=b.pos.dist(cellpos);
-					if (dist<atom.rad+b.rad+bonddist) {
-						bondarr.push(this.createbond(atom,b,dist,bondtension));
+				if (bonddist>0) {
+					let bondmin=cellrad+bonddist;
+					for (let b of atomarr) {
+						let dist=b.pos.dist(cellpos);
+						if (dist<bondmin+b.rad) {
+							bondarr.push(this.createbond(atom,b,dist,bondtension));
+						}
 					}
 				}
 				atomarr.push(atom);
+				atoms++;
 			}
 			// Move the rejection atom nearer to the front.
-			j+=(i-j)>>1;
-			atomarr[i]=atomarr[j];
-			atomarr[j]=atom;
+			i0+=(i-i0)>>1;
+			atomarr[i ]=atomarr[i0];
+			atomarr[i0]=atom;
 		}
 		// Transform and rescale everything.
 		transform=new Transform(transform??{dim:dim});

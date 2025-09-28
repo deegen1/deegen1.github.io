@@ -400,8 +400,8 @@ class _AudioSound {
 	}
 
 
-	play(volume,pan,freq) {
-		return this.audio.play(this,volume,pan,freq);
+	play(volume,pan,time,freq) {
+		return this.audio.play(this,volume,pan,time,freq);
 	}
 
 
@@ -1280,7 +1280,7 @@ class _AudioInstance {
 	// We can only call start/stop once. In order to pause a buffer node, we need to
 	// destroy and recreate the node.
 
-	constructor(snd,vol=1.0,pan=0.0) {
+	constructor(snd,vol=1.0,pan=0.0,time=0,freq) {
 		let audio=snd.audio;
 		// Audio player link
 		this.audio  =audio;
@@ -1298,7 +1298,7 @@ class _AudioInstance {
 		snd.queue   =this;
 		// Misc
 		this.volume =vol;
-		this.rate   =1.0;
+		this.rate   =(freq??audio.freq)/audio.freq;
 		this.playing=false;
 		this.done   =false;
 		this.muted  =audio.muted;
@@ -1318,17 +1318,18 @@ class _AudioInstance {
 		ctxsrc.buffer=snd.ctxbuf;
 		ctxsrc.connect(this.ctxgain);
 		if (snd.ctxbuf) {
-			if (!this.muted) {ctxsrc.start(0,0,snd.time);}
+			if (!this.muted) {ctxsrc.start(0,time,snd.time);}
 			this.playing=true;
 		}
-		this.time=-performance.now()*0.001;
+		this.time=time-performance.now()*0.001;
 	}
 
 
 	remove() {
 		if (this.done) {return;}
 		this.done=true;
-		if (this.playing) {this.time+=performance.now()*0.001;}
+		let time=this.time+(this.playing?performance.now()*0.001:0);
+		this.time=time<this.snd.time?time:this.snd.time;
 		this.playing=false;
 		let audio=this.snd.audio;
 		let audprev=this.audprev;
@@ -1772,8 +1773,8 @@ class Audio {
 	}
 
 
-	play(snd,volume,pan,freq) {
-		return new _AudioInstance(snd,volume,pan,freq);
+	play(snd,volume,pan,time,freq) {
+		return new _AudioInstance(snd,volume,pan,time,freq);
 	}
 
 

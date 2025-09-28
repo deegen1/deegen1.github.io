@@ -113,14 +113,13 @@ Try to reduce size to 30kb.
 	Get font down to 5kb.
 	Remove webgl?
 
-setcolorf(1.0,1.0,1.0,1.0)
-
 fillpoly
+	Allow inverted screen origin. Set amul sign based on first line.
 	Per-subpath color. "F" specifies colors for following segments.
-	Allow for different blend modes.
 	Stop segmenting subcurves if they're offscreen.
 	Try F32/I32 arrays.
 	Remove math.min/max.
+	When stress testing, see if we draw outside of AABB.
 	drawing too much:
 	let x=50,y=50;
 	let ang=-Math.PI*0.5,amul=-Math.PI*2*0.437600;
@@ -136,9 +135,7 @@ DrawPoly
 	fromstring() handle transform
 	If we call moveto(), close the previous subpath.
 	normalize, scale, shift
-	closestpoint(point,transform)
-	pointinside(point,transform)
-	Add circular arcs.
+	Add circular arcs. Add to rappel.js charging.
 
 filltext/textrect
 	Add backspaces and tabs.
@@ -148,6 +145,7 @@ DrawImage
 	(a<<24)|(r<<16)|(g<<28)|b
 
 Rewrite article.
+
 Use module to put everything under Draw namespace.
 
 Tracing

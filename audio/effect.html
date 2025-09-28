@@ -152,7 +152,7 @@ spellcheck="false">'Karplus-Strong String
 #sig1: NOISE H 10 L -10
 #sig : ENV A 0 S #rate R 0 I #sig1 -1 &gt; 1 &lt;
 #line: DEL M 0.1 T #rate I #val
-#val : #line #sig + #val - #slide * #val +
+#val : #sig #line - #val - #slide * #val +
 #out : ENV A 0 S 0 R 3 I #val</textarea>
 <script>MusicMaker.initsub("sub6_play","sub6_editor");</script>
 
