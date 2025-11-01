@@ -5,9 +5,7 @@
 	<title>Sound Effects</title>
 	<link rel="stylesheet" href="../style/style.css" type="text/css">
 	<script src="../style/style.js"></script>
-	<script src="./library.js"></script>
-	<script src="./audio.js"></script>
-	<script src="./demo.js"></script>
+	<script>function DEMO(f) {return import("./demo.js").then(f);}</script>
 	<!--<script src="./extra/test.js"></script>-->
 	<style>
 		.padtable {
@@ -40,12 +38,12 @@ files <a href="./audio.js">audio.js</a> and <a href="./demo.js">demo.js</a> take
 just 63 kb - if the sounds were instead stored as .wav files they would be 1,187
 times bigger.</p>
 <table class="listtable padtable">
-<tr>
-<td style="width:25%"><img src="chrome_xylophone.png"></td>
+<tr><td style="width:25%"><img src="chrome_xylophone.png"></td>
 <td><canvas style="width:100%;margin:auto" width="1000" height="300"
-id="xylosim"></canvas></td>
-</tr><tr>
-<td style="width:25%"><img src="zelda_guitar.png"></td>
+id="xylosim" onload=></canvas></td>
+</tr>
+<script>DEMO(M=>new M.XylophoneSim("xylosim"));</script>
+<tr><td style="width:25%"><img src="zelda_guitar.png"></td>
 <td><canvas style="width:100%;margin:auto" width="1000" height="300"
 id="guitarsim"></canvas></td>
 </tr><tr>
@@ -53,24 +51,23 @@ id="guitarsim"></canvas></td>
 <td><input type="text" id="gttext" class="consoleblock"
 style="display:inline;margin:0;width:100%" value="E0----A7--D5--E6--E5----A7--E0----A7--D5--E6--E5----A7--E0----A7--D5--E6--E5"></td>
 </tr>
+<script>DEMO(M=>new M.StringSim("guitarsim","gttext","gtplay"));</script>
 </table>
 <table class="listtable padtable">
 <tr>
-<td style="width:20%;"><a href="#" onclick="return Bebop.toggle(this);"><img src="bebop_bang.png"></a></td>
-<td style="width:20%;"><a href="#" onclick="return PlayUI('phone');"><img src="old_phone.png"></a></td>
-<td style="width:20%;"><a href="#" onclick="return PlayUI('explosion');"><img src="explosion.png"></a></td>
-<td style="width:20%;"><a href="#" onclick="return PlayUI('hihat');"><img src="hithat_blues_brothers.png"></a></td>
-<td style="width:20%;"><a href="#" onclick="return PlayUI('kick');"><img src="kick_step_brothers.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="DEMO(M=>M.Bebop.toggle(this));return false;"><img src="bebop_bang.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="DEMO(M=>M.PlayUI('phone'));return false;"><img src="old_phone.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="DEMO(M=>M.PlayUI('explosion'));return false;"><img src="explosion.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="DEMO(M=>M.PlayUI('hihat'));return false;"><img src="hithat_blues_brothers.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="DEMO(M=>M.PlayUI('kick'));return false;"><img src="kick_step_brothers.png"></a></td>
 </tr><tr>
-<td style="width:20%;"><a href="#" onclick="return PlayUI('marble');"><img src="galaxy_marbles.png"></a></td>
-<td style="width:20%;"><a href="#" onclick="return PlayUI('knock');"><img src="door_knock.png"></a></td>
-<td style="width:20%;"><a href="#" onclick="return PlayUI('laser');"><img src="laser.png"></a></td>
-<td style="width:20%;"><a href="#" onclick="return PlayUI('electric');"><img src="electric_arc.png"></a></td>
-<td style="width:20%;"><a href="#" onclick="return PlayUI('beep');"><img src="game_menu.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="DEMO(M=>M.PlayUI('marble'));return false;"><img src="galaxy_marbles.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="DEMO(M=>M.PlayUI('knock'));return false;"><img src="door_knock.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="DEMO(M=>M.PlayUI('laser'));return false;"><img src="laser.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="DEMO(M=>M.PlayUI('electric'));return false;"><img src="electric_arc.png"></a></td>
+<td style="width:20%;"><a href="#" onclick="DEMO(M=>M.PlayUI('beep'));return false;"><img src="game_menu.png"></a></td>
 </tr>
 </table>
-<script>new XylophoneSim("xylosim");</script>
-<script>new StringSim("guitarsim","gttext","gtplay");</script>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Sound Examples ~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
@@ -293,7 +290,7 @@ update the coefficients with the new frequency, leave the IO variables alone,
 and continue processing.
 -->
 </table>
-<script>FilterDiagrams();</script>
+<script>DEMO(M=>new M.FilterDiagrams());</script>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Delay Filters ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
@@ -409,7 +406,7 @@ bandwidth causes the bandpass to act like a pure sine wave.</p>
 this area, I'll most likely focus on a series of comb filters instead since they
 won't run into this positive feedback issue.</p>
 <p>This is the only guitar sound I was able to produce with waveguides:
-<a href="#" onclick="PlayWaveguide();return false;">play</a></p>
+<a href="#" onclick="DEMO(M=>M.PlayWaveguide());return false;">play</a></p>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~ Web Audio Difficulties ~~~~~~~~~~~~~~~~~~~~~~~~-->

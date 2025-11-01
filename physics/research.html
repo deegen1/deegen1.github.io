@@ -6,15 +6,14 @@
 	<link rel="stylesheet" href="../style/style.css" type="text/css">
 	<style>
 	.demotable {
+		table-layout:fixed;
 		width:100%;
 		margin-top:2rem;
 		margin-bottom:2rem;
 	}
 	</style>
 	<script src="../style/style.js"></script>
-	<script src="./library.js"></script>
-	<script src="./physics.js"></script>
-	<script src="./demo.js"></script>
+	<script>function DEMO(f) {return import("./demo.js").then(f);}</script>
 	<!--<script src="./testing/testing.js"></script>-->
 </head>
 <body>
@@ -134,9 +133,12 @@ veldif=max(veldif,0)*elasticity+posdif;
 </tr>
 </table>
 <script>
-new StackScene(["stackcanv00","stackcanv01","stackcanv02"],0);
-new StackScene(["stackcanv10","stackcanv11"],1);
-new StackScene(["stackcanv20"],2);
+DEMO(M=>{
+let scene=M.StackScene;
+new scene(["stackcanv00","stackcanv01","stackcanv02"],scene.NONE);
+new scene(["stackcanv10","stackcanv11"],scene.MAX);
+new scene(["stackcanv20"],scene.POSDIF);
+});
 </script>
 <p>The final corrected function is:</p>
 <div class="codeblock langjs">function collideatoms(a,b) {
@@ -300,10 +302,13 @@ spread out then the mesh will stabilize.</p>
 </tr>
 </table>
 <script>
-new OscillationScene(["osccanv0","osccanv5"],0);
-new OscillationScene(["osccanv1"],1);
-new OscillationScene(["osccanv2","osccanv4"],2);
-new OscillationScene(["osccanv3"],3);
+DEMO(M=>{
+let scene=M.OscillationScene;
+new scene(["osccanv0","osccanv5"],scene.OSC_STATIC);
+new scene(["osccanv1"],scene.OSC_RANDOM);
+new scene(["osccanv2","osccanv4"],scene.INTEGRATE_ACC);
+new scene(["osccanv3"],scene.INTEGRATE_POS);
+});
 </script>
 <p>When figuring out how to stabilize the springs, updating the position
 quickly became the obvious choice. The only problem was that choosing the
@@ -330,7 +335,7 @@ will take up millions of cells, while a mouse will take up one.</p>
 <p>Our engine instead uses a bounding volume hierarchy (BVH), which looks like
 this:</p>
 <canvas id="bvhcanv" style="width:100%;height:200px;"></canvas>
-<script>new BVHScene("bvhcanv");</script>
+<script>DEMO(M=>new M.BVHScene("bvhcanv"));</script>
 <p>This demo doesn't show the full hierarchy since it would be too messy, but
 the algorithm works by subdividing the world into smaller and smaller boxes. We
 first check if an object overlaps the top box. If it does then we check if it
@@ -363,15 +368,66 @@ are nearby to each other in physical memory. In our case, the tree was arranged
 so the left child would immediately follow a parent. The right child would come
 after the left child and all its children. This is what it looks like compared
 to a tree arranged top to bottom in memory:</p>
-<div class="consoleblock"> Top-to-bottom                Flattened
-
-       1                          1
-     .' '.                      .' '.  
-   .'     '.                  .'     '.
-  2         3                2         5
- / \       / \              / \       / \
-4   5     6   7            3   4     6   7
-</div>
+<svg version="1.1" viewBox="0 0 1000 300" class="diagram">
+<g transform="translate(150,20)">
+	<g transform="translate(0,75)">
+		<text x="139" y="-50" dy="0.3em" text-anchor="middle"
+		style="font-size:150%">Top-to-bottom</text>
+		<line x1="59" y1="79" x2="139" y2="19"/>
+		<line x1="219" y1="79" x2="139" y2="19"/>
+		<line x1="19" y1="139" x2="59" y2="79"/>
+		<line x1="99" y1="139" x2="59" y2="79"/>
+		<line x1="179" y1="139" x2="219" y2="79"/>
+		<line x1="259" y1="139" x2="219" y2="79"/>
+		<g class="backfill">
+			<circle cx="139" cy="19" r="17"/>
+			<circle cx="59" cy="79" r="17"/>
+			<circle cx="219" cy="79" r="17" />
+			<circle cx="19" cy="139" r="17"/>
+			<circle cx="99" cy="139" r="17"/>
+			<circle cx="179" cy="139" r="17"/>
+			<circle cx="259" cy="139" r="17"/>
+		</g>
+		<g text-anchor="middle">
+			<text x="139" y="20" dy="0.3em">1</text>
+			<text x="59" y="80" dy="0.3em">2</text>
+			<text x="219" y="80" dy="0.3em">3</text>
+			<text x="19" y="140" dy="0.3em">4</text>
+			<text x="99" y="140" dy="0.3em">5</text>
+			<text x="179" y="140" dy="0.3em">6</text>
+			<text x="259" y="140" dy="0.3em">7</text>
+		</g>
+	</g>
+	<g transform="translate(400,75)">
+		<text x="139" y="-50" dy="0.3em" text-anchor="middle"
+		style="font-size:150%">Flattened</text>
+		<line x1="59" y1="79" x2="139" y2="19"/>
+		<line x1="219" y1="79" x2="139" y2="19"/>
+		<line x1="19" y1="139" x2="59" y2="79"/>
+		<line x1="99" y1="139" x2="59" y2="79"/>
+		<line x1="179" y1="139" x2="219" y2="79"/>
+		<line x1="259" y1="139" x2="219" y2="79"/>
+		<g class="backfill">
+			<circle cx="139" cy="19" r="17"/>
+			<circle cx="59" cy="79" r="17"/>
+			<circle cx="219" cy="79" r="17"/>
+			<circle cx="19" cy="139" r="17"/>
+			<circle cx="99" cy="139" r="17"/>
+			<circle cx="179" cy="139" r="17"/>
+			<circle cx="259" cy="139" r="17"/>
+		</g>
+		<g text-anchor="middle">
+			<text x="139" y="20" dy="0.3em">1</text>
+			<text x="59" y="80" dy="0.3em">2</text>
+			<text x="219" y="80" dy="0.3em">5</text>
+			<text x="19" y="140" dy="0.3em">3</text>
+			<text x="99" y="140" dy="0.3em">4</text>
+			<text x="179" y="140" dy="0.3em">6</text>
+			<text x="259" y="140" dy="0.3em">7</text>
+		</g>
+	</g>
+</g>
+</svg>
 <p>Notice that differences between <i>child - parent</i> values in the
 top-to-bottom tree sum to 15, while it's only 11 in the flattened tree.</p>
 <p>In the end flattening the tree resulted in an amazing 43% speed up.
@@ -504,7 +560,7 @@ electrons stay stuck to protons if they're neutral...</p>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-</div><div id="footer">Created on 15 May 2025 - Modified on 8 Jul 2025<br>
+</div><div id="footer">Created on 15 May 2025 - Modified on 22 Oct 2025<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>

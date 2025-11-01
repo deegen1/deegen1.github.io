@@ -44,19 +44,10 @@ TODO
 
 */
 /* npx eslint rappel.js -c ../../standards/eslint.js */
-/* global Random, Vector, Matrix, Transform, Draw, UI, Audio, Input, PhyWorld */
 
 
-function IsVisible(elem) {
-	// If the window is minimized, or the tab isn't primary.
-	if (document.visibilityState==="hidden") {return false;}
-	// If the element rect isn't on screen.
-	let rect=elem.getBoundingClientRect();
-	let doc=document.documentElement;
-	if (rect.bottom<=0 || rect.top >=(window.innerHeight || doc.clientHeight)) {return false;}
-	if (rect.right <=0 || rect.left>=(window.innerWidth  || doc.clientWidth )) {return false;}
-	return true;
-}
+import * as Lib from "./library.js";
+import {Random,Vector,Transform,Input,Draw,Audio,UI,Phy} from "./library.js";
 
 
 // Material IDs
@@ -64,7 +55,7 @@ const FILL=0,WALL=1,NORM=2,BODY=3,ROPE=4,HOOK=5,EDGE=6;
 const PART=7,LEAF=8,RUNE=9,RAIN=10,CHAR=11;
 
 
-class Game {
+export class Game {
 
 	constructor(bannerid,divid) {
 		this.banner=document.getElementById(bannerid);
@@ -102,7 +93,7 @@ class Game {
 
 	initworld() {
 		let state=this;
-		this.world=new PhyWorld(2);
+		this.world=new Phy.World(2);
 		let world=this.world;
 		world.data.game=this;
 		world.maxsteptime=1/180;
@@ -347,7 +338,7 @@ class Game {
 		// Create a climbing hold.
 		let minrad=6,maxrad=10;
 		let rnd=this.rnd;
-		let points=3+rnd.modu32(5);
+		let points=3+rnd.mod(5);
 		let arr=new Array(points);
 		let swing=Math.PI*2/points;
 		for (let i=0;i<points;i++) {
@@ -688,17 +679,17 @@ class Game {
 			}
 			let time=0;
 			while (time<maxtime) {
-				if (rnd.modu32(2)) {
+				if (rnd.mod(2)) {
 					// Swap note.
-					let a=rnd.modu32(notes);
-					let b=(rnd.modu32(notes-1)+1+a)%notes;
+					let a=rnd.mod(notes);
+					let b=(rnd.mod(notes-1)+1+a)%notes;
 					let tmp=notearr[a];
 					notearr[a]=notearr[b];
 					notearr[b]=tmp;
 				} else {
 					// Replace beat.
-					let i=rnd.modu32(beats);
-					beatarr[i]=beatmeta[rnd.modu32(beatmeta.length)];
+					let i=rnd.mod(beats);
+					beatarr[i]=beatmeta[rnd.mod(beatmeta.length)];
 				}
 				for (let n of notearr) {
 					for (let beat of beatarr) {
@@ -821,7 +812,7 @@ class Game {
 			let tension=this.ropemin+(this.ropemax-this.ropemin)*(u<1?u*u:1);
 			tension=tension<this.ropemax?tension:this.ropemax;
 			for (let atom of this.ropeatom) {
-				for (let bond of atom.bondlist.iter()) {
+				for (let bond of atom.bonditer()) {
 					if (bond.breakdist===Infinity) {
 						bond.tension=tension;
 					}
@@ -897,7 +888,7 @@ class Game {
 			for (let atom of hookatom) {
 				atom.pos.set(trans.apply(atom.data.turn));
 				atom.vel.set(force);
-				for (let bond of atom.bondlist.iter()) {
+				for (let bond of atom.bonditer()) {
 					if (!(bond.breakdist===Infinity)) {bond.release();}
 				}
 			}
@@ -908,7 +899,7 @@ class Game {
 				atom.pos.set(playerpos);
 				atom.vel.set(force);
 				force.iadd(look);
-				for (let bond of atom.bondlist.iter()) {
+				for (let bond of atom.bonditer()) {
 					if (!(bond.breakdist===Infinity)) {bond.release();}
 					else {bond.tension=tension;}
 				}
@@ -1056,7 +1047,7 @@ class Game {
 		dt=dt<this.framemax?dt:this.framemax;
 		dt=dt>0?dt:0;
 		this.frameprev=frametime;
-		if (!IsVisible(this.canvas)) {return true;}
+		if (!Lib.IsVisible(this.canvas)) {return true;}
 		let starttime=performance.now();
 		let input=this.input;
 		input.update();

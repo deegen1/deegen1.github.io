@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.11
+demo.js - v1.12
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -13,14 +13,17 @@ TODO
 
 */
 /* npx eslint demo.js -c ../../standards/eslint.js */
-/* global Random, Input, Draw */
+
+
+import {Input,Random} from "./library.js";
+import {Draw} from "./drawing.js";
 
 
 //---------------------------------------------------------------------------------
 // Demo 1 - Starfield
 
 
-class DrawDemo1 {
+export class DrawDemo1 {
 
 	constructor(canvasid) {
 		// Swap the <div> with <canvas>
@@ -42,7 +45,7 @@ class DrawDemo1 {
 		this.stararr=Array.from({length:1000},_=>({
 			x:rnd.getf()*1.5*dw,
 			y:(rnd.getf()*1.1-0.05)*dh,
-			t:rnd.modu32(2)
+			t:rnd.mod(2)
 		}));
 		this.star=new Draw.Poly(`
 			M 0.587785 0.809017 L 0 0.5 L -0.587785 0.809017 L -0.475528 0.154508
@@ -93,7 +96,7 @@ class DrawDemo1 {
 			if (x<-2) {
 				x=(rnd.getf()*0.5+1.01)*dw;
 				y=(rnd.getf()*1.1-0.05)*dh;
-				t=rnd.modu32(2);
+				t=rnd.mod(2);
 				star.y=y;
 				star.t=t;
 			}
@@ -142,7 +145,7 @@ class DrawDemo1 {
 // Demo 2 - Stress Tests
 
 
-class DrawDemo2 {
+export class DrawDemo2 {
 
 	constructor() {
 		let canvas=document.getElementById("perfcanvas");
@@ -621,7 +624,7 @@ class DrawDemo2 {
 }
 
 
-function PerformanceTest() {
+export function PerformanceTest() {
 	if (PerformanceTest.obj===undefined) {
 		let out=document.getElementById("perfdisplay");
 		out.style.display="";
@@ -632,7 +635,7 @@ function PerformanceTest() {
 }
 
 
-function PerformanceCopy() {
+export function PerformanceCopy() {
 	PerformanceTest.obj.copylog();
 }
 

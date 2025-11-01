@@ -13,9 +13,10 @@ TODO
 
 */
 /* npx eslint demo.js -c ../../standards/eslint.js */
-/* global Input, Random */
 
 
+import {Audio} from "./audio.js";
+import {Input,Random} from "./library.js";
 Audio.initdef().mute(0);
 
 
@@ -23,11 +24,10 @@ Audio.initdef().mute(0);
 // Guitar Strings
 
 
-class StringSim {
+export class StringSim {
 
 	constructor(canvid,autotext,autoplay) {
 		// Lengths are in cm.
-		Audio.initdef();
 		let st=this;
 		let can=document.getElementById(canvid);
 		this.stringlen=63.00;
@@ -176,6 +176,7 @@ class StringSim {
 		let can=this.canvas;
 		let scale=can.scrollWidth;
 		let input=this.input;
+		input.update();
 		this.autoupdate();
 		let pad=1/20,lx0=pad,lx1=1-pad;
 		// See if we're hovering over a string.
@@ -258,11 +259,10 @@ class StringSim {
 // Xylophone
 
 
-class XylophoneSim {
+export class XylophoneSim {
 
 	constructor(canvid) {
 		// Lengths are in cm.
-		Audio.initdef();
 		let can=document.getElementById(canvid);
 		this.bars=new Array(15);
 		for (let i=0;i<this.bars.length;i++) {
@@ -301,6 +301,7 @@ class XylophoneSim {
 		let can=this.canvas;
 		let scale=can.scrollWidth;
 		let input=this.input;
+		input.update();
 		let pad=1/20;
 		let height=Math.round(6.5*(scale/20));
 		// See if we're hovering over a string.
@@ -392,7 +393,7 @@ class XylophoneSim {
 // Misc Sounds
 
 
-function PlayUI(name) {
+export function PlayUI(name) {
 	let str="";
 	if (name==="phone") {
 		str=`
@@ -489,7 +490,7 @@ function PlayUI(name) {
 }
 
 
-function PlayWaveguide() {
+export function PlayWaveguide() {
 	let sndfreq=44100,sndtime=3,sndlen=Math.floor(sndfreq*sndtime);
 	let snd=new Audio.Sound(sndfreq,sndlen);
 	let pluckheight=1.0,pluckpos=0.25;
@@ -556,7 +557,7 @@ function PlayWaveguide() {
 }
 
 
-class Bebop {
+export class Bebop {
 
 	// Music box notes are all at the same volume.
 	// time, freq
@@ -779,31 +780,30 @@ function Spectrogram(real,imag,arr,len) {
 }
 
 
-function FilterDiagrams() {
+export function FilterDiagrams() {
 	// Draw pass-filter diagrams.
 	Audio.initdef();
 	let freq=44100,len=1<<16;
 	let bqparams=[
-		{id:"bq_none"     ,type:Audio.Biquad.NONE     ,freq:440,bw:1,gain:1 },
-		{id:"bq_lowpass"  ,type:Audio.Biquad.LOWPASS  ,freq:440,bw:1,gain:1 },
-		{id:"bq_highpass" ,type:Audio.Biquad.HIGHPASS ,freq:440,bw:1,gain:1 },
-		{id:"bq_bandpass" ,type:Audio.Biquad.BANDPASS ,freq:440,bw:1,gain:1 },
-		{id:"bq_notch"    ,type:Audio.Biquad.NOTCH    ,freq:440,bw:5,gain:1 },
-		{id:"bq_allpass"  ,type:Audio.Biquad.ALLPASS  ,freq:440,bw:1,gain:1 },
-		{id:"bq_peak"     ,type:Audio.Biquad.PEAK     ,freq:440,bw:5,gain:40},
-		{id:"bq_lowshelf" ,type:Audio.Biquad.LOWSHELF ,freq:440,bw:1,gain:40},
-		{id:"bq_highshelf",type:Audio.Biquad.HIGHSHELF,freq:440,bw:1,gain:40}
+		{id:"bq_none"     ,str:"#out: #noi"},
+		{id:"bq_lowpass"  ,str:"#out: LPF I #noi F 440 B 1 G 1"},
+		{id:"bq_highpass" ,str:"#out: HPF I #noi F 440 B 1 G 1"},
+		{id:"bq_bandpass" ,str:"#out: BPF I #noi F 440 B 1 G 1"},
+		{id:"bq_notch"    ,str:"#out: NPF I #noi F 440 B 5 G 1"},
+		{id:"bq_allpass"  ,str:"#out: APF I #noi F 440 B 1 G 1"},
+		{id:"bq_peak"     ,str:"#out: PKF I #noi F 440 B 5 G 40"},
+		{id:"bq_lowshelf" ,str:"#out: LSF I #noi F 440 B 1 G 40"},
+		{id:"bq_highshelf",str:"#out: HSF I #noi F 440 B 1 G 40"}
 	];
+	let sfxpref="#noi: NOISE ";
 	let svgwidth=1020,svgheight=120,svgpad=20,svgpoints=svgwidth-svgpad*2;
 	let real=new Array(len),imag=new Array(len);
 	for (let i=0;i<bqparams.length;i++) {
 		let param=bqparams[i];
 		let tr=document.getElementById(param.id);
 		if (!tr) {continue;}
-		let snd=new Audio.Sound(freq,len);
-		let bq=new Audio.Biquad(param.type,param.freq/freq,param.bw,param.gain);
+		let snd=(new Audio.SFX(sfxpref+param.str)).tosound(len/freq,NaN,freq);
 		let data=snd.data;
-		for (let j=0;j<len;j++) {data[j]=bq.process(Audio.noise(j));}
 		Spectrogram(real,imag,data,len);
 		CompressPoints(real,real,len>>2,svgpoints);
 		let svg=`<svg width="100%" viewBox='0 0 ${svgwidth} ${svgheight}' style='background:#000000;'>`;
@@ -848,7 +848,7 @@ function FilterDiagrams() {
 // Music Maker
 
 
-class MusicMaker {
+export class MusicMaker {
 
 	static init(mode,inputid,playid,outputid,displayid,compileid) {
 		this.mode=mode;

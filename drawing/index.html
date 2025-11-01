@@ -5,10 +5,7 @@
 	<title>Drawing</title>
 	<link rel="stylesheet" href="../style/style.css" type="text/css">
 	<script src="../style/style.js"></script>
-	<script src="./library.js"></script>
-	<script src="./drawing.js"></script>
-	<script src="./demo.js"></script>
-	<!--<script src="./extra/polytests.js"></script>-->
+	<script>function DEMO(f) {return import("./demo.js").then(f);}</script>
 </head>
 <body>
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
@@ -18,11 +15,12 @@
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Drawing ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <h1>Drawing</h1>
-<p><a href="#" onclick="PerformanceTest()">Performance test</a></p>
+<p><a href="#" onclick="DEMO(M=>M.PerformanceTest());">Performance test</a></p>
 <div id="perfdisplay" style="display:none">
 <p>These tests capture the relative difference of aliased, polygon-based, and
 cached raster methods.</p>
-<p><a href="#" onclick="PerformanceCopy()">&#9112; Copy results</a></p>
+<p><a href="#" onclick="DEMO(M=>M.PerformanceCopy())">&#9112; Copy results</a>
+</p>
 <div class="consoleblock" id="perftable"></div>
 <canvas id="perfcanvas"></canvas>
 </div>
@@ -36,7 +34,7 @@ to circles, to letters are composed of just 2 things: lines and bezier
 curves.</p>
 <div id="drawdemo1" class="consoleblock" style="width:80%;height:30rem;">
 Loading javascript...</div>
-<script>new DrawDemo1("drawdemo1");</script>
+<script>DEMO(M=>new M.DrawDemo1("drawdemo1"));</script>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Defining Shapes ~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->

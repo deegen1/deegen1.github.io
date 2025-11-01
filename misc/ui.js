@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-ui.js - v1.01
+ui.js - v1.02
 
 Copyright 2025 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -21,6 +21,22 @@ History
 1.01
      Split updating and rendering.
      Consumes input by calling getkeyhit().
+1.02
+     Added index section and export.
+
+
+--------------------------------------------------------------------------------
+Index
+
+
+UI
+	static VOLUME_POLY;
+	constructor(draw,input)
+	update()
+	render()
+	addtext(x,y,text,size)
+	addpoly(poly,trans)
+	addslider(x,y,w,h,value=0,min=0,max=1)
 
 
 --------------------------------------------------------------------------------
@@ -38,10 +54,10 @@ Buttons
 
 
 //---------------------------------------------------------------------------------
-// UI - v1.01
+// UI - v1.02
 
 
-class UI {
+export class UI {
 
 	static VOLUME_POLY=new Draw.Poly(`
 		M-.111-.722V.722l-.5-.416H-1V-.306h.389ZM.209-.584C.671-.33.671.33.209.584L.102

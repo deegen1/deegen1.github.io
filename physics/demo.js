@@ -18,28 +18,27 @@ Demo for physics.js
 TODO
 
 
+atominit
+	rgb, iscore, isparticle, vel (accel)
+	add vel in collision
+don't reset every resize
+velcolor decay by .99^dt
+
+
 */
 /* npx eslint demo.js -c ../../standards/eslint.js */
-/* global Vector, Random, Input, Draw, PhyWorld */
 
 
-function IsVisible(elem) {
-	// If the window is minimized, or the tab isn't primary.
-	if (document.visibilityState==="hidden") {return false;}
-	// If the element rect isn't on screen.
-	let rect=elem.getBoundingClientRect();
-	let doc=document.documentElement;
-	if (rect.bottom<=0 || rect.top >=(window.innerHeight || doc.clientHeight)) {return false;}
-	if (rect.right <=0 || rect.left>=(window.innerWidth  || doc.clientWidth )) {return false;}
-	return true;
-}
+import * as Lib from "./library.js";
+import {Random,Vector,Input,Draw} from "./library.js";
+import {Phy} from "./physics.js";
 
 
 //---------------------------------------------------------------------------------
 // Main Physics Demo
 
 
-class PhyScene {
+export class PhyScene {
 
 	constructor(divid,bannerid) {
 		this.banner=document.getElementById(bannerid);
@@ -89,7 +88,7 @@ class PhyScene {
 
 
 	initworld() {
-		this.world=new PhyWorld(2);
+		this.world=new Phy.World(2);
 		let world=this.world;
 		world.maxsteptime=1/180;
 		world.gravity.set([0,0.1]);
@@ -156,7 +155,7 @@ class PhyScene {
 
 
 	update(time) {
-		if (!IsVisible(this.canvas)) {return true;}
+		if (!Lib.IsVisible(this.canvas)) {return true;}
 		// Get the timestep. Prevent steps that are too large.
 		let delta=(time-this.frameprev)/1000;
 		delta=delta<this.framemax?delta:this.framemax;
@@ -304,7 +303,12 @@ class PhyScene {
 // used so different demos can remain in sync.
 
 
-class StackScene {
+export class StackScene {
+
+	static NONE  =0;
+	static MAX   =1;
+	static POSDIF=2;
+
 
 	constructor(divids,mode) {
 		// Setup the canvas.
@@ -331,7 +335,7 @@ class StackScene {
 		this.atomrad=0.006;
 		// Set up stack.
 		let viewh=1.0,vieww=0.5;
-		let world=new PhyWorld(2);
+		let world=new Phy.World(2);
 		this.world=world;
 		world._testmode=mode;
 		world.maxsteptime=Infinity;
@@ -390,9 +394,9 @@ class StackScene {
 		}
 		let posdif=rad-dist;
 		let mode=a.world._testmode;
-		if (mode===0) {
+		if (mode===StackScene.NONE) {
 			veldif=veldif*vmul;
-		} else if (mode===1) {
+		} else if (mode===StackScene.MAX) {
 			veldif=veldif>0?veldif:0;
 			veldif=veldif*vmul;
 		} else {
@@ -419,10 +423,10 @@ class StackScene {
 		// Compute the atom positions and colors in the background.
 		if (this.frameidx<this.framemax) {
 			let world=this.world;
-			let collideorig=PhyWorld.Atom.collide;
-			PhyWorld.Atom.collide=StackScene.collideatom;
+			let collideorig=Phy.Atom.collide;
+			Phy.Atom.collide=StackScene.collideatom;
 			world.update(1/60);
-			PhyWorld.Atom.collide=collideorig;
+			Phy.Atom.collide=collideorig;
 			let count=world.atomlist.count*3,p=0;
 			let posdata=new Float32Array(count);
 			for (let atom of world.atomiter()) {
@@ -447,7 +451,7 @@ class StackScene {
 				canvas.height=drawh;
 				draw.img.resize(draww,drawh);
 				scene.distmap=new Float32Array(draww*drawh);
-			} else if (!IsVisible(canvas)) {
+			} else if (!Lib.IsVisible(canvas)) {
 				// If we've drawn a frame and nothing's visible, skip drawing.
 				continue;
 			}
@@ -547,7 +551,7 @@ class StackScene {
 // Oscillation Demo
 
 
-class OscillationScene {
+export class OscillationScene {
 
 	static OSC_STATIC=0;
 	static OSC_RANDOM=1;
@@ -578,7 +582,8 @@ class OscillationScene {
 		this.frameidx=-1;
 		this.framedata=new Array(this.framemax+1);
 		// Set up atoms.
-		let dim=mode<2?20:5;
+		let isosc=mode<OscillationScene.INTEGRATE_ACC;
+		let dim=isosc?20:5;
 		let atoms=dim*dim;
 		let atomarr=new Array(atoms);
 		let norm=1/(dim-1),off=0.5;
@@ -595,8 +600,8 @@ class OscillationScene {
 		// everything together, generating energy.
 		let bondarr=new Array();
 		this.ordermode=mode;
-		let diag=norm*Math.sqrt(2)*(mode<2?1.1:1);
-		this.tension=mode<2?1900:10;
+		let diag=norm*Math.sqrt(2)*(isosc?1.1:1);
+		this.tension=isosc?1900:10;
 		let d=dim-1;
 		for (let y=0;y<dim;y++) {
 			for (let x=0;x<dim;x++) {
@@ -642,11 +647,11 @@ class OscillationScene {
 				vel.iadd(acc.mul(dt));
 			}
 			let mode=this.ordermode;
-			if (mode>=1) {
+			if (mode!==OscillationScene.OSC_STATIC) {
 				let rnd=this.rnd;
 				let bonds=bondarr.length;
 				for (let i=0;i<bonds;i++) {
-					let j=rnd.modu32(i+1);
+					let j=rnd.mod(i+1);
 					let bond=bondarr[i];
 					bondarr[i]=bondarr[j];
 					bondarr[j]=bond;
@@ -658,7 +663,7 @@ class OscillationScene {
 				let dif=b.pos.sub(a.pos);
 				let dist=dif.mag();
 				let acc =dif.mul(tension*(bond.dist-dist)/dist);
-				if (mode!==2) {
+				if (mode!==OscillationScene.INTEGRATE_ACC) {
 					let vacc=acc.mul(dt);
 					let pacc=acc.mul(dt*dt*0.5);
 					a.pos.isub(pacc);
@@ -684,7 +689,7 @@ class OscillationScene {
 				canvas.height=drawh;
 				draw.img.resize(draww,drawh);
 				draw.linewidth=draww/300;
-			} else if (!IsVisible(canvas)) {
+			} else if (!Lib.IsVisible(canvas)) {
 				// If we've drawn a frame and nothing's visible, skip drawing.
 				continue;
 			}
@@ -720,7 +725,7 @@ class OscillationScene {
 // BVH Demo
 
 
-class BVHScene {
+export class BVHScene {
 
 	constructor(divid) {
 		// Setup the canvas.
@@ -735,7 +740,7 @@ class BVHScene {
 		this.frameprev=0;
 		// Set up stack.
 		let vieww=1.0,viewh=vieww/this.drawratio;
-		let world=new PhyWorld(2);
+		let world=new Phy.World(2);
 		this.world=world;
 		world.maxsteptime=Infinity;
 		world.gravity.set(0);
@@ -780,7 +785,7 @@ class BVHScene {
 			canvas.width=draww;
 			canvas.height=drawh;
 			draw.img.resize(draww,drawh);
-		} else if (!IsVisible(canvas)) {
+		} else if (!Lib.IsVisible(canvas)) {
 			// If we've drawn a frame and nothing's visible, skip drawing.
 			return;
 		}

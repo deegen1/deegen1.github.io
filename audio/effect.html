@@ -4,11 +4,6 @@
 	<meta charset="utf-8">
 	<title>SFX Editor</title>
 	<link rel="stylesheet" href="../style/style.css" type="text/css">
-	<script src="../style/style.js"></script>
-	<script src="./library.js"></script>
-	<script src="./audio.js"></script>
-	<script src="./demo.js"></script>
-	<!--<script src="./extra/test.js"></script>-->
 	<style>
 	.musiceditor {
 		max-width:100%;
@@ -20,6 +15,9 @@
 		background-color:transparent;
 	}
 	</style>
+	<script src="../style/style.js"></script>
+	<script>function DEMO(f) {return import("./demo.js").then(f);}</script>
+	<!--<script src="./extra/test.js"></script>-->
 </head>
 <body>
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
@@ -37,8 +35,8 @@ style='width:100%;height:9rem;background:#000000;margin:auto'>
 style="height:8rem;margin-bottom:0.5rem;" readonly></textarea>
 <button id="main_play">&#9658; Play</button>&nbsp;&nbsp;
 <button id="main_comp">Compile</button>&nbsp;&nbsp;
-<button id="main_download" onclick="MusicMaker.download()">.WAV</button>&nbsp;&nbsp;
-<button id="main_url" onclick="MusicMaker.tourl()">URL</button>&nbsp;&nbsp;
+<button id="main_download" onclick="DEMO(M=>M.MusicMaker.download())">.WAV</button>&nbsp;&nbsp;
+<button id="main_url" onclick="DEMO(M=>M.MusicMaker.tourl())">URL</button>&nbsp;&nbsp;
 <textarea id="main_editor" class="codeblock musiceditor" style="height:20rem;"
 spellcheck="false">'Crunchy Harddrive
 #f1  : TRI F 9 L 0 H -0.9
@@ -48,8 +46,8 @@ spellcheck="false">'Crunchy Harddrive
 #bpf : BPF F 300 I #comb #f3
 #out : ENV A 0.01 S 1.9 R 0.09 I #bpf
 </textarea>
-<script>MusicMaker.init("effect","main_editor","main_play","main_out",
-"main_display","main_comp");</script>
+<script>DEMO(M=>M.MusicMaker.init("effect","main_editor","main_play",
+"main_out","main_display","main_comp"));</script>
 <p>The sound effect scripting language is a shorthand way to make practical
 sound effects.</p>
 <h2>Rules</h2>
@@ -101,7 +99,7 @@ lowpass, highpass, etc. Gain is linear.</td>
 spellcheck="false">'Simple sine wave with an envelope
 #osc: SIN F 150
 #out: ENV A 0.01 S 0.9 R 0.09 I #osc</textarea>
-<script>MusicMaker.initsub("sub1_play","sub1_editor");</script>
+<script>DEMO(M=>M.MusicMaker.initsub("sub1_play","sub1_editor"));</script>
 <button id="sub2_play">&#9658; Play</button>
 <textarea id="sub2_editor" class="codeblock musiceditor"
 spellcheck="false">'Hi-hat
@@ -111,7 +109,7 @@ spellcheck="false">'Hi-hat
 #hpf: HPF F #freq I #sig G 0.7
 #bpf: BPF F #freq 1.4 * I #sig G 0.7
 #out: ENV A 0.005 R #time 0.005 - I #hpf #bpf</textarea>
-<script>MusicMaker.initsub("sub2_play","sub2_editor");</script>
+<script>DEMO(M=>M.MusicMaker.initsub("sub2_play","sub2_editor"));</script>
 <button id="sub3_play">&#9658; Play</button>
 <textarea id="sub3_editor" class="codeblock musiceditor"
 spellcheck="false">'Plasma Missile
@@ -121,7 +119,7 @@ spellcheck="false">'Plasma Missile
 #sigl: LPF F #freq I #noi2 B 1
 #sigb: BPF F #freq I #noi2 B 2
 #out : ENV A .015 R .985 I #sigl #sigb</textarea>
-<script>MusicMaker.initsub("sub3_play","sub3_editor");</script>
+<script>DEMO(M=>M.MusicMaker.initsub("sub3_play","sub3_editor"));</script>
 <button id="sub4_play">&#9658; Play</button>
 <textarea id="sub4_editor" class="codeblock musiceditor"
 spellcheck="false">'Knocking
@@ -132,7 +130,7 @@ spellcheck="false">'Knocking
 #del  : DEL T 0.3 I #knock #del
 #alive: NOISE H 0.001
 #out  : ENV A 0 S 0.9 R 0 I #alive #knock #del</textarea>
-<script>MusicMaker.initsub("sub4_play","sub4_editor");</script>
+<script>DEMO(M=>M.MusicMaker.initsub("sub4_play","sub4_editor"));</script>
 <button id="sub5_play">&#9658; Play</button>
 <textarea id="sub5_editor" class="codeblock musiceditor"
 spellcheck="false">'Electricity
@@ -142,19 +140,19 @@ spellcheck="false">'Electricity
 #saw1: SAW F #f1
 #sig : LPF F 3000 I #saw0 #saw1 + 0.5 < -0.5 >
 #out : ENV S 2 I #sig</textarea>
-<script>MusicMaker.initsub("sub5_play","sub5_editor");</script>
+<script>DEMO(M=>M.MusicMaker.initsub("sub5_play","sub5_editor"));</script>
 <button id="sub6_play">&#9658; Play</button>
 <textarea id="sub6_editor" class="codeblock musiceditor"
 spellcheck="false">'Karplus-Strong String
 #freq: 100
-#rate: 1 #freq /
+#rate: 0.5 #freq /
 #slide: 0.5
 #sig1: NOISE H 10 L -10
 #sig : ENV A 0 S #rate R 0 I #sig1 -1 &gt; 1 &lt;
-#line: DEL M 0.1 T #rate I #val
-#val : #sig #line - #val - #slide * #val +
+#del : DEL M 0.1 T #rate I #val
+#val : #sig #del + #val - #slide * #val +
 #out : ENV A 0 S 0 R 3 I #val</textarea>
-<script>MusicMaker.initsub("sub6_play","sub6_editor");</script>
+<script>DEMO(M=>M.MusicMaker.initsub("sub6_play","sub6_editor"));</script>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Motivation ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->

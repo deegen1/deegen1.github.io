@@ -71,26 +71,38 @@ History
 TODO
 
 
-callbacks
-	atomdelcallback
-	bonddelcallback
-	process deletions at start of main loop
-	add to release queue
+Reduce to 20kb.
+	remove dt derivation
+	remove autobond and createbox
 
 createshape
 	Inside/outside test for dim>2.
 	Simplex distance calculation for dim>2.
 	Instead of checking each cell for overlap with atoms, remove cells every
 	time an atom is created.
-	Why are the sometimes holes?
+	Why are there sometimes holes?
+	sort:
+		outline first, then center outward
+		sort=dist>-1e-10?bary.sqr():1/dist
+	cell:
+		idx
+		hash
+		sort
+		dist
+		pos
+	After filling a cell, update dist for everything within 2*rad
 
-Switch list to array
-	arr=new PhyArray("_atomidx"); // indexname="_atomidx"
-	arr.add(atom);                // obj[indexname]=...
-	arr.remove(atom);             // obj[indexname]=-1
-	remove tmpmem and bvh.atomarr
-	Randomize bonds with gcd(con,bonds)=1, i=mod(bonds), i+=con
-	Keep objects allocated in the array, since we'll add and remove them a lot.
+Sleeping
+	ACTIVE
+	NATURAL_SLEEP
+	FORCE_SLEEP
+	INACTIVE
+
+callbacks
+	atomdelcallback
+	bonddelcallback
+	process deletions at start of main loop
+	add to release queue
 
 Better sleeping
 	sleeptime+=dt
@@ -109,19 +121,20 @@ BVH
 	TestRay(colfunc)
 	TestBox(colfunc)
 
-Fix tree diagram in article.
+Reduce closestpoint() from 2^N steps to N.
 Remove world bounds. Add to timestep in demo.
 Add static bonds to article.
 New article: friction with springs.
 Remove static bonds if another bond is formed afterwards?
 Use module to put everything under Phy namespace.
 Motors: linear, angular, range. Add acceleration?
-Reduce to 20kb.
 
 
 */
 /* npx eslint physics.js -c ../../standards/eslint.js */
-/* global Vector, Transform, Random */
+
+
+import {Random,Vector,Transform} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
@@ -158,10 +171,10 @@ class PhyLink {
 
 class PhyList {
 
-	constructor(ptr) {
+	constructor(ptr=null) {
 		this.head=null;
 		this.tail=null;
-		this.ptr=ptr||null;
+		this.ptr=ptr;
 		this.count=0;
 	}
 
@@ -486,6 +499,9 @@ class PhyAtom {
 	}
 
 
+	bonditer() {return this.bondlist.iter();}
+
+
 	updateconstants() {
 		// Calculate the mass of the atom, where mass=volume*density.
 		let dim=this.pos.length;
@@ -537,7 +553,7 @@ class PhyAtom {
 
 	static collide(a,b) {
 		// Collides two atoms. Vector operations are unrolled to use constant memory.
-		if (Object.is(a,b) || a.deleted || b.deleted) {return;}
+		if (a===b || a.deleted || b.deleted) {return;}
 		// Determine if the atoms are overlapping.
 		let apos=a.pos,bpos=b.pos;
 		let dim=apos.length,i;
@@ -557,7 +573,7 @@ class PhyAtom {
 		while (link!==null) {
 			let bond=link.obj;
 			link=link.next;
-			if (Object.is(bond.a,b1) || Object.is(bond.b,b1)) {
+			if (bond.a===b1 || bond.b===b1) {
 				rad=rad<bond.dist?rad:bond.dist;
 				bonded=bond;
 			}
@@ -930,10 +946,6 @@ class PhyBroadphase {
 
 class PhyWorld {
 
-	static Atom=PhyAtom;
-	static Bond=PhyBond;
-
-
 	constructor(dim) {
 		this.dim=dim;
 		this.maxsteptime=1/180;
@@ -1290,3 +1302,13 @@ class PhyWorld {
 
 }
 
+
+const Phy={
+	Intr:PhyAtomInteraction,
+	AtomType:PhyAtomType,
+	Atom:PhyAtom,
+	Bond:PhyBond,
+	Broadphase:PhyBroadphase,
+	World:PhyWorld
+};
+export {Phy};

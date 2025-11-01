@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-audio.js - v3.07
+audio.js - v3.08
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -61,7 +61,89 @@ History
      Updating master volume will update all playing instances.
 3.07
      Added the floor _ operator to SFX.
-     Fixed a big in the linked list of queue'd sounds.
+     Fixed a bug in the linked list of queued sounds.
+3.08
+     Switched to using modules.
+
+
+--------------------------------------------------------------------------------
+Index
+
+
+Audio.Sound
+	constructor(freq=44100,len=0)
+	get(i)
+	slicelen(start=0,len=Infinity)
+	slicetime(start=0,len=Infinity)
+	copy()
+	trim(eps=1e-4)
+	trimstart(eps=1e-4)
+	trimend(eps=1e-4)
+	resizelen(len)
+	resizetime(time)
+	loadfile(path)
+	savefile(name)
+	fromwav(data,dataidx=0)
+	towav()
+	play(volume,pan,time,freq)
+	addindex(snd,dstoff=0,vol=1.0)
+	add(snd,time=0,vol=1.0)
+	getvol()
+	scalevol(mul,normalize=false)
+
+
+Audio.SFX
+	constructor(str)
+	reset()
+	tosound(time=10,silence=0.1,freq=44100)
+	geti(name)
+	getf(name)
+	seti(name,val)
+	setf(name,val)
+	parse(seqstr)
+	next()
+	fill(snd,fstart,flen)
+	// Default Sounds
+	"uiinc","uidec","uiconf","uierr","uiclick","explosion1","explosion2",
+	"gunshot1","gunshot2","missile1","electricity","laser","thud","marble"
+	static defload(name,vol,freq,time)
+	static defsnd(name,vol,freq,time)
+	static defplay(name,vol,freq,time)
+
+
+Audio.Instance
+	constructor(snd,vol=1.0,pan=0.0,time=0,freq)
+	remove()
+	stop()
+	start()
+	setpan(pan)
+	setvolume(vol)
+	gettime()
+
+
+Audio
+	static def
+	constructor(mute=0,volume=1,autoupdate=true,freq=44100)
+	static initdef(def)
+	setvolume(vol)
+	play(snd,volume,pan,time,freq)
+	mute(val)
+	update()
+	// Sequencer
+	static sequencer(seq)
+	// String Instruments
+	static createguitar(volume=1.0,freq=200,pluck=0.5,time=3,sndfreq=44100)
+	static createxylophone(volume=1.0,freq=250,pos=0.5,time=2.2,sndfreq=44100)
+	static createmarimba(volume=1.0,freq=250,pos=0.5,time=2.2,sndfreq=44100)
+	static createglockenspiel(volume=0.2,freq=1867,pos=0.5,time=5.3,sndfreq=44100)
+	static createmusicbox(volume=0.1,freq=877,time=3.0,sndfreq=44100)
+	// Percussion Instruments
+	static createdrumhihat(volume=0.2,freq=7000,time=0.1)
+	static createdrumkick(volume=0.3,freq=80,time=0.2)
+	static createdrumsnare(volume=0.1,freq=200,time=0.2)
+	// Wind Instruments
+	static createflute(volume=1.0,freq=200,time=2.0)
+	static createtuba(volume=1.0,freq=300,time=2.0)
 
 
 --------------------------------------------------------------------------------
@@ -69,11 +151,8 @@ TODO
 
 
 Use module to put everything under Audio namespace.
-
-Reduce size to 20kb
-	Abandon realistic instruments.
-	Remove envelopes, biquad, and delay.
-	Swap sound instance linked lists to array like in physics.js.
+Use instance.start() to start the sound.
+Make sure article still works.
 
 Waveguides
 	https://www.osar.fr/notes/waveguides/
@@ -117,19 +196,20 @@ Allow inst to play effects
 
 */
 /* npx eslint audio.js -c ../../standards/eslint.js */
-/* global */
+
+
+import {Random} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
 // Audio - v3.07
 
 
-class _AudioSound {
+class AudioSound {
 
 	constructor(freq=44100,len=0) {
 		// accepts len/path and frequency
-		Audio.initdef();
-		this.audio=Audio.def;
+		this.audio=Audio.initdef();
 		this.freq=freq;
 		this.queue=null;
 		let type=typeof len;
@@ -165,7 +245,7 @@ class _AudioSound {
 		if (start>this.len) {start=this.len;}
 		if (len>this.len-start) {len=this.len-start;}
 		len=Math.floor(len);
-		let newsnd=new Audio.Sound(this.freq,len);
+		let newsnd=new AudioSound(this.freq,len);
 		let newdata=newsnd.data;
 		let data=this.data;
 		for (let i=0;i<len;i++) {newdata[i]=data[start+i];}
@@ -461,56 +541,10 @@ class _AudioSound {
 		return this;
 	}
 
-
-	scalelen(newlen) {
-		let data=this.data,len=this.len;
-		if (len<newlen) {
-			// Stretch by linearly interpolating.
-			this.resizelen(newlen);
-			data=this.data;
-			let sinc=len-1,dinc=newlen-1;
-			let spos=len-1,dpos=newlen;
-			let x0=len>0?data[spos]:0,xd=0;
-			let rem=0,iden=1/dinc;
-			while (dpos>0) {
-				data[--dpos]=x0+xd*rem;
-				rem-=sinc;
-				if (rem<0) {
-					rem+=dinc;
-					xd=x0;
-					x0=data[--spos];
-					xd=(xd-x0)*iden;
-				}
-			}
-		} else if (len>newlen) {
-			// Shrink by summing and averaging.
-			let rem=0,rden=1/len,sum=0,sden=newlen/len,x;
-			let dpos=0,spos=0;
-			while (dpos<newlen) {
-				x=data[spos++];
-				sum+=x;
-				rem+=newlen;
-				if (rem>=len) {
-					rem-=len;
-					x=rem>0?x*(rem*rden):0;
-					data[dpos++]=sum*sden-x;
-					sum=x;
-				}
-			}
-			this.resizelen(newlen);
-		}
-		return this;
-	}
-
-
-	scaletime(newtime) {
-		return this.scalelen(Math.round((newtime/this.time)*this.freq));
-	}
-
 }
 
 
-class _AudioSFX {
+class AudioSFX {
 
 	// Array Format
 	//  Offset | Data
@@ -558,14 +592,14 @@ class _AudioSFX {
 		if (silence>=Infinity) {
 			// Fill the whole time.
 			if (time>=Infinity) {throw "infinite sound";}
-			snd=new Audio.Sound(freq,maxlen);
+			snd=new AudioSound(freq,maxlen);
 			this.fill(snd);
 		} else {
 			// Fill until max time or silence.
 			const thres=1e-5;
 			let sillen=Math.floor(freq*silence);
 			let genlen=Math.floor(freq*0.2)+1;
-			snd=new Audio.Sound(freq,0);
+			snd=new AudioSound(freq,0);
 			let len=snd.len,silpos=0;
 			let data=snd.data;
 			for (let dst=0;dst<maxlen && dst-silpos<sillen;) {
@@ -590,36 +624,18 @@ class _AudioSFX {
 	}
 
 
-	geti(name) {
-		// Gets the value at #node.attr. Ex: #osc1.f
+	addr(name) {
+		// Gets the address of #node.attr. Ex: #osc1.f
 		let addr=this.namemap[name];
 		if (addr===undefined) {throw name+" not found";}
-		return this.di32[addr];
+		return addr;
 	}
 
 
-	getf(name) {
-		let addr=this.namemap[name];
-		if (addr===undefined) {throw name+" not found";}
-		return this.df32[addr];
-	}
-
-
-	seti(name,val) {
-		// Sets the value at #node.attr.
-		let addr=this.namemap[name];
-		if (addr===undefined) {throw name+" not found";}
-		this.di32[addr]=val;
-		return this;
-	}
-
-
-	setf(name,val) {
-		let addr=this.namemap[name];
-		if (addr===undefined) {throw name+" not found";}
-		this.df32[addr]=val;
-		return this;
-	}
+	geti(name) {return this.di32[this.addr(name)];}
+	getf(name) {return this.df32[this.addr(name)];}
+	seti(name,val) {this.di32[this.addr(name)]=val;return this;}
+	setf(name,val) {this.df32[this.addr(name)]=val;return this;}
 
 
 	// ----------------------------------------
@@ -1250,9 +1266,9 @@ class _AudioSFX {
 
 
 	static defload(name,vol,freq,time) {
-		let str=_AudioSFX.deflib[name];
+		let str=AudioSFX.deflib[name];
 		if (str===undefined) {throw "unknown effect: "+name;}
-		let sfx=new _AudioSFX(str);
+		let sfx=new AudioSFX(str);
 		if (vol !==undefined) {sfx.setf("#vol.out" ,vol );}
 		if (freq!==undefined) {sfx.setf("#freq.out",freq);}
 		if (time!==undefined) {sfx.setf("#time.out",time);}
@@ -1261,7 +1277,7 @@ class _AudioSFX {
 
 
 	static defsnd(name,vol,freq,time) {
-		let sfx=_AudioSFX.defload(name,vol,freq,time);
+		let sfx=AudioSFX.defload(name,vol,freq,time);
 		let silence=Infinity;
 		if (isNaN(time) || time<0) {time=NaN;silence=0.1;}
 		return sfx.tosound(time,silence);
@@ -1269,16 +1285,18 @@ class _AudioSFX {
 
 
 	static defplay(name,vol,freq,time) {
-		_AudioSFX.defsnd(name,vol,freq,time).play();
+		AudioSFX.defsnd(name,vol,freq,time).play();
 	}
 
 }
 
 
-class _AudioInstance {
+class AudioInstance {
 
 	// We can only call start/stop once. In order to pause a buffer node, we need to
 	// destroy and recreate the node.
+	// src -> gain -> pan -> output
+
 
 	constructor(snd,vol=1.0,pan=0.0,time=0,freq) {
 		let audio=snd.audio;
@@ -1297,40 +1315,25 @@ class _AudioInstance {
 		if (next!==null) {next.sndprev=this;}
 		snd.queue   =this;
 		// Misc
+		this.time   =time;
 		this.volume =vol;
+		this.pan    =pan;
 		this.rate   =(freq??audio.freq)/audio.freq;
 		this.playing=false;
 		this.done   =false;
 		this.muted  =audio.muted;
-		// src -> gain -> pan -> ctx
-		let ctx=audio.ctx;
-		this.ctx=ctx;
-		this.ctxpan=ctx.createStereoPanner();
-		this.ctxpan.connect(ctx.destination);
-		this.ctxgain=ctx.createGain();
-		this.ctxgain.connect(this.ctxpan);
-		this.setpan(pan);
-		this.setvolume(vol);
-		let ctxsrc=ctx.createBufferSource();
-		this.ctxsrc=ctxsrc;
-		let st=this;
-		ctxsrc.onended=function(){st.remove();};
-		ctxsrc.buffer=snd.ctxbuf;
-		ctxsrc.connect(this.ctxgain);
-		if (snd.ctxbuf) {
-			if (!this.muted) {ctxsrc.start(0,time,snd.time);}
-			this.playing=true;
-		}
-		this.time=time-performance.now()*0.001;
+		// Nodes
+		this.ctxgain=null;
+		this.ctxpan=null;
+		this.ctxsrc=null;
+		this.start();
 	}
 
 
 	remove() {
+		this.stop();
 		if (this.done) {return;}
 		this.done=true;
-		let time=this.time+(this.playing?performance.now()*0.001:0);
-		this.time=time<this.snd.time?time:this.snd.time;
-		this.playing=false;
 		let audio=this.snd.audio;
 		let audprev=this.audprev;
 		let audnext=this.audnext;
@@ -1356,43 +1359,56 @@ class _AudioInstance {
 			sndnext.sndprev=sndprev;
 			this.sndnext=null;
 		}
-		this.ctxsrc.onended=undefined;
-		try {this.ctxsrc.stop();} catch {}
-		this.ctxsrc.disconnect();
-		this.ctxgain.disconnect();
-		this.ctxpan.disconnect();
 	}
 
 
 	stop() {
-		// Audio nodes can't start and stop, so recreate the node.
-		if (!this.done && this.playing) {
-			this.playing=false;
-			this.muted=this.audio.muted;
-			let src=this.ctxsrc;
-			let endfunc=src.onended;
+		// Disconnect and record our time.
+		if (this.done || !this.playing) {return;}
+		this.playing=false;
+		this.muted=this.audio.muted;
+		let src=this.ctxsrc;
+		if (src) {
 			src.onended=undefined;
 			try {src.stop();} catch {}
 			src.disconnect();
-			this.time+=performance.now()*0.001;
-			src=this.ctx.createBufferSource();
-			src.onended=endfunc;
-			src.buffer=this.snd.ctxbuf;
-			src.connect(this.ctxgain);
-			this.ctxsrc=src;
+			this.ctxsrc=null;
+			this.ctxgain.disconnect();
+			this.ctxgain=null;
+			this.ctxpan.disconnect();
+			this.ctxpan=null;
 		}
+		this.time+=performance.now()*0.001;
 	}
 
 
 	start() {
-		if (!this.done && !this.playing) {
-			this.playing=true;
-			this.muted=this.audio.muted;
-			let rem=this.snd.time-this.time;
-			if (rem<=0) {this.remove();}
-			else if (!this.muted) {this.ctxsrc.start(0,this.time,rem);}
-			this.time-=performance.now()*0.001;
+		// Audio nodes can't restart, so recreate the node.
+		if (this.done || this.playing) {return;}
+		this.muted=this.audio.muted;
+		let rem=this.snd.time-this.time;
+		if (rem<=0) {
+			this.remove();
+			return;
 		}
+		this.playing=true;
+		if (!this.muted) {
+			let ctx=this.audio.ctx;
+			this.ctxpan=ctx.createStereoPanner();
+			this.ctxpan.connect(ctx.destination);
+			this.ctxgain=ctx.createGain();
+			this.ctxgain.connect(this.ctxpan);
+			this.setpan();
+			this.setvolume();
+			let src=ctx.createBufferSource();
+			let st=this;
+			src.onended=function(){st.remove();};
+			src.buffer=this.snd.ctxbuf;
+			src.connect(this.ctxgain);
+			src.start(0,this.time,rem);
+			this.ctxsrc=src;
+		}
+		this.time-=performance.now()*0.001;
 	}
 
 
@@ -1404,8 +1420,8 @@ class _AudioInstance {
 		else if (pan>1) {pan=1;}
 		else if (isNaN(pan)) {pan=this.pan;}
 		this.pan=pan;
-		if (!this.done) {
-			this.ctxpan.pan.value=this.pan;
+		if (this.ctxpan) {
+			this.ctxpan.pan.value=pan;
 		}
 	}
 
@@ -1413,7 +1429,7 @@ class _AudioInstance {
 	setvolume(vol) {
 		vol=isNaN(vol)?this.volume:vol;
 		this.volume=vol;
-		if (!this.done) {
+		if (this.ctxgain) {
 			vol*=this.audio.volume;
 			this.ctxgain.gain.value=vol;
 		}
@@ -1427,308 +1443,16 @@ class _AudioInstance {
 }
 
 
-class _AudioDelay {
-	// Delay filter with linear interpolation.
+export class Audio {
 
-	constructor(rate,delay) {
-		this.rate=rate;
-		this.delay=delay;
-		this.pos=0;
-		this.len=Math.floor(rate*delay)+2;
-		this.data=new Float32Array(this.len);
-	}
-
-
-	add(x) {
-		if (++this.pos>=this.len) {this.pos=0;}
-		this.data[this.pos]=x;
-	}
-
-
-	get(delay) {
-		if (delay===undefined) {
-			delay=this.delay;
-		} else if (delay<0 || delay>this.delay) {
-			throw `Delay too large ${delay} > ${this.delay}`;
-		}
-		delay*=this.rate;
-		let i=Math.floor(delay);
-		let f=delay-i;
-		let len=this.len,data=this.data;
-		i=this.pos-i;
-		if (i<0) {i+=len;}
-		let j=i-1;
-		if (j<0) {j+=len;}
-		return data[i]*(1-f)+data[j]*f;
-	}
-
-
-	process(x) {
-		this.add(x);
-		return this.get();
-	}
-
-}
-
-
-class _AudioEnvelope {
-	// Envelope/gain filter.
-
-	static CON=0;
-	static LIN=1;
-	static EXP=2;
-
-
-	constructor(arr=null,eps=0.001) {
-		// [ type, time, target, type, time, target, ... ]
-		// type = con, lin, exp
-		this.last=null;
-		this.stop=0;
-		this.eps=eps;
-		this.envarr=[];
-		for (let i=0;arr && i<arr.length;i+=3) {
-			this.add(arr[i],arr[i+1],arr[i+2]);
-		}
-	}
-
-
-	add(type,time,target) {
-		if (time<0 || isNaN(time)) {
-			throw "envelope invalid time: "+time.toString();
-		}
-		let envarr=this.envarr;
-		let prev=envarr.length>0?envarr[envarr.length-1]:null;
-		let prevtar=prev?prev.target:0;
-		let prevstop=prev?prev.stop:0;
-		let env={};
-		env.start=prevstop;
-		env.stop=prevstop+time;
-		env.type=type;
-		if (type===_AudioEnvelope.CON || time<=0) {
-			env.mul=0;
-			env.con=target;
-		} else if (type===_AudioEnvelope.LIN) {
-			env.mul=(target-prevtar)/time;
-			env.con=prevtar-env.mul*prevstop;
-		} else if (type===_AudioEnvelope.EXP) {
-			// Scale the exponential by 1/(1-eps) to reach our target values.
-			let leps=Math.log(this.eps);
-			let expmul=(target-prevtar)/(1-this.eps);
-			if (expmul<0) {
-				env.mul=leps/time;
-				env.con=Math.log(-expmul)-env.mul*prevstop;
-				env.expcon=prevtar+expmul;
-			} else {
-				env.mul=-leps/time;
-				env.con=Math.log(expmul)+leps-env.mul*prevstop;
-				env.expcon=target-expmul;
-			}
-		} else {
-			throw "envelope type not recognized: "+type;
-		}
-		env.target=target;
-		envarr.push(env);
-		this.stop=env.stop;
-		return this;
-	}
-
-
-	get(time) {
-		let env=this.last;
-		// If we're in a new time segment.
-		if (env===null || time<env.start || time>=env.stop) {
-			env=null;
-			if (time>=0 && time<this.stop) {
-				let envarr=this.envarr;
-				let i=0,len=envarr.length;
-				while (i<len && time>=envarr[i].stop) {i++;}
-				env=i<len?envarr[i]:null;
-			}
-			this.last=env;
-			if (env===null) {return 0;}
-		}
-		let u=time*env.mul+env.con;
-		if (env.type!==_AudioEnvelope.EXP) {return u;}
-		else {return Math.exp(u)+env.expcon;}
-	}
-
-}
-
-
-class _AudioBiquad {
-	// Biquad filter
-	// https://shepazu.github.io/Audio-EQ-Cookbook/audio-eq-cookbook.html
-	// lingain(db)  = exp(db/(ln(10)*40))
-	// bandwidth(Q) = sinh^-1(0.5/Q)*2/ln(2)
-
-	static NONE     =0;
-	static LOWPASS  =1;
-	static HIGHPASS =2;
-	static BANDPASS =3;
-	static NOTCH    =4;
-	static ALLPASS  =5;
-	static PEAK     =6;
-	static LOWSHELF =7;
-	static HIGHSHELF=8;
-
-
-	constructor(type,rate,bandwidth=1,lingain=1) {
-		// Bandwidth in kHz.
-		// rate = freq / sample rate
-		// Gain is applied to input signal.
-		this.type=type;
-		this.rate=rate;
-		this.gain=lingain;
-		this.bandwidth=bandwidth;
-		this.clear();
-		this.calccoefs();
-	}
-
-
-	clear() {
-		this.s1=0;
-		this.s2=0;
-	}
-
-
-	process(x) {
-		// transposed direct form 2
-		let y  =this.b0*x+this.s1;
-		y=y>-Infinity && y<Infinity?y:0;
-		this.s1=this.b1*x-this.a1*y+this.s2;
-		this.s2=this.b2*x-this.a2*y;
-		return y;
-	}
-
-
-	response(rate) {
-		// Return the magnitude,phase response to a given frequency.
-		// rate = freq / sample rate
-		let w=Math.PI*2*rate;
-		let cos1=Math.cos(-w),cos2=Math.cos(-2*w);
-		let sin1=Math.sin(-w),sin2=Math.sin(-2*w);
-		let realzero=this.b1*cos1+this.b2*cos2+this.b0;
-		let imagzero=this.b1*sin1+this.b2*sin2;
-		let realpole=this.a1*cos1+this.a2*cos2+1;
-		let imagpole=this.a1*sin1+this.a2*sin2;
-		let den=realpole*realpole+imagpole*imagpole;
-		let realw=(realzero*realpole+imagzero*imagpole)/den;
-		let imagw=(imagzero*realpole-realzero*imagpole)/den;
-		let mag=Math.sqrt(realw*realw+imagw*imagw);
-		let phase=-Math.atan2(imagw,realw)/rate;
-		return [mag,phase];
-	}
-
-
-	updatecoefs(type,rate,bandwidth=1,lingain=1) {
-		if (this.type!==type || this.rate!==rate || this.bandwidth!==bandwidth || this.gain!==lingain) {
-			this.type=type;
-			this.rate=rate;
-			this.gain=lingain;
-			this.bandwidth=bandwidth;
-			this.calccoefs();
-		}
-	}
-
-
-	calccoefs() {
-		let b0=1,b1=0,b2=0;
-		let a0=1,a1=0,a2=0;
-		let v  =this.gain;
-		let ang=2*Math.PI*this.rate;
-		let sn =Math.sin(ang);
-		let cs =Math.cos(ang);
-		let q  =0.5/Math.sinh(Math.log(2)*0.5*this.bandwidth*ang/sn);
-		let a  =sn/(2*q);
-		let vr =2*Math.sqrt(v)*a;
-		let type=this.type;
-		if (type===_AudioBiquad.NONE) {
-		} else if (type===_AudioBiquad.LOWPASS) {
-			b1=(1-cs)*v;
-			b2=0.5*b1;
-			b0=b2;
-			a0=1+a;
-			a1=-2*cs;
-			a2=1-a;
-		} else if (type===_AudioBiquad.HIGHPASS) {
-			b1=(-1-cs)*v;
-			b2=-0.5*b1;
-			b0=b2;
-			a0=1+a;
-			a1=-2*cs;
-			a2=1-a;
-		} else if (type===_AudioBiquad.BANDPASS) {
-			b1=0;
-			b2=-a*v;
-			b0=-b2;
-			a0=1+a;
-			a1=-2*cs;
-			a2=1-a;
-		} else if (type===_AudioBiquad.NOTCH) {
-			b1=-2*cs*v;
-			b2=v;
-			b0=v;
-			a0=1+a;
-			a1=-2*cs;
-			a2=1-a;
-		} else if (type===_AudioBiquad.ALLPASS) {
-			b1=-2*cs*v;
-			b2=(1+a)*v;
-			b0=(1-a)*v;
-			a0=b2;
-			a1=b1;
-			a2=1-a;
-		} else if (type===_AudioBiquad.PEAK) {
-			b0=1+a*v;
-			b1=-2*cs;
-			b2=1-a*v;
-			a0=1+a/v;
-			a1=-2*cs;
-			a2=1-a/v;
-		} else if (type===_AudioBiquad.LOWSHELF) {
-			b0=v*((v+1)-(v-1)*cs+vr);
-			b1=2*v*((v-1)-(v+1)*cs);
-			b2=v*((v+1)-(v-1)*cs-vr);
-			a0=(v+1)+(v-1)*cs+vr;
-			a1=-2*((v-1)+(v+1)*cs);
-			a2=(v+1)+(v-1)*cs-vr;
-		} else if (type===_AudioBiquad.HIGHSHELF) {
-			b0=v*((v+1)+(v-1)*cs+vr);
-			b1=-2*v*((v-1)+(v+1)*cs);
-			b2=v*((v+1)+(v-1)*cs-vr);
-			a0=(v+1)-(v-1)*cs+vr;
-			a1=2*((v-1)-(v+1)*cs);
-			a2=(v+1)-(v-1)*cs-vr;
-		} else {
-			throw "Biquad type not recognized: "+type;
-		}
-		this.a1=a1/a0;
-		this.a2=a2/a0;
-		this.b0=b0/a0;
-		this.b1=b1/a0;
-		this.b2=b2/a0;
-	}
-
-}
-
-
-class Audio {
-
-	static Sound    =_AudioSound;
-	static SFX      =_AudioSFX;
-	static Instance =_AudioInstance;
-	static Delay    =_AudioDelay;
-	static Envelope =_AudioEnvelope;
-	static Biquad   =_AudioBiquad;
-
+	static Sound=AudioSound;
+	static SFX=AudioSFX;
+	static Instance=AudioInstance;
 	// The default context used for audio functions.
 	static def=null;
-	static randacc=0;
-	static randinc=0;
 
 
 	constructor(mute=0,volume=1,autoupdate=true,freq=44100) {
-		Object.assign(this,this.constructor);
 		this.freq=freq;
 		this.queue=null;
 		this.volume=volume;
@@ -1751,12 +1475,6 @@ class Audio {
 		if (!def) {def=Audio.def;}
 		if (!def) {def=new Audio();}
 		Audio.def=def;
-		if (!Audio.randinc) {
-			Audio.randinc=1;
-			Audio.randacc=performance.timeOrigin+performance.now();
-			Audio.randinc=((Audio.noise1()*0xffffffff)|1)>>>0;
-			Audio.randacc=(Audio.noise1()*0xffffffff)>>>0;
-		}
 		return def;
 	}
 
@@ -1774,7 +1492,7 @@ class Audio {
 
 
 	play(snd,volume,pan,time,freq) {
-		return new _AudioInstance(snd,volume,pan,time,freq);
+		return new AudioInstance(snd,volume,pan,time,freq);
 	}
 
 
@@ -1821,103 +1539,6 @@ class Audio {
 
 
 	// ----------------------------------------
-	// Oscillators
-	// All input domains are wrapped to [0,1).
-	// NaN and infinite values return the minimum value.
-
-
-	static saw(x) {
-		//   /|  /|  /|
-		//  / | / | / |
-		// /  |/  |/  |
-		x%=1.0;
-		x=x<0?1+x:x;
-		return x>=0?x*2-1:-1;
-	}
-
-
-	static sin(x) {
-		x%=1.0;
-		return x>=-1?Math.sin(x*(Math.PI*2)):-1;
-	}
-
-
-	static tri(x) {
-		//   /\    /\    /
-		//  /  \  /  \  /
-		// /    \/    \/
-		x%=1.0;
-		x=x<0.0?1+x:x;
-		x=x>0.5?1-x:x;
-		return x>=0?x*4-1:-1;
-	}
-
-
-	static sqr(x) {
-		//    __    __
-		//   |  |  |  |
-		//   |  |  |  |
-		// __|  |__|  |__
-		x%=1.0;
-		x=x<0?1+x:x;
-		return x>=0?(x>0.5?1:-1):-1;
-	}
-
-
-	static noise1(x) {
-		// Noise with interpolation. If undefined, acts as a PRNG.
-		// Returns a value in [0,1].
-		if (x===undefined) {
-			x=Audio.randacc;
-			Audio.randacc=(x+Audio.randinc)>>>0;
-		}
-		let v=x%1;
-		if (v<0) {v+=1;}
-		else if (isNaN(v)) {v=0;x=0;}
-		let u0=(Math.floor(x)>>>0)+0x66daacfd,u1=u0+1;
-		u0=Math.imul(u0^(u0>>>16),0xf8b7629f);
-		u0=Math.imul(u0^(u0>>> 8),0xcbc5c2b5);
-		u0=Math.imul(u0^(u0>>>24),0xf5a5bda5)>>>0;
-		u1=Math.imul(u1^(u1>>>16),0xf8b7629f);
-		u1=Math.imul(u1^(u1>>> 8),0xcbc5c2b5);
-		u1=Math.imul(u1^(u1>>>24),0xf5a5bda5)>>>0;
-		return (u0+(u1-u0)*v)*(1.0/4294967295.0);
-	}
-
-
-	static noise(x) {
-		return Audio.noise1(x)*2-1;
-	}
-
-
-	static clip(x,min,max) {
-		// Same as clamping.
-		if (min>max) {
-			let tmp=min;
-			min=max;
-			max=tmp;
-		}
-		if (x>=max) {return max;}
-		return x>=min?x:min;
-	}
-
-
-	static wrap(x,min,max) {
-		if (min>max) {
-			let tmp=min;
-			min=max;
-			max=tmp;
-		}
-		// Prevent floating point drift for successive calls.
-		if (x>=min && x<=max) {return x;}
-		max-=min;
-		x=(x-min)%max;
-		if (x<0) {x+=max;}
-		return x>=0?x+min:min;
-	}
-
-
-	// ----------------------------------------
 	// Sequencer
 
 
@@ -1952,8 +1573,6 @@ class Audio {
 		let argstr=new Array(argmax);
 		for (let i=0;i<argmax;i++) {argstr[i]="";}
 		let subsnd=null,nextsnd=new Audio.Sound(sndfreq);
-		let rand=[Audio.randacc,Audio.randinc];
-		[Audio.randacc,Audio.randinc]=[0,0xcadffab1];
 		// ,:'"
 		let stoptoken={44:true,58:true,39:true,34:true};
 		let sequences={
@@ -1964,7 +1583,6 @@ class Audio {
 			"":nextsnd
 		};
 		function error(msg) {
-			[Audio.randacc,Audio.randinc]=rand;
 			let line=1;
 			for (let i=0;i<seqpos;i++) {line+=seq.charCodeAt(i)===10;}
 			let argsum=argstr.slice(0,args).join(" ");
@@ -2031,7 +1649,7 @@ class Audio {
 				let name=argstr[--args];
 				argstr[args]="";
 				if (!name || sequences[name]) {error("'"+name+"' already defined");}
-				nextsnd=new Audio.Sound(sndfreq);
+				nextsnd=new AudioSound(sndfreq);
 				sequences[name]=nextsnd;
 			} else if (seqpos<seqlen) {
 				// Read the next token.
@@ -2087,7 +1705,6 @@ class Audio {
 			else {subsnd.add(snd,time,subvol*vol);}
 			while (args>0) {argstr[--args]="";}
 		}
-		[Audio.randacc,Audio.randinc]=rand;
 		return nextsnd;
 	}
 
@@ -2104,7 +1721,7 @@ class Audio {
 		freq/=sndfreq;
 		let harmonics=Math.ceil(0.5/freq);
 		let sndlen=Math.ceil(sndfreq*time);
-		let snd=new Audio.Sound(sndfreq,sndlen);
+		let snd=new AudioSound(sndfreq,sndlen);
 		let data=snd.data;
 		// Generate coefficients.
 		if (pos<0.0001) {pos=0.0001;}
@@ -2114,6 +1731,7 @@ class Audio {
 		let c1=(2*volume)/(Math.PI*Math.PI*pos*(1-pos));
 		let c2=freq*Math.PI*2;
 		let decay=Math.log(0.01)/sndlen;
+		let rnd=new Random();
 		// Process highest to lowest for floating point accuracy.
 		for (let n=harmonics;n>0;n--) {
 			// Calculate coefficients for the n'th harmonic.
@@ -2128,7 +1746,7 @@ class Audio {
 			if (harmlen>sndlen) {harmlen=sndlen;}
 			// Randomize the phase to prevent aliasing.
 			let harmfreq=c2*ihscale;
-			let harmphase=Audio.noise()*3.141592654;
+			let harmphase=rnd.gets()*3.141592654;
 			// Generate the waveform.
 			for (let i=0;i<harmlen;i++) {
 				data[i]+=harmvol*Math.sin(harmphase);
@@ -2178,7 +1796,7 @@ class Audio {
 
 
 	static createdrumhihat(volume=0.2,freq=7000,time=0.1) {
-		return (new Audio.SFX(`
+		return (new AudioSFX(`
 			#vol : ${volume}
 			#freq: ${freq}
 			#time: ${time}
@@ -2191,7 +1809,7 @@ class Audio {
 
 
 	static createdrumkick(volume=0.3,freq=80,time=0.2) {
-		return (new Audio.SFX(`
+		return (new AudioSFX(`
 			#vol : ${volume}
 			#freq: ${freq}
 			#time: ${time}
@@ -2205,7 +1823,7 @@ class Audio {
 
 
 	static createdrumsnare(volume=0.1,freq=200,time=0.2) {
-		return (new Audio.SFX(`
+		return (new AudioSFX(`
 			#vol : ${volume}
 			#freq: ${freq}
 			#time: ${time}
@@ -2224,7 +1842,7 @@ class Audio {
 
 
 	static createflute(volume=1.0,freq=200,time=2.0) {
-		return (new Audio.SFX(`
+		return (new AudioSFX(`
 			#vol : ${volume}
 			#freq: ${freq}
 			#time: ${time}
@@ -2239,7 +1857,7 @@ class Audio {
 
 
 	static createtuba(volume=1.0,freq=300,time=2.0) {
-		return (new Audio.SFX(`
+		return (new AudioSFX(`
 			#vol : ${volume}
 			#freq: ${freq}
 			#time: ${time}
@@ -2253,4 +1871,3 @@ class Audio {
 	}
 
 }
-

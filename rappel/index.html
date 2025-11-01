@@ -28,12 +28,13 @@
 			text-decoration:underline;
 		}
 	</style>
-	<script src="./library.js"></script>
-	<script src="./rappel.js"></script>
 </head>
 <body>
 <div id="gamebanner"><a href="../index.html">Alec Dee's General Site</a></div>
 <canvas id="gamecanv" style="position:absolute;cursor:none"></canvas>
-<script>new Game("gamebanner","gamecanv");</script>
+<script type="module">
+import {Game} from "./rappel.js";
+new Game("gamebanner","gamecanv");
+</script>
 </body>
 </html>

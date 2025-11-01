@@ -4,11 +4,6 @@
 	<meta charset="utf-8">
 	<title>Music Maker</title>
 	<link rel="stylesheet" href="../style/style.css" type="text/css">
-	<script src="../style/style.js"></script>
-	<script src="./library.js"></script>
-	<script src="./audio.js"></script>
-	<script src="./demo.js"></script>
-	<!--<script src="./extra/test.js"></script>-->
 	<style>
 	.musiceditor {
 		max-width:100%;
@@ -20,6 +15,9 @@
 		background-color:transparent;
 	}
 	</style>
+	<script src="../style/style.js"></script>
+	<script>function DEMO(f) {return import("./demo.js").then(f);}</script>
+	<!--<script src="./extra/test.js"></script>-->
 </head>
 <body>
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
@@ -37,8 +35,8 @@ style='width:100%;height:9rem;background:#000000;margin:auto'>
 style="height:8rem;margin-bottom:0.5rem;" readonly></textarea>
 <button id="main_play">&#9658; Play</button>&nbsp;&nbsp;
 <button id="main_compile">Compile</button>&nbsp;&nbsp;
-<button id="main_download" onclick="MusicMaker.download()">.WAV</button>&nbsp;&nbsp;
-<button id="main_url" onclick="MusicMaker.tourl()">URL</button>&nbsp;&nbsp;
+<button id="main_download" onclick="DEMO(M=>M.MusicMaker.download())">.WAV</button>&nbsp;&nbsp;
+<button id="main_url" onclick="DEMO(M=>M.MusicMaker.tourl())">URL</button>&nbsp;&nbsp;
 <textarea id="main_editor" class="codeblock musiceditor" style="height:20rem;"
 spellcheck="false">'For a Few Dollars More - Ennio Morricone
 'Loop at 98.691587s
@@ -97,8 +95,8 @@ out: VOL .5,
 8 lo1f2, 8 lo1g2, 8 lo2d2, 8 lo2d2,          '288
 8 lo2g1, 8 lo2a1, 8 lo2c2, 8 lo1d2           '320
 </textarea>
-<script>MusicMaker.init("music","main_editor","main_play","main_out",
-"main_display","main_compile");</script>
+<script>DEMO(M=>M.MusicMaker.init("music","main_editor","main_play","main_out",
+"main_display","main_compile"));</script>
 <p>See my <a href="./index.html">Sound Effects</a> page for how the sounds are
 generated.</p>
 <h2>Rules</h2>
@@ -184,7 +182,7 @@ BPM 246
 strum1: AG E2, 2 AG E3, AG G3, AG A#2, AG A2, 2 AG E3
 strum2: AG E2, 2 AG E3, AG G3, AG A#2, AG A2
 out   : VOL 0.75, strum1, 8 strum1, 8 strum2</textarea>
-<script>MusicMaker.initsub("sample1_play","sample1_editor");</script>
+<script>DEMO(M=>M.MusicMaker.initsub("sample1_play","sample1_editor"));</script>
 
 <button id="sample2_play">&#9658; Play</button>
 <textarea id="sample2_editor" class="codeblock musiceditor" spellcheck="false">'Soak Up the Sun - Sheryl Crow
@@ -193,13 +191,13 @@ strum: AG E3, 0 AG B3, AG E3, 0 AG A3, AG E3, 0 AG B3, AG G#4, 2 AG E4,
        2 AG F#3, 0 AG B3, 0 AG B2, 2 AG F#3, 0 AG B3, 0 AG B2, 2 AG E3,
        0 AG A2, AG E3, 0 AG A2, 0 AG B3, 0 CUT 2 '14 beats
 out  : VOL 0.5, strum, 14 strum</textarea>
-<script>MusicMaker.initsub("sample2_play","sample2_editor");</script>
+<script>DEMO(M=>M.MusicMaker.initsub("sample2_play","sample2_editor"));</script>
 
 <button id="sample3_play">&#9658; Play</button>
 <textarea id="sample3_editor" class="codeblock musiceditor" spellcheck="false">'Drum loop
 BPM 240
 out: KD B2, HH, HH, 0 SD, HH, KD B2, HH, HH, 0 SD, HH</textarea>
-<script>MusicMaker.initsub("sample3_play","sample3_editor");</script>
+<script>DEMO(M=>M.MusicMaker.initsub("sample3_play","sample3_editor"));</script>
 
 <button id="sample4_play">&#9658; Play</button>
 <textarea id="sample4_editor" class="codeblock musiceditor" spellcheck="false">'Twinkle Twinkle Little Star
@@ -207,7 +205,7 @@ BPM 100
 out: VOL 0.5,
 0 GS C4, GS C4, GS G4, GS G4, GS A4, GS A4, GS G4,
 2 GS F4, GS F4, GS E4, GS E4, GS D4, GS D4, GS C4</textarea>
-<script>MusicMaker.initsub("sample4_play","sample4_editor");</script>
+<script>DEMO(M=>M.MusicMaker.initsub("sample4_play","sample4_editor"));</script>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->

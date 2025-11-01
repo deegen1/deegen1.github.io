@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-random.js - v1.09
+random.js - v1.10
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -23,6 +23,27 @@ History
      Replaced erfinv table in getnorm() with equation.
 1.09
      Went back to Box-Muller transform in getnorm().
+1.10
+     Renamed modu32() to mod.
+     Added gets(), index section, and module export.
+
+
+--------------------------------------------------------------------------------
+Index
+
+
+Random
+	{acc,inc}
+	constructor: int, state
+	seed(seed)
+	seed(state)
+	getstate()
+	static hashu32(val)
+	getu32()  -> [0,2^32)
+	mod(mod)  -> [0,mod)
+	getf()    -> [0,1)
+	gets()    -> [-1,1)
+	getnorm() -> (-inf,inf)
 
 
 --------------------------------------------------------------------------------
@@ -39,10 +60,10 @@ https://www.reddit.com/r/algorithms/comments/yyz59u/
 
 
 //---------------------------------------------------------------------------------
-// Random - v1.09
+// Random - v1.10
 
 
-class Random {
+export class Random {
 
 	constructor(seed) {
 		this.acc=0;
@@ -95,8 +116,10 @@ class Random {
 	}
 
 
-	modu32(mod) {
-		// rand%mod is not converted to a signed int.
+	mod(mod) {
+		if (!(mod>0 && mod<4294967296 && (mod|0)===mod)) {
+			throw "mod out of range: "+mod;
+		}
 		let rand,rem,nmod=(-mod)>>>0;
 		do {
 			rand=this.getu32();
@@ -109,6 +132,12 @@ class Random {
 	getf() {
 		// Returns a float in [0,1).
 		return this.getu32()*(1.0/4294967296.0);
+	}
+
+
+	gets() {
+		// Returns a float in [-1,1).
+		return (this.getu32()-2147483648)*(1.0/2147483648.0);
 	}
 
 

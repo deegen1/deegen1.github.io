@@ -45,6 +45,72 @@ History
      Added aliases to Transform arguments.
 3.04
      Normalize will once again return a random vector if mag<eps.
+3.05
+     Added index section and export.
+
+
+--------------------------------------------------------------------------------
+Index
+
+
+Vector
+	constructor: int, array, Vector
+	tostring()
+	toString()
+	set(v=0)
+	copy() -> Vector
+	// Comparison
+	static cmp(u,v) -> {-1,0,1}
+	static lt(u,v)
+	static le(u,v)
+	imin(v)
+	min(v)
+	imax(v)
+	max(v)
+	// Algebra
+	ineg()
+	neg()
+	iadd(v)
+	add(v)
+	isub(v)
+	sub(v)
+	imul(s)
+	mul(v)
+	// Geometry
+	dist2(v)
+	dist(v)
+	sqr()
+	mag()
+	normalize()
+	norm()
+	randomize()
+	static random(dim)
+
+
+Matrix
+	constructor: [rows,cols], Matrix
+	one()
+	set(val=0)
+	mul(b)
+	det()
+	inv()
+	static fromangles(angs)
+	rotate(angs)
+
+
+Transform
+	constructor: transform, mat, vec, dim, {mat,vec,dim,scale,ang}
+	set(b)
+	apply(point)
+	inv()
+	reset()
+	shift(vec,apply=false)
+	scalevec(muls)
+	scalemat(muls)
+	scale(muls)
+	rotatevec(angs)
+	rotatemat(angs)
+	rotate(angs)
 
 
 --------------------------------------------------------------------------------
@@ -75,7 +141,7 @@ Article on random angle generation.
 // Vector - v3.04
 
 
-class Vector extends Array {
+export class Vector extends Array {
 
 	static rnd=new Random();
 
@@ -294,7 +360,7 @@ class Vector extends Array {
 }
 
 
-class Matrix extends Array {
+export class Matrix extends Array {
 
 	constructor(rows,cols) {
 		// Expected: (dim), (rows,cols), (Matrix), or (array,[rows,cols])
@@ -524,7 +590,7 @@ class Matrix extends Array {
 }
 
 
-class Transform {
+export class Transform {
 
 	// mat*point+vec
 
