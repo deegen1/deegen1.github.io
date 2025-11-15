@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v3.26
+drawing.js - v3.27
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -43,7 +43,7 @@ History
      Added an embedded monospace font, font loading, and text rect calculation.
 2.04
      Moved line object creation in fillpoly to fillresize. Creating objects with
-     all fields up front allows browsers speeds up fillpoly by 30%.
+     all fields up front allows browsers to speed up fillpoly by 30%.
 3.00
      Added bounding boxes to DrawPoly. This is turned into an OBB in fillpoly to
      skip drawing polygons in constant time if they're not on screen.
@@ -105,7 +105,14 @@ History
      Switched to using modules.
 3.26
      Reduced font size by 6kb and removed webgl renderer.
-     Simplified oval and line polygons.
+     Simplified oval and line paths.
+3.27
+     Subpaths are always closed in fillpoly().
+     Optimized curve segmentation to stop if offscreen.
+     Winding order is dynamically determined by signed area calculation.
+     Pixel area calculation is more robust and prevents rounding errors.
+     AABB merged into DrawPoly.
+     Fixed close() not setting moveidx.
 
 
 --------------------------------------------------------------------------------
@@ -113,23 +120,11 @@ TODO
 
 
 fillpoly
-	Allow inverted screen origin. Set amul sign based on first line.
-	Per-subpath color. "F" specifies colors for following segments.
-	Stop segmenting subcurves if they're offscreen.
-	Try F32/I32 arrays.
-	Remove math.min/max.
-	Use "if (x1<x0)" to simplify minx/maxx calculation.
-	When stress testing, see if we draw outside of AABB.
-	drawing too much:
-	let x=50,y=50;
-	let ang=-Math.PI*0.5,amul=-Math.PI*2*0.437600;
-	let poly=new Draw.Poly();
-	poly.lineto(Math.cos(ang)*20+x,Math.sin(ang)*20+y);ang+=amul;
-	poly.lineto(Math.cos(ang)*20+x,Math.sin(ang)*20+y);
-	poly.lineto(Math.cos(ang)*26+x,Math.sin(ang)*26+y);ang-=amul;
-	poly.lineto(Math.cos(ang)*26+x,Math.sin(ang)*26+y);
-	draw.setcolor(255,255,255,255);
-	draw.fillpoly(poly);
+	Per-subpath color. "#" specifies colors for following segments.
+	Simplify line area calculation.
+	Pull out individual equations and test different forms for stability. All
+	values should be |x|<=1 or |x|<=slope.
+	Fix UnitAreaCalc() for large coordinates.
 
 DrawPoly
 	fromstring() handle transform
@@ -144,6 +139,8 @@ DrawImage
 	(a<<24)|(r<<16)|(g<<28)|b
 
 Rewrite article.
+	Picture showing rounding error for long lines.
+	\----
 
 Tracing
 	v4.0
@@ -215,7 +212,7 @@ import {Transform} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v3.26
+// Drawing - v3.27
 
 
 class DrawPoly {
@@ -241,8 +238,10 @@ class DrawPoly {
 	begin() {
 		this.vertidx=0;
 		this.moveidx=-2;
-		this.aabb={minx:Infinity,maxx:-Infinity,dx:0,
-		           miny:Infinity,maxy:-Infinity,dy:0};
+		this.minx=Infinity;
+		this.maxx=-Infinity;
+		this.miny=Infinity;
+		this.maxy=-Infinity;
 		return this;
 	}
 
@@ -253,13 +252,13 @@ class DrawPoly {
 		let varr=this.vertarr,vidx=this.vertidx;
 		for (let i=0;i<vidx;i++) {
 			let x=varr[i].x,y=varr[i].y;
-			if (minx>x) {minx=x;}
-			if (miny>y) {miny=y;}
-			if (maxx<x) {maxx=x;}
-			if (maxy<y) {maxy=y;}
+			minx=minx<x?minx:x;
+			maxx=maxx>x?maxx:x;
+			miny=miny<y?minx:y;
+			maxy=maxy>y?maxx:y;
 		}
-		this.aabb={minx:minx,maxx:maxx,dx:maxx-minx,
-		           miny:miny,maxy:maxy,dy:maxy-miny};
+		this.minx=minx;this.maxx=maxx;
+		this.miny=miny;this.maxy=maxy;
 	}
 
 
@@ -276,11 +275,10 @@ class DrawPoly {
 		v.i=this.moveidx;
 		v.x=x;
 		v.y=y;
-		let aabb=this.aabb;
-		if (aabb.minx>x) {aabb.minx=x;aabb.dx=aabb.maxx-x;}
-		if (aabb.miny>y) {aabb.miny=y;aabb.dy=aabb.maxy-y;}
-		if (aabb.maxx<x) {aabb.maxx=x;aabb.dx=x-aabb.minx;}
-		if (aabb.maxy<y) {aabb.maxy=y;aabb.dy=y-aabb.miny;}
+		if (this.minx>x) {this.minx=x;}
+		if (this.maxx<x) {this.maxx=x;}
+		if (this.miny>y) {this.miny=y;}
+		if (this.maxy<y) {this.maxy=y;}
 		return v;
 	}
 
@@ -317,6 +315,7 @@ class DrawPoly {
 		// Draw a line from the current vertex to our last moveto() call.
 		let move=this.moveidx;
 		if (move<0) {return this;}
+		this.moveidx=-2;
 		if (move===this.vertidx-1) {
 			this.vertidx--;
 			return this;
@@ -324,7 +323,6 @@ class DrawPoly {
 		let m=this.vertarr[move];
 		m.i=this.vertidx;
 		this.addvert(DrawPoly.CLOSE,m.x,m.y);
-		this.moveidx=-2;
 		return this;
 	}
 
@@ -364,7 +362,7 @@ class DrawPoly {
 	fromstring(str) {
 		// Parses an SVG path. Supports Z M L H V C.
 		this.begin();
-		let type=2,rel=0,len=str.length,i=0,c;
+		let type=2,rel=0,len=str.length,i=0,c=0;
 		let params=[0,3,3,1,2,63],v=[0,0,0,0,0,0],off=[0,0];
 		function gc() {c=i<len?str.charCodeAt(i++):-1;}
 		gc();
@@ -430,18 +428,18 @@ class DrawPoly {
 	addoval(x,y,xrad,yrad) {
 		// Circle approximation. Max error: 0.000196
 		const c=0.551915024;
-		let m=xrad,n=(yrad??xrad),u=c*m,v=c*n;
-		this.moveto(x,y+n);
-		this.curveto(x-u,y+n,x-m,y+v,x-m,y  );
-		this.curveto(x-m,y-v,x-u,y-n,x  ,y-n);
-		this.curveto(x+u,y-n,x+m,y-v,x+m,y  );
-		this.curveto(x+m,y+v,x+u,y+n,x  ,y+n);
+		let dx=xrad,dy=(yrad??xrad),cx=c*dx,cy=c*dy;
+		this.moveto(x,y+dy);
+		this.curveto(x-cx,y+dy,x-dx,y+cy,x-dx,y   );
+		this.curveto(x-dx,y-cy,x-cx,y-dy,x   ,y-dy);
+		this.curveto(x+cx,y-dy,x+dx,y-cy,x+dx,y   );
+		this.curveto(x+dx,y+cy,x+cx,y+dy,x   ,y+dy);
 		return this;
 	}
 
 
 	addline(x0,y0,x1,y1,rad) {
-		// Line width rounded ends.
+		// Line with circular ends.
 		let dx=x1-x0,dy=y1-y0;
 		let dist=dx*dx+dy*dy;
 		if (dist<1e-20) {
@@ -730,7 +728,7 @@ class DrawFont {
 		this.unknown=undefined;
 		let idx=0,len=fontdef.length;
 		function token(eol) {
-			let c;
+			let c=0;
 			while (idx<len && (c=fontdef.charCodeAt(idx))<=32 && c!==10) {idx++;}
 			let i=idx;
 			while (idx<len && fontdef.charCodeAt(idx)>eol) {idx++;}
@@ -1153,16 +1151,11 @@ export class Draw {
 		while (this.tmpline.length<len) {
 			this.tmpline.push({
 				sort:0,
-				next:0,
-				x0:0,
-				y0:0,
-				x1:0,
-				y1:0,
-				dxy:0,
-				amul:0,
-				area:0,
-				areadx1:0,
-				areadx2:0
+				end:0,
+				x0:0,y0:0,
+				x1:0,y1:0,
+				x2:0,y2:0,
+				x3:0,y3:0
 			});
 		}
 		return this.tmpline;
@@ -1172,14 +1165,13 @@ export class Draw {
 	fillpoly(poly,trans) {
 		// Fills the current path.
 		//
-		// Preprocess the lines and curves. Reject anything with a NaN, too narrow, or
-		// outside the image. Use a binary heap to dynamically sort lines.
+		// Preprocess the lines and curves. Use a binary heap to dynamically sort lines.
 		// Keep JS as simple as possible to be efficient. Keep micro optimization in WASM.
 		// ~~x = fast floor(x)
 		if (poly===undefined) {poly=this.defpoly;}
 		if (trans===undefined) {trans=this.deftrans;}
 		else if (!(trans instanceof Transform)) {trans=new Transform(trans);}
-		const curvemaxdist2=0.01;
+		const curvemaxdist2=0.02;
 		let iw=this.img.width,ih=this.img.height;
 		let alpha=this.rgba[3]/255.0;
 		if (poly.vertidx<3 || iw<1 || ih<1 || alpha<1e-4) {return;}
@@ -1188,217 +1180,142 @@ export class Draw {
 		let matyx=trans.mat[2],matyy=trans.mat[3],maty=trans.vec[1];
 		// Perform a quick AABB-OBB overlap test.
 		// Define the transformed bounding box.
-		let aabb=poly.aabb;
-		let bndx=aabb.minx*matxx+aabb.miny*matxy+matx;
-		let bndy=aabb.minx*matyx+aabb.miny*matyy+maty;
-		let bnddx0=aabb.dx*matxx,bnddy0=aabb.dx*matyx;
-		let bnddx1=aabb.dy*matxy,bnddy1=aabb.dy*matyy;
+		let bx=poly.minx,by=poly.miny;
+		let bndx=bx*matxx+by*matxy+matx;
+		let bndy=bx*matyx+by*matyy+maty;
+		bx=poly.maxx-bx;by=poly.maxy-by;
+		let bndxx=bx*matxx,bndxy=bx*matyx;
+		let bndyx=by*matxy,bndyy=by*matyy;
 		// Test if the image AABB has a separating axis.
 		let minx=bndx-iw,maxx=bndx;
-		if (bnddx0<0) {minx+=bnddx0;} else {maxx+=bnddx0;}
-		if (bnddx1<0) {minx+=bnddx1;} else {maxx+=bnddx1;}
-		if (maxx<=0 || 0<=minx) {return;}
+		if (bndxx<0) {minx+=bndxx;} else {maxx+=bndxx;}
+		if (bndyx<0) {minx+=bndyx;} else {maxx+=bndyx;}
+		if (!(minx<0 && 0<maxx)) {return;}
 		let miny=bndy-ih,maxy=bndy;
-		if (bnddy0<0) {miny+=bnddy0;} else {maxy+=bnddy0;}
-		if (bnddy1<0) {miny+=bnddy1;} else {maxy+=bnddy1;}
-		if (maxy<=0 || 0<=miny) {return;}
+		if (bndxy<0) {miny+=bndxy;} else {maxy+=bndxy;}
+		if (bndyy<0) {miny+=bndyy;} else {maxy+=bndyy;}
+		if (!(miny<0 && 0<maxy)) {return;}
 		// Test if the poly OBB has a separating axis.
-		let cross=bnddx0*bnddy1-bnddy0*bnddx1;
-		minx=bndy*bnddx0-bndx*bnddy0;
-		maxx=minx;bnddx0*=ih;bnddy0*=iw;
-		if (cross <0) {minx+=cross ;} else {maxx+=cross ;}
-		if (bnddx0<0) {maxx-=bnddx0;} else {minx-=bnddx0;}
-		if (bnddy0<0) {minx+=bnddy0;} else {maxx+=bnddy0;}
-		if (maxx<=0 || 0<=minx) {return;}
-		miny=bndy*bnddx1-bndx*bnddy1;
-		maxy=miny;bnddx1*=ih;bnddy1*=iw;
-		if (cross <0) {maxy-=cross ;} else {miny-=cross ;}
-		if (bnddx1<0) {maxy-=bnddx1;} else {miny-=bnddx1;}
-		if (bnddy1<0) {miny+=bnddy1;} else {maxy+=bnddy1;}
-		if (maxy<=0 || 0<=miny) {return;}
+		let cross=bndxx*bndyy-bndxy*bndyx;
+		minx=bndy*bndxx-bndx*bndxy;maxx=minx;
+		bndxx*=ih;bndxy*=iw;
+		if (cross<0) {minx+=cross;} else {maxx+=cross;}
+		if (bndxx<0) {maxx-=bndxx;} else {minx-=bndxx;}
+		if (bndxy<0) {minx+=bndxy;} else {maxx+=bndxy;}
+		if (!(minx<0 && 0<maxx)) {return;}
+		miny=bndy*bndyx-bndx*bndyy;maxy=miny;
+		bndyx*=ih;bndyy*=iw;
+		if (cross<0) {maxy-=cross;} else {miny-=cross;}
+		if (bndyx<0) {maxy-=bndyx;} else {miny-=bndyx;}
+		if (bndyy<0) {miny+=bndyy;} else {maxy+=bndyy;}
+		if (!(miny<0 && 0<maxy)) {return;}
 		// Loop through the path nodes.
 		let lr=this.tmpline,lrcnt=lr.length,lcnt=0;
-		let movex,movey;
-		let p0x,p0y,p1x,p1y;
+		let movex=0,movey=0,area=0;
+		let p0x=0,p0y=0,p1x=0,p1y=0;
 		let varr=poly.vertarr;
 		let vidx=poly.vertidx;
-		for (let i=0;i<vidx;i++) {
-			let v=varr[i];
+		for (let i=0;i<=vidx;i++) {
+			let v=varr[i<vidx?i:0];
 			if (v.type===DrawPoly.CURVE) {v=varr[i+2];}
-			p0x=p1x; p1x=v.x*matxx+v.y*matxy+matx;
-			p0y=p1y; p1y=v.x*matyx+v.y*matyy+maty;
-			if (v.type===DrawPoly.MOVE) {movex=p1x;movey=p1y;continue;}
+			p0x=p1x;p1x=v.x*matxx+v.y*matxy+matx;
+			p0y=p1y;p1y=v.x*matyx+v.y*matyy+maty;
 			// Add a basic line.
 			if (lrcnt<=lcnt) {
 				lr=this.fillresize(lcnt+1);
 				lrcnt=lr.length;
 			}
 			let l=lr[lcnt++];
+			let m1x=p1x,m1y=p1y;
+			if (v.type===DrawPoly.MOVE) {
+				// Close any unclosed subpaths.
+				m1x=movex;movex=p1x;
+				m1y=movey;movey=p1y;
+				if (!i || (m1x===p0x && m1y===p0y)) {lcnt--;}
+			}
+			area+=p0x*m1y-m1x*p0y;
 			l.x0=p0x;
 			l.y0=p0y;
-			l.x1=p1x;
-			l.y1=p1y;
-			if (v.type===DrawPoly.CURVE) {
-				// Linear decomposition of curves.
-				// Get the control points and check if the curve's on the screen.
-				v=varr[i++]; let c1x=v.x*matxx+v.y*matxy+matx,c1y=v.x*matyx+v.y*matyy+maty;
-				v=varr[i++]; let c2x=v.x*matxx+v.y*matxy+matx,c2y=v.x*matyx+v.y*matyy+maty;
-				if ((p0x<=0 && p1x<=0 && c1x<=0 && c2x<=0) || (p0x>=iw && p1x>=iw && c1x>=iw && c2x>=iw) ||
-				    (p0y<=0 && p1y<=0 && c1y<=0 && c2y<=0) || (p0y>=ih && p1y>=ih && c1y>=ih && c2y>=ih)) {
+			l.x1=m1x;
+			l.y1=m1y;
+			if (v.type!==DrawPoly.CURVE) {continue;}
+			// Linear decomposition of curves.
+			v=varr[i++];let n1x=v.x*matxx+v.y*matxy+matx,n1y=v.x*matyx+v.y*matyy+maty;
+			v=varr[i++];let n2x=v.x*matxx+v.y*matxy+matx,n2y=v.x*matyx+v.y*matyy+maty;
+			l.x2=n1x;l.x3=n2x;
+			l.y2=n1y;l.y3=n2y;
+			area-=((n1x-p0x)*(2*p0y-n2y-p1y)+(n2x-p0x)*(p0y+n1y-2*p1y)
+				 +(p1x-p0x)*(2*n2y+n1y-3*p0y))*0.3;
+			for (let j=lcnt-1;j<lcnt;j++) {
+				// The curve will stay inside the bounding box of [c0,c1,c2,c3].
+				// If the subcurve is outside the image, stop subdividing.
+				l=lr[j];
+				let c3x=l.x1,c2x=l.x3,c1x=l.x2,c0x=l.x0;
+				let c3y=l.y1,c2y=l.y3,c1y=l.y2,c0y=l.y0;
+				if ((c0x<=0 && c1x<=0 && c2x<=0 && c3x<=0) || (c0x>=iw && c1x>=iw && c2x>=iw && c3x>=iw) ||
+				    (c0y<=0 && c1y<=0 && c2y<=0 && c3y<=0) || (c0y>=ih && c1y>=ih && c2y>=ih && c3y>=ih)) {
 					continue;
 				}
-				l.amul=0;l.area=1;
-				c2x=(c2x-c1x)*3;c1x=(c1x-p0x)*3;let c3x=p1x-p0x-c2x;c2x-=c1x;
-				c2y=(c2y-c1y)*3;c1y=(c1y-p0y)*3;let c3y=p1y-p0y-c2y;c2y-=c1y;
-				for (let j=lcnt-1;j<lcnt;j++) {
-					// For each line segment between [u0,u1], sample the curve at 3 spots between
-					// u0 and u1 and measure the distance to the line. If it's too great, split.
-					//
-					//    u        .25     .50       .75
-					//                , - ~ ~ ~ - ,
-					//            , '       |       ' ,
-					//          ,   |       |        /
-					//         ,    |       |       /
-					//        ,     |       |      /
-					//        ,     |       |     /
-					// line   ------+-------+----+   clamped endpoint
-					l=lr[j];
-					let x0=l.x0,x1=l.x1,dx=x1-x0;
-					let y0=l.y0,y1=l.y1,dy=y1-y0;
-					let u0=l.amul,u1=l.area,du=(u1-u0)*0.25;
-					let den=dx*dx+dy*dy;
-					let maxdist=-Infinity,mu,mx,my;
-					for (let s=0;s<3;s++) {
-						// Project a point on the curve onto the line. Clamp to ends of line.
-						u0+=du;
-						let sx=p0x+u0*(c1x+u0*(c2x+u0*c3x)),lx=sx-x0;
-						let sy=p0y+u0*(c1y+u0*(c2y+u0*c3y)),ly=sy-y0;
-						let u=dx*lx+dy*ly;
-						u=u>0?(u<den?u/den:1):0;
-						lx-=dx*u;
-						ly-=dy*u;
-						let dist=lx*lx+ly*ly;
-						if (maxdist<dist) {
-							maxdist=dist;
-							mu=u0;
-							mx=sx;
-							my=sy;
-						}
-					}
-					if (maxdist>curvemaxdist2 && maxdist<Infinity) {
-						// The line is too far from the curve, so split it.
-						if (lrcnt<=lcnt) {
-							lr=this.fillresize(lcnt+1);
-							lrcnt=lr.length;
-						}
-						l.x1=mx;
-						l.y1=my;
-						l.area=mu;
-						l=lr[lcnt++];
-						l.x0=mx;
-						l.y0=my;
-						l.x1=x1;
-						l.y1=y1;
-						l.amul=mu;
-						l.area=u1;
-						j--;
-					}
+				let dx=c3x-c0x,dy=c3y-c0y,den=dx*dx+dy*dy;
+				// Test if both control points are close to the line c0->c3.
+				// Clamp to ends and filter degenerates.
+				let lx=c1x-c0x,ly=c1y-c0y;
+				let u=dx*lx+dy*ly;
+				u=u>0?(u<den?u/den:1):0;
+				lx-=dx*u;ly-=dy*u;
+				let d1=lx*lx+ly*ly;
+				lx=c2x-c0x;ly=c2y-c0y;
+				u=dx*lx+dy*ly;
+				u=u>0?(u<den?u/den:1):0;
+				lx-=dx*u;ly-=dy*u;
+				let d2=lx*lx+ly*ly;
+				d1=(d1>d2 || !(d1===d1))?d1:d2;
+				if (!(d1>curvemaxdist2 && d1<Infinity)) {continue;}
+				// Split the curve in half. [c0,c1,c2,c3] = [c0,l1,l2,ph] + [ph,r1,r2,c3]
+				if (lrcnt<=lcnt) {
+					lr=this.fillresize(lcnt+1);
+					lrcnt=lr.length;
 				}
+				let l1x=(c0x+c1x)*0.5,l1y=(c0y+c1y)*0.5;
+				let t1x=(c1x+c2x)*0.5,t1y=(c1y+c2y)*0.5;
+				let r2x=(c2x+c3x)*0.5,r2y=(c2y+c3y)*0.5;
+				let l2x=(l1x+t1x)*0.5,l2y=(l1y+t1y)*0.5;
+				let r1x=(t1x+r2x)*0.5,r1y=(t1y+r2y)*0.5;
+				let phx=(l2x+r1x)*0.5,phy=(l2y+r1y)*0.5;
+				l.x1=phx;l.x3=l2x;l.x2=l1x;
+				l.y1=phy;l.y3=l2y;l.y2=l1y;
+				l=lr[lcnt++];
+				l.x1=c3x;l.x3=r2x;l.x2=r1x;l.x0=phx;
+				l.y1=c3y;l.y3=r2y;l.y2=r1y;l.y0=phy;
+				j--;
 			}
 		}
-		// Close the path.
-		if (movex!==p1x || movey!==p1y) {
-			if (lrcnt<=lcnt) {
-				lr=this.fillresize(lcnt+1);
-				lrcnt=lr.length;
-			}
-			let l=lr[lcnt++];
-			l.x0=p1x;
-			l.y0=p1y;
-			l.x1=movex;
-			l.y1=movey;
-		}
-		// Prune lines.
-		minx=iw;maxx=0;miny=ih;maxy=0;
-		let amul=(matxx<0)!==(matyy<0)?-alpha:alpha;
-		let maxcnt=lcnt;
-		lcnt=0;
-		for (let i=0;i<maxcnt;i++) {
+		for (let i=0;i<lcnt;i++) {
 			let l=lr[i];
-			// Always point the line up to simplify math.
-			let x0=l.x0,x1=l.x1;
-			let y0=l.y0,y1=l.y1;
-			l.amul=amul;
-			if (y0>y1) {
-				l.x0=x1;l.x1=x0;x0=x1;x1=l.x1;
-				l.y0=y1;l.y1=y0;y0=y1;y1=l.y1;
-				l.amul=-amul;
-			}
-			let dx=x1-x0,dy=y1-y0;
-			// Too thin or NaN.
-			if (!(dx===dx) || !(dy>1e-9)) {continue;}
-			// Clamp y to [0,imgheight), then clamp x so x<imgwidth.
-			l.dxy=dx/dy;
-			let dyx=Math.abs(dx)>1e-9?dy/dx:0;
-			let y0x=x0-y0*l.dxy;
-			let yhx=x0+(ih-y0)*l.dxy;
-			let xwy=y0+(iw-x0)*dyx;
-			if (y0<0 ) {y0=0 ;x0=y0x;}
-			if (y1>ih) {y1=ih;x1=yhx;}
-			if (y1-y0<1e-9) {continue;}
-			if (x0>=iw && x1>=iw) {maxx=iw;continue;}
-			if (x0>=iw) {x0=iw;y0=xwy;}
-			if (x1>=iw) {x1=iw;y1=xwy;}
-			// Calculate the bounding box.
-			minx=Math.min(minx,Math.min(x0,x1));
-			maxx=Math.max(maxx,Math.max(x0,x1));
-			miny=miny<y0?miny:y0;
-			maxy=maxy>y1?maxy:y1;
-			let fy=~~y0;
-			if (x1<x0) {x0=Math.max(l.x0+(fy+1-l.y0)*l.dxy,x1);}
-			l.sort=fy*iw+(x0>0?~~x0:0);
-			l.next=0;
-			lr[i]=lr[lcnt];
-			lr[lcnt++]=l;
-		}
-		// If all lines are outside the image, abort.
-		if (minx>=iw || maxx<=0 || minx>=maxx || miny>=maxy || lcnt<=0) {
-			return;
-		}
-		// Linear time heap construction.
-		for (let p=(lcnt>>1)-1;p>=0;p--) {
-			let i=p,j;
-			let l=lr[p];
-			while ((j=i+i+1)<lcnt) {
-				if (j+1<lcnt && lr[j+1].sort<lr[j].sort) {j++;}
-				if (lr[j].sort>=l.sort) {break;}
-				lr[i]=lr[j];
-				i=j;
-			}
-			lr[i]=l;
+			l.sort=0;l.end=-1;
 		}
 		// Init blending.
+		let amul=area<0?-alpha:alpha;
 		let ashift=this.rgbashift[3],amask=(255<<ashift)>>>0;
 		let maskl=(0x00ff00ff&~amask)>>>0,maskh=(0xff00ff00&~amask)>>>0;
 		let colrgb=(this.rgba32[0]|amask)>>>0;
 		let coll=(colrgb&maskl)>>>0,colh=(colrgb&maskh)>>>0,colh8=colh>>>8;
 		// Process the lines row by row.
-		let x=lr[0].sort,y;
-		let xnext=x,xrow=-1;
-		let area,areadx1;
-		let pixels=iw*ih;
+		let p=0,y=0,pixels=iw*ih;
+		let pnext=lcnt?0:pixels,plim=0;
+		let areadx1=0;
 		let imgdata=this.img.data32;
 		while (true) {
-			if (x>=xrow) {
-				if (xnext>=pixels) {break;}
-				x=xnext;
-				y=~~(x/iw);
-				xrow=(y+1)*iw;
+			if (p>=plim) {
+				if (pnext>=pixels) {break;}
+				p=pnext;
+				y=~~(p/iw);
+				plim=y*iw+iw;
 				area=0;
 				areadx1=0;
 			}
 			let areadx2=0;
-			while (x>=xnext) {
+			while (p>=pnext) {
 				// fx0  fx0+1                          fx1  fx1+1
 				//  +-----+-----+-----+-----+-----+-----+-----+
 				//  |                              .....----  |
@@ -1406,69 +1323,98 @@ export class Draw {
 				//  | ....-----'''''                          |
 				//  +-----+-----+-----+-----+-----+-----+-----+
 				//   first  dyx   dyx   dyx   dyx   dyx  last   tail
+				//
+				// Orient upwards, then clip y to [0,1].
 				let l=lr[0];
-				if (x>=l.next) {
-					let x0=l.x0,y0=l.y0-y;
-					let x1=l.x1,y1=l.y1-y;
-					let next=Infinity;
-					let dxy=l.dxy,y0x=x0-y0*dxy;
-					if (y0<0) {y0=0;x0=y0x;}
-					if (y1>1) {y1=1;x1=y0x+dxy;next=x1;}
-					if (x0>x1) {
-						let tmp=x0;x0=x1;x1=tmp;dxy=-dxy;
-						next-=dxy;next=next>l.x1?next:l.x1;
-					}
-					l.sort=next>=iw?pixels:(xrow+(next>0?~~next:0));
-					let dyx=l.amul/dxy,dyh=dyx*0.5;
-					let fx0=x-xrow+iw;
-					let fx1=Math.floor(x1);
-					x0-=fx0;
-					x1-=fx0>fx1?fx0:fx1;
-					let tmp=x1>0?-x1*x1*dyh:0;
-					if (fx0>=fx1) {
-						// Vertical line - avoid divisions.
-						let dy=(y0-y1)*l.amul;
-						tmp=x0>=0?(x0+x1)*dy*0.5:tmp;
-						area+=dy-tmp;
+				let x0=l.x0,y0=l.y0;
+				let x1=l.x1,y1=l.y1;
+				let sign=amul,tmp=0;
+				let end=l.end,sort=plim-iw,x=p-sort;
+				l.end=-1;
+				if (y0>y1) {
+					sign=-sign;
+					tmp=x0;x0=x1;x1=tmp;
+					tmp=y0;y0=y1;y1=tmp;
+				}
+				let fy=y0<ih?y0:ih;
+				fy=fy>y?~~fy:y;
+				let dx=x1-x0,dy=y1-y0,nx=x1;
+				let dxy=dx/dy;
+				// Use y0x for large coordinate stability.
+				let y0x=x0-y0*dxy+fy*dxy;
+				if (y1>fy+2) {nx=y0x+2*dxy;}
+				if (y1>fy+1) {x1=y0x+dxy;y1=fy+1;}
+				if (y0<fy  ) {x0=y0x;y0=fy;}
+				// Subtract x and fy after normalizing to row.
+				y0-=fy;y1-=fy;x0-=x;x1-=x;nx-=x;
+				nx=nx<x1?nx:x1;
+				if (x0>x1) {dx=-dx;tmp=x0;x0=x1;x1=tmp;}
+				dy*=sign;let dyx=dy/dx;dy*=0.5;
+				if (!(y1>0 && dyx!==0)) {
+					// Above or degenerate.
+					sort=pixels;
+				} else if (x0>=1 || fy>y) {
+					// Below or to the left.
+					nx=x0;
+					sort=fy*iw;
+				} else if (x1<=1) {
+					// Vertical line or last pixel.
+					tmp=x1>0?-(x1*x1/dx)*dy:0;
+					if (end<p && end>=sort) {
+						areadx1+=dyx;
+						area+=((x1>0?(1-x1)*(1-x1):(1-2*x1))/dx)*dy;
 					} else {
-						if (fx1<iw) {
-							l.area=dyh-x1*dyx-tmp;
-							l.areadx1=dyx;
-							l.areadx2=tmp;
-							l.next=l.sort;
-							l.sort=fx1+xrow-iw;
-						}
-						tmp=x0>0?x0*x0*dyh:0;
-						area-=dyh-x0*dyx+tmp;
-						areadx1-=dyx;
+						dy=(y0-y1)*sign;
+						tmp=x0>=0?0.5*(x0+x1)*dy:tmp;
+						area+=dy-tmp;
 					}
 					areadx2+=tmp;
+					sort+=iw;
 				} else {
-					area+=l.area;
-					areadx1+=l.areadx1;
-					areadx2+=l.areadx2;
-					l.sort=l.next;
+					// Spanning 2+ pixels.
+					tmp=((x0>0?(1-x0)*(1-x0):(1-2*x0))/dx)*dy;
+					area-=tmp;
+					if (x1>=2) {
+						areadx1-=dyx;
+						tmp=x0>0?(x0*x0/dx)*dy:0;
+						l.end=p;
+					}
+					areadx2+=tmp;
+					nx=x1;
 				}
+				nx+=x;
+				nx=nx<0?0:nx;
+				sort+=nx<iw?~~nx:iw;
+				sort=sort>p?sort:pixels;
+				l.sort=sort;
 				// Heap sort down.
-				let i=0,j;
-				while ((j=i+i+1)<lcnt) {
-					if (j+1<lcnt && lr[j+1].sort<lr[j].sort) {j++;}
-					if (lr[j].sort>=l.sort) {break;}
-					lr[i]=lr[j];
+				if (sort>=pixels) {
+					let t=lr[--lcnt];
+					lr[lcnt]=l;l=t;
+					sort=l.sort;
+				}
+				let i=0,j=0;
+				while ((j+=j+1)<lcnt) {
+					let j1=j+1<lcnt?j+1:j;
+					let l0=lr[j],l1=lr[j1];
+					let s0=l0.sort,s1=l1.sort;
+					if (s0>s1) {s0=s1;l0=l1;j=j1;}
+					if (s0>=sort) {break;}
+					lr[i]=l0;
 					i=j;
 				}
 				lr[i]=l;
-				xnext=lr[0].sort;
+				pnext=lr[0].sort;
 			}
 			// Calculate how much we can draw or skip.
 			const cutoff=0.00390625;
 			let astop=area+areadx1+areadx2;
-			let xstop=x+1,xdif=(xnext<xrow?xnext:xrow)-xstop;
+			let pstop=p+1,xdif=(pnext<plim?pnext:plim)-pstop;
 			if (xdif>0 && (area>=cutoff)===(astop>=cutoff)) {
 				let adif=(cutoff-astop)/areadx1+1;
 				xdif=(adif>=1 && adif<xdif)?~~adif:xdif;
 				astop+=xdif*areadx1;
-				xstop+=xdif;
+				pstop+=xdif;
 			}
 			// Blend the pixel based on how much we're covering.
 			if (area>=cutoff) {
@@ -1478,22 +1424,22 @@ export class Draw {
 					let sa=area<alpha?area:alpha;
 					area+=areadx1+areadx2;
 					areadx2=0;
-					let dst=imgdata[x];
+					let dst=imgdata[p];
 					let da=(dst>>>ashift)&255;
 					if (da===255) {
 						sa=256.49-sa*256;
 					} else {
 						let tmp=sa*255+(1-sa)*da;
-						sa=256.49-sa*65280/tmp;
+						sa=256.49-(sa/tmp)*65280;
 						da=tmp+0.49;
 					}
 					// imul() implicitly casts floor(sa).
-					imgdata[x]=(da<<ashift)
+					imgdata[p]=(da<<ashift)
 						|(((Math.imul((dst&0x00ff00ff)-coll,sa)>>>8)+coll)&maskl)
 						|((Math.imul(((dst>>>8)&0x00ff00ff)-colh8,sa)+colh)&maskh);
-				} while (++x<xstop);
+				} while (++p<pstop);
 			}
-			x=xstop;
+			p=pstop;
 			area=astop;
 		}
 	}

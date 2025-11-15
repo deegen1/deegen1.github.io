@@ -544,8 +544,7 @@ export class Game {
 			let glyph=font.glyphs[i],poly=null;
 			if (glyph && i>32) {
 				poly=glyph.poly;
-				let b=poly.aabb,dx=b.dx/2,dy=b.dy/2,scale=1/(dx>dy?dx:dy);
-				let mx=(b.minx+dx)*scale,my=(b.miny+dy)*scale;
+				let scale=2/glyph.width,mx=glyph.width*0.5*scale,my=0.5*scale;
 				poly=new Draw.Poly(poly,{vec:[-mx,-my],scale:scale});
 			}
 			this.runearr[i]=poly;

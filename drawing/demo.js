@@ -135,6 +135,7 @@ export class DrawDemo1 {
 		this.fps=fps;
 		draw.setcolor(0xffffffff);
 		draw.filltext(5,5,"FPS: "+fps.toFixed(2),16);
+		draw.filltext(100,50,"3",200);
 		this.draw.screenflip();
 	}
 
