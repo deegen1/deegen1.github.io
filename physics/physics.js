@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v3.12
+physics.js - v3.13
 
 Copyright 2023 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -75,6 +75,9 @@ Reduce to 20kb.
 	remove dt derivation
 	remove autobond and createbox
 
+collide
+	Unroll for 2 or 3 dim. Check speed.
+
 createshape
 	Inside/outside test for dim>2.
 	Simplex distance calculation for dim>2.
@@ -92,19 +95,17 @@ createshape
 		pos
 	After filling a cell, update dist for everything within 2*rad
 
-Sleeping
-	ACTIVE
-	NATURAL_SLEEP
-	FORCE_SLEEP
-	INACTIVE
-
 callbacks
 	atomdelcallback
 	bonddelcallback
 	process deletions at start of main loop
 	add to release queue
 
-Better sleeping
+Sleeping
+	ACTIVE
+	NATURAL_SLEEP
+	FORCE_SLEEP
+	INACTIVE
 	sleeptime+=dt
 	if vel>1e-10: sleeptime=0
 	if sleeptime>grav.mag(): sleeping=true
@@ -138,7 +139,7 @@ import {Random,Vector,Transform} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
-// Physics - v3.12
+// Physics - v3.13
 
 
 class PhyLink {
@@ -180,9 +181,9 @@ class PhyList {
 
 
 	release(clear) {
-		let link=this.head,next;
+		let link=this.head;
 		while (link!==null) {
-			next=link.next;
+			let next=link.next;
 			link.prev=null;
 			link.next=null;
 			link.list=null;
@@ -194,7 +195,7 @@ class PhyList {
 
 
 	*iter() {
-		let link,next=this.head;
+		let link=null,next=this.head;
 		while ((link=next)!==null) {
 			next=link.next;
 			yield link.obj;
@@ -210,7 +211,7 @@ class PhyList {
 	addafter(link,prev=null) {
 		// Inserts the link after prev.
 		link.remove();
-		let next;
+		let next=null;
 		if (prev!==null) {
 			next=prev.next;
 			prev.next=link;
@@ -233,7 +234,7 @@ class PhyList {
 	addbefore(link,next=null) {
 		// Inserts the link before next.
 		link.remove();
-		let prev;
+		let prev=null;
 		if (next!==null) {
 			prev=next.prev;
 			next.prev=link;
@@ -422,7 +423,8 @@ class PhyAtomType {
 		//      dt3=(dt1-dt)/ln(1-damp)
 		//
 		this.dt=dt;
-		let damp=this.damp,idamp=1.0-damp,dt0,dt1,dt2;
+		let damp=this.damp,idamp=1.0-damp;
+		let dt0=0,dt1=0,dt2=0;
 		if (damp<=1e-10) {
 			// Special case damping=0: just integrate.
 			dt0=1.0;
@@ -490,7 +492,7 @@ class PhyAtom {
 	release() {
 		if (this.deleted) {return;}
 		this.deleted=true;
-		let link;
+		let link=null;
 		while ((link=this.bondlist.head)!==null) {
 			link.obj.release();
 		}
@@ -528,20 +530,20 @@ class PhyAtom {
 		let world=this.world;
 		let bndmin=world.bndmin;
 		let bndmax=world.bndmax;
-		let pe=this.pos,ve=this.vel,b;
+		let pe=this.pos,ve=this.vel;
 		let dim=pe.length,type=this.type;
 		let bound=type.bound;
 		let ge=type.gravity;
 		ge=(ge===null?this.world.gravity:ge);
 		let dt0=type.dt0,dt1=type.dt1,dt2=type.dt2;
-		let pos,rad=this.rad,energy=0;
+		let rad=this.rad,energy=0;
 		for (let i=0;i<dim;i++) {
 			let vel=ve[i],acc=ge[i];
-			pos=vel*dt1+acc*dt2+pe[i];
+			let pos=vel*dt1+acc*dt2+pe[i];
 			vel=vel*dt0+acc*dt1;
-			b=bound?bndmin[i]+rad:-Infinity;
+			let b=bound?bndmin[i]+rad:-Infinity;
 			if (pos<b) {pos=b;vel=vel<0?-vel:vel;}
-			b=bound?bndmax[i]-rad: Infinity;
+			b=bound?bndmax[i]-rad:Infinity;
 			if (pos>b) {pos=b;vel=vel>0?-vel:vel;}
 			pe[i]=pos;
 			ve[i]=vel;
@@ -556,10 +558,10 @@ class PhyAtom {
 		if (a===b || a.deleted || b.deleted) {return;}
 		// Determine if the atoms are overlapping.
 		let apos=a.pos,bpos=b.pos;
-		let dim=apos.length,i;
-		let dist=0.0,dif,norm=a.world.tmpvec;
-		for (i=0;i<dim;i++) {
-			dif=bpos[i]-apos[i];
+		let dim=apos.length;
+		let dist=0.0,norm=a.world.tmpvec;
+		for (let i=0;i<dim;i++) {
+			let dif=bpos[i]-apos[i];
 			norm[i]=dif;
 			dist+=dif*dif;
 		}
@@ -598,7 +600,7 @@ class PhyAtom {
 		// eachother's velocity because they've been pushed past eachother.
 		let avel=a.vel,bvel=b.vel;
 		let veldif=0.0;
-		for (i=0;i<dim;i++) {
+		for (let i=0;i<dim;i++) {
 			norm[i]*=den;
 			veldif+=(avel[i]-bvel[i])*norm[i];
 		}
@@ -618,8 +620,8 @@ class PhyAtom {
 		// Push the atoms apart.
 		let aposmul=posdif*bmass,avelmul=veldif*bmass;
 		let bposmul=posdif*amass,bvelmul=veldif*amass;
-		for (i=0;i<dim;i++) {
-			dif=norm[i];
+		for (let i=0;i<dim;i++) {
+			let dif=norm[i];
 			apos[i]+=dif*aposmul;
 			avel[i]+=dif*avelmul;
 			bpos[i]+=dif*bposmul;
@@ -673,11 +675,11 @@ class PhyBond {
 		bmass=bmass>=Infinity?-1.0:-bmass/mass;
 		// Get the distance and direction between the atoms.
 		let apos=a.pos,bpos=b.pos;
-		let dim=apos.length,i,dif;
+		let dim=apos.length;
 		let norm=a.world.tmpvec;
 		let dist=0.0;
-		for (i=0;i<dim;i++) {
-			dif=bpos[i]-apos[i];
+		for (let i=0;i<dim;i++) {
+			let dif=bpos[i]-apos[i];
 			norm[i]=dif;
 			dist+=dif*dif;
 		}
@@ -700,8 +702,8 @@ class PhyBond {
 		let aacc=acc*bmass,aposmul=aacc*at.dt2,avelmul=aacc*at.dt1;
 		let bacc=acc*amass,bposmul=bacc*bt.dt2,bvelmul=bacc*bt.dt1;
 		let avel=a.vel,bvel=b.vel;
-		for (i=0;i<dim;i++) {
-			dif=norm[i];
+		for (let i=0;i<dim;i++) {
+			let dif=norm[i];
 			apos[i]+=dif*aposmul;
 			avel[i]+=dif*avelmul;
 			bpos[i]+=dif*bposmul;
@@ -860,9 +862,8 @@ class PhyBroadphase {
 				memi[l+1]=n;l+=3;
 				memi[r+1]=n;r+=3;
 			}
-			let x,y;
 			for (let i=n+3;i<ndim;i+=2) {
-				x=memf[l++];y=memf[r++];
+				let x=memf[l++],y=memf[r++];
 				memf[i  ]=x<y?x:y;
 				x=memf[l++];y=memf[r++];
 				memf[i+1]=x>y?x:y;
@@ -1178,8 +1179,8 @@ class PhyWorld {
 			// Advance to next cell. Skip gaps if we're far from a face.
 			let skip=(fill===2 && mindist<0?-mindist:mindist)-spacing*2-iter;
 			if (skip>0) {cellpos[0]+=(skip/iter|0)*iter;}
-			let i;
-			for (i=0;i<dim;i++) {
+			let i=0;
+			for (;i<dim;i++) {
 				cellpos[i]+=iter;
 				if (cellpos[i]<bndmax[i]) {break;}
 				cellpos[i]=bndmin[i];
@@ -1201,7 +1202,7 @@ class PhyWorld {
 			let celldist=cell.dist<0?cell.dist:0;
 			let cellrad=fill===2 && celldist<0?spacing-celldist:minrad;
 			// Find the largest radius we can fill.
-			let atom;
+			let atom=null;
 			if (mincheck<0 && celldist>=0) {mincheck=atoms;fill=0;}
 			let i=mincheck>0?mincheck:0,i0=i;
 			for (;i<atoms;i++) {
@@ -1262,9 +1263,8 @@ class PhyWorld {
 		let rnd=this.rnd;
 		for (let step=0;step<steps;step++) {
 			if (this.stepcallback!==null) {this.stepcallback(dt);}
-			let link,next;
 			// Update types and interactions.
-			link=this.typelist.head;
+			let link=this.typelist.head;
 			while (link!==null) {
 				link.obj.updateconstants(dt);
 				link=link.next;
@@ -1275,7 +1275,7 @@ class PhyWorld {
 				link=link.next;
 			}
 			// Integrate atoms.
-			next=this.atomlist.head;
+			let next=this.atomlist.head;
 			while ((link=next)!==null) {
 				next=next.next;
 				link.obj.update();

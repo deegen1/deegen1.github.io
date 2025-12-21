@@ -155,6 +155,7 @@ def primitiveroot(mod):
 # Primes
 # A number is prime iff (p-1)!=-1 mod p.
 
+
 def isprime(n):
 	# Miller-Rabin primality test.
 	if n<2: return False

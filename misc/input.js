@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-input.js - v1.17
+input.js - v1.19
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -17,13 +17,15 @@ History
 
 1.17
      Changed keyhit to keychange to track presses and releases.
+1.19
+     Removed clickpos.
+     Added setmousepos() to all mouse events.
 
 
 --------------------------------------------------------------------------------
 TODO
 
 
-Remove relative mouse coordinates. Always use absolute.
 Controller support.
 developer.mozilla.org/en-US/docs/Web/API/Gamepad_API/Using_the_Gamepad_API
 
@@ -33,7 +35,7 @@ developer.mozilla.org/en-US/docs/Web/API/Gamepad_API/Using_the_Gamepad_API
 
 
 //---------------------------------------------------------------------------------
-// Input - v1.17
+// Input - v1.19
 
 
 export class Input {
@@ -73,7 +75,6 @@ export class Input {
 		this.mouseraw=[0,0];
 		this.mousez=0;
 		this.touchfocus=0;
-		this.clickpos=[0,0];
 		this.repeatdelay=0.5;
 		this.repeatrate=0.05;
 		this.navkeys={32:1,37:1,38:1,39:1,40:1};
@@ -133,11 +134,10 @@ export class Input {
 		let rate=1.0/this.repeatrate;
 		let state=this.active;
 		let active=null;
-		let down,next;
 		while (state!==null) {
-			next=state.active;
+			let next=state.active;
 			state.last=state.down;
-			down=focus?state.next:0;
+			let down=focus?state.next:0;
 			state.down=down;
 			if (down>0) {
 				let repeat=Math.floor((delay-state.time)*rate);
@@ -206,17 +206,15 @@ export class Input {
 		}
 		function mousewheel(evt) {
 			state.addmousez(evt.deltaY<0?-1:1);
+			state.setmousepos(evt.pageX,evt.pageY);
 		}
 		function mousedown(evt) {
-			if (evt.button===0) {
-				state.setkeydown(state.MOUSE.LEFT);
-				state.clickpos=state.mousepos.slice();
-			}
+			if (evt.button===0) {state.setkeydown(state.MOUSE.LEFT);}
+			state.setmousepos(evt.pageX,evt.pageY);
 		}
 		function mouseup(evt) {
-			if (evt.button===0) {
-				state.setkeyup(state.MOUSE.LEFT);
-			}
+			if (evt.button===0) {state.setkeyup(state.MOUSE.LEFT);}
+			state.setmousepos(evt.pageX,evt.pageY);
 		}
 		function onscroll() {
 			// Update relative position on scroll.
@@ -253,7 +251,6 @@ export class Input {
 			}
 			// touchstart doesn't generate a separate mousemove event.
 			touchmove(evt);
-			state.clickpos=state.mousepos.slice();
 		}
 		function touchend() {
 			state.touchfocus=0;
@@ -292,6 +289,7 @@ export class Input {
 
 
 	setmousepos(x,y) {
+		if (isNaN(x) || isNaN(y)) {return;}
 		this.mouseraw[0]=x;
 		this.mouseraw[1]=y;
 		this.scroll[0]=window.scrollX;
@@ -310,11 +308,6 @@ export class Input {
 
 	getmousepos() {
 		return this.mousepos.slice();
-	}
-
-
-	getclickpos() {
-		return this.clickpos.slice();
 	}
 
 

@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-vector.js - v3.04
+vector.js - v3.06
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -50,70 +50,6 @@ History
 
 
 --------------------------------------------------------------------------------
-Index
-
-
-Vector
-	constructor: int, array, Vector
-	tostring()
-	toString()
-	set(v=0)
-	copy() -> Vector
-	// Comparison
-	static cmp(u,v) -> {-1,0,1}
-	static lt(u,v)
-	static le(u,v)
-	imin(v)
-	min(v)
-	imax(v)
-	max(v)
-	// Algebra
-	ineg()
-	neg()
-	iadd(v)
-	add(v)
-	isub(v)
-	sub(v)
-	imul(s)
-	mul(v)
-	// Geometry
-	dist2(v)
-	dist(v)
-	sqr()
-	mag()
-	normalize()
-	norm()
-	randomize()
-	static random(dim)
-
-
-Matrix
-	constructor: [rows,cols], Matrix
-	one()
-	set(val=0)
-	mul(b)
-	det()
-	inv()
-	static fromangles(angs)
-	rotate(angs)
-
-
-Transform
-	constructor: transform, mat, vec, dim, {mat,vec,dim,scale,ang}
-	set(b)
-	apply(point)
-	inv()
-	reset()
-	shift(vec,apply=false)
-	scalevec(muls)
-	scalemat(muls)
-	scale(muls)
-	rotatevec(angs)
-	rotatemat(angs)
-	rotate(angs)
-
-
---------------------------------------------------------------------------------
 TODO
 
 
@@ -134,11 +70,13 @@ Article on random angle generation.
 
 */
 /* npx eslint vector.js -c ../../standards/eslint.js */
-/* global Random */
+
+
+import {Random} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
-// Vector - v3.04
+// Vector - v3.06
 
 
 export class Vector extends Array {
@@ -298,8 +236,8 @@ export class Vector extends Array {
 	dist2(v) {
 		// (u-v)^2
 		v=this.sanitize(v);
-		let u=this,len=this.length,sum=0,x;
-		for (let i=0;i<len;i++) {x=u[i]-v[i];sum+=x*x;}
+		let u=this,len=this.length,sum=0;
+		for (let i=0;i<len;i++) {let x=u[i]-v[i];sum+=x*x;}
 		return sum;
 	}
 
@@ -309,8 +247,8 @@ export class Vector extends Array {
 
 	sqr() {
 		// u*u
-		let u=this,len=this.length,sum=0,x;
-		for (let i=0;i<len;i++) {x=u[i];sum+=x*x;}
+		let u=this,len=this.length,sum=0;
+		for (let i=0;i<len;i++) {let x=u[i];sum+=x*x;}
 		return sum;
 	}
 
@@ -319,14 +257,14 @@ export class Vector extends Array {
 
 
 	normalize() {
-		let u=this,len=this.length,mag=0,i,x;
-		for (i=0;i<len;i++) {
-			x=u[i];
+		let u=this,len=this.length,mag=0;
+		for (let i=0;i<len;i++) {
+			let x=u[i];
 			mag+=x*x;
 		}
 		if (mag>1e-10) {
 			mag=1/Math.sqrt(mag);
-			for (i=0;i<len;i++) {u[i]*=mag;}
+			for (let i=0;i<len;i++) {u[i]*=mag;}
 		} else {
 			this.randomize();
 		}
@@ -340,17 +278,17 @@ export class Vector extends Array {
 	randomize() {
 		let u=this,len=this.length;
 		if (!len) {return this;}
-		let mag,i,x,rnd=Vector.rnd;
+		let mag=0,rnd=Vector.rnd;
 		do {
 			mag=0;
-			for (i=0;i<len;i++) {
-				x=rnd.getnorm();
+			for (let i=0;i<len;i++) {
+				let x=rnd.getnorm();
 				u[i]=x;
 				mag+=x*x;
 			}
 		} while (mag<1e-10);
 		mag=1.0/Math.sqrt(mag);
-		for (i=0;i<len;i++) {u[i]*=mag;}
+		for (let i=0;i<len;i++) {u[i]*=mag;}
 		return this;
 	}
 
@@ -450,9 +388,9 @@ export class Matrix extends Array {
 		let sign=0;
 		for (let i=0;i<cols-1;i++) {
 			// Find a row with an invertible element in column i.
-			let dval=i*cols,sval=dval,j;
+			let dval=i*cols,sval=dval,j=i;
 			let inv=NaN;
-			for (j=i;j<rows;j++) {
+			for (;j<rows;j++) {
 				inv=1/elem[sval+i];
 				if (inv>-Infinity && inv<Infinity) {break;}
 				sval+=cols;
@@ -497,9 +435,9 @@ export class Matrix extends Array {
 		for (let i=0;i<cols;i++) {perm[i]=i;}
 		for (let i=0;i<rows;i++) {
 			// Find a row with an invertible element in column i.
-			let dval=i*cols,sval=dval,j;
+			let dval=i*cols,sval=dval,j=i;
 			let inv=NaN;
-			for (j=i;j<rows;j++) {
+			for (;j<rows;j++) {
 				inv=1/elem[sval+i];
 				if (inv>-Infinity && inv<Infinity) {break;}
 				sval+=cols;

@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-random.js - v1.10
+random.js - v1.11
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -26,31 +26,15 @@ History
 1.10
      Renamed modu32() to mod.
      Added gets(), index section, and module export.
-
-
---------------------------------------------------------------------------------
-Index
-
-
-Random
-	{acc,inc}
-	constructor: int, state
-	seed(seed)
-	seed(state)
-	getstate()
-	static hashu32(val)
-	getu32()  -> [0,2^32)
-	mod(mod)  -> [0,mod)
-	getf()    -> [0,1)
-	gets()    -> [-1,1)
-	getnorm() -> (-inf,inf)
+1.11
+     Changed gets() range from [-1,1) to [-1,1].
+     hashu32() and getu32() now only use ADD and XOR.
 
 
 --------------------------------------------------------------------------------
 TODO
 
 
-Use 64-bit state. 32x16 bit multiplications.
 Only use primitive operations in getnorm().
 https://www.reddit.com/r/algorithms/comments/yyz59u/
 
@@ -60,7 +44,7 @@ https://www.reddit.com/r/algorithms/comments/yyz59u/
 
 
 //---------------------------------------------------------------------------------
-// Random - v1.10
+// Random - v1.11
 
 
 export class Random {
@@ -97,30 +81,46 @@ export class Random {
 
 
 	static hashu32(val) {
-		val+=0x66daacfd;
-		val=Math.imul(val^(val>>>16),0xf8b7629f);
-		val=Math.imul(val^(val>>> 8),0xcbc5c2b5);
-		val=Math.imul(val^(val>>>24),0xf5a5bda5);
-		return val>>>0;
+		let hash=val^0xaaaaaaab;
+		hash+=hash<<16;hash^=hash>>>12;
+		hash+=hash<< 2;hash^=hash>>>11;
+		hash+=hash<< 3;hash^=hash>>>10;
+		hash+=hash<< 5;hash^=hash>>> 8;
+		hash+=hash<<14;hash^=hash>>>11;
+		return hash>>>0;
 	}
 
 
+	/*static hashu64(val) {
+		let hash=val^0xaaaaaaaaaaaaaaab;
+		hash+=hash<<27;hash^=hash>>>17;
+		hash+=hash<<10;hash^=hash>>>19;
+		hash+=hash<<12;hash^=hash>>> 6;
+		hash+=hash<<10;hash^=hash>>>26;
+		hash+=hash<<10;hash^=hash>>>13;
+		hash+=hash<<19;hash^=hash>>>29;
+		return hash>>>0;
+	}*/
+
+
 	getu32() {
-		let val=(this.acc+this.inc)>>>0;
-		this.acc=val;
-		val+=0x66daacfd;
-		val=Math.imul(val^(val>>>16),0xf8b7629f);
-		val=Math.imul(val^(val>>> 8),0xcbc5c2b5);
-		val=Math.imul(val^(val>>>24),0xf5a5bda5);
-		return val>>>0;
+		let hash=(this.acc+this.inc)>>>0;
+		this.acc=hash;
+		hash^=0xaaaaaaab;
+		hash+=hash<<16;hash^=hash>>>12;
+		hash+=hash<< 2;hash^=hash>>>11;
+		hash+=hash<< 3;hash^=hash>>>10;
+		hash+=hash<< 5;hash^=hash>>> 8;
+		hash+=hash<<14;hash^=hash>>>11;
+		return hash>>>0;
 	}
 
 
 	mod(mod) {
-		if (!(mod>0 && mod<4294967296 && (mod|0)===mod)) {
+		if (!(mod>0 && (mod>>>0)===mod)) {
 			throw "mod out of range: "+mod;
 		}
-		let rand,rem,nmod=(-mod)>>>0;
+		let rand=0,rem=0,nmod=(-mod)>>>0;
 		do {
 			rand=this.getu32();
 			rem=rand%mod;
@@ -136,8 +136,8 @@ export class Random {
 
 
 	gets() {
-		// Returns a float in [-1,1).
-		return (this.getu32()-2147483648)*(1.0/2147483648.0);
+		// Returns a float in [-1,1].
+		return (this.getu32()-2147483647.5)*(1.0/2147483647.5);
 	}
 
 

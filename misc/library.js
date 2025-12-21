@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v16.79
+library.js - v16.91
 
 Copyright 2025 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -11,23 +11,21 @@ Copyright 2025 Alec Dee - MIT license - SPDX: MIT
 Versions
 
 
-Debug   - v1.00
-Random  - v1.10
-Vector  - v3.04
-Input   - v1.17
-Drawing - v3.27
+Debug   - v1.01
+Random  - v1.11
+Vector  - v3.06
+Input   - v1.19
+Drawing - v3.30
 UI      - v1.02
-Audio   - v3.07
-Physics - v3.12
-
+Audio   - v3.09
+Physics - v3.13
 
 
 --------------------------------------------------------------------------------
 Notes
 
 
-import * as Lib from "./library.js";
-import {Random,Vector,Matrix,Transform,
+import {Debug,Random,Vector,Matrix,Transform,
 Input,UI,Draw,Audio,Phy} from "./library.js";
 
 
@@ -36,33 +34,10 @@ Input,UI,Draw,Audio,Phy} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
-// Debug - v1.00
+// Debug - v1.01
 
 
-export function DisplayErrors() {
-	// For use when the web console is not available.
-	let used=0;
-	window.addEventListener("error",function (evt) {
-		if (used++) {return;}
-		let namearr=["file","line","error","stack"];
-		let valarr =[evt.filename,evt.lineno,evt.error,evt.error.stack];
-		let replace=[["&","&amp;"],["<","&lt;"],[">","&gt;"],["\n","<br>"]];
-		let table="<table style='position:absolute;top:0;left:0;background-color:#000000;"+
-			     "color:#ffffff;font-family:monospace,monospace;'>\n";
-		let tdstyle="<td style='padding:0.3rem;background-color:#202020;vertical-align:top";
-		for (let i=0;i<4;i++) {
-			let val=valarr[i].toString();
-			for (let r of replace) {val=val.replace(new RegExp(r[0],"g"),r[1]);}
-			table+=`<tr>${tdstyle};color:#ff8080'>${namearr[i]}:</td>${tdstyle}'>${val}</td></tr>\n`;
-		}
-		table+="</table>";
-		document.body.innerHTML+=table;
-	});
-}
-// DisplayErrors();
-
-
-export function IsVisible(elem) {
+function IsVisible(elem) {
 	// If the window is minimized, or the tab isn't primary.
 	if (document.visibilityState==="hidden") {return false;}
 	// If the element rect isn't on screen.
@@ -74,8 +49,14 @@ export function IsVisible(elem) {
 }
 
 
+const Debug={
+	IsVisible:IsVisible
+};
+export {Debug};
+
+
 //---------------------------------------------------------------------------------
-// Random - v1.10
+// Random - v1.11
 
 
 export class Random {
@@ -112,30 +93,34 @@ export class Random {
 
 
 	static hashu32(val) {
-		val+=0x66daacfd;
-		val=Math.imul(val^(val>>>16),0xf8b7629f);
-		val=Math.imul(val^(val>>> 8),0xcbc5c2b5);
-		val=Math.imul(val^(val>>>24),0xf5a5bda5);
-		return val>>>0;
+		let hash=val^0xaaaaaaab;
+		hash+=hash<<16;hash^=hash>>>12;
+		hash+=hash<< 2;hash^=hash>>>11;
+		hash+=hash<< 3;hash^=hash>>>10;
+		hash+=hash<< 5;hash^=hash>>> 8;
+		hash+=hash<<14;hash^=hash>>>11;
+		return hash>>>0;
 	}
 
 
 	getu32() {
-		let val=(this.acc+this.inc)>>>0;
-		this.acc=val;
-		val+=0x66daacfd;
-		val=Math.imul(val^(val>>>16),0xf8b7629f);
-		val=Math.imul(val^(val>>> 8),0xcbc5c2b5);
-		val=Math.imul(val^(val>>>24),0xf5a5bda5);
-		return val>>>0;
+		let hash=(this.acc+this.inc)>>>0;
+		this.acc=hash;
+		hash^=0xaaaaaaab;
+		hash+=hash<<16;hash^=hash>>>12;
+		hash+=hash<< 2;hash^=hash>>>11;
+		hash+=hash<< 3;hash^=hash>>>10;
+		hash+=hash<< 5;hash^=hash>>> 8;
+		hash+=hash<<14;hash^=hash>>>11;
+		return hash>>>0;
 	}
 
 
 	mod(mod) {
-		if (!(mod>0 && mod<4294967296 && (mod|0)===mod)) {
+		if (!(mod>0 && (mod>>>0)===mod)) {
 			throw "mod out of range: "+mod;
 		}
-		let rand,rem,nmod=(-mod)>>>0;
+		let rand=0,rem=0,nmod=(-mod)>>>0;
 		do {
 			rand=this.getu32();
 			rem=rand%mod;
@@ -151,8 +136,8 @@ export class Random {
 
 
 	gets() {
-		// Returns a float in [-1,1).
-		return (this.getu32()-2147483648)*(1.0/2147483648.0);
+		// Returns a float in [-1,1].
+		return (this.getu32()-2147483647.5)*(1.0/2147483647.5);
 	}
 
 
@@ -167,7 +152,7 @@ export class Random {
 
 
 //---------------------------------------------------------------------------------
-// Vector - v3.04
+// Vector - v3.06
 
 
 export class Vector extends Array {
@@ -327,8 +312,8 @@ export class Vector extends Array {
 	dist2(v) {
 		// (u-v)^2
 		v=this.sanitize(v);
-		let u=this,len=this.length,sum=0,x;
-		for (let i=0;i<len;i++) {x=u[i]-v[i];sum+=x*x;}
+		let u=this,len=this.length,sum=0;
+		for (let i=0;i<len;i++) {let x=u[i]-v[i];sum+=x*x;}
 		return sum;
 	}
 
@@ -338,8 +323,8 @@ export class Vector extends Array {
 
 	sqr() {
 		// u*u
-		let u=this,len=this.length,sum=0,x;
-		for (let i=0;i<len;i++) {x=u[i];sum+=x*x;}
+		let u=this,len=this.length,sum=0;
+		for (let i=0;i<len;i++) {let x=u[i];sum+=x*x;}
 		return sum;
 	}
 
@@ -348,14 +333,14 @@ export class Vector extends Array {
 
 
 	normalize() {
-		let u=this,len=this.length,mag=0,i,x;
-		for (i=0;i<len;i++) {
-			x=u[i];
+		let u=this,len=this.length,mag=0;
+		for (let i=0;i<len;i++) {
+			let x=u[i];
 			mag+=x*x;
 		}
 		if (mag>1e-10) {
 			mag=1/Math.sqrt(mag);
-			for (i=0;i<len;i++) {u[i]*=mag;}
+			for (let i=0;i<len;i++) {u[i]*=mag;}
 		} else {
 			this.randomize();
 		}
@@ -369,17 +354,17 @@ export class Vector extends Array {
 	randomize() {
 		let u=this,len=this.length;
 		if (!len) {return this;}
-		let mag,i,x,rnd=Vector.rnd;
+		let mag=0,rnd=Vector.rnd;
 		do {
 			mag=0;
-			for (i=0;i<len;i++) {
-				x=rnd.getnorm();
+			for (let i=0;i<len;i++) {
+				let x=rnd.getnorm();
 				u[i]=x;
 				mag+=x*x;
 			}
 		} while (mag<1e-10);
 		mag=1.0/Math.sqrt(mag);
-		for (i=0;i<len;i++) {u[i]*=mag;}
+		for (let i=0;i<len;i++) {u[i]*=mag;}
 		return this;
 	}
 
@@ -479,9 +464,9 @@ export class Matrix extends Array {
 		let sign=0;
 		for (let i=0;i<cols-1;i++) {
 			// Find a row with an invertible element in column i.
-			let dval=i*cols,sval=dval,j;
+			let dval=i*cols,sval=dval,j=i;
 			let inv=NaN;
-			for (j=i;j<rows;j++) {
+			for (;j<rows;j++) {
 				inv=1/elem[sval+i];
 				if (inv>-Infinity && inv<Infinity) {break;}
 				sval+=cols;
@@ -526,9 +511,9 @@ export class Matrix extends Array {
 		for (let i=0;i<cols;i++) {perm[i]=i;}
 		for (let i=0;i<rows;i++) {
 			// Find a row with an invertible element in column i.
-			let dval=i*cols,sval=dval,j;
+			let dval=i*cols,sval=dval,j=i;
 			let inv=NaN;
-			for (j=i;j<rows;j++) {
+			for (;j<rows;j++) {
 				inv=1/elem[sval+i];
 				if (inv>-Infinity && inv<Infinity) {break;}
 				sval+=cols;
@@ -750,7 +735,7 @@ export class Transform {
 
 
 //---------------------------------------------------------------------------------
-// Input - v1.17
+// Input - v1.19
 
 
 export class Input {
@@ -790,7 +775,6 @@ export class Input {
 		this.mouseraw=[0,0];
 		this.mousez=0;
 		this.touchfocus=0;
-		this.clickpos=[0,0];
 		this.repeatdelay=0.5;
 		this.repeatrate=0.05;
 		this.navkeys={32:1,37:1,38:1,39:1,40:1};
@@ -850,11 +834,10 @@ export class Input {
 		let rate=1.0/this.repeatrate;
 		let state=this.active;
 		let active=null;
-		let down,next;
 		while (state!==null) {
-			next=state.active;
+			let next=state.active;
 			state.last=state.down;
-			down=focus?state.next:0;
+			let down=focus?state.next:0;
 			state.down=down;
 			if (down>0) {
 				let repeat=Math.floor((delay-state.time)*rate);
@@ -923,17 +906,15 @@ export class Input {
 		}
 		function mousewheel(evt) {
 			state.addmousez(evt.deltaY<0?-1:1);
+			state.setmousepos(evt.pageX,evt.pageY);
 		}
 		function mousedown(evt) {
-			if (evt.button===0) {
-				state.setkeydown(state.MOUSE.LEFT);
-				state.clickpos=state.mousepos.slice();
-			}
+			if (evt.button===0) {state.setkeydown(state.MOUSE.LEFT);}
+			state.setmousepos(evt.pageX,evt.pageY);
 		}
 		function mouseup(evt) {
-			if (evt.button===0) {
-				state.setkeyup(state.MOUSE.LEFT);
-			}
+			if (evt.button===0) {state.setkeyup(state.MOUSE.LEFT);}
+			state.setmousepos(evt.pageX,evt.pageY);
 		}
 		function onscroll() {
 			// Update relative position on scroll.
@@ -970,7 +951,6 @@ export class Input {
 			}
 			// touchstart doesn't generate a separate mousemove event.
 			touchmove(evt);
-			state.clickpos=state.mousepos.slice();
 		}
 		function touchend() {
 			state.touchfocus=0;
@@ -1009,6 +989,7 @@ export class Input {
 
 
 	setmousepos(x,y) {
+		if (isNaN(x) || isNaN(y)) {return;}
 		this.mouseraw[0]=x;
 		this.mouseraw[1]=y;
 		this.scroll[0]=window.scrollX;
@@ -1027,11 +1008,6 @@ export class Input {
 
 	getmousepos() {
 		return this.mousepos.slice();
-	}
-
-
-	getclickpos() {
-		return this.clickpos.slice();
 	}
 
 
@@ -1143,7 +1119,7 @@ export class Input {
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v3.27
+// Drawing - v3.30
 
 
 class DrawPoly {
@@ -1744,12 +1720,18 @@ export class Draw {
 	static def=null;
 
 
-	constructor(width,height) {
+	constructor(imgw,imgh) {
 		if (Draw.def===null) {Draw.def=this;}
 		this.canvas   =null;
 		this.ctx      =null;
+		if (imgw instanceof HTMLCanvasElement) {
+			let canv=imgw;
+			imgw=canv.width;
+			imgh=canv.height;
+			this.screencanvas(canv);
+		}
 		// Image info
-		this.img      =new DrawImage(width,height);
+		this.img      =new DrawImage(imgw,imgh);
 		this.rgba     =new Uint8ClampedArray([0,1,2,3]);
 		this.rgba32   =new Uint32Array(this.rgba.buffer);
 		this.rgbashift=[0,0,0,0];
@@ -1886,7 +1868,7 @@ export class Draw {
 	// Images
 
 
-	fill(r=0,g=0,b=0,a=255) {
+	fill(r,g,b,a) {
 		// Fills the current image with a solid color.
 		// data32.fill(rgba) was ~25% slower during testing.
 		let rgba=this.rgbatoint(r,g,b,a);
@@ -2000,9 +1982,10 @@ export class Draw {
 
 
 	fillrect(x,y,w,h) {
-		let poly=this.tmppoly,trans=this.deftrans;
+		let trans=this.tmptrans.set(this.deftrans).shift([x,y]);
+		let poly=this.tmppoly;
 		poly.begin();
-		poly.addrect(x,y,w,h);
+		poly.addrect(0,0,w,h);
 		this.fillpoly(poly,trans);
 	}
 
@@ -2014,9 +1997,10 @@ export class Draw {
 
 	filloval(x,y,xrad,yrad) {
 		yrad=yrad??xrad;
-		let poly=this.tmppoly,trans=this.deftrans;
+		let trans=this.tmptrans.set(this.deftrans).shift([x,y]);
+		let poly=this.tmppoly;
 		poly.begin();
-		poly.addoval(x,y,xrad,yrad);
+		poly.addoval(0,0,xrad,yrad);
 		this.fillpoly(poly,trans);
 	}
 
@@ -2152,18 +2136,19 @@ export class Draw {
 			p0x=p1x;p1x=v.x*matxx+v.y*matxy+matx;
 			p0y=p1y;p1y=v.x*matyx+v.y*matyy+maty;
 			// Add a basic line.
-			if (lrcnt<=lcnt) {
-				lr=this.fillresize(lcnt+1);
-				lrcnt=lr.length;
-			}
-			let l=lr[lcnt++];
 			let m1x=p1x,m1y=p1y;
 			if (v.type===DrawPoly.MOVE) {
 				// Close any unclosed subpaths.
 				m1x=movex;movex=p1x;
 				m1y=movey;movey=p1y;
-				if (!i || (m1x===p0x && m1y===p0y)) {lcnt--;}
+				if (!i || (m1x===p0x && m1y===p0y)) {continue;}
 			}
+			if (lrcnt<=lcnt) {
+				lr=this.fillresize(lcnt+1);
+				lrcnt=lr.length;
+			}
+			let l=lr[lcnt++];
+			l.sort=0;l.end=-1;
 			area+=p0x*m1y-m1x*p0y;
 			l.x0=p0x;
 			l.y0=p0y;
@@ -2216,14 +2201,11 @@ export class Draw {
 				l.x1=phx;l.x3=l2x;l.x2=l1x;
 				l.y1=phy;l.y3=l2y;l.y2=l1y;
 				l=lr[lcnt++];
+				l.sort=0;l.end=-1;
 				l.x1=c3x;l.x3=r2x;l.x2=r1x;l.x0=phx;
 				l.y1=c3y;l.y3=r2y;l.y2=r1y;l.y0=phy;
 				j--;
 			}
-		}
-		for (let i=0;i<lcnt;i++) {
-			let l=lr[i];
-			l.sort=0;l.end=-1;
 		}
 		// Init blending.
 		let amul=area<0?-alpha:alpha;
@@ -2233,15 +2215,15 @@ export class Draw {
 		let coll=(colrgb&maskl)>>>0,colh=(colrgb&maskh)>>>0,colh8=colh>>>8;
 		// Process the lines row by row.
 		let p=0,y=0,pixels=iw*ih;
-		let pnext=lcnt?0:pixels,plim=0;
+		let pnext=0,prow=0;
 		let areadx1=0;
 		let imgdata=this.img.data32;
 		while (true) {
-			if (p>=plim) {
-				if (pnext>=pixels) {break;}
+			if (p>=prow) {
 				p=pnext;
+				if (p>=pixels || lcnt<1) {break;}
 				y=~~(p/iw);
-				plim=y*iw+iw;
+				prow=y*iw+iw;
 				area=0;
 				areadx1=0;
 			}
@@ -2260,7 +2242,7 @@ export class Draw {
 				let x0=l.x0,y0=l.y0;
 				let x1=l.x1,y1=l.y1;
 				let sign=amul,tmp=0;
-				let end=l.end,sort=plim-iw,x=p-sort;
+				let end=l.end,sort=prow-iw,x=p-sort;
 				l.end=-1;
 				if (y0>y1) {
 					sign=-sign;
@@ -2269,15 +2251,15 @@ export class Draw {
 				}
 				let fy=y0<ih?y0:ih;
 				fy=fy>y?~~fy:y;
-				let dx=x1-x0,dy=y1-y0,nx=x1;
-				let dxy=dx/dy;
+				let dx=x1-x0,dy=y1-y0,dxy=dx/dy;
 				// Use y0x for large coordinate stability.
 				let y0x=x0-y0*dxy+fy*dxy;
-				if (y1>fy+2) {nx=y0x+2*dxy;}
-				if (y1>fy+1) {x1=y0x+dxy;y1=fy+1;}
-				if (y0<fy  ) {x0=y0x;y0=fy;}
-				// Subtract x and fy after normalizing to row.
-				y0-=fy;y1-=fy;x0-=x;x1-=x;nx-=x;
+				y0-=fy;y1-=fy;
+				let nx=y1>2?y0x+2*dxy:x1;
+				if (y1>1) {y1=1;x1=y0x+dxy;}
+				if (y0<0) {y0=0;x0=y0x;}
+				// Subtract x after normalizing to row.
+				x0-=x;x1-=x;nx-=x;
 				nx=nx<x1?nx:x1;
 				if (x0>x1) {dx=-dx;tmp=x0;x0=x1;x1=tmp;}
 				dy*=sign;let dyx=dy/dx;dy*=0.5;
@@ -2300,7 +2282,7 @@ export class Draw {
 						area+=dy-tmp;
 					}
 					areadx2+=tmp;
-					sort+=iw;
+					sort+=y1<1?pixels:iw;
 				} else {
 					// Spanning 2+ pixels.
 					tmp=((x0>0?(1-x0)*(1-x0):(1-2*x0))/dx)*dy;
@@ -2340,12 +2322,12 @@ export class Draw {
 			// Calculate how much we can draw or skip.
 			const cutoff=0.00390625;
 			let astop=area+areadx1+areadx2;
-			let pstop=p+1,xdif=(pnext<plim?pnext:plim)-pstop;
-			if (xdif>0 && (area>=cutoff)===(astop>=cutoff)) {
+			let pstop=p+1,pdif=(pnext<prow?pnext:prow)-pstop;
+			if (pdif>0 && (area>=cutoff)===(astop>=cutoff)) {
 				let adif=(cutoff-astop)/areadx1+1;
-				xdif=(adif>=1 && adif<xdif)?~~adif:xdif;
-				astop+=xdif*areadx1;
-				pstop+=xdif;
+				pdif=(adif>=1 && adif<pdif)?~~adif:pdif;
+				astop+=pdif*areadx1;
+				pstop+=pdif;
 			}
 			// Blend the pixel based on how much we're covering.
 			if (area>=cutoff) {
@@ -2548,7 +2530,7 @@ export class UI {
 
 
 //---------------------------------------------------------------------------------
-// Audio - v3.07
+// Audio - v3.09
 
 
 class AudioSound {
@@ -2868,9 +2850,9 @@ class AudioSound {
 
 	getvol() {
 		let data=this.data,len=data.length;
-		let v=0,x;
+		let v=0;
 		for (let i=0;i<len;i++) {
-			x=Math.abs(data[i]);
+			let x=Math.abs(data[i]);
 			v=v<x?x:v;
 		}
 		return v;
@@ -2933,7 +2915,7 @@ class AudioSFX {
 		// Plays the effect until a max time or span of silence.
 		if (isNaN(time) || time<0) {time=Infinity;}
 		if (isNaN(silence) || silence<0) {silence=Infinity;}
-		let snd;
+		let snd=null;
 		let maxlen=Math.floor(freq*time);
 		if (silence>=Infinity) {
 			// Fill the whole time.
@@ -3502,7 +3484,7 @@ class AudioSFX {
 					df32[n+5]=t+sndrate;
 					// Want: e^decay=eps, a+b*e^(decay*0)=1, a+b*e^(decay*1)=0
 					// eps=0.01, decay=ln(eps), b=1/(1-eps), a=1-b
-					const decay=-4.605170186,b=100/99,a=-1/99;
+					const decay=-4.605170186,b=1.010101010,a=-0.010101010;
 					if      (t>=r1) {out=0;}
 					else if (t>=s1) {out*=a+b*Math.exp(decay*(t-s1)/rel);}
 					else if (t<atk) {out*=t/atk;}
@@ -3559,10 +3541,10 @@ class AudioSFX {
 					i=pos-i;i=i<0?i+len:i;
 					out=ap*(sig-df32[n])+df32[n+5+i];*/
 					// Interpolate the delayed output.
-					let i=del>>>0,j;
+					let i=del>>>0;
 					let f=del-i;
 					i=pos-i;i=i<0?i+len:i;
-					j=i-1  ;j=j<0?j+len:j;
+					let j=i-1+(i<1?len:0);
 					out=df32[n+5+i]*(1-f)+df32[n+5+j]*f;
 					// Add the latest input.
 					di32[n+4]=pos;
@@ -4220,7 +4202,7 @@ export class Audio {
 
 
 //---------------------------------------------------------------------------------
-// Physics - v3.12
+// Physics - v3.13
 
 
 class PhyLink {
@@ -4262,9 +4244,9 @@ class PhyList {
 
 
 	release(clear) {
-		let link=this.head,next;
+		let link=this.head;
 		while (link!==null) {
-			next=link.next;
+			let next=link.next;
 			link.prev=null;
 			link.next=null;
 			link.list=null;
@@ -4276,7 +4258,7 @@ class PhyList {
 
 
 	*iter() {
-		let link,next=this.head;
+		let link=null,next=this.head;
 		while ((link=next)!==null) {
 			next=link.next;
 			yield link.obj;
@@ -4292,7 +4274,7 @@ class PhyList {
 	addafter(link,prev=null) {
 		// Inserts the link after prev.
 		link.remove();
-		let next;
+		let next=null;
 		if (prev!==null) {
 			next=prev.next;
 			prev.next=link;
@@ -4315,7 +4297,7 @@ class PhyList {
 	addbefore(link,next=null) {
 		// Inserts the link before next.
 		link.remove();
-		let prev;
+		let prev=null;
 		if (next!==null) {
 			prev=next.prev;
 			next.prev=link;
@@ -4504,7 +4486,8 @@ class PhyAtomType {
 		//      dt3=(dt1-dt)/ln(1-damp)
 		//
 		this.dt=dt;
-		let damp=this.damp,idamp=1.0-damp,dt0,dt1,dt2;
+		let damp=this.damp,idamp=1.0-damp;
+		let dt0=0,dt1=0,dt2=0;
 		if (damp<=1e-10) {
 			// Special case damping=0: just integrate.
 			dt0=1.0;
@@ -4572,7 +4555,7 @@ class PhyAtom {
 	release() {
 		if (this.deleted) {return;}
 		this.deleted=true;
-		let link;
+		let link=null;
 		while ((link=this.bondlist.head)!==null) {
 			link.obj.release();
 		}
@@ -4610,20 +4593,20 @@ class PhyAtom {
 		let world=this.world;
 		let bndmin=world.bndmin;
 		let bndmax=world.bndmax;
-		let pe=this.pos,ve=this.vel,b;
+		let pe=this.pos,ve=this.vel;
 		let dim=pe.length,type=this.type;
 		let bound=type.bound;
 		let ge=type.gravity;
 		ge=(ge===null?this.world.gravity:ge);
 		let dt0=type.dt0,dt1=type.dt1,dt2=type.dt2;
-		let pos,rad=this.rad,energy=0;
+		let rad=this.rad,energy=0;
 		for (let i=0;i<dim;i++) {
 			let vel=ve[i],acc=ge[i];
-			pos=vel*dt1+acc*dt2+pe[i];
+			let pos=vel*dt1+acc*dt2+pe[i];
 			vel=vel*dt0+acc*dt1;
-			b=bound?bndmin[i]+rad:-Infinity;
+			let b=bound?bndmin[i]+rad:-Infinity;
 			if (pos<b) {pos=b;vel=vel<0?-vel:vel;}
-			b=bound?bndmax[i]-rad: Infinity;
+			b=bound?bndmax[i]-rad:Infinity;
 			if (pos>b) {pos=b;vel=vel>0?-vel:vel;}
 			pe[i]=pos;
 			ve[i]=vel;
@@ -4638,10 +4621,10 @@ class PhyAtom {
 		if (a===b || a.deleted || b.deleted) {return;}
 		// Determine if the atoms are overlapping.
 		let apos=a.pos,bpos=b.pos;
-		let dim=apos.length,i;
-		let dist=0.0,dif,norm=a.world.tmpvec;
-		for (i=0;i<dim;i++) {
-			dif=bpos[i]-apos[i];
+		let dim=apos.length;
+		let dist=0.0,norm=a.world.tmpvec;
+		for (let i=0;i<dim;i++) {
+			let dif=bpos[i]-apos[i];
 			norm[i]=dif;
 			dist+=dif*dif;
 		}
@@ -4680,7 +4663,7 @@ class PhyAtom {
 		// eachother's velocity because they've been pushed past eachother.
 		let avel=a.vel,bvel=b.vel;
 		let veldif=0.0;
-		for (i=0;i<dim;i++) {
+		for (let i=0;i<dim;i++) {
 			norm[i]*=den;
 			veldif+=(avel[i]-bvel[i])*norm[i];
 		}
@@ -4700,8 +4683,8 @@ class PhyAtom {
 		// Push the atoms apart.
 		let aposmul=posdif*bmass,avelmul=veldif*bmass;
 		let bposmul=posdif*amass,bvelmul=veldif*amass;
-		for (i=0;i<dim;i++) {
-			dif=norm[i];
+		for (let i=0;i<dim;i++) {
+			let dif=norm[i];
 			apos[i]+=dif*aposmul;
 			avel[i]+=dif*avelmul;
 			bpos[i]+=dif*bposmul;
@@ -4755,11 +4738,11 @@ class PhyBond {
 		bmass=bmass>=Infinity?-1.0:-bmass/mass;
 		// Get the distance and direction between the atoms.
 		let apos=a.pos,bpos=b.pos;
-		let dim=apos.length,i,dif;
+		let dim=apos.length;
 		let norm=a.world.tmpvec;
 		let dist=0.0;
-		for (i=0;i<dim;i++) {
-			dif=bpos[i]-apos[i];
+		for (let i=0;i<dim;i++) {
+			let dif=bpos[i]-apos[i];
 			norm[i]=dif;
 			dist+=dif*dif;
 		}
@@ -4782,8 +4765,8 @@ class PhyBond {
 		let aacc=acc*bmass,aposmul=aacc*at.dt2,avelmul=aacc*at.dt1;
 		let bacc=acc*amass,bposmul=bacc*bt.dt2,bvelmul=bacc*bt.dt1;
 		let avel=a.vel,bvel=b.vel;
-		for (i=0;i<dim;i++) {
-			dif=norm[i];
+		for (let i=0;i<dim;i++) {
+			let dif=norm[i];
 			apos[i]+=dif*aposmul;
 			avel[i]+=dif*avelmul;
 			bpos[i]+=dif*bposmul;
@@ -4942,9 +4925,8 @@ class PhyBroadphase {
 				memi[l+1]=n;l+=3;
 				memi[r+1]=n;r+=3;
 			}
-			let x,y;
 			for (let i=n+3;i<ndim;i+=2) {
-				x=memf[l++];y=memf[r++];
+				let x=memf[l++],y=memf[r++];
 				memf[i  ]=x<y?x:y;
 				x=memf[l++];y=memf[r++];
 				memf[i+1]=x>y?x:y;
@@ -5260,8 +5242,8 @@ class PhyWorld {
 			// Advance to next cell. Skip gaps if we're far from a face.
 			let skip=(fill===2 && mindist<0?-mindist:mindist)-spacing*2-iter;
 			if (skip>0) {cellpos[0]+=(skip/iter|0)*iter;}
-			let i;
-			for (i=0;i<dim;i++) {
+			let i=0;
+			for (;i<dim;i++) {
 				cellpos[i]+=iter;
 				if (cellpos[i]<bndmax[i]) {break;}
 				cellpos[i]=bndmin[i];
@@ -5283,7 +5265,7 @@ class PhyWorld {
 			let celldist=cell.dist<0?cell.dist:0;
 			let cellrad=fill===2 && celldist<0?spacing-celldist:minrad;
 			// Find the largest radius we can fill.
-			let atom;
+			let atom=null;
 			if (mincheck<0 && celldist>=0) {mincheck=atoms;fill=0;}
 			let i=mincheck>0?mincheck:0,i0=i;
 			for (;i<atoms;i++) {
@@ -5344,9 +5326,8 @@ class PhyWorld {
 		let rnd=this.rnd;
 		for (let step=0;step<steps;step++) {
 			if (this.stepcallback!==null) {this.stepcallback(dt);}
-			let link,next;
 			// Update types and interactions.
-			link=this.typelist.head;
+			let link=this.typelist.head;
 			while (link!==null) {
 				link.obj.updateconstants(dt);
 				link=link.next;
@@ -5357,7 +5338,7 @@ class PhyWorld {
 				link=link.next;
 			}
 			// Integrate atoms.
-			next=this.atomlist.head;
+			let next=this.atomlist.head;
 			while ((link=next)!==null) {
 				next=next.next;
 				link.obj.update();

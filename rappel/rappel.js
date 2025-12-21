@@ -46,8 +46,7 @@ TODO
 /* npx eslint rappel.js -c ../../standards/eslint.js */
 
 
-import * as Lib from "./library.js";
-import {Random,Vector,Transform,Input,Draw,Audio,UI,Phy} from "./library.js";
+import {Debug,Random,Vector,Transform,Input,Draw,Audio,UI,Phy} from "./library.js";
 
 
 // Material IDs
@@ -1046,7 +1045,7 @@ export class Game {
 		dt=dt<this.framemax?dt:this.framemax;
 		dt=dt>0?dt:0;
 		this.frameprev=frametime;
-		if (!Lib.IsVisible(this.canvas)) {return true;}
+		if (!Debug.IsVisible(this.canvas)) {return true;}
 		let starttime=performance.now();
 		let input=this.input;
 		input.update();

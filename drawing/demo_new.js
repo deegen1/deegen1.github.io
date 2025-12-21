@@ -23,6 +23,33 @@ import {Draw} from "./drawing.js";
 // Demo 1 - Starfield
 
 
+class Particle {
+
+	static DUST=0;
+	static EXPLOSION=1;
+	static STAR=2;
+	static CHAR=4;
+	static LEAF=3;
+
+	static DUST_POLY=null;
+	static EXPL_POLY=null;
+	static STAR_POLY=null;
+	static CHAR_POLY=null;
+	static LEAF_POLY=null;
+
+	constructor(type,pos,vel,rad,color) {
+		this.type=type;
+		this.pos=new Vector(pos);
+		this.vel=new Vector(vel);
+		this.rad=rad;
+		this.color=color.slice();
+		this.time=0;
+		this.life=0;
+	}
+
+}
+
+
 export class DrawDemo {
 
 
@@ -39,8 +66,7 @@ export class DrawDemo {
 		this.canvas=canvas;
 		this.input=new Input(canvas);
 		this.touched=false;
-		this.draw=new Draw(dw,dh);
-		this.draw.screencanvas(canvas);
+		this.draw=new Draw(canvas);
 		let rnd=new Random();
 		this.rnd=rnd;
 		this.stararr=Array.from({length:1000},_=>({
@@ -51,14 +77,6 @@ export class DrawDemo {
 		this.star=new Draw.Poly(`
 			M.476.155.951-.309.294-.405 0-1-.294-.405-.951
 			-.309-.476.155-.588.809 0 .5.588.809Z
-		`);
-		this.flower=new Draw.Poly(`
-			M.508.181C.842.26.994.107.847-.023 1.209-.288.836-.492.701-.429.763-.616.565
-			-.678.311-.395.486-.661.395-.893.22-.785.203-1.006-.124-1.147-.22-.78-.362-.91
-			-.497-.689-.305-.395-.548-.655-.757-.644-.65-.435-.994-.497-1.136-.181-.836-.023
-			-1.011.119-.797.254-.503.186-.785.288-.893.537-.65.548-.819.87-.463.977-.311.808
-			-.203 1.006-.011.87 0 .446 0 .87.243 1.011.311.802.599 1.062.785.723.661.548.881
-			.531.797.305.508.181Z
 		`);
 		this.particles=Array.from({length:300},_=>({
 			x:-100,
@@ -147,21 +165,6 @@ export class DrawDemo {
 		draw.setcolor(0x40aa40ff);
 		ang=performance.now()/-2000;
 		draw.fillpoly(this.flower,{vec:[dw-100,65],scale:60,ang:ang});
-		// draw.setcolor(0x4040ffff);
-		// draw.filltext(150,100,"3",200);
-		draw.setcolor(0xffffffff);
-		draw.pushstate();
-		let time=performance.now()/1000;
-		let trans=draw.gettransform();
-		let mat=trans.mat;
-		mat[0]=1;// Math.cos(time*2);
-		mat[1]=0;// Math.sin(time*3.1)+0.2;
-		mat[2]=Math.sin(time*1.1)*0.5;// -mat[1];
-		mat[3]=1;// -mat[0];
-		// mat[2]=Math.sin(time*2.2)-0.1;
-		// mat[3]=Math.cos(time*1.9+0.1)*2;
-		draw.filltext(150,100,"3",200);
-		draw.popstate();
 		// Display FPS.
 		draw.setcolor(0xffffffff);
 		draw.filltext(5,5,this.framestr,16);

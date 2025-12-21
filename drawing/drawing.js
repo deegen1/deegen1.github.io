@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v3.27
+drawing.js - v3.30
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -113,6 +113,8 @@ History
      Pixel area calculation is more robust and prevents rounding errors.
      AABB merged into DrawPoly.
      Fixed close() not setting moveidx.
+3.30
+     Draw() now accepts canvas's as a constructor.
 
 
 --------------------------------------------------------------------------------
@@ -123,8 +125,20 @@ fillpoly
 	Per-subpath color. "#" specifies colors for following segments.
 	Simplify line area calculation.
 	Pull out individual equations and test different forms for stability. All
-	values should be |x|<=1 or |x|<=slope.
+	values should be |x|<=1 or |x|<=slope. Use python bignum for comparison.
 	Fix UnitAreaCalc() for large coordinates.
+	Since subpaths are always closed, remove subpaths if they're out of the
+	image.
+	Sort indices instead of lines. Index = line.sort*lcnt+line.id
+	Use linear time heap construction.
+	Simplify sa/da blending. Integer only? Rebalance for 255 vs 256.
+	0: <0.5, 255: >254.5, else round
+	d =sa+(1-sa)*da = sa+da-sa*da
+	sa=256-floor((sa/d)*256.99)
+	da=floor(d*255.99)
+	let tmp=sa+(1-sa)*da*0.00392156862745098;
+	let ta=256-(~~((sa/tmp)*256.999));
+	da=tmp*255.999;
 
 DrawPoly
 	fromstring() handle transform
@@ -139,8 +153,6 @@ DrawImage
 	(a<<24)|(r<<16)|(g<<28)|b
 
 Rewrite article.
-	Picture showing rounding error for long lines.
-	\----
 
 Tracing
 	v4.0
@@ -212,7 +224,7 @@ import {Transform} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v3.27
+// Drawing - v3.30
 
 
 class DrawPoly {
@@ -813,12 +825,18 @@ export class Draw {
 	static def=null;
 
 
-	constructor(width,height) {
+	constructor(imgw,imgh) {
 		if (Draw.def===null) {Draw.def=this;}
 		this.canvas   =null;
 		this.ctx      =null;
+		if (imgw instanceof HTMLCanvasElement) {
+			let canv=imgw;
+			imgw=canv.width;
+			imgh=canv.height;
+			this.screencanvas(canv);
+		}
 		// Image info
-		this.img      =new DrawImage(width,height);
+		this.img      =new DrawImage(imgw,imgh);
 		this.rgba     =new Uint8ClampedArray([0,1,2,3]);
 		this.rgba32   =new Uint32Array(this.rgba.buffer);
 		this.rgbashift=[0,0,0,0];
@@ -955,7 +973,7 @@ export class Draw {
 	// Images
 
 
-	fill(r=0,g=0,b=0,a=255) {
+	fill(r,g,b,a) {
 		// Fills the current image with a solid color.
 		// data32.fill(rgba) was ~25% slower during testing.
 		let rgba=this.rgbatoint(r,g,b,a);
@@ -1069,9 +1087,10 @@ export class Draw {
 
 
 	fillrect(x,y,w,h) {
-		let poly=this.tmppoly,trans=this.deftrans;
+		let trans=this.tmptrans.set(this.deftrans).shift([x,y]);
+		let poly=this.tmppoly;
 		poly.begin();
-		poly.addrect(x,y,w,h);
+		poly.addrect(0,0,w,h);
 		this.fillpoly(poly,trans);
 	}
 
@@ -1083,9 +1102,10 @@ export class Draw {
 
 	filloval(x,y,xrad,yrad) {
 		yrad=yrad??xrad;
-		let poly=this.tmppoly,trans=this.deftrans;
+		let trans=this.tmptrans.set(this.deftrans).shift([x,y]);
+		let poly=this.tmppoly;
 		poly.begin();
-		poly.addoval(x,y,xrad,yrad);
+		poly.addoval(0,0,xrad,yrad);
 		this.fillpoly(poly,trans);
 	}
 
@@ -1221,18 +1241,19 @@ export class Draw {
 			p0x=p1x;p1x=v.x*matxx+v.y*matxy+matx;
 			p0y=p1y;p1y=v.x*matyx+v.y*matyy+maty;
 			// Add a basic line.
-			if (lrcnt<=lcnt) {
-				lr=this.fillresize(lcnt+1);
-				lrcnt=lr.length;
-			}
-			let l=lr[lcnt++];
 			let m1x=p1x,m1y=p1y;
 			if (v.type===DrawPoly.MOVE) {
 				// Close any unclosed subpaths.
 				m1x=movex;movex=p1x;
 				m1y=movey;movey=p1y;
-				if (!i || (m1x===p0x && m1y===p0y)) {lcnt--;}
+				if (!i || (m1x===p0x && m1y===p0y)) {continue;}
 			}
+			if (lrcnt<=lcnt) {
+				lr=this.fillresize(lcnt+1);
+				lrcnt=lr.length;
+			}
+			let l=lr[lcnt++];
+			l.sort=0;l.end=-1;
 			area+=p0x*m1y-m1x*p0y;
 			l.x0=p0x;
 			l.y0=p0y;
@@ -1285,14 +1306,11 @@ export class Draw {
 				l.x1=phx;l.x3=l2x;l.x2=l1x;
 				l.y1=phy;l.y3=l2y;l.y2=l1y;
 				l=lr[lcnt++];
+				l.sort=0;l.end=-1;
 				l.x1=c3x;l.x3=r2x;l.x2=r1x;l.x0=phx;
 				l.y1=c3y;l.y3=r2y;l.y2=r1y;l.y0=phy;
 				j--;
 			}
-		}
-		for (let i=0;i<lcnt;i++) {
-			let l=lr[i];
-			l.sort=0;l.end=-1;
 		}
 		// Init blending.
 		let amul=area<0?-alpha:alpha;
@@ -1302,15 +1320,15 @@ export class Draw {
 		let coll=(colrgb&maskl)>>>0,colh=(colrgb&maskh)>>>0,colh8=colh>>>8;
 		// Process the lines row by row.
 		let p=0,y=0,pixels=iw*ih;
-		let pnext=lcnt?0:pixels,plim=0;
+		let pnext=0,prow=0;
 		let areadx1=0;
 		let imgdata=this.img.data32;
 		while (true) {
-			if (p>=plim) {
-				if (pnext>=pixels) {break;}
+			if (p>=prow) {
 				p=pnext;
+				if (p>=pixels || lcnt<1) {break;}
 				y=~~(p/iw);
-				plim=y*iw+iw;
+				prow=y*iw+iw;
 				area=0;
 				areadx1=0;
 			}
@@ -1329,7 +1347,7 @@ export class Draw {
 				let x0=l.x0,y0=l.y0;
 				let x1=l.x1,y1=l.y1;
 				let sign=amul,tmp=0;
-				let end=l.end,sort=plim-iw,x=p-sort;
+				let end=l.end,sort=prow-iw,x=p-sort;
 				l.end=-1;
 				if (y0>y1) {
 					sign=-sign;
@@ -1338,15 +1356,15 @@ export class Draw {
 				}
 				let fy=y0<ih?y0:ih;
 				fy=fy>y?~~fy:y;
-				let dx=x1-x0,dy=y1-y0,nx=x1;
-				let dxy=dx/dy;
+				let dx=x1-x0,dy=y1-y0,dxy=dx/dy;
 				// Use y0x for large coordinate stability.
 				let y0x=x0-y0*dxy+fy*dxy;
-				if (y1>fy+2) {nx=y0x+2*dxy;}
-				if (y1>fy+1) {x1=y0x+dxy;y1=fy+1;}
-				if (y0<fy  ) {x0=y0x;y0=fy;}
-				// Subtract x and fy after normalizing to row.
-				y0-=fy;y1-=fy;x0-=x;x1-=x;nx-=x;
+				y0-=fy;y1-=fy;
+				let nx=y1>2?y0x+2*dxy:x1;
+				if (y1>1) {y1=1;x1=y0x+dxy;}
+				if (y0<0) {y0=0;x0=y0x;}
+				// Subtract x after normalizing to row.
+				x0-=x;x1-=x;nx-=x;
 				nx=nx<x1?nx:x1;
 				if (x0>x1) {dx=-dx;tmp=x0;x0=x1;x1=tmp;}
 				dy*=sign;let dyx=dy/dx;dy*=0.5;
@@ -1369,7 +1387,7 @@ export class Draw {
 						area+=dy-tmp;
 					}
 					areadx2+=tmp;
-					sort+=iw;
+					sort+=y1<1?pixels:iw;
 				} else {
 					// Spanning 2+ pixels.
 					tmp=((x0>0?(1-x0)*(1-x0):(1-2*x0))/dx)*dy;
@@ -1409,12 +1427,12 @@ export class Draw {
 			// Calculate how much we can draw or skip.
 			const cutoff=0.00390625;
 			let astop=area+areadx1+areadx2;
-			let pstop=p+1,xdif=(pnext<plim?pnext:plim)-pstop;
-			if (xdif>0 && (area>=cutoff)===(astop>=cutoff)) {
+			let pstop=p+1,pdif=(pnext<prow?pnext:prow)-pstop;
+			if (pdif>0 && (area>=cutoff)===(astop>=cutoff)) {
 				let adif=(cutoff-astop)/areadx1+1;
-				xdif=(adif>=1 && adif<xdif)?~~adif:xdif;
-				astop+=xdif*areadx1;
-				pstop+=xdif;
+				pdif=(adif>=1 && adif<pdif)?~~adif:pdif;
+				astop+=pdif*areadx1;
+				pstop+=pdif;
 			}
 			// Blend the pixel based on how much we're covering.
 			if (area>=cutoff) {

@@ -5,7 +5,7 @@
 	<title>SVG Rasterizing from Scratch</title>
 	<link rel="stylesheet" href="../style/style.css" type="text/css">
 	<script src="../style/style.js"></script>
-	<script>function DEMO(f) {return import("./demo.js").then(f);}</script>
+	<script>function DEMO(f) {return import("./demo_new.js").then(f);}</script>
 </head>
 <body>
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
@@ -35,13 +35,6 @@ M0-1C.1-.1.1-.1 1 0 .1.1.1.1 0 1-.1.1-.1.1-1 0-.1-.1-.1-.1 0-1Z
 		init: pos, vel, life, size
 M -1.001 0.004 C -1.001 -0.553 -0.563 -0.996 0.001 -0.998 C 0.57 -0.99 0.996 -0.564 1.003 0.004 C 0.996 0.996 0.181 0.484 -0.01 5.989 C -0.192 0.493 -1.001 1.007 -1.001 0.006
 
-AABB OBB overlap
-	Diagram for letter g
-	Every shape we want to make can be composed of lines and curves - even
-	letters can be made this way. Drawing these quickly and accurately
-	requires a lot of tricks, however.
-	The fastest raster algorithm is one that doesn't draw anything. Our
-	first test when drawing a polygon is an AABB-OBB overlap test.
 Curve segmentation
 	Image showing segmenting
 signed area calculation
@@ -96,6 +89,156 @@ Loading javascript...</div>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Defining Shapes ~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h2>AABB-OBB Overlap</h2>
+<p>Every shape we want to make can be composed of lines and curves - even
+letters can be made this way. Drawing these quickly and accurately requires a
+lot of tricks, however.</p>
+<svg version="1.1" viewBox="0 0 1000 400" class="diagram" style="background:#000000">
+	<g class="dimstroke" stroke-width=1>
+		<line x1=367 y1=79 x2=372 y2=84 />
+		<line x1=380 y1=98 x2=380 y2=118 />
+		<line x1=380 y1=118 x2=380 y2=166 />
+		<line x1=342 y1=193 x2=296 y2=193 />
+		<line x1=296 y1=193 x2=277 y2=193 />
+		<line x1=266 y1=190 x2=251 y2=183 />
+		<line x1=251 y1=183 x2=246 y2=189 />
+		<line x1=241 y1=197 x2=241 y2=207 />
+		<line x1=241 y1=207 x2=241 y2=218 />
+		<line x1=253 y1=225 x2=268 y2=226 />
+		<line x1=333 y1=228 x2=372 y2=230 />
+		<line x1=401 y1=250 x2=401 y2=283 />
+		<line x1=401 y1=283 x2=401 y2=327 />
+		<line x1=360 y1=355 x2=294 y2=355 />
+		<line x1=294 y1=355 x2=242 y2=355 />
+		<line x1=197 y1=340 x2=197 y2=299 />
+		<line x1=197 y1=299 x2=197 y2=273 />
+		<line x1=213 y1=259 x2=227 y2=248 />
+		<line x1=227 y1=248 x2=220 y2=245 />
+		<line x1=205 y1=234 x2=205 y2=213 />
+		<line x1=205 y1=213 x2=205 y2=196 />
+		<line x1=215 y1=181 x2=228 y2=166 />
+		<line x1=228 y1=166 x2=216 y2=152 />
+		<line x1=211 y1=140 x2=211 y2=120 />
+		<line x1=211 y1=120 x2=211 y2=76 />
+		<line x1=244 y1=45 x2=295 y2=45 />
+		<line x1=295 y1=45 x2=309 y2=45 />
+		<line x1=316 y1=46 x2=323 y2=48 />
+		<line x1=295 y1=165 x2=323 y2=165 />
+		<line x1=342 y1=144 x2=342 y2=119 />
+		<line x1=342 y1=119 x2=342 y2=98 />
+		<line x1=329 y1=72 x2=295 y2=72 />
+		<line x1=295 y1=72 x2=277 y2=72 />
+		<line x1=249 y1=84 x2=249 y2=119 />
+		<line x1=249 y1=119 x2=249 y2=156 />
+		<line x1=279 y1=165 x2=295 y2=165 />
+		<line x1=261 y1=258 x2=251 y2=266 />
+		<line x1=237 y1=275 x2=237 y2=295 />
+		<line x1=237 y1=295 x2=237 y2=317 />
+		<line x1=267 y1=325 x2=298 y2=325 />
+		<line x1=298 y1=325 x2=344 y2=324 />
+		<line x1=361 y1=304 x2=361 y2=287 />
+		<line x1=361 y1=287 x2=360 y2=268 />
+		<line x1=343 y1=261 x2=319 y2=260 />
+	</g>
+	<path d="M 402 48 L 402 79 L 367 79 C 372 84 380 98 380 118 C 380 166 342
+	193 296 193 C 277 193 266 190 251 183 C 246 189 241 197 241 207 C 241 218
+	253 225 268 226 L 333 228 C 372 230 401 250 401 283 C 401 327 360 355 294
+	355 C 242 355 197 340 197 299 C 197 273 213 259 227 248 C 220 245 205 234
+	205 213 C 205 196 215 181 228 166 C 216 152 211 140 211 120 C 211 76 244 45
+	295 45 C 309 45 316 46 323 48 Z M 295 165 C 323 165 342 144 342 119 C 342
+	98 329 72 295 72 C 277 72 249 84 249 119 C 249 156 279 165 295 165 M 261
+	258 C 251 266 237 275 237 295 C 237 317 267 325 298 325 C 344 324 361 304
+	361 287 C 360 268 343 261 319 260 Z" fill="none" class="highstroke" />
+	<g class="highstroke highfill">
+		<circle cx=402 cy=48 r=3 />
+		<circle cx=402 cy=79 r=3 />
+		<circle cx=367 cy=79 r=3 />
+		<circle cx=372 cy=84 r=3 />
+		<circle cx=380 cy=98 r=3 />
+		<circle cx=380 cy=118 r=3 />
+		<circle cx=380 cy=166 r=3 />
+		<circle cx=342 cy=193 r=3 />
+		<circle cx=296 cy=193 r=3 />
+		<circle cx=277 cy=193 r=3 />
+		<circle cx=266 cy=190 r=3 />
+		<circle cx=251 cy=183 r=3 />
+		<circle cx=246 cy=189 r=3 />
+		<circle cx=241 cy=197 r=3 />
+		<circle cx=241 cy=207 r=3 />
+		<circle cx=241 cy=218 r=3 />
+		<circle cx=253 cy=225 r=3 />
+		<circle cx=268 cy=226 r=3 />
+		<circle cx=333 cy=228 r=3 />
+		<circle cx=372 cy=230 r=3 />
+		<circle cx=401 cy=250 r=3 />
+		<circle cx=401 cy=283 r=3 />
+		<circle cx=401 cy=327 r=3 />
+		<circle cx=360 cy=355 r=3 />
+		<circle cx=294 cy=355 r=3 />
+		<circle cx=242 cy=355 r=3 />
+		<circle cx=197 cy=340 r=3 />
+		<circle cx=197 cy=299 r=3 />
+		<circle cx=197 cy=273 r=3 />
+		<circle cx=213 cy=259 r=3 />
+		<circle cx=227 cy=248 r=3 />
+		<circle cx=220 cy=245 r=3 />
+		<circle cx=205 cy=234 r=3 />
+		<circle cx=205 cy=213 r=3 />
+		<circle cx=205 cy=196 r=3 />
+		<circle cx=215 cy=181 r=3 />
+		<circle cx=228 cy=166 r=3 />
+		<circle cx=216 cy=152 r=3 />
+		<circle cx=211 cy=140 r=3 />
+		<circle cx=211 cy=120 r=3 />
+		<circle cx=211 cy=76 r=3 />
+		<circle cx=244 cy=45 r=3 />
+		<circle cx=295 cy=45 r=3 />
+		<circle cx=309 cy=45 r=3 />
+		<circle cx=316 cy=46 r=3 />
+		<circle cx=323 cy=48 r=3 />
+		<circle cx=295 cy=165 r=3 />
+		<circle cx=323 cy=165 r=3 />
+		<circle cx=342 cy=144 r=3 />
+		<circle cx=342 cy=119 r=3 />
+		<circle cx=342 cy=98 r=3 />
+		<circle cx=329 cy=72 r=3 />
+		<circle cx=295 cy=72 r=3 />
+		<circle cx=277 cy=72 r=3 />
+		<circle cx=249 cy=84 r=3 />
+		<circle cx=249 cy=119 r=3 />
+		<circle cx=249 cy=156 r=3 />
+		<circle cx=279 cy=165 r=3 />
+		<circle cx=295 cy=165 r=3 />
+		<circle cx=261 cy=258 r=3 />
+		<circle cx=251 cy=266 r=3 />
+		<circle cx=237 cy=275 r=3 />
+		<circle cx=237 cy=295 r=3 />
+		<circle cx=237 cy=317 r=3 />
+		<circle cx=267 cy=325 r=3 />
+		<circle cx=298 cy=325 r=3 />
+		<circle cx=344 cy=324 r=3 />
+		<circle cx=361 cy=304 r=3 />
+		<circle cx=361 cy=287 r=3 />
+		<circle cx=360 cy=268 r=3 />
+		<circle cx=343 cy=261 r=3 />
+		<circle cx=319 cy=260 r=3 />
+	</g>
+	<path d="M 802 48 L 802 79 L 767 79 C 772 84 780 98 780 118 C 780 166 742
+	193 696 193 C 677 193 666 190 651 183 C 646 189 641 197 641 207 C 641 218
+	653 225 668 226 L 733 228 C 772 230 801 250 801 283 C 801 327 760 355 694
+	355 C 642 355 597 340 597 299 C 597 273 613 259 627 248 C 620 245 605 234
+	605 213 C 605 196 615 181 628 166 C 616 152 611 140 611 120 C 611 76 644 45
+	695 45 C 709 45 716 46 723 48 Z M 695 165 C 723 165 742 144 742 119 C 742
+	98 729 72 695 72 C 677 72 649 84 649 119 C 649 156 679 165 695 165 M 661
+	258 C 651 266 637 275 637 295 C 637 317 667 325 698 325 C 744 324 761 304
+	761 287 C 760 268 743 261 719 260 Z" class="forefill" stroke="none" />
+</svg>
+<p>The fastest raster algorithm is one that doesn't draw anything. Our first
+test when drawing a polygon is an AABB-OBB overlap test. We draw a box around
+our polygon and then apply our transforms to it. If the box doesn't overlap the
+screen, then we can skip drawing the polygon.</p>
+<!--OBB-->
+<!--
 <h1>Defining Shapes</h1>
 <p>Defining even simple polygons programmatically can be tedious, so the library
 allows SVG path notation: <i>M</i> move to, <i>L</i> line, <i>C</i> curve,
@@ -299,9 +442,10 @@ C 143 911 216 930 289 929 C 400 928 441 879 440 838 C 439 794 397 776 339 775 Z
 	258 C 651 266 637 275 637 295 C 637 317 667 325 698 325 C 744 324 761 304
 	761 287 C 760 268 743 261 719 260 Z" class="forefill" stroke="none" />
 </svg>
-
+-->
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Optimizations ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<!--
 <h1>Optimizations</h1>
 <h2>Curve Segmentation</h2>
 <p>The cubic bezier curves we use are represented as cubic polynomials. This
@@ -424,7 +568,7 @@ col = (((Math.imul((col&0x00ff00ff)-lh,a)>>>8)+lh)&0x00ff00ff)+
 <p>In order to speed up pixel compositing, I looked into precomputing the source
 and dest alpha values. Ultimately, it was as fast as direct computation while
 being more complex, so it's been abandoned.</p>
-
+-->
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 </div><div id="footer">Created on 21 Jan 2024 - Modified on 17 Nov 2025<br>

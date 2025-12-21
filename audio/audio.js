@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-audio.js - v3.08
+audio.js - v3.09
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -67,92 +67,8 @@ History
 
 
 --------------------------------------------------------------------------------
-Index
-
-
-Audio.Sound
-	constructor(freq=44100,len=0)
-	get(i)
-	slicelen(start=0,len=Infinity)
-	slicetime(start=0,len=Infinity)
-	copy()
-	trim(eps=1e-4)
-	trimstart(eps=1e-4)
-	trimend(eps=1e-4)
-	resizelen(len)
-	resizetime(time)
-	loadfile(path)
-	savefile(name)
-	fromwav(data,dataidx=0)
-	towav()
-	play(volume,pan,time,freq)
-	addindex(snd,dstoff=0,vol=1.0)
-	add(snd,time=0,vol=1.0)
-	getvol()
-	scalevol(mul,normalize=false)
-
-
-Audio.SFX
-	constructor(str)
-	reset()
-	tosound(time=10,silence=0.1,freq=44100)
-	geti(name)
-	getf(name)
-	seti(name,val)
-	setf(name,val)
-	parse(seqstr)
-	next()
-	fill(snd,fstart,flen)
-	// Default Sounds
-	"uiinc","uidec","uiconf","uierr","uiclick","explosion1","explosion2",
-	"gunshot1","gunshot2","missile1","electricity","laser","thud","marble"
-	static defload(name,vol,freq,time)
-	static defsnd(name,vol,freq,time)
-	static defplay(name,vol,freq,time)
-
-
-Audio.Instance
-	constructor(snd,vol=1.0,pan=0.0,time=0,freq)
-	remove()
-	stop()
-	start()
-	setpan(pan)
-	setvolume(vol)
-	gettime()
-
-
-Audio
-	static def
-	constructor(mute=0,volume=1,autoupdate=true,freq=44100)
-	static initdef(def)
-	setvolume(vol)
-	play(snd,volume,pan,time,freq)
-	mute(val)
-	update()
-	// Sequencer
-	static sequencer(seq)
-	// String Instruments
-	static createguitar(volume=1.0,freq=200,pluck=0.5,time=3,sndfreq=44100)
-	static createxylophone(volume=1.0,freq=250,pos=0.5,time=2.2,sndfreq=44100)
-	static createmarimba(volume=1.0,freq=250,pos=0.5,time=2.2,sndfreq=44100)
-	static createglockenspiel(volume=0.2,freq=1867,pos=0.5,time=5.3,sndfreq=44100)
-	static createmusicbox(volume=0.1,freq=877,time=3.0,sndfreq=44100)
-	// Percussion Instruments
-	static createdrumhihat(volume=0.2,freq=7000,time=0.1)
-	static createdrumkick(volume=0.3,freq=80,time=0.2)
-	static createdrumsnare(volume=0.1,freq=200,time=0.2)
-	// Wind Instruments
-	static createflute(volume=1.0,freq=200,time=2.0)
-	static createtuba(volume=1.0,freq=300,time=2.0)
-
-
---------------------------------------------------------------------------------
 TODO
 
-
-Use module to put everything under Audio namespace.
-Use instance.start() to start the sound.
-Make sure article still works.
 
 Waveguides
 	https://www.osar.fr/notes/waveguides/
@@ -176,7 +92,6 @@ Sequencerv2
 	Get rid of case sensitivity.
 
 Sound effects
-	Add rounding operator @
 	Optimize %mod lines in sfx.fill().
 	Speed up input processing. Move constants to different section?
 	Simplify attribute naming in namemap[].
@@ -202,7 +117,7 @@ import {Random} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
-// Audio - v3.07
+// Audio - v3.09
 
 
 class AudioSound {
@@ -522,9 +437,9 @@ class AudioSound {
 
 	getvol() {
 		let data=this.data,len=data.length;
-		let v=0,x;
+		let v=0;
 		for (let i=0;i<len;i++) {
-			x=Math.abs(data[i]);
+			let x=Math.abs(data[i]);
 			v=v<x?x:v;
 		}
 		return v;
@@ -587,7 +502,7 @@ class AudioSFX {
 		// Plays the effect until a max time or span of silence.
 		if (isNaN(time) || time<0) {time=Infinity;}
 		if (isNaN(silence) || silence<0) {silence=Infinity;}
-		let snd;
+		let snd=null;
 		let maxlen=Math.floor(freq*time);
 		if (silence>=Infinity) {
 			// Fill the whole time.
@@ -1156,7 +1071,7 @@ class AudioSFX {
 					df32[n+5]=t+sndrate;
 					// Want: e^decay=eps, a+b*e^(decay*0)=1, a+b*e^(decay*1)=0
 					// eps=0.01, decay=ln(eps), b=1/(1-eps), a=1-b
-					const decay=-4.605170186,b=100/99,a=-1/99;
+					const decay=-4.605170186,b=1.010101010,a=-0.010101010;
 					if      (t>=r1) {out=0;}
 					else if (t>=s1) {out*=a+b*Math.exp(decay*(t-s1)/rel);}
 					else if (t<atk) {out*=t/atk;}
@@ -1213,10 +1128,10 @@ class AudioSFX {
 					i=pos-i;i=i<0?i+len:i;
 					out=ap*(sig-df32[n])+df32[n+5+i];*/
 					// Interpolate the delayed output.
-					let i=del>>>0,j;
+					let i=del>>>0;
 					let f=del-i;
 					i=pos-i;i=i<0?i+len:i;
-					j=i-1  ;j=j<0?j+len:j;
+					let j=i-1+(i<1?len:0);
 					out=df32[n+5+i]*(1-f)+df32[n+5+j]*f;
 					// Add the latest input.
 					di32[n+4]=pos;
