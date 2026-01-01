@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v16.91
+library.js - v16.94
 
 Copyright 2025 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -11,11 +11,11 @@ Copyright 2025 Alec Dee - MIT license - SPDX: MIT
 Versions
 
 
-Debug   - v1.01
+Env     - v1.02
 Random  - v1.11
 Vector  - v3.06
 Input   - v1.19
-Drawing - v3.30
+Drawing - v3.32
 UI      - v1.02
 Audio   - v3.09
 Physics - v3.13
@@ -25,7 +25,7 @@ Physics - v3.13
 Notes
 
 
-import {Debug,Random,Vector,Matrix,Transform,
+import {Env,Random,Vector,Matrix,Transform,
 Input,UI,Draw,Audio,Phy} from "./library.js";
 
 
@@ -34,7 +34,7 @@ Input,UI,Draw,Audio,Phy} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
-// Debug - v1.01
+// Env - v1.02
 
 
 function IsVisible(elem) {
@@ -49,10 +49,23 @@ function IsVisible(elem) {
 }
 
 
-const Debug={
-	IsVisible:IsVisible
+function GetCSSRGBA(name) {
+	// Ex: GetCSSRGBA("--code-comment")
+	let style=getComputedStyle(document.body);
+	let val=style.getPropertyValue(name);
+	let arr=val.match(/\d+/g).map(Number);
+	if (arr===null || arr.length!==4) {
+		throw name+' = "'+val+'" not an RGBA value';
+	}
+	return arr;
+}
+
+
+const Env={
+	IsVisible:IsVisible,
+	GetCSSRGBA:GetCSSRGBA
 };
-export {Debug};
+export {Env};
 
 
 //---------------------------------------------------------------------------------
@@ -101,6 +114,18 @@ export class Random {
 		hash+=hash<<14;hash^=hash>>>11;
 		return hash>>>0;
 	}
+
+
+	/*static hashu64(val) {
+		let hash=val^0xaaaaaaaaaaaaaaab;
+		hash+=hash<<27;hash^=hash>>>17;
+		hash+=hash<<10;hash^=hash>>>19;
+		hash+=hash<<12;hash^=hash>>> 6;
+		hash+=hash<<10;hash^=hash>>>26;
+		hash+=hash<<10;hash^=hash>>>13;
+		hash+=hash<<19;hash^=hash>>>29;
+		return hash>>>0;
+	}*/
 
 
 	getu32() {
@@ -1119,10 +1144,10 @@ export class Input {
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v3.30
+// Drawing - v3.32
 
 
-class DrawPoly {
+class DrawPath {
 
 	static MOVE =0;
 	static CLOSE=1;
@@ -1135,9 +1160,8 @@ class DrawPoly {
 		this.vertarr=new Array();
 		this.begin();
 		if (str) {
-			if (trans) {trans=new Transform(trans);}
-			if (str instanceof DrawPoly) {this.addpoly(str,trans);}
-			else {this.fromstring(str);}
+			if (str instanceof DrawPath) {this.addpath(str,trans);}
+			else {this.fromstring(str,trans);}
 		}
 	}
 
@@ -1158,14 +1182,27 @@ class DrawPoly {
 		let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
 		let varr=this.vertarr,vidx=this.vertidx;
 		for (let i=0;i<vidx;i++) {
-			let x=varr[i].x,y=varr[i].y;
+			let v=varr[i],x=v.x,y=v.y;
 			minx=minx<x?minx:x;
 			maxx=maxx>x?maxx:x;
-			miny=miny<y?minx:y;
-			maxy=maxy>y?maxx:y;
+			miny=miny<y?miny:y;
+			maxy=maxy>y?maxy:y;
 		}
 		this.minx=minx;this.maxx=maxx;
 		this.miny=miny;this.maxy=maxy;
+	}
+
+
+	apply(trans) {
+		if (!trans) {return;}
+		trans=new Transform(trans);
+		let varr=this.vertarr,vidx=this.vertidx;
+		for (let i=0;i<vidx;i++) {
+			let v=varr[i];
+			let t=trans.apply([v.x,v.y]);
+			v.x=t[0];v.y=t[1];
+		}
+		this.aabbupdate();
 	}
 
 
@@ -1194,7 +1231,7 @@ class DrawPoly {
 		// Move the pen to [x,y].
 		if (this.moveidx===this.vertidx-1) {this.vertidx--;}
 		else {this.moveidx=this.vertidx;}
-		this.addvert(DrawPoly.MOVE,x,y);
+		this.addvert(DrawPath.MOVE,x,y);
 		return this;
 	}
 
@@ -1203,7 +1240,7 @@ class DrawPoly {
 		// Draw a line from the last vertex to [x,y].
 		// If no moveto() was ever called, behave as moveto().
 		if (this.moveidx<0) {return this.moveto(x,y);}
-		this.addvert(DrawPoly.LINE,x,y);
+		this.addvert(DrawPath.LINE,x,y);
 		return this;
 	}
 
@@ -1211,9 +1248,9 @@ class DrawPoly {
 	curveto(x0,y0,x1,y1,x2,y2) {
 		// Draw a cubic bezier curve.
 		if (this.moveidx<0) {this.moveto(0,0);}
-		this.addvert(DrawPoly.CURVE,x0,y0);
-		this.addvert(DrawPoly.CURVE,x1,y1);
-		this.addvert(DrawPoly.CURVE,x2,y2);
+		this.addvert(DrawPath.CURVE,x0,y0);
+		this.addvert(DrawPath.CURVE,x1,y1);
+		this.addvert(DrawPath.CURVE,x2,y2);
 		return this;
 	}
 
@@ -1229,7 +1266,7 @@ class DrawPoly {
 		}
 		let m=this.vertarr[move];
 		m.i=this.vertidx;
-		this.addvert(DrawPoly.CLOSE,m.x,m.y);
+		this.addvert(DrawPath.CLOSE,m.x,m.y);
 		return this;
 	}
 
@@ -1252,10 +1289,10 @@ class DrawPoly {
 		for (let i=0;i<this.vertidx;i++) {
 			let v=this.vertarr[i],t=v.type;
 			ret+=(i?" ":"")+name[t];
-			if (t!==DrawPoly.CLOSE) {
+			if (t!==DrawPath.CLOSE) {
 				ret+=tostring(v.x)+" "+tostring(v.y);
 			}
-			if (t===DrawPoly.CURVE) {
+			if (t===DrawPath.CURVE) {
 				v=this.vertarr[++i];
 				ret+=" "+tostring(v.x)+" "+tostring(v.y);
 				v=this.vertarr[++i];
@@ -1266,11 +1303,11 @@ class DrawPoly {
 	}
 
 
-	fromstring(str) {
+	fromstring(str,trans) {
 		// Parses an SVG path. Supports Z M L H V C.
 		this.begin();
-		let type=2,rel=0,len=str.length,i=0,c=0;
-		let params=[0,3,3,1,2,63],v=[0,0,0,0,0,0],off=[0,0];
+		let type=2,rel=0,len=str.length,i=0,c=0,move=0;
+		let params=[0,48,48,16,32,63],v=[0,0,0,0,0,0,0,0];
 		function gc() {c=i<len?str.charCodeAt(i++):-1;}
 		gc();
 		while (c>=0) {
@@ -1287,15 +1324,10 @@ class DrawPoly {
 				else {continue;}
 				rel=l;
 			}
-			// Relative offset.
-			if (this.vertidx) {
-				let l=this.vertarr[this.vertidx-1];
-				off[0]=l.x;off[1]=l.y;
-			}
 			let p=params[type];
 			for (let j=0;j<6;j++) {
 				// Only parse floats if they're needed for this type. Format: \s*-?\d*(\.\d*)?
-				let sign=1,mul=1,base=off[j&1],num=0;
+				let sign=1,mul=1,base=v[4+(j&1)],num=0;
 				if ((p>>>j)&1) {
 					base=rel?base:0;
 					while (c<33) {gc();}
@@ -1306,21 +1338,25 @@ class DrawPoly {
 				}
 				v[j]=sign*num+base;
 			}
-			if      (type<1) {this.close();type=1;}
-			else if (type<2) {this.moveto(v[0],v[1]);type=2;}
-			else if (type<5) {this.lineto(v[0],v[1]);}
+			move=move?4:2;
+			if      (type<1) {this.close();type=1;move=0;}
+			else if (type<2) {this.moveto(v[4],v[5]);type=2;move=2;}
+			else if (type<5) {this.lineto(v[4],v[5]);}
 			else {this.curveto(v[0],v[1],v[2],v[3],v[4],v[5]);}
+			v[4^move]=v[6^move];v[5^move]=v[7^move];
 		}
+		this.apply(trans);
 	}
 
 
-	addpoly(poly,trans) {
-		let varr=poly.vertarr,vidx=poly.vertidx;
+	addpath(path,trans) {
+		trans=new Transform(trans?trans:{dim:2});
+		let varr=path.vertarr,vidx=path.vertidx;
 		for (let i=0;i<vidx;i++) {
 			let v=varr[i],x=v.x,y=v.y,t=v.type;
-			if (trans) {[x,y]=trans.apply([x,y]);}
-			if (t===DrawPoly.MOVE) {this.moveto(x,y);}
-			else if (t===DrawPoly.CLOSE) {this.close();}
+			[x,y]=trans.apply([x,y]);
+			if (t===DrawPath.MOVE) {this.moveto(x,y);}
+			else if (t===DrawPath.CLOSE) {this.close();}
 			else {this.addvert(t,x,y);}
 		}
 		return this;
@@ -1518,14 +1554,14 @@ class DrawFont {
 		1000
 		SPC 553
 		█ 553 M0 0H553V1000H0Z
-		! 553 M224 54H327L314 560H238ZM340 692c0 86-130 86-130 0 0-86 130-86 130 0Z
-		" 553 M127 54H235L221 284H141Zm191 0H426L412 284H332Z
+		! 553 M340 692c0-86-130-86-130 0 0 86 130 86 130 0ZM238 560h76L327 54H224Z
+		" 553 M332 284h80L426 54H318Zm-191 0h80L235 54H127Z
 		# 553 M173 106h71L228 268H354l17-162h72L426 268H532v64H420L403 504H506v64H396L378 748H306l18-180H198L180 748H108l18-180H21V504H132l18-172H46V268H156Zm49 226-17 172H331l17-172Z
 		$ 553 M291 14h71l-13 95c35 4 72 9 99 16v75c-29-7-72-16-108-18L312 392c96 37 181 80 181 177 0 122-107 171-229 178L248 864H177l16-117c-44-4-90-9-138-21V645c47 15 97 25 149 26l28-221C150 420 59 378 59 277c0-87 80-164 220-170ZM269 181c-81 6-118 39-118 89 0 49 37 72 93 95Zm6 490c83-4 126-39 126-95 0-63-59-80-101-99Z
 		% 553 M462 54h81L90 748H10ZM404 755c-80 0-133-47-133-149 0-74 51-145 133-145 87 0 132 57 132 145 0 80-52 149-132 149Zm-1-62c34 0 60-31 60-87 0-47-17-83-59-83-39 0-60 37-60 83 0 65 26 87 59 87ZM150 341C70 341 18 294 18 192 18 118 68 47 150 47c87 0 132 57 132 145 0 80-52 149-132 149Zm-1-62c34 0 60-31 60-87 0-47-17-83-59-83-38 0-60 39-60 83 0 65 26 87 59 87Z
 		& 553 M396 553c11-32 23-81 21-140h86c0 68-8 135-49 211l99 124H440l-43-54c-43 35-95 61-171 61-125 0-198-72-198-181 0-94 53-150 121-190-35-46-65-88-65-153C84 117 165 68 256 68c91 0 160 52 160 143 0 85-58 134-146 183ZM227 341c40-25 102-54 102-123 0-49-29-78-76-78-54 0-81 37-81 83 0 54 32 89 55 118Zm-34 98c-34 23-76 59-76 126 0 72 49 117 119 117 45 0 80-16 113-48Z
-		' 553 M221 54H333L319 284H234Z
-		( 553 M426 68C313 176 235 317 235 484c0 164 75 304 190 417l-52 53C254 841 147 692 147 484c0-207 119-367 229-467Z
+		' 553 M234 284h85L333 54H221Z
+		( 553 M376 17C266 117 147 277 147 484c0 208 107 357 226 470l52-53C310 788 235 648 235 484c0-167 78-308 191-416Z
 		) 553 M180 17C294 124 406 276 406 481c0 194-94 349-229 472l-49-50C236 794 318 667 318 481c0-162-83-309-190-411Z
 		* 553 M241 54h71L299 222l140-94 34 60-152 75 151 73-33 58-139-92 12 169H241l12-169-141 92-31-57 151-75L81 186l33-57 140 93Z
 		+ 553 M234 244h85V443H512v75H319V718H234V518H41V443H234Z
@@ -1533,82 +1569,82 @@ class DrawFont {
 		- 553 M130 441H423v80H130Z
 		. 553 M273 757c-45 0-82-37-82-82 0-45 37-82 82-82 45 0 82 37 82 82 0 45-37 82-82 82Z
 		/ 553 M393 54h82L138 854H56Z
-		0 553 M281 97c146 0 229 115 229 321 0 234-96 339-239 339C126 757 43 647 43 418 43 235 122 97 281 97ZM403 283c-12-50-52-113-126-113-110 0-159 126-145 314ZM148 567c24 86 75 117 129 117 107 0 161-128 143-321Z
-		1 553 M271 103h75V668H490v80H86V668H252V199L98 283 66 210Z
+		0 553 M420 363c18 193-36 321-143 321-54 0-105-31-129-117ZM132 484c-14-188 35-314 145-314 74 0 114 63 126 113ZM281 97C122 97 43 235 43 418c0 229 83 339 228 339 143 0 239-105 239-339 0-206-83-321-229-321Z
+		1 553 M66 210l32 73 154-84V668H86v80H490V668H346V103H271Z
 		2 553 M75 181c44-40 90-84 195-84 121 0 191 81 191 185 0 131-85 195-278 385H495v81H72V672C307 432 368 401 368 290c0-137-147-155-246-53Z
-		3 553 M98 122c49-16 96-25 145-25 108 0 209 39 209 157 0 73-34 120-106 154 55 8 137 55 137 146 0 126-110 203-282 203-46 0-85-4-120-8V672c39 5 76 11 127 11 116 0 186-36 186-122 0-84-89-109-144-109H159V382h86c46 0 117-29 117-114 0-76-64-133-264-71Z
-		4 553 M295 106H418V531H527v75H418V748H330V606H21V531Zm35 425V188L106 531Z
-		5 553 M99 106H444v74H179V361h65c163 0 235 75 235 182 0 131-124 214-269 214-44 0-81-4-123-9V671c43 9 83 12 128 12 133 0 172-75 172-135 0-84-70-114-163-114H99Z
-		6 553 M453 181H381c-133 0-227 63-232 212 57-32 115-40 155-40 130 0 199 78 199 189 0 104-71 215-226 215-138 0-217-87-217-287 0-245 116-364 320-364h73ZM149 464c0 169 48 223 136 223 76 0 129-52 129-139 0-75-38-126-122-126-44 0-89 13-143 43Z
+		3 553 M98 197c200-62 264-5 264 71 0 85-71 114-117 114H159v70h91c55 0 144 25 144 109 0 86-70 122-186 122-51 0-88-6-127-11v77c35 4 74 8 120 8 172 0 282-77 282-203 0-91-82-138-137-146 72-34 106-81 106-154C452 136 351 97 243 97c-49 0-96 9-145 25Z
+		4 553 M106 531 330 188V531Zm-85 0v75H330V748h88V606H527V531H418V106H295Z
+		5 553 M99 434H224c93 0 163 30 163 114 0 60-39 135-172 135-45 0-85-3-128-12v77c42 5 79 9 123 9 145 0 269-83 269-214 0-107-72-182-235-182H179V180H444V106H99Z
+		6 553 M149 465c54-30 99-43 143-43 84 0 122 51 122 126 0 87-53 139-129 139-88 0-136-54-136-223ZM453 106H380C176 106 60 225 60 470c0 200 79 287 217 287 155 0 226-111 226-215 0-111-69-189-199-189-40 0-98 8-155 40 5-149 99-212 232-212h72Z
 		7 553 M57 106H491v80L222 748H125L404 185H57Z
 		8 553 M281 97c137 0 200 62 200 154 0 87-62 129-120 161 89 46 134 94 134 175 0 108-94 170-222 170-116 0-215-49-215-160 0-93 62-139 135-178C90 365 72 306 72 257c0-86 72-160 209-160Zm3 278c70-34 109-67 109-121 0-58-42-86-115-86-69 0-118 24-118 83 0 66 64 94 124 124Zm-14 81c-77 37-119 74-119 133 0 58 46 95 126 95 82 0 125-37 125-92 0-64-57-103-132-136Z
 		9 553 M89 748V673h57c175 0 250-71 257-212-42 21-86 40-161 40-113 0-193-69-193-192C49 184 146 97 272 97c167 0 220 136 220 293 0 280-153 358-351 358ZM403 389c0-120-23-222-135-222-89 0-129 63-129 137 0 92 52 128 119 128 59 0 110-20 145-43Z
 		: 553 M277 757c-42 0-75-33-75-75 0-42 33-75 75-75 42 0 75 33 75 75 0 42-33 75-75 75Zm0-361c-42 0-75-33-75-75 0-42 33-75 75-75 42 0 75 33 75 75 0 42-33 75-75 75Z
 		; 553 M277 396c-42 0-75-33-75-75 0-42 33-75 75-75 42 0 75 33 75 75 0 42-33 75-75 75ZM123 849c39 1 129-13 129-84 0-53-46-59-46-112 0-32 25-63 66-63 45 0 88 35 88 117 0 117-87 209-237 209Z
-		< 553 M398 205l53 54L184 480 451 701l-53 54L68 480Z
+		< 553 M398 205l53 54L184 480l267 221-53 54L68 480Z
 		= 553 M65 359H488v72H65Zm0 171H488v72H65Z
-		> 553 M156 204 485 480 156 756l-53-54L370 481 103 260Z
+		> 553 M103 260 370 481 103 702l53 54L485 480 156 204Z
 		? 553 M149 54c191-5 304 104 304 220 0 84-42 158-173 165l-3 121H203l-6-188h58c34 0 105-4 105-92 0-109-106-152-211-149Zm90 703c-36 0-65-29-65-65 0-36 29-65 65-65 36 0 65 29 65 65 0 36-29 65-65 65Z
 		@ 553 M423 292 384 544c-13 84-4 109 22 109 46 0 71-97 71-248 0-190-49-297-160-297C182 108 74 320 74 580c0 249 99 311 175 311 73 0 108-13 167-39v63c-53 22-91 37-167 37C55 952 5 771 5 579 5 258 145 48 321 48c121 0 225 80 225 357 0 182-43 312-147 312-42 0-76-18-76-73-29 57-57 73-92 73-67 0-93-51-93-145 0-139 52-278 161-278 31 0 43 5 60 13Zm-90 81c-13-13-22-16-35-16-60 0-82 132-82 202 0 62 4 94 28 94 19 0 32-16 47-46l10-20Z
-		A 553 M338 106 548 748H453L408 607H141L95 748H5L218 106ZM166 530H383L275 186Z
+		A 553 M275 186 383 530H166Zm-57-80L5 748H95l46-141H408l45 141h95L338 106Z
 		B 553 M261 106c108 0 215 28 215 156 0 71-32 121-106 145 87 18 129 76 129 149 0 127-107 192-246 192H78V106ZM165 380h94c71 0 126-35 126-105 0-76-58-95-128-95H165Zm0 294h97c93 0 144-36 144-112 0-74-67-109-144-109H165Z
 		C 553 M489 214c-51-25-96-39-152-39-144 0-199 125-199 248 0 183 80 255 198 255 68 0 97-13 153-36v83c-45 16-88 31-161 31C122 756 45 622 45 423 45 251 136 98 337 98c64 0 108 13 152 30Z
-		D 553 M223 106c252 0 294 171 294 311 0 259-154 331-320 331H54V106ZM208 672c136 0 217-70 217-255 0-162-61-237-209-237H141V672Z
+		D 553 M141 672V180h75c148 0 209 75 209 237 0 185-81 255-217 255ZM54 106V748H197c166 0 320-72 320-331 0-140-42-311-294-311Z
 		E 553 M464 106v74H186V378H453v74H186V673H464v75H99V106Z
 		F 553 M463 106v75H190V389H449v73H190V748H101V106Z
-		G 553 M494 215c-38-19-85-40-156-40-137 0-214 104-214 251 0 154 57 253 202 253 31 0 57-3 85-13V462H279V390H497V718c-48 22-108 39-180 39C121 757 32 625 32 426 32 229 152 97 338 97c64 0 115 13 156 31Z
+		G 553 M494 128c-41-18-92-31-156-31C152 97 32 229 32 426c0 199 89 331 285 331 72 0 132-17 180-39V390H279v72H411V666c-28 10-54 13-85 13-145 0-202-99-202-253 0-147 77-251 214-251 71 0 118 21 156 40Z
 		H 553 M412 106h87V748H412V453H142V748H55V106h87V377H412Z
 		I 553 M84 106H469v74H321V673H469v75H84V673H232V180H84Z
-		J 553 M98 106H431V546c0 132-80 209-199 209-66 0-120-21-142-36V631c23 18 81 48 139 48 77 0 113-51 113-127V182H98Z
+		J 553 M98 182H342V552c0 76-36 127-113 127-58 0-116-30-139-48v88c22 15 76 36 142 36 119 0 199-77 199-209V106H98Z
 		K 553 M77 106h87V404L399 106H503L249 411 514 748H404L164 433V748H77Z
 		L 553 M114 106h89V673H484v75H114Z
-		M 553 M55 106H159L274 429l27-83 91-240H498l31 642H444L425 196l-29 85-95 258H240L149 291l-29-95-2 157-11 395H24Z
+		M 553 M24 748h83l11-395 2-157 29 95 91 248h61l95-258 29-85 19 552h85L498 106H392L301 346l-27 83L159 106H55Z
 		N 553 M58 106H171L346 479l68 154V106h81V748H381L193 345 140 218V748H58Z
-		O 553 M281 97c170 0 245 131 245 323 0 223-105 337-254 337C76 757 28 592 28 423 28 250 107 97 281 97Zm-4 77c-104 0-158 103-158 246 0 179 58 261 155 261 113 0 161-112 161-251 0-161-49-256-158-256Z
-		P 553 M259 106c144 0 240 68 240 193 0 124-94 219-250 219H165V748H78V106ZM244 443c108 0 164-45 164-138 0-91-70-126-151-126H165V443Z
+		O 553 M277 174c109 0 158 95 158 256 0 139-48 251-161 251-97 0-155-82-155-261 0-143 54-246 158-246Zm4-77C107 97 28 250 28 423c0 169 48 334 244 334 149 0 254-114 254-337 0-192-75-323-245-323Z
+		P 553 M165 443V179h92c81 0 151 35 151 126 0 93-56 138-164 138ZM78 106V748h87V518h84c156 0 250-95 250-219 0-125-96-193-240-193Z
 		Q 553 M553 876c-37 28-75 49-138 49-116 0-180-73-185-171C83 732 28 601 28 432 28 251 107 97 281 97c202 0 245 180 245 321 0 152-52 307-215 336 11 64 51 96 109 96 41 0 63-12 94-34ZM275 680c115 0 160-115 160-253 0-153-46-253-159-253-98 0-157 95-157 246 0 189 65 260 156 260Z
-		R 553 M257 106c153 0 211 73 211 168 0 95-64 150-138 168 39 12 66 56 90 106l96 200H418L322 544c-24-51-46-82-110-82H171V748H83V106ZM243 392c84 0 133-41 133-110 0-63-39-102-120-102H171V392Z
-		S 553 M448 194c-42-11-90-21-153-21-54 0-141 13-141 90 0 45 32 76 92 101l96 40c108 45 148 99 148 171 0 119-101 182-258 182-59 0-117-8-178-22V650c46 17 110 30 182 30 121 0 162-37 162-102 0-42-34-72-91-96l-95-40C136 410 62 369 62 273 62 158 174 97 299 97c66 0 101 10 149 18Z
+		R 553 M171 392V180h85c81 0 120 39 120 102 0 69-49 110-133 110ZM83 106V748h88V462h41c64 0 86 31 110 82l96 204h98L420 548c-24-50-51-94-90-106 74-18 138-73 138-168 0-95-58-168-211-168Z
+		S 553 M448 115c-48-8-83-18-149-18C174 97 62 158 62 273c0 96 74 137 150 169l95 40c57 24 91 54 91 96 0 65-41 102-162 102-72 0-136-13-182-30v85c61 14 119 22 178 22 157 0 258-63 258-182 0-72-40-126-148-171l-96-40c-60-25-92-56-92-101 0-77 87-90 141-90 63 0 111 10 153 21Z
 		T 553 M42 106H511v75H321V748H232V181H42Z
-		U 553 M141 106V532c0 108 45 152 136 152 96 0 136-63 136-152V106h87V532c0 133-83 225-225 225-129 0-221-52-221-225V106Z
+		U 553 M54 106V532c0 173 92 225 221 225 142 0 225-92 225-225V106H413V532c0 89-40 152-136 152-91 0-136-44-136-152V106Z
 		V 553 M101 106 278 666 458 106h93L333 748H215L2 106Z
-		W 553 M105 106l32 556 35-115 73-224h61L425 662l3-98 25-458h78L488 748H374L295 521l-22-74-24 79-73 222H66L22 106Z
+		W 553 M105 106l32 556 35-115 73-224h61L425 662l3-98 25-458h78L488 748H374l-79-227-22-74-24 79-73 222H66L22 106Z
 		X 553 M130 106 277 348 424 106H524L328 416 541 748H431L275 488 118 748H9L223 420 26 106Z
 		Y 553 M106 106 231 337l50 99 41-83L453 106H553L321 518V748H232V517L0 106Z
 		Z 553 M64 106H492v69L164 667H498v81H55V682L385 185H64Z
 		[ 553 M169 37H412v69H251V880H412v69H169Z
 		\\ 553 M79 54h81L497 854H416Z
-		] 553 M141 37H384V949H141V880H301V106H141Z
-		^ 553 M239 106h70L498 420H412L271 174 137 420H60Z
+		] 553 M141 106H301V880H141v69H384V37H141Z
+		^ 553 M60 420h77L271 174 412 420h86L309 106H239Z
 		_ 553 M0 878H553v71H0Z
-		\` 553 M86 54H209L328 173H242Z
-		a 553 M107 277c49-17 105-31 172-31 130 0 193 61 193 160V748H395l-1-66c-31 28-82 75-170 75-105 0-159-56-159-141 0-99 81-157 206-157H386V412c0-45-28-93-112-93-46 0-98 7-167 36ZM274 524c-65 0-118 24-118 89 0 46 30 73 80 73 47 0 106-33 150-75V524Z
-		b 553 M79 54h85V246l-4 91c42-59 97-91 170-91 110 0 170 96 170 242 0 191-111 266-244 266-72 0-130-16-177-35Zm85 610c31 10 61 21 101 21 115 0 148-95 148-190 0-81-22-174-99-174-60 0-96 38-150 102Z
+		\` 553 M242 173h86L209 54H86Z
+		a 553 M386 524v87c-44 42-103 75-150 75-50 0-80-27-80-73 0-65 53-89 118-89ZM107 355c69-29 121-36 167-36 84 0 112 48 112 93v47H271C146 459 65 517 65 616c0 85 54 141 159 141 88 0 139-47 170-75l1 66h77V406c0-99-63-160-193-160-67 0-123 14-172 31Z
+		b 553 M164 423c54-64 90-102 150-102 77 0 99 93 99 174 0 95-33 190-148 190-40 0-70-11-101-21ZM79 719c47 19 105 35 177 35 133 0 244-75 244-266 0-146-60-242-170-242-73 0-128 32-170 91l4-91V54H79Z
 		c 553 M462 353c-37-19-77-33-132-33-84 0-163 61-163 186 0 123 69 176 164 176 62 0 100-17 131-31v79c-42 16-88 25-143 25-127 0-241-60-241-247 0-158 99-260 250-260 62 0 96 9 134 23Z
-		d 553 M386 54h86V748H395l-2-94c-36 50-85 103-170 103C105 757 53 646 53 508c0-113 55-259 242-259 43 0 65 6 91 12Zm0 286c-28-11-52-20-93-20-91 0-152 48-152 188 0 114 35 176 99 176 55 0 103-56 146-115Z
+		d 553 M386 569c-43 59-91 115-146 115-64 0-99-62-99-176 0-140 61-188 152-188 41 0 65 9 93 20Zm0-308c-26-6-48-12-91-12C108 249 53 395 53 508c0 138 52 249 170 249 85 0 134-53 170-103l2 94h77V54H386Z
 		e 553 M147 529c0 93 48 157 165 157 56 0 107-9 157-21v70c-54 13-98 22-174 22-164 0-238-98-238-253 0-183 122-258 224-258 214 0 223 198 212 283Zm259-66c3-61-22-149-128-149-72 0-124 56-131 149Z
-		f 553 M516 133c-154-34-231-8-231 103v91H501v71H285V748H198V398H39V327H198V243c0-130 70-231 318-183Z
-		g 553 M513 255v70H434c69 91 16 261-160 261-46 0-74-7-105-23-58 79 12 97 41 98l145 5c87 3 156 49 156 123 0 101-92 165-243 165-119 0-222-33-222-128 0-58 35-90 68-114-50-24-80-101 2-188-97-106-16-324 217-269ZM269 522c143 0 143-212 0-212-141 0-141 212 0 212ZM191 735c-23 16-54 39-54 82 0 51 53 69 139 69 104 0 143-40 143-87 0-45-46-57-98-59Z
-		h 553 M79 54h85V254l-3 79c36-42 80-87 160-87 102 0 154 68 154 174V748H390V432c0-62-21-112-84-112-69 0-111 72-142 100V748H79Z
+		f 553 M516 60C268 12 198 113 198 243v84H39v71H198V748h87V398H501V327H285V236c0-111 77-137 231-103Z
+		g 553 M513 255v70H434c69 91 16 261-160 261-46 0-74-7-105-23-58 79 12 97 41 98l145 5c87 3 156 49 156 123 0 101-91 165-243 165-120 0-222-33-222-128 0-58 35-90 68-114-50-24-80-101 2-188-97-106-16-324 217-269ZM269 522c143 0 143-212 0-212-141 0-141 212 0 212ZM191 735c-23 16-54 39-54 82 0 51 53 69 139 69 104 0 143-40 143-87 0-45-46-57-98-59Z
+		h 553 M79 748h85V420c31-28 73-100 142-100 63 0 84 50 84 112V748h85V420c0-106-52-174-154-174-80 0-124 45-160 87l3-79V54H79Z
 		i 553 M276 183c-37 0-67-30-67-67 0-37 30-67 67-67 37 0 67 30 67 67 0 37-30 67-67 67ZM101 255H333V677H480v71H85V677H247V326H101Z
 		j 553 M361 183c-37 0-67-30-67-67 0-37 30-67 67-67 37 0 67 30 67 67 0 37-30 67-67 67ZM85 255H413V737c0 221-200 249-348 192V848c172 74 261 19 261-99V326H85Z
 		k 553 M89 54h86V480L397 255H509L278 482 522 748H405L175 484V748H89Z
 		l 553 M101 54H333V677H480v71H85V677H247V124H101Z
 		m 553 M110 255l3 94c25-54 51-103 110-103 58 0 80 40 81 107 39-90 71-107 113-107 54 0 92 41 92 136V748H430V391c0-30 2-74-31-74-28 0-48 43-84 115V748H237V393c0-50-6-76-31-76-20 0-40 20-83 114V748H44V255Z
 		n 553 M155 255l3 80c47-53 86-89 162-89 108 0 155 71 155 170V748H390V429c0-65-25-109-86-109-37 0-68 12-140 101V748H79V255Z
-		o 553 M281 246c183 0 227 142 227 251 0 162-98 260-236 260-160 0-227-112-227-254 0-144 83-257 236-257Zm-4 73c-66 0-144 41-144 182 0 138 69 184 144 184 96 0 143-78 143-184 0-94-36-182-143-182Z
+		o 553 M277 319c107 0 143 88 143 182 0 106-47 184-143 184-75 0-144-46-144-184 0-141 78-182 144-182Zm4-73C128 246 45 359 45 503c0 142 67 254 227 254 138 0 236-98 236-260 0-109-44-251-227-251Z
 		p 553 M154 255l6 83c32-43 79-92 170-92 90 0 170 68 170 249 0 172-105 259-242 259-32 0-64-4-94-11V949H79V255Zm10 409c31 12 66 21 97 21 106 0 152-75 152-188 0-108-33-176-101-176-46 0-89 27-148 103Z
 		q 553 M472 246V949H386V763l4-105c-35 49-87 99-167 99-104 0-170-88-170-246 0-131 66-262 242-262 31 0 59 3 101 16Zm-86 93c-27-10-55-20-97-20-109 0-148 81-148 187 0 136 49 178 99 178 47 0 86-34 146-116Z
-		r 553 m177 255 2 91c52-66 115-100 173-100 126 0 155 102 152 197H418c0-48-5-123-79-123-47 0-85 27-154 111V748H99V255Z
+		r 553 M99 255V748h86V431c69-84 107-111 154-111 74 0 79 75 79 123h86c3-95-26-197-152-197-58 0-121 34-173 100l-2-91Z
 		s 553 M437 337c-155-38-254-20-254 43 0 35 14 52 129 87 115 35 157 72 157 144 0 134-172 175-380 127v-78c182 46 292 27 292-40 0-34-13-51-128-86-115-35-157-77-157-148 0-81 82-178 341-126Z
 		t 553 M254 97V255H476v72H254V579c0 107 94 121 222 89v74c-220 41-307-16-307-162V327H31V255H169V119Z
 		u 553 M390 255h85V748H398l-2-80c-39 42-80 89-165 89-102 0-152-63-152-176V255h85V581c0 62 30 103 85 103 62 0 99-54 141-102Z
 		v 553 M423 255h94L324 748H225L32 255h98L249 576l28 84 25-77Z
-		w 553 M451 255h85L464 748H360L289 543l-14-52-17 56-68 201H90L18 255h84l50 410 92-287h62l78 221 21 63Z
+		w 553 M451 255h85L464 748H360l-71-205-14-52-17 56-68 201H90L18 255h84l50 410 92-287h62l78 221 21 63Z
 		x 553 M153 255 282 444 410 255H515L330 503 523 748H410L277 559 145 748H34L226 500 43 255Z
 		y 553 M130 255 253 577l27 81L423 255h94L349 696C253 948 149 957 29 950V872c99 15 147-10 200-124L33 255Z
 		z 553 M87 255H462v66L188 676H478v72H81V686L359 327H87Z
-		{ 553 M441 106H404c-49 0-106 24-106 105V339c0 51-23 115-104 126 79 6 105 68 105 130V772c0 73 43 108 107 108h35v69H397c-141 0-180-86-180-177v-178c0-60-34-95-109-95H80V431h28c75 0 109-26 109-95V211c0-142 93-174 187-174h37Z
+		{ 553 M441 37H404c-94 0-187 32-187 174V336c0 69-34 95-109 95H80v68h28c75 0 109 35 109 95V772c0 91 39 177 180 177h44V880H406c-64 0-107-35-107-108V595c0-62-26-124-105-130 81-11 104-75 104-126V211c0-81 57-105 106-105h37Z
 		| 553 M236 0h81V949H236Z
 		} 553 M112 37h37c94 0 187 33 187 174V337c0 56 34 94 109 94h29v68H445c-75 0-109 26-109 95V772c0 91-39 177-180 177H112V880h35c61 0 108-31 108-108V594c0-53 19-118 104-129-85-8-104-75-104-126V212c0-78-55-106-106-106H112Z
 		~ 553 M521 406v11c0 97-53 162-139 162-40 0-80-19-117-56l-28-28c-17-17-42-40-69-40-42 0-57 45-57 82v14H32V537c0-83 45-159 140-159 49 0 89 29 116 56l28 28c29 29 49 40 68 40 39 0 58-28 58-85V406Z
@@ -1652,14 +1688,14 @@ class DrawFont {
 			chr=special[chr]??chr.charCodeAt(0);
 			let g={};
 			g.width=parseInt(token(32))/scale;
-			g.poly=new DrawPoly(token(10));
-			let varr=g.poly.vertarr,vidx=g.poly.vertidx;
+			g.path=new DrawPath(token(10));
+			let varr=g.path.vertarr,vidx=g.path.vertidx;
 			for (let i=0;i<vidx;i++) {
 				let v=varr[i];
 				v.x/=scale;
 				v.y/=scale;
 			}
-			g.poly.aabbupdate();
+			g.path.aabbupdate();
 			this.glyphs[chr]=g;
 			if (this.unknown===undefined || chr===63) {
 				this.unknown=g;
@@ -1713,7 +1749,7 @@ class DrawFont {
 
 export class Draw {
 
-	static Poly=DrawPoly;
+	static Path=DrawPath;
 	static Image=DrawImage;
 	static Font=DrawFont;
 	// The default context used for drawing functions.
@@ -1741,13 +1777,13 @@ export class Draw {
 		// State
 		this.deffont  =new DrawFont();
 		this.deftrans =new Transform(2);
-		this.defpoly  =new DrawPoly();
+		this.defpath  =new DrawPath();
 		this.stack    =[];
 		this.stackidx =0;
 		// Rendering variables
 		this.linewidth=1.0;
 		this.tmptrans =new Transform(2);
-		this.tmppoly  =new DrawPoly();
+		this.tmppath  =new DrawPath();
 		this.tmpline  =[];
 	}
 
@@ -1786,7 +1822,7 @@ export class Draw {
 	}
 
 
-	rgbatoint(r,g,b,a) {
+	rgbatoint(r,g,b,a=255) {
 		// Convert an RGBA array to a int regardless of endianness.
 		if (g===undefined) {
 			if (r instanceof Array) {
@@ -1836,7 +1872,7 @@ export class Draw {
 				img  :null,
 				rgba :null,
 				trans:new Transform(2),
-				poly :null,
+				path :null,
 				font :null
 			};
 			this.stack[this.stackidx-1]=mem;
@@ -1844,7 +1880,7 @@ export class Draw {
 		mem.img =this.img;
 		mem.rgba=this.rgba32[0];
 		mem.trans.set(this.deftrans);
-		mem.poly=this.defpoly;
+		mem.path=this.defpath;
 		mem.font=this.deffont;
 	}
 
@@ -1855,7 +1891,7 @@ export class Draw {
 		this.img=mem.img;
 		this.rgba32[0]=mem.rgba;
 		this.deftrans.set(mem.trans);
-		this.defpoly=mem.poly;
+		this.defpath=mem.path;
 		this.deffont=mem.font;
 	}
 
@@ -1962,11 +1998,11 @@ export class Draw {
 	// Paths
 
 
-	beginpath() {return this.defpoly.begin(...arguments);}
-	closepath() {return this.defpoly.close(...arguments);}
-	moveto() {return this.defpoly.moveto(...arguments);}
-	lineto() {return this.defpoly.lineto(...arguments);}
-	curveto() {return this.defpoly.curveto(...arguments);}
+	beginpath() {return this.defpath.begin(...arguments);}
+	closepath() {return this.defpath.close(...arguments);}
+	moveto() {return this.defpath.moveto(...arguments);}
+	lineto() {return this.defpath.lineto(...arguments);}
+	curveto() {return this.defpath.curveto(...arguments);}
 
 
 	// ----------------------------------------
@@ -1974,19 +2010,18 @@ export class Draw {
 
 
 	drawline(x0,y0,x1,y1) {
-		let poly=this.tmppoly,trans=this.deftrans;
-		poly.begin();
-		poly.addline(x0,y0,x1,y1,this.linewidth*0.5);
-		this.fillpoly(poly,trans);
+		let path=this.tmppath;
+		path.begin();
+		path.addline(x0,y0,x1,y1,this.linewidth*0.5);
+		this.fillpath(path);
 	}
 
 
 	fillrect(x,y,w,h) {
-		let trans=this.tmptrans.set(this.deftrans).shift([x,y]);
-		let poly=this.tmppoly;
-		poly.begin();
-		poly.addrect(0,0,w,h);
-		this.fillpoly(poly,trans);
+		let path=this.tmppath;
+		path.begin();
+		path.addrect(x,y,w,h);
+		this.fillpath(path);
 	}
 
 
@@ -1997,11 +2032,10 @@ export class Draw {
 
 	filloval(x,y,xrad,yrad) {
 		yrad=yrad??xrad;
-		let trans=this.tmptrans.set(this.deftrans).shift([x,y]);
-		let poly=this.tmppoly;
-		poly.begin();
-		poly.addoval(0,0,xrad,yrad);
-		this.fillpoly(poly,trans);
+		let path=this.tmppath;
+		path.begin();
+		path.addoval(x,y,xrad,yrad);
+		this.fillpath(path);
 	}
 
 
@@ -2044,7 +2078,7 @@ export class Draw {
 				}
 			}
 			trans.vec.set(trans.mat.mul([xpos,ypos])).iadd([x,y]);
-			this.fillpoly(g.poly,trans);
+			this.fillpath(g.path,trans);
 			xpos+=g.width;
 		}
 	}
@@ -2056,7 +2090,7 @@ export class Draw {
 
 
 	// ----------------------------------------
-	// Polygon Filling
+	// Path Filling
 
 
 	fillresize(size) {
@@ -2077,28 +2111,28 @@ export class Draw {
 	}
 
 
-	fillpoly(poly,trans) {
+	fillpath(path,trans) {
 		// Fills the current path.
 		//
 		// Preprocess the lines and curves. Use a binary heap to dynamically sort lines.
 		// Keep JS as simple as possible to be efficient. Keep micro optimization in WASM.
 		// ~~x = fast floor(x)
-		if (poly===undefined) {poly=this.defpoly;}
+		if (path===undefined) {path=this.defpath;}
 		if (trans===undefined) {trans=this.deftrans;}
 		else if (!(trans instanceof Transform)) {trans=new Transform(trans);}
 		const curvemaxdist2=0.02;
 		let iw=this.img.width,ih=this.img.height;
 		let alpha=this.rgba[3]/255.0;
-		if (poly.vertidx<3 || iw<1 || ih<1 || alpha<1e-4) {return;}
+		if (path.vertidx<3 || iw<1 || ih<1 || alpha<1e-4) {return;}
 		// Screenspace transformation.
 		let matxx=trans.mat[0],matxy=trans.mat[1],matx=trans.vec[0];
 		let matyx=trans.mat[2],matyy=trans.mat[3],maty=trans.vec[1];
 		// Perform a quick AABB-OBB overlap test.
 		// Define the transformed bounding box.
-		let bx=poly.minx,by=poly.miny;
+		let bx=path.minx,by=path.miny;
 		let bndx=bx*matxx+by*matxy+matx;
 		let bndy=bx*matyx+by*matyy+maty;
-		bx=poly.maxx-bx;by=poly.maxy-by;
+		bx=path.maxx-bx;by=path.maxy-by;
 		let bndxx=bx*matxx,bndxy=bx*matyx;
 		let bndyx=by*matxy,bndyy=by*matyy;
 		// Test if the image AABB has a separating axis.
@@ -2110,7 +2144,7 @@ export class Draw {
 		if (bndxy<0) {miny+=bndxy;} else {maxy+=bndxy;}
 		if (bndyy<0) {miny+=bndyy;} else {maxy+=bndyy;}
 		if (!(miny<0 && 0<maxy)) {return;}
-		// Test if the poly OBB has a separating axis.
+		// Test if the path OBB has a separating axis.
 		let cross=bndxx*bndyy-bndxy*bndyx;
 		minx=bndy*bndxx-bndx*bndxy;maxx=minx;
 		bndxx*=ih;bndxy*=iw;
@@ -2128,16 +2162,16 @@ export class Draw {
 		let lr=this.tmpline,lrcnt=lr.length,lcnt=0;
 		let movex=0,movey=0,area=0;
 		let p0x=0,p0y=0,p1x=0,p1y=0;
-		let varr=poly.vertarr;
-		let vidx=poly.vertidx;
+		let varr=path.vertarr;
+		let vidx=path.vertidx;
 		for (let i=0;i<=vidx;i++) {
 			let v=varr[i<vidx?i:0];
-			if (v.type===DrawPoly.CURVE) {v=varr[i+2];}
+			if (v.type===DrawPath.CURVE) {v=varr[i+2];}
 			p0x=p1x;p1x=v.x*matxx+v.y*matxy+matx;
 			p0y=p1y;p1y=v.x*matyx+v.y*matyy+maty;
 			// Add a basic line.
 			let m1x=p1x,m1y=p1y;
-			if (v.type===DrawPoly.MOVE) {
+			if (v.type===DrawPath.MOVE) {
 				// Close any unclosed subpaths.
 				m1x=movex;movex=p1x;
 				m1y=movey;movey=p1y;
@@ -2154,7 +2188,7 @@ export class Draw {
 			l.y0=p0y;
 			l.x1=m1x;
 			l.y1=m1y;
-			if (v.type!==DrawPoly.CURVE) {continue;}
+			if (v.type!==DrawPath.CURVE) {continue;}
 			// Linear decomposition of curves.
 			v=varr[i++];let n1x=v.x*matxx+v.y*matxy+matx,n1y=v.x*matyx+v.y*matyy+maty;
 			v=varr[i++];let n2x=v.x*matxx+v.y*matxy+matx,n2y=v.x*matyx+v.y*matyy+maty;
@@ -2332,8 +2366,8 @@ export class Draw {
 			// Blend the pixel based on how much we're covering.
 			if (area>=cutoff) {
 				do {
-					// a = sa + da*(1-sa)
-					// c = (sc - dc)*sa/a + dc
+					// a = da + ( 1-da)*sa
+					// c = dc + (sc-dc)*sa/a
 					let sa=area<alpha?area:alpha;
 					area+=areadx1+areadx2;
 					areadx2=0;
@@ -2358,8 +2392,8 @@ export class Draw {
 	}
 
 
-	tracepoly(poly,rad,trans) {
-		return this.fillpoly(poly.trace(rad),trans);
+	tracepath(path,rad,trans) {
+		return this.fillpath(path.trace(rad),trans);
 	}
 
 }
@@ -2371,7 +2405,7 @@ export class Draw {
 
 export class UI {
 
-	static VOLUME_POLY=new Draw.Poly(`
+	static VOLUME_PATH=new Draw.Path(`
 		M-.111-.722V.722l-.5-.416H-1V-.306h.389ZM.209-.584C.671-.33.671.33.209.584L.102
 		.39C.41.217.41-.217.102-.39Zm.213-.39c.77.424.77 1.524 0 1.948L.316.78C.932.428
 		.932-.428.316-.78Z
@@ -2405,7 +2439,7 @@ export class UI {
 
 	update() {
 		// If we're rendering, ignore inputs.
-		let typemap={"text":0,"poly":1,"slider":2};
+		let typemap={"text":0,"path":1,"slider":2};
 		let input=this.input;
 		let draw=this.draw,img=draw.img;
 		let dw=img.width,dh=img.height;
@@ -2462,7 +2496,7 @@ export class UI {
 
 
 	render() {
-		let typemap={"text":0,"poly":1,"slider":2};
+		let typemap={"text":0,"path":1,"slider":2};
 		let draw=this.draw,img=draw.img;
 		let dw=img.width,dh=img.height;
 		let focus=this.focus;
@@ -2481,7 +2515,7 @@ export class UI {
 			if (type===0) {
 				draw.filltext(nx,ny,node.value,node.size);
 			} else if (type===1) {
-				draw.fillpoly(node.poly,node.trans);
+				draw.fillpath(node.path,node.trans);
 			} else if (type===2) {
 				let rad=(nw<nh?nw:nh)*0.5;
 				let x0=nx+rad,y0=ny+rad;
@@ -2510,9 +2544,9 @@ export class UI {
 	}
 
 
-	addpoly(poly,trans) {
-		let node=this.addnode("poly",-Infinity,-Infinity,Infinity,Infinity);
-		node.poly=poly;
+	addpath(path,trans) {
+		let node=this.addnode("path",-Infinity,-Infinity,Infinity,Infinity);
+		node.path=path;
 		node.trans=new Transform(trans);
 		return node;
 	}

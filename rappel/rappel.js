@@ -46,7 +46,7 @@ TODO
 /* npx eslint rappel.js -c ../../standards/eslint.js */
 
 
-import {Debug,Random,Vector,Transform,Input,Draw,Audio,UI,Phy} from "./library.js";
+import {Env,Random,Vector,Transform,Input,Draw,Audio,UI,Phy} from "./library.js";
 
 
 // Material IDs
@@ -123,7 +123,7 @@ export class Game {
 			type.data={
 				rgb:null,
 				partscale:1,
-				partpoly:null,
+				partpath:null,
 				partinit:0,
 				partfreq:0,
 				partrad:0,
@@ -292,7 +292,7 @@ export class Game {
 		data.life=0;
 		data.tow=new Vector(2);
 		data.turn=new Vector(2);
-		data.poly=null;
+		data.path=null;
 		delete data._filldist;
 		return data;
 	}
@@ -409,22 +409,22 @@ export class Game {
 		// Init UI.
 		let ui=new UI(draw,this.input);
 		this.ui=ui;
-		ui.addpoly(UI.VOLUME_POLY,{vec:[21,20],scale:15});
+		ui.addpath(UI.VOLUME_PATH,{vec:[21,20],scale:15});
 		let slider=ui.addslider(45,5,140,30,this.audio.volume);
 		slider.onchange=function(node) {state.audio.setvolume(node.value);};
-		this.cursor=new Draw.Poly("M0 0 4 2 2 2 2 4Z");
+		this.cursor=new Draw.Path("M0 0 4 2 2 2 2 4Z");
 		// Draw a dark forest.
 		let bg=new Draw.Image(draww,drawh);
 		this.background=bg;
 		draw.pushstate();
 		draw.setimage(bg);
 		draw.fill(0,0,0,255);
-		let tower=new Draw.Poly(`
+		let tower=new Draw.Path(`
 			M-200 0V-617L-300-717V-867h76v75h55v-75h76v75h55v-75H-5v-133H5v14c19-5 98-19 60
 			18 75 21 85 45 190 47-37 29-136 17-195 5-8-29-47-11-55-10v59H38v75H93v-75h76v75
 			h55v-75h76v150L200-617V0Z
 		`);
-		let tree=new Draw.Poly(`
+		let tree=new Draw.Path(`
 			M-43 0l22-110-89 35 16-35-93 35 46-72-143 47 36-26-102 14 32-22-100 5 185-108-93
 			20 30-25-91 5 181-111-98 8 31-18-69 2 172-99-91 12 18-14-64 4 131-89-51 11 9-17
 			-50 1 141-88-62 11 19-13-58-11 127-73-49 11 14-15-54-7 112-66-44 9 19-13-42-7 96
@@ -446,13 +446,13 @@ export class Game {
 			x*=draww;
 			if (y>towery) {
 				draw.setcolor(16,16,16,255);
-				draw.fillpoly(tower,{vec:[draww*0.43,drawh*0.75],scale:0.2});
+				draw.fillpath(tower,{vec:[draww*0.43,drawh*0.75],scale:0.2});
 				towery=Infinity;
 			}
 			// Shade based on proximity.
 			let c=1/(3-2*u);
 			draw.setcolor(60*c,80*c,60*c,255);
-			draw.fillpoly(tree,{vec:[x,y],scale:scale});
+			draw.fillpath(tree,{vec:[x,y],scale:scale});
 		}
 		draw.popstate();
 		for (let atom of this.world.atomiter()) {
@@ -531,26 +531,26 @@ export class Game {
 
 
 	initparticles() {
-		let leafpoly=new Draw.Poly(`
+		let leafpath=new Draw.Path(`
 			M-.72-.034-.809-.545-.614-.475-.189-1-.125-.857.213-.966.145-.648.306-.579.038
 			-.334.064-.288.656-.402.535-.197.918-0 .535.197.656.402.064.288.038.334.306.579
 			.145.648.213.966-.125.857-.189 1-.614.475-.809.545-.72.034-.918.052-.918-.052Z
 		`);
-		let rainpoly=new Draw.Poly("M1 0 0 1-8 0 0-1Z");
+		let rainpath=new Draw.Path("M1 0 0 1-8 0 0-1Z");
 		let font=new Draw.Font();
 		this.runearr=new Array(128);
 		for (let i=0;i<128;i++) {
-			let glyph=font.glyphs[i],poly=null;
+			let glyph=font.glyphs[i],path=null;
 			if (glyph && i>32) {
-				poly=glyph.poly;
+				path=glyph.path;
 				let scale=2/glyph.width,mx=glyph.width*0.5*scale,my=0.5*scale;
-				poly=new Draw.Poly(poly,{vec:[-mx,-my],scale:scale});
+				path=new Draw.Path(path,{vec:[-mx,-my],scale:scale});
 			}
-			this.runearr[i]=poly;
+			this.runearr[i]=path;
 		}
 		this.runearr.push(null);
 		let typearr=this.typearr;
-		function addmeta(id,init,freq,rad,scale,ang,life,rgb,poly) {
+		function addmeta(id,init,freq,rad,scale,ang,life,rgb,path) {
 			let t=typearr[id].data;
 			t.partinit=init;
 			t.partfreq=freq;
@@ -558,14 +558,14 @@ export class Game {
 			t.partscale=scale;
 			t.partang=ang;
 			t.partlife=life;
-			t.partpoly=poly;
+			t.partpath=path;
 			t.rgb=rgb;
 		}
 		let PI2=Math.PI,PI3=PI2*1.5;
 		addmeta(PART,NaN  ,NaN ,0.05,1.25,NaN,0.2,[255,255,255,255],null);
-		addmeta(LEAF,0.050,1000,0.3 ,2   ,NaN,40 ,[255,255,255,255],leafpoly);
+		addmeta(LEAF,0.050,1000,0.3 ,2   ,NaN,40 ,[255,255,255,255],leafpath);
 		addmeta(RUNE,0.070,450 ,0.5 ,0.45,NaN,40 ,[255,255,255,255],null);
-		addmeta(RAIN,0.037,200 ,0.1 ,0.75,PI3,20 ,[128,128,255,255],rainpoly);
+		addmeta(RAIN,0.037,200 ,0.1 ,0.75,PI3,20 ,[128,128,255,255],rainpath);
 		addmeta(CHAR,NaN  ,NaN ,1   ,1   ,PI2,10 ,[255,255,255,255],null);
 		this.biomearr=[];
 	}
@@ -605,7 +605,7 @@ export class Game {
 		let atom=this.world.createatom(pos,opt.rad??tdat.partrad,type);
 		Game.atominit(atom);
 		let adat=atom.data;
-		adat.poly=id<CHAR?tdat.partpoly:this.runearr[id-CHAR];
+		adat.path=id<CHAR?tdat.partpath:this.runearr[id-CHAR];
 		atom.vel.set(opt.vel??0);
 		if (opt.rand) {atom.vel.iadd(Vector.random(2).imul(opt.rand));}
 		let ang=opt.ang??tdat.partang;
@@ -996,7 +996,7 @@ export class Game {
 				continue;
 			}
 			// Update particle state.
-			let poly=adat.poly;
+			let path=adat.path;
 			if (id>=PART) {
 				let vel=atom.vel;
 				if (id===RUNE) {
@@ -1006,7 +1006,7 @@ export class Game {
 					rgb[3]+=rnd.getnorm()*dt*637;
 					vel[0]+=rnd.getnorm()*dt*2;
 					vel[1]+=rnd.getnorm()*dt*2;
-					poly=this.runearr[65+(ang*26|0)];
+					path=this.runearr[65+(ang*26|0)];
 				} else if (id===RAIN) {
 					if (time>=life) {
 						for (let j=0;j<8;j++) {
@@ -1023,7 +1023,7 @@ export class Game {
 				for (let i=0;i<4;i++) {rgb[i]=Math.min(Math.max(rgb[i]|0,0),255);}
 			}
 			// Draw
-			if (poly===null) {
+			if (path===null) {
 				this.drawatom(x,y,rad,rgb);
 			} else {
 				let tx=adat.turn[0],ty=adat.turn[1],ct=cs;
@@ -1033,7 +1033,7 @@ export class Game {
 				mat[0]=cs;mat[1]=-sn;
 				mat[2]=sn;mat[3]= cs;
 				draw.setcolor(rgb);
-				draw.fillpoly(poly,trans);
+				draw.fillpath(path,trans);
 			}
 		}
 	}
@@ -1045,7 +1045,7 @@ export class Game {
 		dt=dt<this.framemax?dt:this.framemax;
 		dt=dt>0?dt:0;
 		this.frameprev=frametime;
-		if (!Debug.IsVisible(this.canvas)) {return true;}
+		if (!Env.IsVisible(this.canvas)) {return true;}
 		let starttime=performance.now();
 		let input=this.input;
 		input.update();
@@ -1068,11 +1068,11 @@ export class Game {
 			let rad0=1.25*scale,rad1=1.75*scale;
 			let [x,y]=this.playerpos.sub(camera).mul(scale);
 			let ang=-Math.PI*0.5,amul=Math.PI*2*charge/(arcs-1);
-			let poly=new Draw.Poly();
-			for (let a=0;a<arcs;a++) {poly.lineto(Math.cos(ang)*rad1+x,Math.sin(ang)*rad1+y);ang+=amul;}
-			for (let a=0;a<arcs;a++) {ang-=amul;poly.lineto(Math.cos(ang)*rad0+x,Math.sin(ang)*rad0+y);}
+			let path=new Draw.Path();
+			for (let a=0;a<arcs;a++) {path.lineto(Math.cos(ang)*rad1+x,Math.sin(ang)*rad1+y);ang+=amul;}
+			for (let a=0;a<arcs;a++) {ang-=amul;path.lineto(Math.cos(ang)*rad0+x,Math.sin(ang)*rad0+y);}
 			draw.setcolor(100,100,200,255);
-			draw.fillpoly(poly);
+			draw.fillpath(path);
 		}
 		// Draw the bonds.
 		draw.linewidth=3;
@@ -1088,9 +1088,9 @@ export class Game {
 		this.updateaudio();
 		this.ui.render();
 		draw.setcolor(255,255,255,255);
-		draw.fillpoly(this.cursor,{vec:mouse.add(-1.5,-1.5),scale:5});
+		draw.fillpath(this.cursor,{vec:mouse.add(-1.5,-1.5),scale:5});
 		draw.setcolor(128,128,255,255);
-		draw.fillpoly(this.cursor,{vec:mouse,scale:4});
+		draw.fillpath(this.cursor,{vec:mouse,scale:4});
 		draw.setcolor(255,255,255,255);
 		draw.filltext(draw.img.width-5-7*11,5,this.framestr,20);
 		let rem=this.climb-this.climbstop;

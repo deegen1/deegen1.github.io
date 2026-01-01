@@ -29,7 +29,7 @@ velcolor decay by .99^dt
 /* npx eslint demo.js -c ../../standards/eslint.js */
 
 
-import {Debug,Random,Vector,Input,Draw} from "./library.js";
+import {Env,Random,Vector,Input,Draw} from "./library.js";
 import {Phy} from "./physics.js";
 
 
@@ -154,7 +154,7 @@ export class PhyScene {
 
 
 	update(time) {
-		if (!Debug.IsVisible(this.canvas)) {return true;}
+		if (!Env.IsVisible(this.canvas)) {return true;}
 		// Get the timestep. Prevent steps that are too large.
 		let delta=(time-this.frameprev)/1000;
 		delta=delta<this.framemax?delta:this.framemax;
@@ -450,7 +450,7 @@ export class StackScene {
 				canvas.height=drawh;
 				draw.img.resize(draww,drawh);
 				scene.distmap=new Float32Array(draww*drawh);
-			} else if (!Debug.IsVisible(canvas)) {
+			} else if (!Env.IsVisible(canvas)) {
 				// If we've drawn a frame and nothing's visible, skip drawing.
 				continue;
 			}
@@ -688,7 +688,7 @@ export class OscillationScene {
 				canvas.height=drawh;
 				draw.img.resize(draww,drawh);
 				draw.linewidth=draww/300;
-			} else if (!Debug.IsVisible(canvas)) {
+			} else if (!Env.IsVisible(canvas)) {
 				// If we've drawn a frame and nothing's visible, skip drawing.
 				continue;
 			}
@@ -784,7 +784,7 @@ export class BVHScene {
 			canvas.width=draww;
 			canvas.height=drawh;
 			draw.img.resize(draww,drawh);
-		} else if (!Debug.IsVisible(canvas)) {
+		} else if (!Env.IsVisible(canvas)) {
 			// If we've drawn a frame and nothing's visible, skip drawing.
 			return;
 		}

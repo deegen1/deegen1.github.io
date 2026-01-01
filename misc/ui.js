@@ -17,7 +17,7 @@ History
 
 1.00
      Created for Rappel's Tower.
-     Added text, poly, and sliders.
+     Added text, path, and sliders.
 1.01
      Split updating and rendering.
      Consumes input by calling getkeyhit().
@@ -26,31 +26,19 @@ History
 
 
 --------------------------------------------------------------------------------
-Index
-
-
-UI
-	static VOLUME_POLY;
-	constructor(draw,input)
-	update()
-	render()
-	addtext(x,y,text,size)
-	addpoly(poly,trans)
-	addslider(x,y,w,h,value=0,min=0,max=1)
-
-
---------------------------------------------------------------------------------
 TODO
 
 
-Add GEAR_POLY.
-Fix poly bounding box calculation.
+Add GEAR_PATH.
+Fix path bounding box calculation.
 Buttons
 
 
 */
 /* npx eslint ui.js -c ../../standards/eslint.js */
-/* global Transform, Draw */
+
+
+import {Transform,Draw} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
@@ -59,7 +47,7 @@ Buttons
 
 export class UI {
 
-	static VOLUME_POLY=new Draw.Poly(`
+	static VOLUME_PATH=new Draw.Path(`
 		M-.111-.722V.722l-.5-.416H-1V-.306h.389ZM.209-.584C.671-.33.671.33.209.584L.102
 		.39C.41.217.41-.217.102-.39Zm.213-.39c.77.424.77 1.524 0 1.948L.316.78C.932.428
 		.932-.428.316-.78Z
@@ -93,7 +81,7 @@ export class UI {
 
 	update() {
 		// If we're rendering, ignore inputs.
-		let typemap={"text":0,"poly":1,"slider":2};
+		let typemap={"text":0,"path":1,"slider":2};
 		let input=this.input;
 		let draw=this.draw,img=draw.img;
 		let dw=img.width,dh=img.height;
@@ -150,7 +138,7 @@ export class UI {
 
 
 	render() {
-		let typemap={"text":0,"poly":1,"slider":2};
+		let typemap={"text":0,"path":1,"slider":2};
 		let draw=this.draw,img=draw.img;
 		let dw=img.width,dh=img.height;
 		let focus=this.focus;
@@ -169,7 +157,7 @@ export class UI {
 			if (type===0) {
 				draw.filltext(nx,ny,node.value,node.size);
 			} else if (type===1) {
-				draw.fillpoly(node.poly,node.trans);
+				draw.fillpath(node.path,node.trans);
 			} else if (type===2) {
 				let rad=(nw<nh?nw:nh)*0.5;
 				let x0=nx+rad,y0=ny+rad;
@@ -198,9 +186,9 @@ export class UI {
 	}
 
 
-	addpoly(poly,trans) {
-		let node=this.addnode("poly",-Infinity,-Infinity,Infinity,Infinity);
-		node.poly=poly;
+	addpath(path,trans) {
+		let node=this.addnode("path",-Infinity,-Infinity,Infinity,Infinity);
+		node.path=path;
 		node.trans=new Transform(trans);
 		return node;
 	}
