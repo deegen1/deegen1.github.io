@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.14
+demo.js - v1.15
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -665,13 +665,14 @@ export class OBBDemo {
 		this.frametime=0;
 		this.angle=0;
 		this.backrgb=Env.GetCSSRGBA("--diag-high").slice(0,3);
+		let scale=canvas.width/4390;
 		this.path=new Draw.Path(`
 			M513 255v70H434c69 91 16 261-160 261-46 0-74-7-105-23-58 79 12 97 41 98l145 5c87
 			3 156 49 156 123 0 101-92 165-243 165-119 0-222-33-222-128 0-58 35-90 68-114-50
 			-24-80-101 2-188-97-106-16-324 217-269ZM269 522c143 0 143-212 0-212-141 0-141
 			212 0 212ZM191 735c-23 16-54 39-54 82 0 51 53 69 139 69 104 0 143-40 143-87 0-45
 			-46-57-98-59Z
-		`,{scale:.1,pos:[-553*.1*.5,-200*.1]});
+		`,{scale:scale,pos:[-553*scale*.5,-200*scale]});
 		let state=this;
 		function update(time) {
 			state.update(time);
@@ -810,8 +811,8 @@ export class CurveDemo {
 		if (this.frame===frame) {return;}
 		this.frame=frame;
 		let draw=this.draw;
-		let scale=draw.img.width;
-		let trans=new Transform({scale:200/scale,pos:[40,200]});
+		let scale=draw.img.width*0.000840;
+		let trans=new Transform({scale:scale,pos:[97*scale,488*scale]});
 		draw.fill(0,0,0,255);
 		let outline=new Draw.Path('M -5 0 C 275 -343 768 -607 1005 0 L 995 0 C 758 -597 284 -333 5 0 Z');
 		draw.settransform(trans);
