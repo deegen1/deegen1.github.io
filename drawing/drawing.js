@@ -129,7 +129,7 @@ History
 TODO
 
 
-Keep under 50kb, minus the header.
+Keep under 50kb, minus header.
 
 fillpath
 	Per-subpath color. "#" specifies colors for following segments.
@@ -156,6 +156,7 @@ DrawPath
 
 filltext/textrect
 	Add backspaces and tabs.
+	halign, valign [-1,1]
 
 DrawImage
 	Redo setpixel, getpixel, fill, rgbatoint, etc so it's always

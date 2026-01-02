@@ -626,7 +626,7 @@ export class DrawDemo {
 			path.addoval(r1-r2,0,-r2,r2);
 			let ang=Math.atan2(-part.dy,-part.dx);
 			draw.fillpath(path,{scale:5,ang:ang,vec:[part.x,part.y]});
-			//draw.filloval(part.x,part.y,5,5);
+			// draw.filloval(part.x,part.y,5,5);
 		}
 		// Draw player.
 		let ang=performance.now()/1500;
