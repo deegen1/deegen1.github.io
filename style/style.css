@@ -302,6 +302,8 @@ button:hover, select:hover {
 	stroke-linecap:round;
 	fill:var(--diag-fore);
 }
+/* Safari doesn't inherit the baseline */
+.diagram tspan       {dominant-baseline:inherit;}
 .diagram text        {stroke-width:0;}
 .diagram .center     {dominant-baseline:middle;text-anchor:middle;}
 .diagram .vcenter    {dominant-baseline:middle;text-anchor:start;}

@@ -131,6 +131,14 @@ TODO
 
 Keep under 50kb, minus header.
 
+DrawPath
+	don't remove empty moves
+	Add circular arcs. Add to rappel.js charging.
+
+filltext/textrect
+	Add backspaces and tabs.
+	halign, valign [0,1]
+
 fillpath
 	Per-subpath color. "#" specifies colors for following segments.
 	Simplify line area calculation.
@@ -150,15 +158,8 @@ fillpath
 	let ta=256-(~~((sa/tmp)*256.999));
 	da=tmp*255.999;
 
-DrawPath
-	normalize()
-	Add circular arcs. Add to rappel.js charging.
-
-filltext/textrect
-	Add backspaces and tabs.
-	halign, valign [-1,1]
-
 DrawImage
+	v5.0: Apply transforms to images.
 	Redo setpixel, getpixel, fill, rgbatoint, etc so it's always
 	(a<<24)|(r<<16)|(g<<28)|b
 	Check Float16 support.
@@ -1094,17 +1095,14 @@ export class Draw {
 
 
 	drawline(x0,y0,x1,y1) {
-		let path=this.tmppath;
-		path.begin();
-		path.addline(x0,y0,x1,y1,this.linewidth*0.5);
+		let w=this.linewidth;
+		let path=this.tmppath.begin().addline(x0,y0,x1,y1,w*0.5);
 		this.fillpath(path);
 	}
 
 
 	fillrect(x,y,w,h) {
-		let path=this.tmppath;
-		path.begin();
-		path.addrect(x,y,w,h);
+		let path=this.tmppath.begin().addrect(x,y,w,h);
 		this.fillpath(path);
 	}
 
@@ -1116,9 +1114,7 @@ export class Draw {
 
 	filloval(x,y,xrad,yrad) {
 		yrad=yrad??xrad;
-		let path=this.tmppath;
-		path.begin();
-		path.addoval(x,y,xrad,yrad);
+		let path=this.tmppath.begin().addoval(x,y,xrad,yrad);
 		this.fillpath(path);
 	}
 
