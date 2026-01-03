@@ -23,21 +23,35 @@
 		fill:#ffffff;
 		font-size:50px;
 	}
+	.diagram tspan {dominant-baseline:inherit;}
 	</style>
 </head>
 <body>
-<svg version="1.1" viewBox="0 0 1000 150" style="background:#000000;width:100%;">
-	<rect x=50 y=50 width=390 height=50 fill="none" stroke="#808080" stroke-width=2px />
-	<g dominant-baseline="middle">
-		<text x=50 y=75 class="text">1</text>
-		<text x=100 y=75 class="text" style="dominant-baseline:inherit;">2</text>
-		<text x=150 y=75 class="text" style="dominant-baseline:inherit;"><tspan style="dominant-baseline:inherit;">3</tspan></text>
-		<text x=200 y=75 class="text"><tspan style="dominant-baseline:inherit;">4</tspan></text>
-	</g>
-	<text x=250 y=75 class="text" style="dominant-baseline:middle;">5</text>
-	<text x=300 y=75 class="text" style="dominant-baseline:middle;"><tspan style="dominant-baseline:inherit;">6</tspan></text>
-	<text x=350 y=75 class="text" style="dominant-baseline:middle;"><tspan style="dominant-baseline:middle;">7</tspan></text>
-	<text x=400 y=75 class="text"><tspan style="dominant-baseline:middle;">8</tspan></text>
-</svg>
+<table style="width:100%;table-layout:fixed;">
+<tr>
+<td style="width:50%">
+	<svg version="1.1" viewBox="0 0 300 150" style="background:#000000;width:100%;">
+		<rect x=50 y=50 width=190 height=50 fill="none" stroke="#808080" stroke-width=2px />
+		<g dominant-baseline="middle">
+			<text x=50 y=75 class="text">1</text>
+			<text x=100 y=75 class="text" style="dominant-baseline:inherit;">2</text>
+			<text x=150 y=75 class="text" style="dominant-baseline:inherit;"><tspan style="dominant-baseline:inherit;">3</tspan></text>
+			<text x=200 y=75 class="text"><tspan style="dominant-baseline:inherit;">4</tspan></text>
+		</g>
+	</svg>
+</td>
+<td style="width:50%">
+	<svg version="1.1" viewBox="0 0 300 150" class="diagram" style="background:#000000;width:100%;">
+		<rect x=50 y=50 width=190 height=50 fill="none" stroke="#808080" stroke-width=2px />
+		<g dominant-baseline="middle">
+			<text x=50 y=75 class="text">5</text>
+			<text x=100 y=75 class="text" style="dominant-baseline:inherit;">6</text>
+			<text x=150 y=75 class="text" style="dominant-baseline:inherit;"><tspan style="dominant-baseline:inherit;">7</tspan></text>
+			<text x=200 y=75 class="text"><tspan style="dominant-baseline:inherit;">8</tspan></text>
+		</g>
+	</svg>
+</td>
+</tr>
+</table>
 </body>
 </html>
