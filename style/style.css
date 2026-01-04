@@ -1,6 +1,7 @@
 /*
-Standards:
 
+
+Standards:
 
 Keep articles simple - under 10,000 bytes.
 Write the articles as if there are no images. Add images later to help.
@@ -98,6 +99,8 @@ sub {
 	vertical-align:sub;
 	font-size:80%;
 }
+/* Safari doesn't inherit the baseline */
+svg text {dominant-baseline:inherit;}
 
 
 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Main Content ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
@@ -302,8 +305,6 @@ button:hover, select:hover {
 	stroke-linecap:round;
 	fill:var(--diag-fore);
 }
-/* Safari doesn't inherit the baseline */
-.diagram tspan       {dominant-baseline:inherit;}
 .diagram text        {stroke-width:0;}
 .diagram .center     {dominant-baseline:middle;text-anchor:middle;}
 .diagram .vcenter    {dominant-baseline:middle;text-anchor:start;}
