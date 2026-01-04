@@ -134,6 +134,7 @@ Keep under 50kb, minus header.
 DrawPath
 	don't remove empty moves
 	Add circular arcs. Add to rappel.js charging.
+	start at ang0, clamp |ang1-ang0|<2PI, keep sign
 
 filltext/textrect
 	Add backspaces and tabs.
@@ -159,10 +160,29 @@ fillpath
 	da=tmp*255.999;
 
 DrawImage
-	v5.0: Apply transforms to images.
-	Redo setpixel, getpixel, fill, rgbatoint, etc so it's always
-	(a<<24)|(r<<16)|(g<<28)|b
 	Check Float16 support.
+	v5.0: Apply transforms to images.
+	Fast path for untransformed blitting.
+	Pixel area = det(mat)
+	Use AABB-OBB check.
+	Draw if 1<width*height*area*alpha<Infinity
+		.
+	   .' '.
+	 .'     '.
+	'.        '.
+	  '.        '.
+	    '.       .'
+		 '.   .'
+		   '.'
+	Use 2 polygon area calculations - one for src and one for dst.
+		This is needed for both zooming and shrinking.
+	Store the 4 points in an array, nothing else like the heap.
+	for each row:
+		loop through all 4 lines and check which ones are on the row
+		calculate the start/stop for each line, up to 8 points total.
+		add a last point at x=infinity
+	Use same loop for both calculations, just swap between outside and inside.
+	For test version, sum areas on src and dst and see if they're 1.
 
 Tracing
 	v4.0
@@ -174,6 +194,8 @@ Tracing
 Tracing draft
 	what to do if tracing a line segment vs closed path?
 		if closed, reverse second path
+	What to do for empty moves? M->M,Z,EOP
+		Draw circle around move
 
 	c2x=(c2x-c1x)*3;c1x=(c1x-p0x)*3;c3x-=p0x+c2x;c2x-=c1x;
 	c2y=(c2y-c1y)*3;c1y=(c1y-p0y)*3;c3y-=p0y+c2y;c2y-=c1y;

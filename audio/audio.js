@@ -70,6 +70,8 @@ History
 TODO
 
 
+Keep under 50kb, minus header.
+
 Waveguides
 	https://www.osar.fr/notes/waveguides/
 	https://petersalomonsen.com/articles/assemblyscriptphysicalmodelingsynth
