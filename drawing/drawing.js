@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v3.32
+drawing.js - v4.00
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -123,6 +123,8 @@ History
      Simplified transforms in fillrect(), filloval(), etc.
 3.32
      Renamed polygons to paths.
+4.00
+     drawimage() now applies transforms.
 
 
 --------------------------------------------------------------------------------
@@ -130,6 +132,9 @@ TODO
 
 
 Keep under 50kb, minus header.
+
+polytest.js
+	Improve UnitAreaCalc().
 
 DrawPath
 	don't remove empty moves
@@ -141,6 +146,9 @@ filltext/textrect
 	halign, valign [0,1]
 
 fillpath
+	Minkowski difference AABB-OBB test
+		Each +-dx,+-dy combo used once
+		[[iw,0],[dx,-dy],[0,ih],[-dx,-dy],...]
 	Per-subpath color. "#" specifies colors for following segments.
 	Simplify line area calculation.
 	Pull out individual equations and test different forms for stability. All
@@ -160,29 +168,17 @@ fillpath
 	da=tmp*255.999;
 
 DrawImage
-	Check Float16 support.
-	v5.0: Apply transforms to images.
-	Fast path for untransformed blitting.
-	Pixel area = det(mat)
-	Use AABB-OBB check.
-	Draw if 1<width*height*area*alpha<Infinity
-		.
-	   .' '.
-	 .'     '.
-	'.        '.
-	  '.        '.
-	    '.       .'
-		 '.   .'
-		   '.'
-	Use 2 polygon area calculations - one for src and one for dst.
-		This is needed for both zooming and shrinking.
-	Store the 4 points in an array, nothing else like the heap.
-	for each row:
-		loop through all 4 lines and check which ones are on the row
-		calculate the start/stop for each line, up to 8 points total.
-		add a last point at x=infinity
-	Use same loop for both calculations, just swap between outside and inside.
-	For test version, sum areas on src and dst and see if they're 1.
+	Performance improvements:
+	Get rid of areadx1,areadx2,etc and just calculate the area for each
+	pixel with srcvert[].
+	Used fixed point math.
+	Try an array of [[x,area,dx1,dx2],[x,area,dx1,dx2],...] instead of flat
+	arrays.
+	Use Array() instead of typed arrays.
+	Change rounding: ~~(maxy+0.999) instead of ceil(maxy).
+	Rearrange nextx check to not check every loop: while (srcx>=nextx)
+	Calculate srcvert directly instead of using an array.
+	Fast path for untransformed blitting?
 
 Tracing
 	v4.0
@@ -251,7 +247,7 @@ import {Transform} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v3.32
+// Drawing - v4.00
 
 
 class DrawPath {
@@ -1033,70 +1029,229 @@ export class Draw {
 	}
 
 
-	drawimage(src,dx,dy,dw,dh) {
-		// Draw an image with alpha blending.
-		// Note << and imul() implicitly cast floor().
-		let dst=this.img;
-		dx=dx??0;
-		let ix=Math.floor(dx),fx0=dx-ix,fx1=1-fx0;
-		dy=dy??0;
-		let iy=Math.floor(dy),fy0=dy-iy,fy1=1-fy0;
-		let iw=(dw===undefined || dw>src.width )?src.width :ix;
-		let ih=(dh===undefined || dh>src.height)?src.height:iy;
-		let sx=0,sy=0;
-		iw+=ix;
-		if (ix<0) {sx=-ix;ix=0;}
-		iw=(iw>dst.width?dst.width:iw)-ix;
-		ih+=iy;
-		if (iy<0) {sy=-iy;iy=0;}
-		ih=(ih>dst.height?dst.height:ih)-iy;
-		if (iw<=0 || ih<=0) {return;}
-		let m00=Math.round(fx0*fy0*256),m01=Math.round(fx0*fy1*256);
-		let m10=Math.round(fx1*fy0*256),m11=256-m00-m01-m10;
-		let dstdata=dst.data32,drow=iy*dst.width+ix,dinc=dst.width-iw;
-		let srcdata=src.data32,srow=sy*src.width+sx,sinc=src.width-iw;
-		let ystop=drow+dst.width*ih,xstop=drow+iw;
-		let amul=this.rgba[3];
-		let ashift=this.rgbashift[3],namask=(~(255<<ashift))>>>0;
-		let maskl=0x00ff00ff&namask,maskh=0xff00ff00&namask;
-		let sw=src.width,sh=src.height;
-		iw=dst.width;
-		const imul=Math.imul;
-		while (drow<ystop) {
-			let stop0=srow+sw-sx,stop1=++sy<sh?stop0:0;
-			let s10=srcdata[srow];
-			let s11=srow<stop1?srcdata[srow+sw]:0;
-			while (drow<xstop) {
-				// Interpolate 2x2 source pixels.
-				srow++;
-				let s00=s10,s01=s11;
-				s10=srow<stop0?srcdata[srow]:0;
-				s11=srow<stop1?srcdata[srow+sw]:0;
-				const m=0x00ff00ff;
-				let cl=imul(s00&m,m00)+imul(s01&m,m01)+imul(s10&m,m10)+imul(s11&m,m11);
-				let ch=imul((s00>>>8)&m,m00)+imul((s01>>>8)&m,m01)+imul((s10>>>8)&m,m10)+imul((s11>>>8)&m,m11);
-				src=(ch&0xff00ff00)|((cl>>>8)&m);
-				let sa=(src>>>ashift)&255;
-				if (sa<=0) {drow++;continue;}
-				// a = sa + da*(1-sa)
-				// c = (sc*sa + dc*da*(1-sa)) / a
-				// Approximate blending by expanding sa from [0,255] to [0,256].
-				src&=namask;
-				let tmp=dstdata[drow];
-				let da=(tmp>>>ashift)&255;
-				sa*=amul;
-				da=sa*255+da*(65025-sa);
-				sa=(sa*65280+(da>>>1))/da;
-				da=((da+32512)/65025)<<ashift;
-				let l=tmp&0x00ff00ff;
-				let h=tmp&0xff00ff00;
-				dstdata[drow++]=da|
-					(((imul((src&m)-l,sa)>>>8)+l)&maskl)|
-					((imul(((src>>>8)&m)-(h>>>8),sa)+h)&maskh);
+	drawimage(srcimg,offx,offy,trans) {
+		// For a given destination pixel, use trans^-1 to project it onto the source and
+		// use area calculations to average the color.
+		// det(trans) = pixel area
+		//
+		//                 .
+		//               .' '.
+		//             .'     '.
+		//  +--+      '.        '.
+		//  |  |  ->    '.        '.
+		//  +--+          '.       .'
+		//                  '.   .'
+		//                    '.'
+		//
+		if (trans===undefined) {trans=this.deftrans;}
+		else if (!(trans instanceof Transform)) {trans=new Transform(trans);}
+		let dstimg=this.img;
+		let dstw=dstimg.width,dsth=dstimg.height;
+		let srcw=srcimg.width,srch=srcimg.height;
+		// src->dst transformation and inverse.
+		let matxx=trans.mat[0],matxy=trans.mat[1],matx=trans.vec[0]+offx;
+		let matyx=trans.mat[2],matyy=trans.mat[3],maty=trans.vec[1]+offy;
+		let det=matxx*matyy-matxy*matyx;
+		let alpha=det*this.rgba[3]/(255*255);
+		if (Math.abs(srcw*srch*alpha)<1e-10 || !dstw || !dsth) {return;}
+		let invxx= matyy/det,invxy=-matxy/det,invx=-matx*invxx-maty*invxy;
+		let invyx=-matyx/det,invyy= matxx/det,invy=-matx*invyx-maty*invyy;
+		// Check inv(dst) and src AABB overlap.
+		let minx=Infinity,maxx=-Infinity;
+		let miny=Infinity,maxy=-Infinity;
+		for (let i=0;i<4;i++) {
+			let u=((6>>i)&1)?dstw:0,v=((12>>i)&1)?dsth:0;
+			let x=u*invxx+v*invxy+invx;
+			let y=u*invyx+v*invyy+invy;
+			minx=minx<x?minx:x;
+			maxx=maxx>x?maxx:x;
+			miny=miny<y?miny:y;
+			maxy=maxy>y?maxy:y;
+		}
+		if (!(minx<srcw && maxx>0 && miny<srch && maxy>0)) {return;}
+		// Check trans(src) and dst AABB overlap. Calculate vertex positions.
+		let dstvert=new Float64Array(8);
+		minx=Infinity;maxx=-Infinity;
+		miny=Infinity;maxy=-Infinity;
+		for (let i=0;i<8;i+=2) {
+			let u=((20>>i)&1)?srcw:0,v=((80>>i)&1)?srch:0;
+			let x=u*matxx+v*matxy+matx;dstvert[i  ]=x;
+			let y=u*matyx+v*matyy+maty;dstvert[i+1]=y;
+			minx=minx<x?minx:x;
+			maxx=maxx>x?maxx:x;
+			miny=miny<y?miny:y;
+			maxy=maxy>y?maxy:y;
+		}
+		if (!(minx<dstw && maxx>0 && miny<dsth && maxy>0)) {return;}
+		// Iterate over the dst rows.
+		let [rshift,gshift,bshift,ashift]=this.rgbashift;
+		let srcvert=new Float64Array(8);
+		let sortarr=new Uint32Array(9);
+		let areaarr=new Float64Array(8*3);
+		let dstdata=dstimg.data32;
+		let srcdata=srcimg.data32;
+		let dsty=miny>0?~~miny:0;
+		let dstmaxy=maxy<dsth?Math.ceil(maxy):dsth;
+		for (;dsty<dstmaxy;dsty++) {
+			// Calculate dst x bounds for the row.
+			minx=Infinity;maxx=-Infinity;
+			let vx=dstvert[6],vy=dstvert[7];
+			for (let i=0;i<8;i+=2) {
+				let x0=vx,x1=dstvert[i  ];
+				let y0=vy,y1=dstvert[i+1];
+				vx=x1;vy=y1;
+				if (y0>y1) {x1=x0;x0=vx;y1=y0;y0=vy;}
+				y0-=dsty;y1-=dsty;
+				if (!(y0<1 && y1>0)) {continue;}
+				let dx=x1-x0,dy=y1-y0,dxy=dx/dy;
+				let y0x=x0-y0*dxy,y1x=y0x+dxy;
+				x0=y0>0?x0:y0x;
+				x1=y1<1?x1:y1x;
+				if (x0>x1) {y0=x0;x0=x1;x1=y0;}
+				minx=minx<x0?minx:x0;
+				maxx=maxx>x1?maxx:x1;
 			}
-			xstop+=iw;
-			drow+=dinc;
-			srow+=sinc;
+			if (!(minx<dstw && maxx>0)) {continue;}
+			let dstrow=dsty*dstw;
+			let dstx=minx>0?~~minx:0;
+			let dstmaxx=maxx<dstw?Math.ceil(maxx):dstw;
+			for (;dstx<dstmaxx;dstx++) {
+				// Map the dst pixel to src and calculate bounds.
+				minx=Infinity;maxx=-Infinity;
+				miny=Infinity;maxy=-Infinity;
+				for (let i=0;i<8;i+=2) {
+					let u=dstx+((20>>i)&1),v=dsty+((80>>i)&1);
+					let x=u*invxx+v*invxy+invx;srcvert[i  ]=x;
+					let y=u*invyx+v*invyy+invy;srcvert[i+1]=y;
+					minx=minx<x?minx:x;
+					maxx=maxx>x?maxx:x;
+					miny=miny<y?miny:y;
+					maxy=maxy>y?maxy:y;
+				}
+				if (!(minx<srcw && maxx>0 && miny<srch && maxy>0)) {continue;}
+				// Iterate over src rows.
+				let srcy=miny>0?~~miny:0;
+				let srcmaxy=maxy<srch?Math.ceil(maxy):srch;
+				let sa=0,sr=0,sg=0,sb=0;
+				for (;srcy<srcmaxy;srcy++) {
+					// Calculate src x bounds and area gradients.
+					let area=0,areadx1=0,areadx2=0;
+					let sidx=0,aidx=0;
+					minx=Infinity;maxx=-Infinity;
+					vx=srcvert[6];vy=srcvert[7];
+					for (let i=0;i<8;i+=2) {
+						let x0=vx,x1=srcvert[i  ];
+						let y0=vy,y1=srcvert[i+1];
+						vx=x1;vy=y1;
+						let sign=alpha;
+						if (x0>x1) {
+							sign=-sign;
+							x1=x0;x0=vx;
+							y1=y0;y0=vy;
+						}
+						y0-=srcy;y1-=srcy;
+						if (y0>y1) {sign=-sign;y0=1-y0;y1=1-y1;}
+						// Above, below, or degenerate.
+						if (y1<=0 || y0>=1) {continue;}
+						let dx=x1-x0,dy=y1-y0,dyx=dy/dx;
+						let dxy=dx/dy,y0x=x0-y0*dxy;
+						if (y0<0) {y0=0;x0=y0x;}
+						if (y1>1) {y1=1;x1=y0x+dxy;}
+						minx=minx<x0?minx:x0;
+						maxx=maxx>x1?maxx:x1;
+						if (x0>=srcw || !(dyx!==0)) {continue;}
+						let i0=x0>0?~~x0:0;
+						let i1=x1>0?~~x1:0;
+						x0-=i0;
+						x1-=i1;
+						dy*=0.5*sign;
+						let tmp1=x1>0?(x1*x1/dx)*dy:0;
+						let xlen=i1-i0;
+						if (xlen<=0) {
+							// 1 pixel or last.
+							dy=(y0-y1)*sign;
+							let tmp0=x0>=0?(x0+x1)*dy*0.5:-tmp1;
+							sortarr[sidx++]=i0;
+							areaarr[aidx++]=dy-tmp0;
+							areaarr[aidx++]=0;
+							areaarr[aidx++]=tmp0;
+						} else if (xlen<=1) {
+							// 2 pixels. Avoid dyx in case it's thin.
+							let tmp0=((x0>0?(1-x0)*(1-x0):(1-2*x0))/dx)*dy;
+							dy=(y0-y1)*sign;
+							sortarr[sidx++]=i0;
+							areaarr[aidx++]=-tmp0;
+							areaarr[aidx++]=0;
+							areaarr[aidx++]=0;
+							sortarr[sidx++]=i1;
+							areaarr[aidx++]=dy+tmp0+tmp1;
+							areaarr[aidx++]=0;
+							areaarr[aidx++]=-tmp1;
+						} else {
+							// 3+ pixels.
+							dyx*=sign;
+							let tmp0=x0>0?(x0*x0/dx)*dy:0;
+							sortarr[sidx++]=i0;
+							areaarr[aidx++]=-((1-2*x0)/dx)*dy-tmp0;
+							areaarr[aidx++]=-dyx;
+							areaarr[aidx++]=tmp0;
+							sortarr[sidx++]=i1;
+							areaarr[aidx++]=((1-2*x1)/dx)*dy+tmp1;
+							areaarr[aidx++]=dyx;
+							areaarr[aidx++]=-tmp1;
+						}
+					}
+					if (!(minx<srcw && maxx>0)) {continue;}
+					// Sort the gradient changes.
+					let row=srcy*srcw;
+					let srcx=row+(minx>0?~~minx:0);
+					let srcmaxx=row+(maxx<srcw?Math.ceil(maxx):srcw);
+					for (let i=0;i<sidx;i++) {
+						let j=i,v=((row+sortarr[i])<<3)|i,n=0;
+						while (j>0 && (n=sortarr[j-1])>v) {
+							sortarr[j--]=n;
+						}
+						sortarr[j]=v;
+					}
+					sortarr[sidx]=0xffffffff;
+					// Sum the src pixels. Premultiply alpha.
+					sidx=0;
+					let sort=sortarr[0],nextx=sort>>>3;
+					for (;srcx<srcmaxx;srcx++) {
+						while (srcx>=nextx) {
+							let a=(sort&7)*3;
+							area   +=areaarr[a  ];
+							areadx1+=areaarr[a+1];
+							areadx2+=areaarr[a+2];
+							sort=sortarr[++sidx];
+							nextx=sort>>>3;
+						}
+						let col=srcdata[srcx];
+						let amul=area*((col>>>ashift)&255);
+						sa+=amul;
+						sr+=amul*((col>>>rshift)&255);
+						sg+=amul*((col>>>gshift)&255);
+						sb+=amul*((col>>>bshift)&255);
+						area+=areadx1+areadx2;
+						areadx2=0;
+					}
+				}
+				// Blend with dst. Note alpha*det already averages the src colors.
+				if (sa>1e-8) {
+					// a = sa + da*(1-sa)
+					// c = (sc*sa + dc*da*(1-sa)) / a
+					sa=sa<1?sa:1;
+					let pix=dstrow+dstx;
+					let col=dstdata[pix];
+					let dmul=(((col>>>ashift)&255)/255)*(1-sa);
+					let a=sa+dmul,adiv=1.001/a;
+					let da=a*255.255;
+					let dr=(sr+dmul*((col>>>rshift)&255))*adiv;
+					let dg=(sg+dmul*((col>>>gshift)&255))*adiv;
+					let db=(sb+dmul*((col>>>bshift)&255))*adiv;
+					dstdata[pix]=(da<<ashift)|(dr<<rshift)|(dg<<gshift)|(db<<bshift);
+				}
+			}
 		}
 	}
 
@@ -1229,7 +1384,7 @@ export class Draw {
 		// Screenspace transformation.
 		let matxx=trans.mat[0],matxy=trans.mat[1],matx=trans.vec[0];
 		let matyx=trans.mat[2],matyy=trans.mat[3],maty=trans.vec[1];
-		// Perform a quick AABB-OBB overlap test.
+		// Perform an AABB-OBB overlap test.
 		// Define the transformed bounding box.
 		let bx=path.minx,by=path.miny;
 		let bndx=bx*matxx+by*matxy+matx;
