@@ -1,9 +1,9 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v16.94
+library.js - v17.64
 
-Copyright 2025 Alec Dee - MIT license - SPDX: MIT
+Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
 
 
@@ -15,7 +15,7 @@ Env     - v1.02
 Random  - v1.11
 Vector  - v3.06
 Input   - v1.19
-Drawing - v3.32
+Drawing - v4.02
 UI      - v1.02
 Audio   - v3.09
 Physics - v3.13
@@ -1144,7 +1144,7 @@ export class Input {
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v3.32
+// Drawing - v4.02
 
 
 class DrawPath {
@@ -1168,7 +1168,7 @@ class DrawPath {
 
 	begin() {
 		this.vertidx=0;
-		this.moveidx=-2;
+		this.move=null;
 		this.minx=Infinity;
 		this.maxx=-Infinity;
 		this.miny=Infinity;
@@ -1212,11 +1212,10 @@ class DrawPath {
 		if (idx>=arr.length) {
 			let len=16;
 			while (len<=idx) {len+=len;}
-			while (arr.length<len) {arr.push({type:-1,i:-1,x:0,y:0});}
+			while (arr.length<len) {arr.push({type:-1,x:0,y:0});}
 		}
 		let v=arr[idx];
 		v.type=type;
-		v.i=this.moveidx;
 		v.x=x;
 		v.y=y;
 		if (this.minx>x) {this.minx=x;}
@@ -1229,9 +1228,7 @@ class DrawPath {
 
 	moveto(x,y) {
 		// Move the pen to [x,y].
-		if (this.moveidx===this.vertidx-1) {this.vertidx--;}
-		else {this.moveidx=this.vertidx;}
-		this.addvert(DrawPath.MOVE,x,y);
+		this.move=this.addvert(DrawPath.MOVE,x,y);
 		return this;
 	}
 
@@ -1239,7 +1236,7 @@ class DrawPath {
 	lineto(x,y) {
 		// Draw a line from the last vertex to [x,y].
 		// If no moveto() was ever called, behave as moveto().
-		if (this.moveidx<0) {return this.moveto(x,y);}
+		if (!this.move) {return this.moveto(x,y);}
 		this.addvert(DrawPath.LINE,x,y);
 		return this;
 	}
@@ -1247,7 +1244,7 @@ class DrawPath {
 
 	curveto(x0,y0,x1,y1,x2,y2) {
 		// Draw a cubic bezier curve.
-		if (this.moveidx<0) {this.moveto(0,0);}
+		if (!this.move) {this.moveto(0,0);}
 		this.addvert(DrawPath.CURVE,x0,y0);
 		this.addvert(DrawPath.CURVE,x1,y1);
 		this.addvert(DrawPath.CURVE,x2,y2);
@@ -1255,18 +1252,36 @@ class DrawPath {
 	}
 
 
+	arcto(x,y,ang0,ang1,xrad,yrad,line=false) {
+		// Circular arc approximation.
+		yrad=yrad??xrad;
+		let turn=ang1-ang0;
+		turn=turn>-Math.PI*2?turn:-Math.PI*2;
+		turn=turn< Math.PI*2?turn: Math.PI*2;
+		// Control point length.
+		let c =0.087840004*turn;
+		let cx=c*xrad,cy=c*yrad;
+		let c1=Math.cos(ang0),x1=c1*xrad+x;c1*=cy;
+		let s1=Math.sin(ang0),y1=s1*yrad+y;s1*=cx;
+		if (line) {this.lineto(x1,y1);}
+		for (let i=1;i<5;i++) {
+			let ang=ang0+i*(turn/4);
+			let c0=c1;c1=Math.cos(ang);
+			let s0=s1;s1=Math.sin(ang);
+			let x0=x1;x1=c1*xrad+x;c1*=cy;
+			let y0=y1;y1=s1*yrad+y;s1*=cx;
+			this.curveto(x0-s0,y0+c0,x1+s1,y1-c1,x1,y1);
+		}
+		return this;
+	}
+
+
 	close() {
 		// Draw a line from the current vertex to our last moveto() call.
-		let move=this.moveidx;
-		if (move<0) {return this;}
-		this.moveidx=-2;
-		if (move===this.vertidx-1) {
-			this.vertidx--;
-			return this;
-		}
-		let m=this.vertarr[move];
-		m.i=this.vertidx;
-		this.addvert(DrawPath.CLOSE,m.x,m.y);
+		let mx=0,my=0;
+		let m=this.move;
+		if (m) {mx=m.x;my=m.y;this.move=null;}
+		this.addvert(DrawPath.CLOSE,mx,my);
 		return this;
 	}
 
@@ -1369,15 +1384,7 @@ class DrawPath {
 
 
 	addoval(x,y,xrad,yrad) {
-		// Circle approximation. Max error: 0.000196
-		const c=0.551915024;
-		let dx=xrad,dy=(yrad??xrad),cx=c*dx,cy=c*dy;
-		this.moveto(x,y+dy);
-		this.curveto(x-cx,y+dy,x-dx,y+cy,x-dx,y   );
-		this.curveto(x-dx,y-cy,x-cx,y-dy,x   ,y-dy);
-		this.curveto(x+cx,y-dy,x+dx,y-cy,x+dx,y   );
-		this.curveto(x+dx,y+cy,x+cx,y+dy,x   ,y+dy);
-		return this;
+		return this.arcto(x,y,0,Math.PI*2,xrad,yrad,true).close();
 	}
 
 
@@ -1404,8 +1411,7 @@ class DrawPath {
 		this.lineto(x0-dy,y0+dx);
 		this.curveto(x0-c3,y0+c2,x0-c1,y0+c0,x0-dx,y0-dy);
 		this.curveto(x0-c2,y0-c3,x0-c0,y0-c1,x0+dy,y0-dx);
-		this.close();
-		return this;
+		return this.close();
 	}
 
 
@@ -1427,6 +1433,9 @@ class DrawImage {
 			if (width===undefined) {
 				width=0;
 				height=0;
+			} else if ((typeof img)==="string") {
+				this.loadfile(img);
+				width=height=0;
 			} else if (img instanceof DrawImage) {
 				width=img.width;
 				height=img.height;
@@ -1454,6 +1463,19 @@ class DrawImage {
 	}
 
 
+	loadfile(name) {
+		let xml=new XMLHttpRequest();
+		xml.open("GET",name,true);
+		xml.responseType="arraybuffer";
+		xml.onload=()=>{
+			let buf=xml.response;
+			if (buf) {this.fromtga(new Uint8Array(buf));}
+			else {throw "can't open "+name;}
+		};
+		xml.send(null);
+	}
+
+
 	savefile(name) {
 		// Save the image to a TGA file.
 		let blob=new Blob([this.totga()]);
@@ -1473,14 +1495,14 @@ class DrawImage {
 		let w=src[12]+(src[13]<<8);
 		let h=src[14]+(src[15]<<8);
 		let bits=src[16],bytes=bits>>>3;
-		if (w*h*bytes+18!==len || src[2]!==2 || (bits!==24 && bits!==32)) {
+		if (w*h*bytes+18>len || src[2]!==2 || (bits!==24 && bits!==32)) {
 			throw "TGA corrupt";
 		}
 		// Load the image data.
 		this.resize(w,h);
 		let dst=this.data8;
 		let didx=0,dinc=0,sidx=18,a=255;
-		if (src[17]&32) {didx=(h-1)*w*4;dinc=-w*8;}
+		if (!(src[17]&32)) {didx=(h-1)*w*4;dinc=-w*8;}
 		for (let y=0;y<h;y++) {
 			for (let x=0;x<w;x++) {
 				dst[didx+2]=src[sidx++];
@@ -1711,22 +1733,24 @@ class DrawFont {
 		let xpos=0,xmax=0;
 		let ypos=0,lh=this.lineheight;
 		let glyphs=this.glyphs;
+		let space=glyphs[32].width;
 		for (let i=0;i<len;i++) {
 			let c=str.charCodeAt(i);
 			let g=glyphs[c];
 			if (g===undefined) {
+				xmax=xmax>xpos?xmax:xpos;
 				if (c===8) {
 					// backspace
-					throw "missing backspace";
+					xpos-=space;
+					xpos=xpos>0?xpos:0;
 				} else if (c===9) {
 					// tab
-					throw "missing tab";
+					let tab=space*5;
+					xpos=((~~(xpos/tab))+1)*tab;
 				} else if (c===10) {
 					ypos+=lh;
-					xmax=xmax>xpos?xmax:xpos;
 					xpos=0;
 				} else if (c===13) {
-					xmax=xmax>xpos?xmax:xpos;
 					xpos=0;
 				} else {
 					g=this.unknown;
@@ -1737,9 +1761,10 @@ class DrawFont {
 			}
 			xpos+=g.width;
 		}
+		// Use 1 instead of lineheight.
 		if (len>0) {
 			xmax=xmax>xpos?xmax:xpos;
-			ypos+=lh;
+			ypos+=1;
 		}
 		return {x:0,y:0,w:xmax*scale,h:ypos*scale};
 	}
@@ -1926,70 +1951,171 @@ export class Draw {
 	}
 
 
-	drawimage(src,dx,dy,dw,dh) {
-		// Draw an image with alpha blending.
-		// Note << and imul() implicitly cast floor().
-		let dst=this.img;
-		dx=dx??0;
-		let ix=Math.floor(dx),fx0=dx-ix,fx1=1-fx0;
-		dy=dy??0;
-		let iy=Math.floor(dy),fy0=dy-iy,fy1=1-fy0;
-		let iw=(dw===undefined || dw>src.width )?src.width :ix;
-		let ih=(dh===undefined || dh>src.height)?src.height:iy;
-		let sx=0,sy=0;
-		iw+=ix;
-		if (ix<0) {sx=-ix;ix=0;}
-		iw=(iw>dst.width?dst.width:iw)-ix;
-		ih+=iy;
-		if (iy<0) {sy=-iy;iy=0;}
-		ih=(ih>dst.height?dst.height:ih)-iy;
-		if (iw<=0 || ih<=0) {return;}
-		let m00=Math.round(fx0*fy0*256),m01=Math.round(fx0*fy1*256);
-		let m10=Math.round(fx1*fy0*256),m11=256-m00-m01-m10;
-		let dstdata=dst.data32,drow=iy*dst.width+ix,dinc=dst.width-iw;
-		let srcdata=src.data32,srow=sy*src.width+sx,sinc=src.width-iw;
-		let ystop=drow+dst.width*ih,xstop=drow+iw;
-		let amul=this.rgba[3];
-		let ashift=this.rgbashift[3],namask=(~(255<<ashift))>>>0;
-		let maskl=0x00ff00ff&namask,maskh=0xff00ff00&namask;
-		let sw=src.width,sh=src.height;
-		iw=dst.width;
-		const imul=Math.imul;
-		while (drow<ystop) {
-			let stop0=srow+sw-sx,stop1=++sy<sh?stop0:0;
-			let s10=srcdata[srow];
-			let s11=srow<stop1?srcdata[srow+sw]:0;
-			while (drow<xstop) {
-				// Interpolate 2x2 source pixels.
-				srow++;
-				let s00=s10,s01=s11;
-				s10=srow<stop0?srcdata[srow]:0;
-				s11=srow<stop1?srcdata[srow+sw]:0;
-				const m=0x00ff00ff;
-				let cl=imul(s00&m,m00)+imul(s01&m,m01)+imul(s10&m,m10)+imul(s11&m,m11);
-				let ch=imul((s00>>>8)&m,m00)+imul((s01>>>8)&m,m01)+imul((s10>>>8)&m,m10)+imul((s11>>>8)&m,m11);
-				src=(ch&0xff00ff00)|((cl>>>8)&m);
-				let sa=(src>>>ashift)&255;
-				if (sa<=0) {drow++;continue;}
-				// a = sa + da*(1-sa)
-				// c = (sc*sa + dc*da*(1-sa)) / a
-				// Approximate blending by expanding sa from [0,255] to [0,256].
-				src&=namask;
-				let tmp=dstdata[drow];
-				let da=(tmp>>>ashift)&255;
-				sa*=amul;
-				da=sa*255+da*(65025-sa);
-				sa=(sa*65280+(da>>>1))/da;
-				da=((da+32512)/65025)<<ashift;
-				let l=tmp&0x00ff00ff;
-				let h=tmp&0xff00ff00;
-				dstdata[drow++]=da|
-					(((imul((src&m)-l,sa)>>>8)+l)&maskl)|
-					((imul(((src>>>8)&m)-(h>>>8),sa)+h)&maskh);
+	drawimage(srcimg,offx,offy,trans) {
+		// For a given destination pixel, use trans^-1 to project it onto the source and
+		// use area calculations to average the color.
+		// det(trans) = pixel area
+		//
+		//                 .
+		//               .' '.
+		//             .'     '.
+		//  +--+      '.        '.
+		//  |  |  ->    '.        '.
+		//  +--+          '.       .'
+		//                  '.   .'
+		//                    '.'
+		//
+		if (trans===undefined) {trans=this.deftrans;}
+		else if (!(trans instanceof Transform)) {trans=new Transform(trans);}
+		let dstimg=this.img;
+		let dstw=dstimg.width,dsth=dstimg.height;
+		let srcw=srcimg.width,srch=srcimg.height;
+		// src->dst transformation.
+		let matxx=trans.mat[0],matxy=trans.mat[1],matx=trans.vec[0]+offx;
+		let matyx=trans.mat[2],matyy=trans.mat[3],maty=trans.vec[1]+offy;
+		let det=matxx*matyy-matxy*matyx;
+		let alpha=det*0.5*this.rgba[3]/(255*255);
+		if (Math.abs(srcw*srch*alpha)<1e-8 || !dstw || !dsth) {return;}
+		// Check trans(src) and dst AABB overlap. Calculate vertex positions.
+		let minx=Infinity,maxx=-Infinity;
+		let miny=Infinity,maxy=-Infinity;
+		const dstvert=[0,0,0,0,0,0,0,0];
+		for (let i=0;i<8;i+=2) {
+			let u=((20>>i)&1)?srcw:0,v=((80>>i)&1)?srch:0;
+			let x=u*matxx+v*matxy+matx;dstvert[i  ]=x;
+			let y=u*matyx+v*matyy+maty;dstvert[i+1]=y;
+			minx=minx<x?minx:x;
+			maxx=maxx>x?maxx:x;
+			miny=miny<y?miny:y;
+			maxy=maxy>y?maxy:y;
+		}
+		if (!(minx<dstw && maxx>0 && miny<dsth && maxy>0)) {return;}
+		let dstminy=miny>0?~~miny:0;
+		let dstmaxy=maxy<dsth?Math.ceil(maxy):dsth;
+		// Check inv(dst) and src AABB overlap.
+		let invxx= matyy/det,invxy=-matxy/det,invx=-matx*invxx-maty*invxy;
+		let invyx=-matyx/det,invyy= matxx/det,invy=-matx*invyx-maty*invyy;
+		minx=Infinity;maxx=-Infinity;
+		miny=Infinity;maxy=-Infinity;
+		for (let i=0;i<4;i++) {
+			let u=((6>>i)&1)?dstw:0,v=((12>>i)&1)?dsth:0;
+			let x=u*invxx+v*invxy+invx;
+			let y=u*invyx+v*invyy+invy;
+			minx=minx<x?minx:x;
+			maxx=maxx>x?maxx:x;
+			miny=miny<y?miny:y;
+			maxy=maxy>y?maxy:y;
+		}
+		if (!(minx<srcw && maxx>0 && miny<srch && maxy>0)) {return;}
+		// Precompute pixel AABB offsets and slightly shrink them.
+		let midx=(invxx+invxy)*0.5;
+		let midy=(invyx+invyy)*0.5;
+		let devx=(Math.abs(invxx)+Math.abs(invxy))*0.499999;
+		let devy=(Math.abs(invyx)+Math.abs(invyy))*0.499999;
+		let pixminx=midx-devx,pixmaxx=midx+devx+1;
+		let pixminy=midy-devy,pixmaxy=midy+devy+1;
+		// Iterate over dst rows.
+		let [rshift,gshift,bshift,ashift]=this.rgbashift;
+		let dstdata=dstimg.data32;
+		let srcdata=srcimg.data32;
+		for (let dsty=dstminy;dsty<dstmaxy;dsty++) {
+			// Calculate dst x bounds for the row.
+			minx=Infinity;maxx=-Infinity;
+			let vx=dstvert[6],vy=dstvert[7]-dsty;
+			for (let i=0;i<8;i+=2) {
+				let x0=vx,x1=dstvert[i  ];
+				let y0=vy,y1=dstvert[i+1]-dsty;
+				vx=x1;vy=y1;
+				if (y0>y1) {x1=x0;x0=vx;y1=y0;y0=vy;}
+				if (!(y0<1 && y1>0)) {continue;}
+				let dx=x1-x0,dy=y1-y0,dxy=dx/dy;
+				let y0x=x0-y0*dxy,y1x=y0x+dxy;
+				x0=y0>0?x0:y0x;
+				x1=y1<1?x1:y1x;
+				if (x0>x1) {y0=x0;x0=x1;x1=y0;}
+				minx=minx<x0?minx:x0;
+				maxx=maxx>x1?maxx:x1;
 			}
-			xstop+=iw;
-			drow+=dinc;
-			srow+=sinc;
+			if (!(minx<dstw && maxx>0)) {continue;}
+			let dstrow=dsty*dstw;
+			let dstminx=minx>0?~~minx:0;
+			let dstmaxx=maxx<dstw?Math.ceil(maxx):dstw;
+			for (let dstx=dstminx;dstx<dstmaxx;dstx++) {
+				// Project the dst pixel to src and calculate AABB.
+				let srcx0=dstx*invxx+dsty*invxy+invx;
+				let srcy0=dstx*invyx+dsty*invyy+invy;
+				minx=srcx0+pixminx;let srcminx=minx>0?~~minx:0;
+				miny=srcy0+pixminy;let srcminy=miny>0?~~miny:0;
+				maxx=srcx0+pixmaxx;let srcmaxx=maxx<srcw?~~maxx:srcw;
+				maxy=srcy0+pixmaxy;let srcmaxy=maxy<srch?~~maxy:srch;
+				// Iterate over src rows.
+				let sa=0,sr=0,sg=0,sb=0;
+				let xr=invxx,xi=invxy;
+				let yr=invyx,yi=invyy;
+				for (let srcy=srcminy;srcy<srcmaxy;srcy++) {
+					// Sum the src pixels.
+					let row=srcy*srcw;
+					for (let srcx=srcminx;srcx<srcmaxx;srcx++) {
+						let area=0,minc=srcw,maxc=-1;
+						let sx=srcx0-srcx,sy=srcy0-srcy;
+						for (let i=0;i<4;i++) {
+							// Calculate transformed pixel vertices.
+							let sign=alpha;
+							let dx=xr,dy=yr;
+							let x0=sx,y0=sy;
+							sx+=dx;xr=xi;xi=-dx;
+							sy+=dy;yr=yi;yi=-dy;
+							let x1=sx,y1=sy;
+							if (y0>y1) {sign=-sign;x1=x0;x0=sx;y1=y0;y0=sy;}
+							if (y0>=1 || y1<=0) {continue;}
+							// Clip to unit row.
+							let dxy=dx/dy;
+							let y0x=x0-y0*dxy;
+							if (y0<0) {y0=0;x0=y0x;}
+							if (y1>1) {y1=1;x1=y0x+dxy;}
+							if (x0>x1) {let tmp=x0;x0=x1;x1=tmp;dx=-dx;}
+							minc=minc<x0?minc:x0;
+							maxc=maxc>x1?maxc:x1;
+							// Calculate area to the right.
+							if (x1<1) {
+								// Vertical line or last pixel.
+								let tmp=x1>0?-(x1*x1/dx)*dy*sign:0;
+								let h=(y0-y1)*sign;
+								tmp=x0>=0?(x0+x1)*h:tmp;
+								area+=h+h-tmp;
+							} else if (x0<1) {
+								area-=((x0>0?(1-x0)*(1-x0):(1-2*x0))/dx)*dy*sign;
+							}
+						}
+						// Skip pixels if we are too far left or right.
+						if (maxc<=0) {break;}
+						if (minc>=1) {srcx+=(~~minc)-1;continue;}
+						// Scale pixel color by the area and premultiply alpha.
+						let col=srcdata[row+srcx];
+						let amul=area*((col>>>ashift)&255);
+						sr+=amul*((col>>>rshift)&255);
+						sg+=amul*((col>>>gshift)&255);
+						sb+=amul*((col>>>bshift)&255);
+						sa+=amul;
+						if (maxc<=1) {break;}
+					}
+				}
+				// Blend with dst. Note alpha*det already averages the src colors.
+				if (sa>1e-5) {
+					// a = sa + da*(1-sa)
+					// c = (sc*sa + dc*da*(1-sa)) / a
+					sa=sa<1?sa:1;
+					let pix=dstrow+dstx;
+					let col=dstdata[pix];
+					let dmul=(((col>>>ashift)&255)/255)*(1-sa);
+					let a=sa+dmul,adiv=1.001/a;
+					let da=a*255.255;
+					let dr=(sr+dmul*((col>>>rshift)&255))*adiv;
+					let dg=(sg+dmul*((col>>>gshift)&255))*adiv;
+					let db=(sb+dmul*((col>>>bshift)&255))*adiv;
+					dstdata[pix]=(da<<ashift)|(dr<<rshift)|(dg<<gshift)|(db<<bshift);
+				}
+			}
 		}
 	}
 
@@ -2010,17 +2136,14 @@ export class Draw {
 
 
 	drawline(x0,y0,x1,y1) {
-		let path=this.tmppath;
-		path.begin();
-		path.addline(x0,y0,x1,y1,this.linewidth*0.5);
+		let w=this.linewidth;
+		let path=this.tmppath.begin().addline(x0,y0,x1,y1,w*0.5);
 		this.fillpath(path);
 	}
 
 
 	fillrect(x,y,w,h) {
-		let path=this.tmppath;
-		path.begin();
-		path.addrect(x,y,w,h);
+		let path=this.tmppath.begin().addrect(x,y,w,h);
 		this.fillpath(path);
 	}
 
@@ -2032,9 +2155,7 @@ export class Draw {
 
 	filloval(x,y,xrad,yrad) {
 		yrad=yrad??xrad;
-		let path=this.tmppath;
-		path.begin();
-		path.addoval(x,y,xrad,yrad);
+		let path=this.tmppath.begin().addoval(x,y,xrad,yrad);
 		this.fillpath(path);
 	}
 
@@ -2046,23 +2167,34 @@ export class Draw {
 	setfont(font) {this.deffont=font;}
 
 
-	filltext(x,y,str,scale) {
+	filltext(x,y,str,scale,halign=0,valign=0) {
+		// Alignment: 0=left, 0.5=center, 1=right.
+		let len=str.length;
+		if (!len) {return;}
 		let font=this.deffont,glyphs=font.glyphs;
 		if (scale===undefined) {scale=font.defscale;}
-		let len=str.length;
 		let xpos=0,ypos=0,lh=font.lineheight;
+		let space=glyphs[32].width;
 		let trans=this.tmptrans;
-		trans.set(this.deftrans).scale(scale);
+		trans.set(this.deftrans);
+		if (halign!==0 || valign!==0) {
+			let rect=font.textrect(str,1);
+			halign=-rect.x-rect.w*halign;
+			valign=-rect.y-rect.h*valign;
+		}
+		trans.scale(scale);
 		for (let i=0;i<len;i++) {
 			let c=str.charCodeAt(i);
 			let g=glyphs[c];
 			if (g===undefined) {
 				if (c===8) {
 					// backspace
-					throw "missing backspace";
+					xpos-=space;
+					xpos=xpos>0?xpos:0;
 				} else if (c===9) {
 					// tab
-					throw "missing tab";
+					let tab=space*5;
+					xpos=((~~(xpos/tab))+1)*tab;
 				} else if (c===10) {
 					// EOL
 					ypos+=lh;
@@ -2077,7 +2209,7 @@ export class Draw {
 					continue;
 				}
 			}
-			trans.vec.set(trans.mat.mul([xpos,ypos])).iadd([x,y]);
+			trans.vec.set(trans.mat.mul([xpos+halign,ypos+valign])).iadd([x,y]);
 			this.fillpath(g.path,trans);
 			xpos+=g.width;
 		}
@@ -2127,7 +2259,7 @@ export class Draw {
 		// Screenspace transformation.
 		let matxx=trans.mat[0],matxy=trans.mat[1],matx=trans.vec[0];
 		let matyx=trans.mat[2],matyy=trans.mat[3],maty=trans.vec[1];
-		// Perform a quick AABB-OBB overlap test.
+		// Perform an AABB-OBB overlap test.
 		// Define the transformed bounding box.
 		let bx=path.minx,by=path.miny;
 		let bndx=bx*matxx+by*matxy+matx;

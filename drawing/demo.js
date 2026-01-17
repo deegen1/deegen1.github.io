@@ -377,7 +377,7 @@ export class DrawPerf {
 				draw.rgba32[0]=rnd.getu32();
 				let x=rnd.getf()*(imgw-2*cache.width)+cache.width;
 				let y=rnd.getf()*(imgh-2*cache.height)+cache.height;
-				draw.drawimage(cache,x,y);
+				draw.drawimage(cache,x|0,y|0);
 			}
 			pixels+=tests*cache.width*cache.height;
 		} else if (test<8) {

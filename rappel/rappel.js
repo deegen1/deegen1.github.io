@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-rappel.js - v5.00
+rappel.js - v5.01
 
 Copyright 2025 Alec Dee
 2dee.net - akdee144@gmail.com
@@ -97,7 +97,7 @@ export class Game {
 		world.data.game=this;
 		world.maxsteptime=1/180;
 		world.gravity.set([0,6.66]);
-		let toph=15,both=20,climb=200;
+		let toph=15,both=20,climb=100;
 		let miny=-toph-climb,maxy=both;
 		let minx=0,maxx=100;
 		this.worldmin=new Vector([minx,miny]);
@@ -668,7 +668,7 @@ export class Game {
 			for (let i=0;i<notes;i++) {
 				sndmap[i]=[];
 				for (let l of [1,2,3]) {
-					let snd,len=l*bpm,freq=notearr[i],pos=rnd.getf()*.02-.01;
+					let snd=null,len=l*bpm,freq=notearr[i],pos=rnd.getf()*.02-.01;
 					if (!side) {snd=Audio.createguitar(1,freq,0.2+pos,len*2);}
 					else {snd=Audio.createglockenspiel(1,freq*4,0.25+pos,len*20);}
 					sndmap[i][l]=snd;
@@ -970,7 +970,7 @@ export class Game {
 				adat.sndready=true;
 			}
 			// Expire particles.
-			let time=0,life=0,cs,sn;
+			let time=0,life=0,cs=0,sn=0;
 			if (id>=PART) {
 				time=adat.time+dt;
 				life=adat.life;
@@ -1064,13 +1064,13 @@ export class Game {
 		let camera=this.camera;
 		let charge=this.charge;
 		if (charge>0) {
-			let arcs=128;
 			let rad0=1.25*scale,rad1=1.75*scale;
 			let [x,y]=this.playerpos.sub(camera).mul(scale);
-			let ang=-Math.PI*0.5,amul=Math.PI*2*charge/(arcs-1);
+			let ang0=-Math.PI*0.5,ang1=ang0+Math.PI*2*charge;
 			let path=new Draw.Path();
-			for (let a=0;a<arcs;a++) {path.lineto(Math.cos(ang)*rad1+x,Math.sin(ang)*rad1+y);ang+=amul;}
-			for (let a=0;a<arcs;a++) {ang-=amul;path.lineto(Math.cos(ang)*rad0+x,Math.sin(ang)*rad0+y);}
+			path.arcto(x,y,ang0,ang1,rad1,rad1,true);
+			path.arcto(x,y,ang1,ang0,rad0,rad0,true);
+			path.close();
 			draw.setcolor(100,100,200,255);
 			draw.fillpath(path);
 		}
