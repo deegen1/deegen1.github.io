@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v4.02
+drawing.js - v4.03
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -132,6 +132,8 @@ History
      Improved drawimage() performance by 20% by simplifying area calculation.
      Added arcto() and replaced addoval().
      Added text alignment, tabs, and backspaces.
+4.03
+     Simplified miny/maxy clipping in drawimage().
 
 
 --------------------------------------------------------------------------------
@@ -144,8 +146,10 @@ Split object and world transforms.
 
 DrawPath
 	Calculate optimal control point distance for arcto().
+	Better api for arcto()?
 
 fillpath
+	Go back to thickness instead of linewidth.
 	Minkowski difference AABB-OBB test
 		Each +-dx,+-dy combo used once
 		[[iw,0],[dx,-dy],[0,ih],[-dx,-dy],...]
@@ -169,16 +173,12 @@ fillpath
 
 DrawImage
 	Create page describing algorithm. Transforming an image (the hard way).
-	Calculate actual start and end y. Remove inverse AABB test.
-	Get rid of abs(), floor(), ceil().
-	Performance test in chrome.
+	Remove ceil() for srcmaxy.
 	Used fixed point math.
 	Faster pixel overlap calculation. Exploit symmetry. Opposite sides will have
 	same slope and negate eachother.
 	Fast path for untransformed blitting?
 	Integer pixel blending.
-	Does readcount go to 0 because the pixel area*.4999 is too small?
-	Make smaller.
 
 Tracing
 	v5.0
@@ -247,7 +247,7 @@ import {Transform} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v4.02
+// Drawing - v4.03
 
 
 class DrawPath {
@@ -1073,94 +1073,87 @@ export class Draw {
 		let dstimg=this.img;
 		let dstw=dstimg.width,dsth=dstimg.height;
 		let srcw=srcimg.width,srch=srcimg.height;
+		const rnd0=1e-6,rnd1=1-rnd0;
 		// src->dst transformation.
 		let matxx=trans.mat[0],matxy=trans.mat[1],matx=trans.vec[0]+offx;
 		let matyx=trans.mat[2],matyy=trans.mat[3],maty=trans.vec[1]+offy;
 		let det=matxx*matyy-matxy*matyx;
 		let alpha=det*0.5*this.rgba[3]/(255*255);
-		if (Math.abs(srcw*srch*alpha)<1e-8 || !dstw || !dsth) {return;}
-		// Check trans(src) and dst AABB overlap. Calculate vertex positions.
-		let minx=Infinity,maxx=-Infinity;
-		let miny=Infinity,maxy=-Infinity;
-		const dstvert=[0,0,0,0,0,0,0,0];
-		for (let i=0;i<8;i+=2) {
-			let u=((20>>i)&1)?srcw:0,v=((80>>i)&1)?srch:0;
-			let x=u*matxx+v*matxy+matx;dstvert[i  ]=x;
-			let y=u*matyx+v*matyy+maty;dstvert[i+1]=y;
-			minx=minx<x?minx:x;
-			maxx=maxx>x?maxx:x;
-			miny=miny<y?miny:y;
-			maxy=maxy>y?maxy:y;
-		}
-		if (!(minx<dstw && maxx>0 && miny<dsth && maxy>0)) {return;}
-		let dstminy=miny>0?~~miny:0;
-		let dstmaxy=maxy<dsth?Math.ceil(maxy):dsth;
-		// Check inv(dst) and src AABB overlap.
+		if (!(srcw*srch*(alpha>0?alpha:-alpha)>1e-8 && dstw && dsth)) {return;}
+		// dst->src transformation.
 		let invxx= matyy/det,invxy=-matxy/det,invx=-matx*invxx-maty*invxy;
 		let invyx=-matyx/det,invyy= matxx/det,invy=-matx*invyx-maty*invyy;
-		minx=Infinity;maxx=-Infinity;
-		miny=Infinity;maxy=-Infinity;
-		for (let i=0;i<4;i++) {
-			let u=((6>>i)&1)?dstw:0,v=((12>>i)&1)?dsth:0;
-			let x=u*invxx+v*invxy+invx;
-			let y=u*invyx+v*invyy+invy;
-			minx=minx<x?minx:x;
-			maxx=maxx>x?maxx:x;
-			miny=miny<y?miny:y;
-			maxy=maxy>y?maxy:y;
+		// Check if trans(src) and dst AABB overlap. Calculate y intercepts.
+		matxx*=srcw;matxy*=srch;
+		matyx*=srcw;matyy*=srch;
+		let min=Infinity,max=-Infinity;
+		let vx=matx,vy=maty;
+		for (let i=1;i<16;i+=i) {
+			let x0=vx,y0=vy;
+			vx=((3&i)?matxx:0)+((6&i)?matxy:0)+matx;
+			vy=((3&i)?matyx:0)+((6&i)?matyy:0)+maty;
+			let x1=vx,y1=vy;
+			if (x0>x1) {x1=x0;x0=vx;y1=y0;y0=vy;}
+			if (!(x0<dstw && x1>=0)) {continue;}
+			let dx=x1-x0,dy=y1-y0;
+			y0+=x0<0?-(x0/dx)*dy:0;
+			y1+=x1>dstw?((dstw-x1)/dx)*dy:0;
+			if (y0>y1) {x0=y0;y0=y1;y1=x0;}
+			min=min<y0?min:y0;
+			max=max>y1?max:y1;
 		}
-		if (!(minx<srcw && maxx>0 && miny<srch && maxy>0)) {return;}
-		// Precompute pixel AABB offsets and slightly shrink them.
-		let midx=(invxx+invxy)*0.5;
-		let midy=(invyx+invyy)*0.5;
-		let devx=(Math.abs(invxx)+Math.abs(invxy))*0.499999;
-		let devy=(Math.abs(invyx)+Math.abs(invyy))*0.499999;
-		let pixminx=midx-devx,pixmaxx=midx+devx+1;
-		let pixminy=midy-devy,pixmaxy=midy+devy+1;
+		min+=rnd0;max+=rnd1;
+		if (!(min<dsth && max>=1)) {return;}
+		let dstminy=min>0?~~min:0;
+		let dstmaxy=max<dsth?~~max:dsth;
+		// Precompute pixel AABB offsets.
+		let pixminx=(invxx<0?invxx:0)+(invxy<0?invxy:0);
+		let pixminy=(invyx<0?invyx:0)+(invyy<0?invyy:0);
+		let pixmaxy=(invyx>0?invyx:0)+(invyy>0?invyy:0);
 		// Iterate over dst rows.
 		let [rshift,gshift,bshift,ashift]=this.rgbashift;
 		let dstdata=dstimg.data32;
 		let srcdata=srcimg.data32;
 		for (let dsty=dstminy;dsty<dstmaxy;dsty++) {
 			// Calculate dst x bounds for the row.
-			minx=Infinity;maxx=-Infinity;
-			let vx=dstvert[6],vy=dstvert[7]-dsty;
-			for (let i=0;i<8;i+=2) {
-				let x0=vx,x1=dstvert[i  ];
-				let y0=vy,y1=dstvert[i+1]-dsty;
-				vx=x1;vy=y1;
+			min=Infinity;max=-Infinity;
+			vx=matx;vy=maty-dsty;
+			for (let i=1;i<16;i+=i) {
+				let x0=vx,y0=vy;
+				vx=((3&i)?matxx:0)+((6&i)?matxy:0)+matx;
+				vy=((3&i)?matyx:0)+((6&i)?matyy:0)+maty-dsty;
+				let x1=vx,y1=vy;
 				if (y0>y1) {x1=x0;x0=vx;y1=y0;y0=vy;}
-				if (!(y0<1 && y1>0)) {continue;}
+				if (y0>=1 || y1<=0) {continue;}
 				let dx=x1-x0,dy=y1-y0,dxy=dx/dy;
 				let y0x=x0-y0*dxy,y1x=y0x+dxy;
 				x0=y0>0?x0:y0x;
 				x1=y1<1?x1:y1x;
 				if (x0>x1) {y0=x0;x0=x1;x1=y0;}
-				minx=minx<x0?minx:x0;
-				maxx=maxx>x1?maxx:x1;
+				min=min<x0?min:x0;
+				max=max>x1?max:x1;
 			}
-			if (!(minx<dstw && maxx>0)) {continue;}
+			min+=rnd0;max+=rnd1;
+			let dstminx=min>0?~~min:0;
+			let dstmaxx=max<dstw?~~max:dstw;
 			let dstrow=dsty*dstw;
-			let dstminx=minx>0?~~minx:0;
-			let dstmaxx=maxx<dstw?Math.ceil(maxx):dstw;
 			for (let dstx=dstminx;dstx<dstmaxx;dstx++) {
 				// Project the dst pixel to src and calculate AABB.
 				let srcx0=dstx*invxx+dsty*invxy+invx;
 				let srcy0=dstx*invyx+dsty*invyy+invy;
-				minx=srcx0+pixminx;let srcminx=minx>0?~~minx:0;
-				miny=srcy0+pixminy;let srcminy=miny>0?~~miny:0;
-				maxx=srcx0+pixmaxx;let srcmaxx=maxx<srcw?~~maxx:srcw;
-				maxy=srcy0+pixmaxy;let srcmaxy=maxy<srch?~~maxy:srch;
+				min=srcx0+pixminx;let srcminx=min>0?~~min:0;
+				min=srcy0+pixminy;let srcminy=min>0?~~min:0;
+				max=srcy0+pixmaxy;let srcmaxy=max<srch?Math.ceil(max):srch;
 				// Iterate over src rows.
 				let sa=0,sr=0,sg=0,sb=0;
 				let xr=invxx,xi=invxy;
 				let yr=invyx,yi=invyy;
 				for (let srcy=srcminy;srcy<srcmaxy;srcy++) {
 					// Sum the src pixels.
-					let row=srcy*srcw;
-					for (let srcx=srcminx;srcx<srcmaxx;srcx++) {
-						let area=0,minc=srcw,maxc=-1;
-						let sx=srcx0-srcx,sy=srcy0-srcy;
+					let srcrow=srcy*srcw;
+					for (let srcx=srcminx;srcx<srcw;srcx++) {
+						let sx=srcx0-srcx,sy=srcy0-srcy,area=0;
+						min=srcw;max=-1;
 						for (let i=0;i<4;i++) {
 							// Calculate transformed pixel vertices.
 							let sign=alpha;
@@ -1177,8 +1170,8 @@ export class Draw {
 							if (y0<0) {y0=0;x0=y0x;}
 							if (y1>1) {y1=1;x1=y0x+dxy;}
 							if (x0>x1) {let tmp=x0;x0=x1;x1=tmp;dx=-dx;}
-							minc=minc<x0?minc:x0;
-							maxc=maxc>x1?maxc:x1;
+							min=min<x0?min:x0;
+							max=max>x1?max:x1;
 							// Calculate area to the right.
 							if (x1<1) {
 								// Vertical line or last pixel.
@@ -1191,16 +1184,16 @@ export class Draw {
 							}
 						}
 						// Skip pixels if we are too far left or right.
-						if (maxc<=0) {break;}
-						if (minc>=1) {srcx+=(~~minc)-1;continue;}
+						if (max<=0) {break;}
+						if (min>=1) {srcx+=(~~min)-1;continue;}
 						// Scale pixel color by the area and premultiply alpha.
-						let col=srcdata[row+srcx];
-						let amul=area*((col>>>ashift)&255);
-						sr+=amul*((col>>>rshift)&255);
-						sg+=amul*((col>>>gshift)&255);
-						sb+=amul*((col>>>bshift)&255);
-						sa+=amul;
-						if (maxc<=1) {break;}
+						let col=srcdata[srcrow+srcx];
+						let smul=area*((col>>>ashift)&255);
+						sr+=smul*((col>>>rshift)&255);
+						sg+=smul*((col>>>gshift)&255);
+						sb+=smul*((col>>>bshift)&255);
+						sa+=smul;
+						if (max<=1) {break;}
 					}
 				}
 				// Blend with dst. Note alpha*det already averages the src colors.
@@ -1210,7 +1203,7 @@ export class Draw {
 					sa=sa<1?sa:1;
 					let pix=dstrow+dstx;
 					let col=dstdata[pix];
-					let dmul=(((col>>>ashift)&255)/255)*(1-sa);
+					let dmul=(((col>>>ashift)&255)*0.003921569)*(1-sa);
 					let a=sa+dmul,adiv=1.001/a;
 					let da=a*255.255;
 					let dr=(sr+dmul*((col>>>rshift)&255))*adiv;
