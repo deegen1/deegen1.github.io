@@ -466,10 +466,10 @@ export class Game {
 		// Overlap is judged by the center of the pixel (.5,.5).
 		let draw=this.draw,img=draw.img;
 		// Check if it's on the screen.
-		let dw=img.width,dh=img.height;
-		let dx=(x>1?(x<dw?x:dw):1)-0.5-x;
-		let dy=(y>1?(y<dh?y:dh):1)-0.5-y;
-		rad=rad+0.5;
+		let imgw=img.width,imgh=img.height;
+		let dx=(x>1?(x<imgw?x:imgw):1)-0.5-x;
+		let dy=(y>1?(y<imgh?y:imgh):1)-0.5-y;
+		rad+=0.5;
 		let rad2=rad*rad;
 		let alpha=(rgb[3]/255)*128;
 		if (dx*dx+dy*dy>=rad2 || alpha<0.5) {return;}
@@ -478,49 +478,50 @@ export class Game {
 		let colrgba=draw.rgbatoint(rgb[0],rgb[1],rgb[2],255);
 		let coll=(colrgba&0x00ff00ff)>>>0;
 		let colh=(colrgba&0xff00ff00)>>>0;
-		let colh2=colh>>>8;
-		let miny=Math.floor(y-rad+0.5),maxy=Math.ceil(y+rad-0.5);
-		miny=miny> 0?miny: 0;
-		maxy=maxy<dh?maxy:dh;
-		let imgdata32=img.data32;
+		let colh2=colh>>>8,tmp=0;
+		const rnd0=0.5+1e-6,rnd1=0.5-1e-6;
+		tmp=y-rad+rnd0;let miny=tmp>0?~~tmp:0;
+		tmp=y+rad+rnd1;let maxy=tmp<imgh?~~tmp:imgh;
+		let imgdata=img.data32;
 		let distmap=this.distmap;
 		for (;miny<maxy;miny++) {
 			// Find the boundaries of the row we're on. Clip to center of pixel.
 			dy=miny-y+0.5;
 			let d2=dy*dy;
-			dx=Math.sqrt(rad2-d2)-0.5;
-			let minx=Math.floor(x-dx),maxx=Math.ceil(x+dx);
-			minx=minx> 0?minx: 0;
-			maxx=maxx<dw?maxx:dw;
+			dx=Math.sqrt(rad2-d2);
+			tmp=x-dx+rnd0;let minx=tmp>0?~~tmp:0;
+			tmp=x+dx+rnd1;let maxx=tmp<imgw?~~tmp:imgw;
 			dx=minx-x+0.5;
 			d2+=dx*dx;
-			minx+=dw*miny;
-			maxx+=dw*miny;
+			dx+=dx+1;
+			minx+=miny*imgw;
+			maxx+=miny*imgw;
 			for (;minx<maxx;minx++) {
 				// Check if we can overwrite another atom's pixel, or if we need to blend them.
 				let m2=distmap[minx];
-				let u=(m2-d2)*0.5,u1=u+0.5,u2=u-0.5;
+				let u2=(m2-d2+1)*0.5;
 				// sqrt(m2)-sqrt(d2)>-1
-				if (u1>0 || m2>u1*u1) {
-					// Only write the distance if we're inside the border.
-					if (d2<=rad21 && d2<m2) {distmap[minx]=d2;}
+				if (u2>0 || m2>u2*u2) {
 					// rad-dist>1 and sqrt(m2)-sqrt(d2)>1
+					u2-=1;
 					if (d2<=rad21 && u2>0 && d2<u2*u2) {
-						imgdata32[minx]=colrgba;
+						// Only write the distance if we're inside the border.
+						distmap[minx]=d2;
+						imgdata[minx]=colrgba;
 					} else {
 						// Blend if we're on the edge or bordering another atom.
-						let dst=imgdata32[minx];
+						let dst=imgdata[minx];
 						let dist=Math.sqrt(d2);
-						let bord=Math.sqrt(m2)-dist;
+						let over=Math.sqrt(m2)-dist;
 						let edge=rad-dist;
-						let a=(256-alpha*(bord<1?bord+1:2)*(edge<1?edge:1))|0;
-						imgdata32[minx]=
+						let a=~~(256-(over<1?(over+1)*128:256)*(edge<1?edge:1));
+						imgdata[minx]=
 							(((Math.imul((dst&0x00ff00ff)-coll,a)>>>8)+coll)&0x00ff00ff)+
 							((Math.imul(((dst&0xff00ff00)>>>8)-colh2,a)+colh)&0xff00ff00);
 					}
 				}
-				d2+=2*dx+1;
-				dx++;
+				d2+=dx;
+				dx+=2;
 			}
 		}
 	}

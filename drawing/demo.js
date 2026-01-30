@@ -1,18 +1,31 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.15
+demo.js - v1.16
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
 
 
 --------------------------------------------------------------------------------
+History
+
+
+1.16
+     Redid performance tests to provide more useful times.
+     Added canvas to display tests.
+
+
+--------------------------------------------------------------------------------
 TODO
 
 
+Add a pattern to performance test srcimg.
+
+npx eslint demo.js -c ../../standards/eslint.js
+
+
 */
-/* npx eslint demo.js -c ../../standards/eslint.js */
 
 
 import {Env,Random,Transform,Input} from "./library.js";
@@ -25,43 +38,61 @@ import {Draw} from "./drawing.js";
 
 export class DrawPerf {
 
-	constructor() {
-		let canvas=document.getElementById("perfcanvas");
-		this.canvas=canvas;
-		this.conout=document.getElementById("perftable");
-		this.tests=11;
-		this.clipdim=60;
-		this.clippad=4;
-		canvas.width=this.clipdim*4+this.clippad*3;
-		canvas.height=this.clipdim*2+this.clippad*1;
-		canvas.style.width="95%";
-		canvas.style.imageRendering="pixelated";
-		this.draw=new Draw(canvas.width,canvas.height);
-		this.draw.screencanvas(canvas);
-		this.restart();
+	static state=null;
+
+
+	static start(divid,conid,canvid) {
+		let state=DrawPerf.state;
+		if (!state) {
+			state=new DrawPerf(conid,canvid);
+			DrawPerf.state=state;
+			let div=document.getElementById(divid);
+			div.style.display="";
+		}
+		state.overhead=0;
+		state.test=-state.tests;
+		let out=state.conout;
+		out.innerHTML="<br>".repeat(state.tests+2);
+		out.style.minHeight=(out.clientHeight*1.01)+"px";
+		let refw=640,refh=480,reffps=60;
+		let reftime=1e+9/(refw*refh*reffps);
+		out.innerHTML=`reference: ${reftime.toFixed(3).padStart(7)} ns/px to output ${refw}x${refh} at ${reffps}fps<br>`;
+		state.update();
 	}
 
 
-	restart() {
-		this.draw.fill(0,0,0,0);
-		this.draw.screenflip();
-		this.baseline=0;
-		let out=this.conout;
-		out.innerHTML="<br>".repeat(this.tests);
-		out.style.minHeight=(out.clientHeight*1.01)+"px";
-		out.innerHTML="";
-		this.log("starting tests");
-		if (!this.test) {
-			this.test=0;
-			let state=this;
-			function update() {
-				if (state.update()) {
-					requestAnimationFrame(update);
-				}
-			}
-			update();
-		} else {
-			this.test=0;
+	constructor(conid,canvid) {
+		this.conout=document.getElementById(conid);
+		this.tests=8;
+		let canv=document.getElementById(canvid);
+		canv.width=951;
+		canv.height=1007;
+		this.draw=new Draw(canv);
+		// Init a source image for drawimage() calls.
+		let srcdim=128,srcpix=srcdim*srcdim;
+		let srcimg=new Draw.Image(srcdim,srcdim);
+		let srcdata=srcimg.data32;
+		let rnd=new Random(1);
+		let mask=this.draw.rgbatoint(63,63,255,255);
+		for (let i=0;i<srcpix;i++) {srcdata[i]=rnd.getu32()&mask;}
+		this.srcdim=srcdim;
+		this.srcimg=srcimg;
+		// Needed for recompiling modules
+		window.DrawPath=Draw.Path;
+		window.Transform=Transform;
+		// Add pixel counting to fillpath() and drawimage().
+		// Rename to _fillpath() and _drawimage().
+		for (let i=0;i<2;i++) {
+			let name=["fillpath","drawimage"][i];
+			let func=Draw.prototype[name].toString();
+			func=func.replace(/\{/,"{\n\t\tlet _pixelcount=0;");
+			func=func.replace(/}\s*$/,"\treturn;\n}");
+			func=func.replace(/return;/g,"return _pixelcount;");
+			if (!i) {func=func.replace(/if \(area>=cutoff\) \{\s*do \{/,"if (area>=cutoff) {\n\t\t\t\t_pixelcount+=pstop-p;\n\t\t\t\tdo {");}
+			else    {func=func.replace(/let dstrow=dsty\*dstw;/,"let dstrow=dsty*dstw; _pixelcount+=dstmaxx-dstminx;");}
+			let reg=/.*?\((.*?)\)[ \n\t]{([\s\S]*)}/gmi;
+			let match=reg.exec(func);
+			Draw.prototype["_"+name]=new Function(match[1].split(","),match[2]);
 		}
 	}
 
@@ -72,447 +103,202 @@ export class DrawPerf {
 	}
 
 
-	copylog() {
-		let text=this.conout.innerText;
-		text=text.replace("starting tests\n","");
-		text=text.replace("done\n","");
-		navigator.clipboard.writeText(text);
-	}
-
-
-	drawcircle1(x,y,rad) {
-		// Manually draw a circle pixel by pixel.
-		// This is ugly, but it's faster than canvas.arc and drawimage.
-		let imgdata=this.draw.img.data32;
-		let imgwidth=this.draw.img.width;
-		let imgheight=this.draw.img.height;
-		x=x|0;
-		y=y|0;
-		rad=rad|0;
-		if (rad<=0 || x-rad>imgwidth || x+rad<0 || y-rad>imgheight || y+rad<0) {
-			return;
-		}
-		if (this.drawcircle1.bndarr===undefined) {
-			this.drawcircle1.bndarr=[];
-		}
-		let bnd=this.drawcircle1.bndarr[rad];
-		// For a given radius, precalculate how many pixels we need to fill along each row.
-		if (bnd===undefined) {
-			bnd=new Array(rad*2);
-			for (let ly=0;ly<rad*2;ly++) {
-				let y0=ly-rad+0.5;
-				let lx=Math.sqrt(rad*rad-y0*y0)|0;
-				let mindist=Infinity;
-				let mx=lx;
-				for (let x0=-2;x0<=2;x0++) {
-					let x1=lx+x0;
-					let dist=Math.abs(rad-Math.sqrt(x1*x1+y0*y0));
-					if (mindist>dist && lx+x0>0) {
-						mindist=dist;
-						mx=lx+x0;
-					}
-				}
-				bnd[ly]=mx;
+	drawimage(srcimg,dx,dy,dw,dh) {
+		// Draw an image with alpha blending.
+		let draw=this.draw;
+		let dstimg=draw.img;
+		let srcw=srcimg.width,srch=srcimg.height;
+		let dstw=dstimg.width,dsth=dstimg.height;
+		dx=Math.round(dx??0);
+		dy=Math.round(dy??0);
+		dw=Math.round(dw??srcw);
+		dh=Math.round(dh??srch);
+		// Intersection of src and dst.
+		let sx=0,sy=0;
+		dw=(dw<srcw?dw:srcw)+dx;
+		if (dx<0) {sx=-dx;dx=0;}
+		dw=(dw<dstw?dw:dstw)-dx;
+		dh=(dh<srch?dh:srch)+dy;
+		if (dy<0) {sy=-dy;dy=0;}
+		dh=(dh<dsth?dh:dsth)-dy;
+		let amul=draw.rgba[3];
+		if (dw<=0 || dh<=0 || amul<=0) {return 0;}
+		let dstdata=dstimg.data32,srcdata=srcimg.data32;
+		let drow=dy*dstw+dx,dinc=dstw-dw;
+		let srow=sy*srcw+sx,sinc=srcw-dw;
+		let ystop=drow+dstw*dh,xstop=drow+dw;
+		let ashift=draw.rgbashift[3],amask=(255<<ashift)>>>0;
+		let maskl=0x00ff00ff&(~amask),maskh=0xff00ff00&(~amask);
+		while (drow<ystop) {
+			while (drow<xstop) {
+				// a = sa + da*(1-sa)
+				// c = (sc*sa + dc*da*(1-sa)) / a
+				let src=srcdata[srow++];
+				let sa=(src>>>ashift)&255;
+				if (sa<=0) {drow++;continue;}
+				let tmp=dstdata[drow];
+				let da=(tmp>>>ashift)&255;
+				// Approximate blending by expanding sa from [0,255] to [0,256].
+				// imul() implicitly cast floor().
+				sa*=amul;
+				da=sa*255+da*(65025-sa);
+				sa=(sa*65280+(da>>>1))/da;
+				da=((da+32512)/65025)<<ashift;
+				let l=tmp&0x00ff00ff;
+				let h=tmp&0xff00ff00;
+				dstdata[drow++]=da|
+					(((Math.imul((src&0x00ff00ff)-l,sa)>>>8)+l)&maskl)|
+					((Math.imul(((src>>>8)&0x00ff00ff)-(h>>>8),sa)+h)&maskh);
 			}
-			this.drawcircle1.bndarr[rad]=bnd;
+			xstop+=dstw;
+			drow+=dinc;
+			srow+=sinc;
 		}
-		// Plot the pixels.
-		let miny=y-rad;
-		let maxy=y+rad;
-		miny=miny>0?miny:0;
-		maxy=maxy<imgheight?maxy:imgheight;
-		let bndy=miny-y+rad;
-		miny*=imgwidth;
-		maxy*=imgwidth;
-		let rgba=this.draw.rgba32[0];
-		while (miny<maxy) {
-			let maxx=bnd[bndy++];
-			let minx=x-maxx;
-			maxx+=x;
-			minx=(minx>0?minx:0)+miny;
-			maxx=(maxx<imgwidth?maxx:imgwidth)+miny;
-			while (minx<maxx) {
-				imgdata[minx++]=rgba;
-			}
-			miny+=imgwidth;
-		}
-	}
-
-
-	drawcircle2(x,y,rad) {
-		// Manually draw a circle pixel by pixel.
-		// This is ugly, but it's faster than canvas.arc and drawimage.
-		let imgdata=this.draw.img.data32;
-		let imgwidth=this.draw.img.width;
-		let imgheight=this.draw.img.height;
-		if (rad<=0 || x-rad>imgwidth || x+rad<0 || y-rad>imgheight || y+rad<0) {
-			return;
-		}
-		let colrgba=this.draw.rgba32[0];
-		let coll=(colrgba&0x00ff00ff)>>>0;
-		let colh=(colrgba&0xff00ff00)>>>0;
-		let colh2=colh>>>8;
-		let minx=Math.floor(x-rad-0.5);
-		if (minx<0) {minx=0;}
-		let maxx=Math.ceil(x+rad+0.5);
-		if (maxx>imgwidth) {maxx=imgwidth;}
-		let xs=Math.floor(x);
-		if (xs< minx) {xs=minx;}
-		if (xs>=maxx) {xs=maxx-1;}
-		let miny=Math.floor(y-rad-0.5);
-		if (miny<0) {miny=0;}
-		let maxy=Math.ceil(y+rad+0.5);
-		if (maxy>imgheight) {maxy=imgheight;}
-		let pixrow=miny*imgwidth;
-		let dy=miny-y+0.5;
-		let rad20=rad*rad;
-		let rad21=(rad+1)*(rad+1);
-		let imul=Math.imul,sqrt=Math.sqrt;
-		// let rnorm=256.0/(rad21-rad20);
-		for (let y0=miny;y0<maxy;y0++) {
-			let dx=xs-x+0.5;
-			let d2=dy*dy+dx*dx;
-			let pixmax=pixrow+maxx;
-			let pix=pixrow+xs;
-			while (d2<rad20 && pix<pixmax) {
-				imgdata[pix++]=colrgba;
-				d2+=dx+dx+1;
-				dx++;
-			}
-			while (d2<rad21 && pix<pixmax) {
-				let d=((sqrt(d2)-rad)*256)|0;
-				// d=(d2-rad20)*rnorm|0;
-				let dst=imgdata[pix];
-				imgdata[pix]=(((imul((dst&0x00ff00ff)-coll,d)>>>8)+coll)&0x00ff00ff)+
-					        ((imul(((dst&0xff00ff00)>>>8)-colh2,d)+colh)&0xff00ff00);
-				pix++;
-				d2+=dx+dx+1;
-				dx++;
-			}
-			dx=xs-x-0.5;
-			d2=dy*dy+dx*dx;
-			let pixmin=pixrow+minx;
-			pix=pixrow+(xs-1);
-			while (d2<rad20 && pix>=pixmin) {
-				imgdata[pix--]=colrgba;
-				d2-=dx+dx-1;
-				dx--;
-			}
-			while (d2<rad21 && pix>=pixmin) {
-				let d=((sqrt(d2)-rad)*256)|0;
-				// d=(d2-rad20)*rnorm|0;
-				let dst=imgdata[pix];
-				imgdata[pix]=(((imul((dst&0x00ff00ff)-coll,d)>>>8)+coll)&0x00ff00ff)+
-					        ((imul(((dst&0xff00ff00)>>>8)-colh2,d)+colh)&0xff00ff00);
-				pix--;
-				d2-=dx+dx-1;
-				dx--;
-			}
-			pixrow+=imgwidth;
-			dy++;
-		}
-	}
-
-
-	drawline(x0,y0,x1,y1) {
-		// Draw a line from [x0,y0]->(x1,y1).
-		x0|=0;
-		y0|=0;
-		x1|=0;
-		y1|=0;
-		let imgdata=this.draw.img.data32;
-		let width=this.draw.img.width-1;
-		let height=this.draw.img.height-1;
-		// If we're obviously outside the image, abort.
-		if ((x0<0 && x1<0) || (x0>width && x1>width) || (y0<0 && y1<0) || (y0>height && y1>height) || (x0===x1 && y0===y1) || width<0 || height<0) {
-			return;
-		}
-		let mulx=1;
-		let muly=width+1;
-		let dst=y0*muly+x0;
-		// Flip the image along its axii so that x0<=x1 and y0<=y1.
-		if (x1<x0) {
-			x0=width-x0;
-			x1=width-x1;
-			mulx=-mulx;
-		}
-		if (y1<y0) {
-			y0=height-y0;
-			y1=height-y1;
-			muly=-muly;
-		}
-		// Flip the image along its diagonal so that dify<difx.
-		let difx=x1-x0;
-		let dify=y1-y0;
-		if (difx<dify) {
-			let t=x0;
-			x0=y0;
-			y0=t;
-			t=x1;
-			x1=y1;
-			y1=t;
-			t=difx;
-			difx=dify;
-			dify=t;
-			t=mulx;
-			mulx=muly;
-			muly=t;
-			t=width;
-			width=height;
-			height=t;
-		}
-		// Calculate the clipped coordinates and length.
-		let off=difx;
-		let len=difx;
-		dify+=dify;
-		difx+=difx;
-		if (x1>width || y1>height) {
-			len=(height-y0)*difx+off+dify-1;
-			let dif=width+1-x0;
-			len=len<dif*dify?Math.floor(len/dify):dif;
-		}
-		if (x0<0 || y0<0) {
-			let move=y0*difx+off-dify+1;
-			move=move<x0*dify?Math.floor(move/dify):x0;
-			off-=move*dify;
-			let movey=Math.floor(off/difx);
-			off=difx-(off%difx);
-			if (x0<move || x0-move>width || y0+movey<0 || y0+movey>height) {
-				return;
-			}
-			dst+=movey*muly-move*mulx;
-			len+=move;
-		}
-		off--;
-		let colrgba=this.draw.rgba32[0];
-		let coll=(colrgba&0x00ff00ff)>>>0;
-		let colh=(colrgba&0xff00ff00)>>>0;
-		let colh2=colh>>>8;
-		let alpha=Math.floor(this.draw.rgba[3]*(256/255));
-		while (len-->0) {
-			if (off<0) {
-				dst+=muly;
-				off+=difx;
-			}
-			off-=dify;
-			if (alpha>=256) {
-				imgdata[dst]=colrgba;
-			} else {
-				let tmp=imgdata[dst];
-				imgdata[dst]=(((Math.imul((tmp&0x00ff00ff)-coll,alpha)>>>8)+coll)&0x00ff00ff)+
-					        ((Math.imul(((tmp&0xff00ff00)>>>8)-colh2,alpha)+colh)&0xff00ff00);
-			}
-			dst+=mulx;
-		}
+		return dw*dh;
 	}
 
 
 	update() {
-		let rnd=new Random(10);
-		let test=this.test++;
-		let tests=-1;
-		// Fill the background with static.
+		// Fill the background with static and reset the state.
+		let rnd=new Random(1);
 		let draw=this.draw;
-		draw.pushstate();
-		let imgw=1000,imgh=1000;
-		let tmpimg=new Draw.Image(imgw,imgh);
-		draw.setimage(tmpimg);
-		let data32=draw.img.data32,datalen=data32.length;
-		for (let i=0;i<datalen;i++) {data32[i]=rnd.getu32();}
-		let t0=performance.now();
-		let tstop=t0+1000;
+		draw.resetstate();
+		let dstimg=draw.img;
+		let dstw=dstimg.width,dsth=dstimg.height;
+		let dstdata=dstimg.data32;
+		for (let i=dstdata.length-1;i>=0;i--) {dstdata[i]=rnd.getu32();}
+		// If test<0, this is a warmup round.
+		let test=this.test;
+		let timestop=1000;
+		if (test<0) {
+			test+=this.tests;
+			timestop=100;
+		}
+		let samples=0;
 		let pixels=0;
-		if (test<4) {
-			// Baseline.
-			for (tests=0;(tests&0x1ff)!==0 || performance.now()<tstop;tests++) {
-				draw.rgba32[0]=rnd.getu32();
-				let rad=rnd.getf()*16;
-				pixels+=rad*rad;
-				let x=rnd.getf()*(imgw-rad*2)+rad;
-				let y=rnd.getf()*(imgh-rad*2)+rad;
-				switch (test) {
-					case 0:
-						// Baseline
-						draw.defpath.vertidx=0;
-						draw.fillpath();
-						break;
-					case 1:
-						// Aliased
-						this.drawcircle1(x,y,rad);
-						break;
-					case 2:
-						// Smooth
-						this.drawcircle2(x,y,rad);
-						break;
-					case 3:
-						// Bezier
-						draw.filloval(x,y,rad,rad);
-						break;
-					default:
-						break;
-				}
-			}
-			pixels*=Math.PI;
-		} else if (test===4) {
-			// Rectangles.
-			for (tests=0;(tests&0x1ff)!==0 || performance.now()<tstop;tests++) {
-				draw.rgba32[0]=rnd.getu32();
-				let w=rnd.getf()*16;
-				let h=rnd.getf()*16;
-				let x=rnd.getf()*(imgw-w);
-				let y=rnd.getf()*(imgh-h);
-				pixels+=w*h;
-				draw.fillrect(x,y,w,h);
-			}
-		} else if (test===5) {
-			// Cached image circles.
-			draw.setcolor(255,255,255,255);
-			draw.pushstate();
-			let rad=16;
-			let cache=new Draw.Image(2*rad,2*rad);
-			draw.setimage(cache);
-			draw.filloval(rad,rad,rad,rad);
-			draw.popstate();
-			for (tests=0;(tests&0x1ff)!==0 || performance.now()<tstop;tests++) {
-				draw.rgba32[0]=rnd.getu32();
-				let x=rnd.getf()*(imgw-2*cache.width)+cache.width;
-				let y=rnd.getf()*(imgh-2*cache.height)+cache.height;
-				draw.drawimage(cache,x|0,y|0);
-			}
-			pixels+=tests*cache.width*cache.height;
-		} else if (test<8) {
-			// Lines.
-			for (tests=0;(tests&0x1ff)!==0 || performance.now()<tstop;tests++) {
-				draw.rgba32[0]=rnd.getu32();
-				let x0=rnd.getf()*imgw;
-				let y0=rnd.getf()*imgh;
-				let x1=rnd.getf()*imgw;
-				let y1=rnd.getf()*imgh;
-				let dx=x1-x0,dy=y1-y0;
-				pixels+=Math.sqrt(dx*dx+dy*dy);
-				switch (test) {
-					case 6:
-						// Aliased lines.
-						this.drawline(x0,y0,x1,y1);
-						break;
-					case 7:
-						// Anti-aliased lines.
-						draw.drawline(x0,y0,x1,y1);
-						break;
-					default:
-						break;
-				}
-			}
-		} else if (test===8) {
-			// Text.
-			let text=" !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_`abcdefghijklmnopqrstuvwxyz{|}~█";
-			let rect=draw.textrect("@",16);
-			let textw=imgw-rect.w,texth=imgh-rect.h;
-			let area=rect.w*rect.h;
-			for (tests=0;(tests&0x1ff)!==0 || performance.now()<tstop;tests++) {
-				draw.rgba32[0]=rnd.getu32();
-				let x=rnd.getf()*textw;
-				let y=rnd.getf()*texth;
-				let c=tests%text.length;
-				draw.filltext(x,y,text[c],16);
-				pixels+=area;
-			}
-		} else {
-			// Done.
-			this.log("done");
-			this.test=0;
-			return false;
+		let srcdim=this.srcdim;
+		let srcimg=this.srcimg;
+		// Most transforms will be scaling+rotation.
+		let trans=draw.deftrans;
+		let mat=trans.mat,vec=trans.vec;
+		function randtrans(min,max) {
+			let ang=rnd.getf()*(Math.PI*2);
+			let scale=Math.pow(2,rnd.getf()*(max-min)+min);
+			let xscale=((rnd.getu32()&2)-1)*scale;
+			let yscale=((rnd.getu32()&2)-1)*scale;
+			let cs=Math.cos(ang),sn=Math.sin(ang);
+			mat[0]= cs*xscale;
+			mat[1]=-sn*xscale;
+			mat[2]= sn*yscale;
+			mat[3]= cs*yscale;
+			vec[0]=rnd.getf()*dstw;
+			vec[1]=rnd.getf()*dsth;
 		}
-		const ns=1000000000;
-		t0=(performance.now()-t0)*ns/1000;
+		function randcolor() {
+			let a=rnd.getu32(),u=a>>>24;
+			draw.setcolor(u*.375,u*.375,u,a&255);
+		}
+		let timestart=performance.now();
+		timestop+=timestart;
 		if (test===0) {
-			t0/=tests;
-			this.baseline=t0;
-		} else {
-			t0=(t0-this.baseline*tests)/pixels;
-		}
-		let unit=test?"px":"call";
-		let names=["Baseline","Oval alias","Oval smooth","Oval path","Rect path","Image cache","Line alias","Line path","Text path"];
-		this.log(names[test].padEnd(11)+": "+t0.toFixed(3).padStart(6," ")+" ns/"+unit);
-		draw.popstate();
-		// Draw preview.
-		if (!test) {return true;}
-		let dim=this.clipdim,pad=this.clippad;
-		let img=new Draw.Image(dim,dim);
-		draw.setcolor(255,255,255,255);
-		draw.pushstate();
-		draw.setimage(img);
-		draw.fill(0,0,0,255);
-		let cen=Math.floor(dim/2);
-		let rad=dim*0.40;
-		if (test===1) {
-			this.drawcircle1(cen,cen,rad);
-		} else if (test===2) {
-			this.drawcircle2(cen,cen,rad);
-		} else if (test===3) {
-			draw.filloval(cen,cen,rad,rad);
-		} else if (test===4) {
-			draw.fillrect(cen-rad,cen-rad,rad*2,rad*2);
-		} else if (test===5) {
+			// test call overhead
 			draw.beginpath();
-			let arc=Math.PI*2/10;
-			for (let i=1.5;i<10;i+=2) {
-				let a0=i*arc,a1=a0+arc;
-				draw.lineto(Math.cos(a0)*rad+cen,Math.sin(a0)*rad+cen);
-				draw.lineto(Math.cos(a1)*rad*0.5+cen,Math.sin(a1)*rad*0.5+cen);
+			for (;(samples&0xfff)!==0 || performance.now()<timestop;samples++) {
+				randcolor();
+				randtrans(-1,1);
+				draw._fillpath();
 			}
-			draw.closepath();
-			draw.fillpath();
-		} else if (test===6) {
-			this.drawline(dim*0.1,dim*0.1,dim*0.9,dim*0.9);
-			this.drawline(dim*0.1,dim*0.9,dim*0.9,dim*0.1);
-		} else if (test===7) {
-			draw.drawline(dim*0.1,dim*0.1,dim*0.9,dim*0.9);
-			draw.drawline(dim*0.1,dim*0.9,dim*0.9,dim*0.1);
-		} else if (test===8) {
-			let rect=draw.textrect("@",dim*0.8);
-			draw.filltext((dim-rect.w)*0.5,dim*0.1,"@",dim*0.8);
-		}
-		// Sunset color palette.
-		let col0=[1.00,0.83,0.10];
-		let col1=[0.55,0.12,1.00];
-		let ih=img.height,ipos=0,idata=img.data8;
-		for (let y=0;y<ih;y++) {
-			let u=y/(ih-1);
-			let r=col0[0]*(1-u)+col1[0]*u;
-			let g=col0[1]*(1-u)+col1[1]*u;
-			let b=col0[2]*(1-u)+col1[2]*u;
-			let istop=ipos+img.width*4;
-			while (ipos<istop) {
-				idata[ipos++]*=r;
-				idata[ipos++]*=g;
-				idata[ipos++]*=b;
-				ipos++;
+		} else if (test===1) {
+			// fill+flip
+			for (;(samples&0xf)!==0 || performance.now()<timestop;samples++) {
+				draw.fill(rnd.getu32());
+				draw.screenflip();
+			}
+			pixels+=samples*dstw*dsth;
+		} else if (test===2) {
+			// image fast
+			for (;(samples&0xff)!==0 || performance.now()<timestop;samples++) {
+				randcolor();
+				let w=rnd.mod(srcdim+1);srcimg.width =w;
+				let h=rnd.mod(srcdim+1);srcimg.height=h;
+				let x=rnd.mod(dstw+w*2)-w;
+				let y=rnd.mod(dsth+h*2)-h;
+				pixels+=this.drawimage(srcimg,x,y);
+				//pixels+=draw._drawimage(srcimg,x,y);
+			}
+		} else if (test===3) {
+			// image draw
+			for (;(samples&0x1f)!==0 || performance.now()<timestop;samples++) {
+				randcolor();
+				randtrans(-1,2);
+				srcimg.width =rnd.mod(srcdim+1);
+				srcimg.height=rnd.mod(srcdim+1);
+				pixels+=draw._drawimage(srcimg,0,0);
+			}
+		} else if (test===4) {
+			// lines
+			let path=draw.defpath;
+			for (;(samples&0xff)!==0 || performance.now()<timestop;samples++) {
+				randcolor();
+				let x0=(rnd.getf()*1.2-.1)*dstw,y0=(rnd.getf()*1.2-.1)*dsth;
+				let x1=(rnd.getf()*1.2-.1)*dstw,y1=(rnd.getf()*1.2-.1)*dsth;
+				path.begin().addline(x0,y0,x1,y1,0.5);
+				pixels+=draw._fillpath(path);
+			}
+		} else {
+			// oval, rect, and complex paths
+			let path=draw.beginpath();
+			if (test===5) {
+				path.addoval(0,0,1,1);
+			} else if (test===6) {
+				path.addrect(-1,-1,2,2);
+			} else {
+				let r=.375,s=.275;
+				path=new Draw.Path(`
+					M.35.9V.35H.9V.9ZM1 .25H.25V1H1Zm-2-.5h.75V-1H-1Z
+					m.95.2H-1v.1h.95V1h.1V.05H1v-.1H.05V-1h-.1Z
+				`);
+				path.addoval(r-1,1-r,-r,r).addoval(1-r,r-1,-r,r).addoval(1-r,r-1,s,s);
+			}
+			for (;(samples&0xff)!==0 || performance.now()<timestop;samples++) {
+				randcolor();
+				randtrans(0,5);
+				pixels+=draw._fillpath(path);
 			}
 		}
-		draw.popstate();
-		let winx=((test-1)%4)*(dim+pad),winy=Math.floor((test-1)/4)*(dim+pad);
-		draw.drawimage(img,winx,winy);
+		let time=performance.now()-timestart;
+		console.log(`test: ${this.test}, samples: ${samples}, pixels: ${pixels}, time: ${time.toFixed(0)}`);
 		draw.screenflip();
-		return true;
+		// Format our test results. Don't display if this is a warmup.
+		if (test && (!pixels || isNaN(pixels))) {
+			this.log("no data for test "+test);
+			return;
+		}
+		let unitstr="ns/px";
+		if (test) {
+			time=(time-this.overhead*samples)/pixels;
+		} else {
+			unitstr="ns/call";
+			time/=samples;
+			this.overhead=time;
+		}
+		let teststr=[
+			"overhead ","fill+flip","img fast ","img trans",
+			"lines    ","ovals    ","rects    ","complex  "
+		][test];
+		let timestr=(1e+6*time).toFixed(3).padStart(7);
+		if (this.test>=0) {
+			this.log(`${teststr}: ${timestr} ${unitstr}`);
+		}
+		// If we still have tests left.
+		if (++this.test<this.tests) {
+			let state=this;
+			setTimeout(()=>{state.update();},16);
+		} else {
+			this.log("done");
+		}
 	}
 
-}
-
-
-export function PerformanceTest() {
-	if (PerformanceTest.obj===undefined) {
-		let out=document.getElementById("perfdisplay");
-		out.style.display="";
-		PerformanceTest.obj=new DrawPerf();
-	} else {
-		PerformanceTest.obj.restart();
-	}
-}
-
-
-export function PerformanceCopy() {
-	PerformanceTest.obj.copylog();
 }
 
 

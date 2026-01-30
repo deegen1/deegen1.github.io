@@ -149,10 +149,11 @@ DrawPath
 	Better api for arcto()?
 
 fillpath
+	Use rect clipping to check intersection
+		Use to refine miny/maxy.
+		Use to filter curve/line preprocessing.
 	Go back to thickness instead of linewidth.
-	Minkowski difference AABB-OBB test
-		Each +-dx,+-dy combo used once
-		[[iw,0],[dx,-dy],[0,ih],[-dx,-dy],...]
+	Better line start/end calculation.
 	Per-subpath color. "#" specifies colors for following segments.
 	Simplify line area calculation.
 	Pull out individual equations and test different forms for stability. All
@@ -163,24 +164,16 @@ fillpath
 	Sort indices instead of lines. Index = line.sort*lcnt+line.id
 	Use linear time heap construction.
 	Simplify sa/da blending. Integer only? Rebalance for 255 vs 256.
-	0: <0.5, 255: >254.5, else round
-	d =sa+(1-sa)*da = sa+da-sa*da
-	sa=256-floor((sa/d)*256.99)
-	da=floor(d*255.99)
-	let tmp=sa+(1-sa)*da*0.00392156862745098;
-	let ta=256-(~~((sa/tmp)*256.999));
-	da=tmp*255.999;
 
 DrawImage
+	Make sure drawimagei() and drawimage() are 1-to-1.
 	Create page describing algorithm. Transforming an image (the hard way).
 	Remove ceil() for srcmaxy.
-	Used fixed point math.
-	Faster pixel overlap calculation. Exploit symmetry. Opposite sides will have
-	same slope and negate eachother.
+	Precalculate srcvert with sorting, sign, etc.
 	Fast path for untransformed blitting?
-	Integer pixel blending.
+	Faster pixel blending.
 
-Tracing
+Path Tracing
 	v5.0
 	Limit length of sharp corners to 2x thickness.
 	Rounded corners: set midpoint distance to thickness.
@@ -1225,6 +1218,7 @@ export class Draw {
 	moveto() {return this.defpath.moveto(...arguments);}
 	lineto() {return this.defpath.lineto(...arguments);}
 	curveto() {return this.defpath.curveto(...arguments);}
+	arcto() {return this.defpath.arcto(...arguments);}
 
 
 	// ----------------------------------------

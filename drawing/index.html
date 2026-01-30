@@ -15,14 +15,12 @@
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Drawing ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <h1>Drawing</h1>
-<p><a href="#" onclick="DEMO(M=>M.PerformanceTest())">Performance test</a></p>
-<div id="perfdisplay" style="display:none">
-<p>These tests capture the relative difference of aliased, path-based, and
-cached raster methods.</p>
-<p><a href="#" onclick="DEMO(M=>M.PerformanceCopy())">&#9112; Copy results</a>
-</p>
-<div class="consoleblock" id="perftable"></div>
-<canvas id="perfcanvas"></canvas>
+<p><a href="#" onclick="DEMO(M=>M.DrawPerf.start('perfdiv','perftable','perfdisplay'))">
+Run performance test</a></p>
+<div id="perfdiv" style="display:none">
+<p>These tests capture the time-per-pixel of path filling and image drawing.</p>
+<div id="perftable" class="consoleblock"></div>
+<canvas id="perfdisplay" style="width:50%"></canvas>
 </div>
 <p><a href="./drawing.js">drawing.js</a> is a small (~50kb) graphics library
 I'm developing for use in simple 2D demos. Everything from polygons, to circles,
@@ -542,7 +540,7 @@ times for my own designs.</p>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-</div><div id="footer">Created on 21 Jan 2024 - Modified on 01 Jan 2026<br>
+</div><div id="footer">Created on 21 Jan 2024 - Modified on 29 Jan 2026<br>
 Questions and comments: akdee<b>OBFUS</b>144@g<b>CATE</b>mail.com<br>
 <a href="../index.html">Alec Dee's General Site</a></div>
 </body>
