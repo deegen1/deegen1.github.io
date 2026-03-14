@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-rappel.js - v5.01
+rappel.js - v5.02
 
 Copyright 2025 Alec Dee
 2dee.net - akdee144@gmail.com
@@ -36,10 +36,23 @@ History
 5.00
      Created tower demo with timer.
      Added biome regions.
+5.01
+     Replaced background music with an actual beat.
+5.02
+     Objects far away from the player are disabled to cut down physics time.
 
 
 --------------------------------------------------------------------------------
 TODO
+
+
+Physics
+	Improve geometry creation performance.
+	Remove holes in shapes.
+
+Graphics
+	Speed up drawimage() for background.
+	Add decals that attach to walls: flowers, icicles, lanterns.
 
 
 */
@@ -71,7 +84,9 @@ export class Game {
 		this.framemax=1/60;
 		this.frameprev=0;
 		this.climb=0;
+		let subtime=performance.now();
 		this.initworld();
+		console.log("world time:",((performance.now()-subtime)*0.001).toFixed(6));
 		this.initaudio();
 		let state=this;
 		function resize() {state.resize();}
@@ -210,6 +225,7 @@ export class Game {
 			if (!i) {bond.data.rgb=[255,255,255,255];}
 			world.createbond(prev2,this.bodyatom[0],ropespace*2,240);
 		}
+		this.playeratoms=this.bodyatom.concat(this.ropeatom).concat(this.hookatom);
 		// Set up the level.
 		// Create the walls
 		let rad=0.27,space=0.26,over=0;
@@ -260,18 +276,21 @@ export class Game {
 			}
 		}
 		// Create holds
+		let holdtime=performance.now();
 		let holdgap=20;
 		let levels=Math.round(climb/holdgap)|1;
 		holdgap=climb/levels;
+		let spanx=Math.floor((maxx-minx)/(2*holdgap));
+		let gapx=(maxx-minx)/spanx;
 		for (let l=0;l<levels;l++) {
 			let y=maxy-both-l*holdgap;
-			let span=2+(l&1);
-			let gapx=(maxx-minx)/2;
-			for (let s=0;s<span;s++) {
+			let spanl=spanx+(l&1);
+			for (let s=0;s<spanl;s++) {
 				let x=(s+(l&1?0:0.5))*gapx+minx;
 				this.createhold([x,y]);
 			}
 		}
+		console.log("hold  time:",((performance.now()-holdtime)*0.001).toFixed(6));
 		this.createtext("CLICK TO THROW",[maxx*0.5-6.5*2,4],1);
 		this.createbiome(LEAF,[minx,0],[maxx,both]);
 		this.createbiome(RAIN,[minx,-climb+bart],[maxx,climb-bart*2]);
@@ -566,7 +585,7 @@ export class Game {
 		addmeta(PART,NaN  ,NaN ,0.05,1.25,NaN,0.2,[255,255,255,255],null);
 		addmeta(LEAF,0.050,1000,0.3 ,2   ,NaN,40 ,[255,255,255,255],leafpath);
 		addmeta(RUNE,0.070,450 ,0.5 ,0.45,NaN,40 ,[255,255,255,255],null);
-		addmeta(RAIN,0.037,200 ,0.1 ,0.75,PI3,20 ,[128,128,255,255],rainpath);
+		addmeta(RAIN,0.037,200 ,0.1 ,0.75,PI3, 5 ,[128,128,255,255],rainpath);
 		addmeta(CHAR,NaN  ,NaN ,1   ,1   ,PI2,10 ,[255,255,255,255],null);
 		this.biomearr=[];
 	}
@@ -652,59 +671,28 @@ export class Game {
 		let audio=new Audio(0,0,false);
 		this.audio=audio;
 		this.snddist=30;
-		// Create a dark, ambient background song.
+		// Create a high-tempo, dark, ambient background song.
+		function eztri(freq) {
+			return (new Audio.SFX(`#tri: TRI F ${freq} H 0.8 #out: ENV A 0.01 R 0.99 I #tri`)).tosound();
+		}
 		let bgsnd=new Audio.Sound();
-		let maxtime=180;
-		let rnd=new Random(7);
-		for (let side=0;side<2;side++) {
-			let bpm=60/(side?480:240);
-			let vol=[1,0.08][side]*0.3;
-			let beatmeta=[[2,1,1],[1,2,1],[1,1,2]];
-			if (side) {beatmeta.push([],[3,1],[1,3]);}
-			let notearr=[110,98,87.31];
-			let beatarr=[beatmeta[0],beatmeta[0],beatmeta[0],beatmeta[0]];
-			let notes=notearr.length;
-			let beats=beatarr.length;
-			let sndmap=[];
-			for (let i=0;i<notes;i++) {
-				sndmap[i]=[];
-				for (let l of [1,2,3]) {
-					let snd=null,len=l*bpm,freq=notearr[i],pos=rnd.getf()*.02-.01;
-					if (!side) {snd=Audio.createguitar(1,freq,0.2+pos,len*2);}
-					else {snd=Audio.createglockenspiel(1,freq*4,0.25+pos,len*20);}
-					sndmap[i][l]=snd;
-				}
-				notearr[i]=i;
-			}
-			let time=0;
-			while (time<maxtime) {
-				if (rnd.mod(2)) {
-					// Swap note.
-					let a=rnd.mod(notes);
-					let b=(rnd.mod(notes-1)+1+a)%notes;
-					let tmp=notearr[a];
-					notearr[a]=notearr[b];
-					notearr[b]=tmp;
-				} else {
-					// Replace beat.
-					let i=rnd.mod(beats);
-					beatarr[i]=beatmeta[rnd.mod(beatmeta.length)];
-				}
-				for (let n of notearr) {
-					for (let beat of beatarr) {
-						let t=time;
-						for (let b of beat) {
-							let taper=(maxtime-t)/6;
-							bgsnd.add(sndmap[n][b],t,vol*(taper<1?taper:1));
-							t+=b*bpm;
-						}
-						time+=4*bpm;
-					}
-				}
+		let notelib=[
+			[0x1111,Audio.SFX.defsnd("hihat",1)],
+			[0x4444,Audio.SFX.defsnd("kick",0.8)],
+			[0x0101,eztri(73.416)],
+			[0x0010,eztri(77.782)],
+			[0x1000,eztri(82.407)]
+		];
+		for (let n=16*30-1;n>=0;n--) {
+			let t=n/8,b=1<<(n&15);
+			for (let [mask,snd] of notelib) {
+				if (mask&b) {bgsnd.add(snd,t);}
 			}
 		}
-		this.bgsnd=bgsnd.resizetime(maxtime);
-		this.bgsndinst=null;
+		bgsnd.resizetime(60);
+		bgsnd.setloop(0);
+		this.bgsnd=bgsnd;
+		this.bgsndinst=this.bgsnd.play(0.3);
 		// Create sound effects.
 		function ezsnd(hpf,lpf,scale,time) {
 			let sig="noi",sfx=`#noi: NOISE H ${scale}\n`;
@@ -722,7 +710,15 @@ export class Game {
 			#bpf : BPF F #spin 400 * 200 + B 0.4 I #noi #comb *
 			#out : ENV A 0.001 S 9.799 R 0.1 I #bpf
 		`)).tosound();
+		this.spinsnd.setloop(1/this.chargerate+0.1);
 		this.spininst=null;
+		this.windsnd=(new Audio.SFX(`
+			#noi: NOISE H 0.8
+			#out: LPF F 800 I #noi
+		`)).tosound(5);
+		this.windsnd.setloop(0);
+		this.windinst=null;
+		this.windvol=0;
 		let rainsnd=(new Audio.SFX(`
 			#noi: NOISE
 			#bp1: BPF F 150 B 2 I #noi
@@ -748,10 +744,10 @@ export class Game {
 			#del: DEL T 0.001 I #fil
 			#out: ENV A 0.01 S 0 R 0.19 I #fil 0.15 *
 		`)).tosound();
-		let runesnd=Audio.createglockenspiel(0.05,313,0.25,5);
+		let runesnd=Audio.SFX.defsnd("bell",0.05,313,5);
 		let sndarr=[
 			[NORM,ezsnd(200,400,.2,0.2),20,40],
-			[BODY,ezsnd(100,200,3,0.2),30,40],
+			[BODY,ezsnd(100,200,2,0.2),30,40],
 			[HOOK,hooksnd,2,6],
 			[EDGE,hooksnd,2,6],
 			[LEAF,leafsnd,10,20],
@@ -769,10 +765,6 @@ export class Game {
 
 
 	updateaudio() {
-		this.audio.update();
-		if (this.bgsndinst===null || this.bgsndinst.done) {
-			this.bgsndinst=this.bgsnd.play();
-		}
 		for (let type of this.typearr) {
 			let tdat=type.data;
 			let vol=tdat.sndacc;
@@ -858,6 +850,40 @@ export class Game {
 			pos=pos<max?pos:max;
 			camera[i]=pos;
 		}
+		// Mark the area around the player/hook as active. Disable everything else.
+		let world=this.world;
+		world.clearactive();
+		let upw=img.width/scale,uph=img.height/scale;
+		let upmin=new Vector(camera);
+		let upmax=new Vector([camera[0]+upw,camera[1]+uph]);
+		let playeratoms=this.playeratoms;
+		for (let atom of playeratoms) {
+			let pos=atom.pos,rad=atom.rad;
+			for (let d=0;d<2;d++) {
+				let x=pos[d],l=x-rad,r=x+rad;
+				if (upmin[d]>l) {upmin[d]=l;}
+				if (upmax[d]<r) {upmax[d]=r;}
+			}
+		}
+		let upcen=upmin.add(upmax).imul(0.5);
+		let updev=upmax.sub(upmin).imul(0.5*1.1);
+		world.addactive(upcen,updev);
+		// Play wind rushing sound.
+		let windnew=playervel.mag();
+		let wind=this.windvol*Math.pow(0.2,dt);
+		wind=wind>windnew?wind:windnew;
+		this.windvol=wind;
+		let windinst=this.windinst;
+		wind=wind/40-0.1;
+		if (wind>0) {
+			wind=wind<1?wind:1;
+			if (!windinst) {windinst=this.windsnd.play(wind);}
+			windinst.setvolume(wind);
+		} else if (windinst) {
+			windinst.remove();
+			windinst=null;
+		}
+		this.windinst=windinst;
 		// Check for click.
 		let input=this.input;
 		let mouse=this.mouse.mul(1/scale).iadd(camera);
@@ -904,15 +930,13 @@ export class Game {
 				}
 			}
 			charge=throwing>0?charge:0;
-			if (sndinst!==null) {sndinst.stop();sndinst=null;}
+			if (sndinst!==null) {sndinst.remove();sndinst=null;}
 			this.hooktime=0;
 		}
 		this.throwing=throwing;
 		this.charge=charge;
 		if (throwing===1) {
-			if (sndinst===null || sndinst.done) {sndinst=this.spinsnd.play(1,0,dt);}
-			let rem=0.1+sndinst.gettime()-this.spinsnd.time;
-			if (rem>=0) {sndinst=this.spinsnd.play(1,0,1/this.chargerate+rem);}
+			if (sndinst===null) {sndinst=this.spinsnd.play(1,0,dt);}
 			// Show swinging animation while charging.
 			let rad=0.3+charge*0.8;
 			let ang=(this.hookang+dt*25.0)%(Math.PI*2);
@@ -1046,7 +1070,10 @@ export class Game {
 		dt=dt<this.framemax?dt:this.framemax;
 		dt=dt>0?dt:0;
 		this.frameprev=frametime;
-		if (!Env.IsVisible(this.canvas)) {return true;}
+		let hide=!Env.IsVisible(this.canvas);
+		this.audio.mute(hide);
+		this.audio.update();
+		if (hide) {return true;}
 		let starttime=performance.now();
 		let input=this.input;
 		input.update();

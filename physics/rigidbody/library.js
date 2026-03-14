@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v18.70
+library.js - v18.69
 
 Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -16,7 +16,7 @@ Random  - v1.11
 Data    - v1.00
 Vector  - v3.08
 Input   - v1.19
-Drawing - v4.04
+Drawing - v4.03
 UI      - v1.02
 Audio   - v3.11
 Physics - v3.13
@@ -1550,7 +1550,7 @@ export class Input {
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v4.04
+// Drawing - v4.03
 
 
 class DrawPath {
