@@ -46,15 +46,6 @@ History
 TODO
 
 
-Physics
-	Improve geometry creation performance.
-	Remove holes in shapes.
-
-Graphics
-	Speed up drawimage() for background.
-	Add decals that attach to walls: flowers, icicles, lanterns.
-
-
 */
 /* npx eslint rappel.js -c ../../standards/eslint.js */
 
@@ -63,8 +54,8 @@ import {Env,Random,Vector,Transform,Input,Draw,Audio,UI,Phy} from "./library.js"
 
 
 // Material IDs
-const FILL=0,WALL=1,NORM=2,BODY=3,ROPE=4,HOOK=5,EDGE=6;
-const PART=7,LEAF=8,RUNE=9,RAIN=10,CHAR=11;
+const WALL=1,NORM=2,BODY=3,ROPE=4,HOOK=5/*,EDGE=6*/;
+const PART=6,LEAF=7,RUNE=8,RAIN=9,CHAR=10;
 
 
 export class Game {
@@ -84,10 +75,8 @@ export class Game {
 		this.framemax=1/60;
 		this.frameprev=0;
 		this.climb=0;
-		let subtime=performance.now();
 		this.initworld();
-		console.log("world time:",((performance.now()-subtime)*0.001).toFixed(6));
-		this.initaudio();
+		// this.initaudio();
 		let state=this;
 		function resize() {state.resize();}
 		window.addEventListener("resize",resize);
@@ -107,31 +96,30 @@ export class Game {
 
 	initworld() {
 		let state=this;
-		this.world=new Phy.World(2);
+		this.world=new Phy.World(2,100,0.005*16);
 		let world=this.world;
 		world.data.game=this;
 		world.maxsteptime=1/180;
 		world.gravity.set([0,6.66]);
-		let toph=15,both=20,climb=100;
+		let toph=15,both=20,climb=200;
 		let miny=-toph-climb,maxy=both;
-		let minx=0,maxx=100;
+		let minx=0,maxx=200;
 		this.worldmin=new Vector([minx,miny]);
 		this.worldmax=new Vector([maxx,maxy]);
 		this.worlddif=this.worldmax.sub(this.worldmin);
 		let playerpos=new Vector([maxx*0.5,10]);
 		// Setup world materials.
-		let fillmat=world.createatomtype(1.00,Infinity,0.95,1,NaN);
-		let wallmat=world.createatomtype(1.00,Infinity,0.95);
-		let normmat=world.createatomtype(0.01,1.0,0.98);
-		let bodymat=world.createatomtype(0.01,5*.84/( 9*.7854),0.25);
-		let ropemat=world.createatomtype(0.50,5*.08/(20*.0804),0.00);
-		let hookmat=world.createatomtype(0.01,5*.08/(10*.0804),0.25);
-		let edgemat=world.createatomtype(0.01,5*.08/(10*.0804),0.00,1,9950);
-		let partmat=world.createatomtype(0.50,1e-9,0.50,1,NaN);
-		let leafmat=world.createatomtype(0.75,1e-8,0.00,1,0);
-		let runemat=world.createatomtype(0.95,1e-8,0.25,0.2,NaN);
-		let rainmat=world.createatomtype(0.25,1e-8,0.00,1,NaN);
-		let charmat=world.createatomtype(0.75,1e-8,0.25,0.2,NaN);
+		let wallmat=world.createbodytype(1.00,Infinity,0.95);
+		let normmat=world.createbodytype(0.01,1.0,0.98);
+		let bodymat=world.createbodytype(0.01,5*.84/( 9*.7854),0.25);
+		let ropemat=world.createbodytype(0.50,5*.08/(20*.0804),0.00);
+		let hookmat=world.createbodytype(0.01,5*.08/(10*.0804),0.25);
+		// let edgemat=world.createbodytype(0.01,5*.08/(10*.0804),0.50,1,950);
+		let partmat=world.createbodytype(0.50,1e-9,0.50,1,NaN);
+		let leafmat=world.createbodytype(0.75,1e-8,0.00,1,0);
+		let runemat=world.createbodytype(0.95,1e-8,0.25,0.2,NaN);
+		let rainmat=world.createbodytype(0.25,1e-8,0.00,1,NaN);
+		let charmat=world.createbodytype(0.75,1e-8,0.25,0.2,NaN);
 		this.typearr=[];
 		for (let type of world.typelist.iter()) {
 			this.typearr.push(type);
@@ -153,11 +141,11 @@ export class Game {
 		partmat.gravity=new Vector([0,0]);
 		runemat.gravity=new Vector([0,0]);
 		charmat.gravity=new Vector([0,0]);
-		leafmat.intarr[edgemat.id].statictension=25;
-		for (let intr of edgemat.intarr) {intr.staticdist=5.625;}
-		world.collcallback=function() {return state.collcallback(...arguments);};
-		world.stepcallback=function(dt) {return state.stepcallback(dt);};
-		this.initparticles();
+		leafmat.intarr[hookmat.id].statictension=25;
+		// for (let intr of hookmat.intarr) {intr.staticdist=5.625;}
+		// world.collcallback=function() {return state.collcallback(...arguments);};
+		// world.stepcallback=function(dt) {return state.stepcallback(dt);};
+		// this.initparticles();
 		// Setup the player.
 		let ropespace=0.04,hookspace=0.135;
 		this.throwing=-1;
@@ -166,7 +154,9 @@ export class Game {
 		this.hookang=0;
 		this.camera=new Vector(2);
 		this.camcen=new Vector(playerpos);
-		this.playerpos=playerpos;
+		let vertarr=[];
+		let rnd=new Random(1);
+		/*this.playerpos=playerpos;
 		this.playervel=new Vector(2);
 		// Create the hook.
 		this.hooktime=0;
@@ -224,11 +214,11 @@ export class Game {
 			let bond=world.createbond(prev1,atom,-1,240);
 			if (!i) {bond.data.rgb=[255,255,255,255];}
 			world.createbond(prev2,this.bodyatom[0],ropespace*2,240);
-		}
-		this.playeratoms=this.bodyatom.concat(this.ropeatom).concat(this.hookatom);
+		}*/
+		this.bodyatom=world.createbody([[-1,-1],[1,-1],[1,1],[-1,1]],playerpos,null,bodymat);
 		// Set up the level.
 		// Create the walls
-		let rad=0.27,space=0.26,over=0;
+		/*let rad=0.27,space=0.26,over=0;
 		for (let x=minx;x<maxx;x+=space) {
 			world.createatom([x,miny-over],rad,wallmat);
 			world.createatom([x,maxy+over],rad,wallmat);
@@ -274,26 +264,45 @@ export class Game {
 			if (Object.is(atom.type,wallmat)) {
 				if (dist<0) {atom.type=fillmat;}
 			}
-		}
+		}*/
 		// Create holds
-		let holdtime=performance.now();
 		let holdgap=20;
 		let levels=Math.round(climb/holdgap)|1;
 		holdgap=climb/levels;
 		let spanx=Math.floor((maxx-minx)/(2*holdgap));
 		let gapx=(maxx-minx)/spanx;
 		for (let l=0;l<levels;l++) {
-			let y=maxy-both-l*holdgap;
+			let minrad=6,maxrad=10;
+			let holdy=maxy-both-l*holdgap;
 			let spanl=spanx+(l&1);
 			for (let s=0;s<spanl;s++) {
-				let x=(s+(l&1?0:0.5))*gapx+minx;
-				this.createhold([x,y]);
+				let points=3+rnd.mod(5);
+				let arr=new Array(points);
+				let swing=Math.PI*2/points;
+				for (let i=0;i<points;i++) {
+					let ang=swing*(i+rnd.getf());
+					let rad=rnd.getf()*(maxrad-minrad)+minrad;
+					let x=Math.cos(ang)*rad;
+					let y=Math.sin(ang)*rad;
+					arr[i]=new Vector([x,y]);
+				}
+				let holdx=(s+(l&1?0:0.5))*gapx+minx;
+				world.createbody(arr,[holdx,holdy],null,wallmat);
 			}
 		}
-		console.log("hold  time:",((performance.now()-holdtime)*0.001).toFixed(6));
-		this.createtext("CLICK TO THROW",[maxx*0.5-6.5*2,4],1);
-		this.createbiome(LEAF,[minx,0],[maxx,both]);
-		this.createbiome(RAIN,[minx,-climb+bart],[maxx,climb-bart*2]);
+		// this.createtext("CLICK TO THROW",[maxx*0.5-6.5*2,4],1);
+		// this.createbiome(LEAF,[minx,0],[maxx,both]);
+		// this.createbiome(RAIN,[minx,-climb+bart],[maxx,climb-bart*2]);
+		for (let body of world.bodyiter()) {
+			let path=new Draw.Path();
+			for (let v of body.vertarr) {path.lineto(v);}
+			path.close();
+			let data=body.data;
+			data.paths=[
+				[[ 32, 32, 32],path],
+				[[140,170,140],path.trace(0,-.2)]
+			];
+		}
 		// Game state
 		this.climbtime=0;
 		this.climbstop=-climb;
@@ -352,33 +361,6 @@ export class Game {
 	}
 
 
-	createhold(pos) {
-		// Create a climbing hold.
-		let minrad=6,maxrad=10;
-		let rnd=this.rnd;
-		let points=3+rnd.mod(5);
-		let arr=new Array(points);
-		let swing=Math.PI*2/points;
-		for (let i=0;i<points;i++) {
-			let ang=swing*(i+rnd.getf());
-			let rad=rnd.getf()*(maxrad-minrad)+minrad;
-			let x=Math.cos(ang)*rad;
-			let y=Math.sin(ang)*rad;
-			arr[i]=new Vector([x,y]);
-		}
-		// Create and fill the atoms.
-		let ta=this.typearr;
-		let wallmat=ta[WALL],fillmat=ta[FILL];
-		let facearr=new Array(points);
-		for (let i=0;i<points;i++) {facearr[i]=[i,(i+1)%points];}
-		let atomarr=this.world.createshape(2,wallmat,0.24,0.24,arr,facearr,{vec:pos});
-		for (let atom of atomarr) {
-			if (atom.data._filldist<0) {atom.type=fillmat;}
-			Game.atominit(atom);
-		}
-	}
-
-
 	// ----------------------------------------
 	// Graphics
 
@@ -417,20 +399,19 @@ export class Game {
 		let draw=new Draw(draww,drawh);
 		draw.screencanvas(canvas);
 		this.draw=draw;
-		this.distmap=new Float32Array(draww*drawh);
 		// Color types.
-		let ta=this.typearr;
+		/*let ta=this.typearr;
 		ta[FILL].data.rgb=[32,32,32,255];
 		ta[WALL].data.rgb=[140,170,140,255];
 		ta[NORM].data.rgb=[255,255,255,255];
 		ta[BODY].data.rgb=[128,128,255,255];
-		ta[EDGE].data.rgb=[100,100,100,255];
+		ta[EDGE].data.rgb=[100,100,100,255];*/
 		// Init UI.
 		let ui=new UI(draw,this.input);
 		this.ui=ui;
 		ui.addpath(UI.VOLUME_PATH,{vec:[21,20],scale:15});
-		let slider=ui.addslider(45,5,140,30,this.audio.volume);
-		slider.onchange=function(node) {state.audio.setvolume(node.value);};
+		// let slider=ui.addslider(45,5,140,30,this.audio.volume);
+		// slider.onchange=function(node) {state.audio.setvolume(node.value);};
 		this.cursor=new Draw.Path("M0 0 4 2 2 2 2 4Z");
 		// Draw a dark forest.
 		let bg=new Draw.Image(draww,drawh);
@@ -474,75 +455,9 @@ export class Game {
 			draw.fillpath(tree,{vec:[x,y],scale:scale});
 		}
 		draw.popstate();
-		for (let atom of this.world.atomiter()) {
-			Game.atominit(atom);
-		}
-	}
-
-
-	drawatom(x,y,rad,rgb) {
-		// If two atoms overlap, prefer the one that's closer.
-		// Overlap is judged by the center of the pixel (.5,.5).
-		let draw=this.draw,img=draw.img;
-		// Check if it's on the screen.
-		let imgw=img.width,imgh=img.height;
-		let dx=(x>1?(x<imgw?x:imgw):1)-0.5-x;
-		let dy=(y>1?(y<imgh?y:imgh):1)-0.5-y;
-		rad+=0.5;
-		let rad2=rad*rad;
-		let alpha=(rgb[3]/255)*128;
-		if (dx*dx+dy*dy>=rad2 || alpha<0.5) {return;}
-		let rad21=rad>1 && alpha>127?(rad-1)*(rad-1):0;
-		// Fill in the circle at (x,y) with radius 'rad'.
-		let colrgba=draw.rgbatoint(rgb[0],rgb[1],rgb[2],255);
-		let coll=(colrgba&0x00ff00ff)>>>0;
-		let colh=(colrgba&0xff00ff00)>>>0;
-		let colh2=colh>>>8,tmp=0;
-		const rnd0=0.5+1e-6,rnd1=0.5-1e-6;
-		tmp=y-rad+rnd0;let miny=tmp>0?~~tmp:0;
-		tmp=y+rad+rnd1;let maxy=tmp<imgh?~~tmp:imgh;
-		let imgdata=img.data32;
-		let distmap=this.distmap;
-		for (;miny<maxy;miny++) {
-			// Find the boundaries of the row we're on. Clip to center of pixel.
-			dy=miny-y+0.5;
-			let d2=dy*dy;
-			dx=Math.sqrt(rad2-d2);
-			tmp=x-dx+rnd0;let minx=tmp>0?~~tmp:0;
-			tmp=x+dx+rnd1;let maxx=tmp<imgw?~~tmp:imgw;
-			dx=minx-x+0.5;
-			d2+=dx*dx;
-			dx+=dx+1;
-			minx+=miny*imgw;
-			maxx+=miny*imgw;
-			for (;minx<maxx;minx++) {
-				// Check if we can overwrite another atom's pixel, or if we need to blend them.
-				let m2=distmap[minx];
-				let u2=(m2-d2+1)*0.5;
-				// sqrt(m2)-sqrt(d2)>-1
-				if (u2>0 || m2>u2*u2) {
-					// rad-dist>1 and sqrt(m2)-sqrt(d2)>1
-					u2-=1;
-					if (d2<=rad21 && u2>0 && d2<u2*u2) {
-						// Only write the distance if we're inside the border.
-						distmap[minx]=d2;
-						imgdata[minx]=colrgba;
-					} else {
-						// Blend if we're on the edge or bordering another atom.
-						let dst=imgdata[minx];
-						let dist=Math.sqrt(d2);
-						let over=Math.sqrt(m2)-dist;
-						let edge=rad-dist;
-						let a=~~(256-(over<1?(over+1)*128:256)*(edge<1?edge:1));
-						imgdata[minx]=
-							(((Math.imul((dst&0x00ff00ff)-coll,a)>>>8)+coll)&0x00ff00ff)+
-							((Math.imul(((dst&0xff00ff00)>>>8)-colh2,a)+colh)&0xff00ff00);
-					}
-				}
-				d2+=dx;
-				dx+=2;
-			}
-		}
+		// for (let atom of this.world.atomiter()) {
+		// 	Game.atominit(atom);
+		// }
 	}
 
 
@@ -816,18 +731,10 @@ export class Game {
 	updateplayer(dt) {
 		// Get our average position, velocity, and orientation.
 		let bodyatom=this.bodyatom;
-		let ropeatom=this.ropeatom;
-		let playerpos=this.playerpos.set(0);
-		let playervel=this.playervel.set(0);
+		// let ropeatom=this.ropeatom;
+		let playerpos=bodyatom.trans.vec;
+		let playervel=bodyatom.vel;
 		let climb=this.climb,stop=this.climbstop;
-		for (let atom of bodyatom) {
-			let pos=atom.pos,y=pos[1]-atom.rad;
-			climb=climb<y?climb:y;
-			playerpos.iadd(pos);
-			playervel.iadd(atom.vel);
-		}
-		playerpos.imul(1/bodyatom.length);
-		playervel.imul(1/bodyatom.length);
 		if (climb<=stop) {climb=stop;}
 		else if (climb<0) {this.climbtime+=dt;}
 		this.climb=climb;
@@ -849,27 +756,10 @@ export class Game {
 			pos=pos>min?pos:min;
 			pos=pos<max?pos:max;
 			camera[i]=pos;
+			// camera[i]=playerpos[i];
 		}
-		// Mark the area around the player/hook as active. Disable everything else.
-		let world=this.world;
-		world.clearactive();
-		let upw=img.width/scale,uph=img.height/scale;
-		let upmin=new Vector(camera);
-		let upmax=new Vector([camera[0]+upw,camera[1]+uph]);
-		let playeratoms=this.playeratoms;
-		for (let atom of playeratoms) {
-			let pos=atom.pos,rad=atom.rad;
-			for (let d=0;d<2;d++) {
-				let x=pos[d],l=x-rad,r=x+rad;
-				if (upmin[d]>l) {upmin[d]=l;}
-				if (upmax[d]<r) {upmax[d]=r;}
-			}
-		}
-		let upcen=upmin.add(upmax).imul(0.5);
-		let updev=upmax.sub(upmin).imul(0.5*1.1);
-		world.addactive(upcen,updev);
 		// Play wind rushing sound.
-		let windnew=playervel.mag();
+		/*let windnew=playervel.mag();
 		let wind=this.windvol*Math.pow(0.2,dt);
 		wind=wind>windnew?wind:windnew;
 		this.windvol=wind;
@@ -957,7 +847,7 @@ export class Game {
 				atom.vel.set(prev.vel);
 			}
 		}
-		this.spininst=sndinst;
+		this.spininst=sndinst;*/
 	}
 
 
@@ -1071,8 +961,8 @@ export class Game {
 		dt=dt>0?dt:0;
 		this.frameprev=frametime;
 		let hide=!Env.IsVisible(this.canvas);
-		this.audio.mute(hide);
-		this.audio.update();
+		// this.audio.mute(hide);
+		// this.audio.update();
 		if (hide) {return true;}
 		let starttime=performance.now();
 		let input=this.input;
@@ -1086,34 +976,42 @@ export class Game {
 		let world=this.world;
 		world.update(dt);
 		this.updateplayer(dt);
-		this.updateparticles(dt);
-		this.updateatoms(dt);
+		// this.updateparticles(dt);
+		// this.updateatoms(dt);
+		let trans=new Transform({vec:this.camera.mul(-scale),scale:scale});
+		for (let body of world.bodyiter()) {
+			let bodytrans=trans.apply(body.trans);
+			let data=body.data;
+			for (let [rgb,path] of data.paths) {
+				draw.setcolor(rgb);
+				draw.fillpath(path,bodytrans);
+			}
+		}
 		// Draw the charge timer.
 		let camera=this.camera;
 		let charge=this.charge;
 		if (charge>0) {
-			let rad0=1.25*scale,rad1=1.75*scale;
-			let [x,y]=this.playerpos.sub(camera).mul(scale);
+			let [x,y]=this.bodyatom.trans.vec;
 			let ang0=-Math.PI*0.5,ang1=ang0+Math.PI*2*charge;
 			let path=new Draw.Path();
-			path.arcto(x,y,ang0,ang1,rad1,rad1,true);
-			path.arcto(x,y,ang1,ang0,rad0,rad0,true);
+			path.arcto(x,y,ang0,ang1,1.75,1.75,true);
+			path.arcto(x,y,ang1,ang0,1.25,1.25,true);
 			path.close();
 			draw.setcolor(100,100,200,255);
-			draw.fillpath(path);
+			draw.fillpath(path,trans);
 		}
 		// Draw the bonds.
-		draw.linewidth=3;
+		/*draw.linewidth=3;
 		for (let bond of world.bonditer()) {
 			let rgb=bond.data.rgb;
 			if (rgb===undefined) {continue;}
 			draw.setcolor(rgb);
-			let apos=bond.a.pos.sub(camera),bpos=bond.b.pos.sub(camera);
+			let apos=bond.getapos().sub(camera),bpos=bond.getbpos().sub(camera);
 			draw.drawline(apos[0]*scale,apos[1]*scale,bpos[0]*scale,bpos[1]*scale);
-		}
+		}*/
 		draw.linewidth=1;
 		// Draw the HUD.
-		this.updateaudio();
+		// this.updateaudio();
 		this.ui.render();
 		draw.setcolor(255,255,255,255);
 		draw.fillpath(this.cursor,{vec:mouse.add(-1.5,-1.5),scale:5});

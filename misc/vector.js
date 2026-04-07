@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-vector.js - v3.06
+vector.js - v3.09
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -14,6 +14,7 @@ Notes
 Keep under 20kb, without header.
 Array() is faster than Float64Array().
 isNaN([1])=true
+(A*u)*b = u*(A^t*b)
 
 
 --------------------------------------------------------------------------------
@@ -47,6 +48,12 @@ History
      Normalize will once again return a random vector if mag<eps.
 3.05
      Added index section and export.
+3.07
+     Added matrix transpose.
+3.08
+     Simplified Transform constructor.
+3.09
+     Added sanity checks to Transform constructor.
 
 
 --------------------------------------------------------------------------------
@@ -66,6 +73,7 @@ Matrix
 Test suite.
 Article on division-free determinant.
 Article on random angle generation.
+Unroll determinant and inverse for small matrices.
 
 
 */
@@ -76,7 +84,7 @@ import {Random} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
-// Vector - v3.06
+// Vector - v3.09
 
 
 export class Vector extends Array {
@@ -482,6 +490,14 @@ export class Matrix extends Array {
 	}
 
 
+	trans() {
+		let rows=this.rows,cols=this.cols,elems=rows*cols;
+		let ret=new Matrix(cols,rows);
+		for (let i=0;i<elems;i++) {ret[i]=this[(i%rows)*cols+(~~(i/rows))];}
+		return ret;
+	}
+
+
 	static fromangles(angs) {
 		let dim=0,ang2=(angs.length??1)*2;
 		while (dim*(dim-1)<ang2) {dim++;}
@@ -534,39 +550,42 @@ export class Transform {
 
 
 	constructor(params) {
-		// Accepts: transform, mat, vec, dim, {mat,vec,dim,scale,ang}
-		// Aliases: vec=pos, ang=angle
+		// Accepts: Vector, Matrix, Transform, dim, {ang,dim,mat,scale,vec}
 		// Parse what we're given.
 		let mat=null,vec=null,dim=NaN;
 		let scale=null,ang=null;
 		if (params instanceof Transform) {
-			mat=new Matrix(params.mat);
-			vec=new Vector(params.vec);
+			mat=params.mat;
+			vec=params.vec;
 		} else if (params instanceof Matrix) {
-			mat=new Matrix(params);
+			mat=params;
 		} else if ((params instanceof Vector) || params.length!==undefined) {
-			vec=new Vector(params);
+			vec=params;
 		} else if (!isNaN(params)) {
 			dim=params;
 		} else {
+			// Pull attributes from a dict.
+			const allow={"ang":1,"dim":1,"mat":1,"scale":1,"vec":1};
+			for (let attr in params) {if (!allow[attr]) {throw "Unknown attr: "+attr;}}
 			mat=params.mat??null;
-			vec=(params.vec??params.pos)??null;
+			vec=params.vec??null;
 			dim=params.dim??NaN;
 			scale=params.scale??null;
-			ang=(params.ang??params.angle)??null;
+			ang=params.ang??null;
 		}
 		// Reconstruct what we're missing.
 		if (isNaN(dim)) {
 			if (vec!==null) {dim=vec.length;}
 			else if (mat!==null) {dim=mat.rows;}
+			else if (scale!==null && scale.length) {dim=scale.length;}
 		}
 		if (isNaN(dim)) {throw "no dimension";}
 		if (vec===null) {vec=new Vector(dim);}
 		if (mat===null) {mat=(new Matrix(dim)).one();}
 		if (vec.length!==dim) {throw `vec dimension: ${vec.length}, ${dim}`;}
 		if (mat.rows!==dim || mat.cols!==dim) {throw `mat dimensions: (${mat.rows},${mat.cols}), ${dim}`;}
-		this.mat=mat;
-		this.vec=vec;
+		this.mat=new Matrix(mat);
+		this.vec=new Vector(vec);
 		if (scale!==null) {this.scalemat(scale);}
 		if (ang!==null) {this.rotatemat(ang);}
 	}

@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.16
+demo.js - v1.18
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -14,18 +14,16 @@ History
 1.16
      Redid performance tests to provide more useful times.
      Added canvas to display tests.
+1.17
+     Tweaked image transform scaling to [1/2,2].
 
 
 --------------------------------------------------------------------------------
 TODO
 
 
-Add a pattern to performance test srcimg.
-
-npx eslint demo.js -c ../../standards/eslint.js
-
-
 */
+/* npx eslint demo.js -c ../../standards/eslint.js */
 
 
 import {Env,Random,Transform,Input} from "./library.js";
@@ -202,7 +200,7 @@ export class DrawPerf {
 		timestop+=timestart;
 		if (test===0) {
 			// test call overhead
-			draw.beginpath();
+			draw.begin();
 			for (;(samples&0xfff)!==0 || performance.now()<timestop;samples++) {
 				randcolor();
 				randtrans(-1,1);
@@ -224,13 +222,13 @@ export class DrawPerf {
 				let x=rnd.mod(dstw+w*2)-w;
 				let y=rnd.mod(dsth+h*2)-h;
 				pixels+=this.drawimage(srcimg,x,y);
-				//pixels+=draw._drawimage(srcimg,x,y);
+				// pixels+=draw._drawimage(srcimg,x,y);
 			}
 		} else if (test===3) {
 			// image draw
 			for (;(samples&0x1f)!==0 || performance.now()<timestop;samples++) {
 				randcolor();
-				randtrans(-1,2);
+				randtrans(-1,1);
 				srcimg.width =rnd.mod(srcdim+1);
 				srcimg.height=rnd.mod(srcdim+1);
 				pixels+=draw._drawimage(srcimg,0,0);
@@ -247,7 +245,7 @@ export class DrawPerf {
 			}
 		} else {
 			// oval, rect, and complex paths
-			let path=draw.beginpath();
+			let path=draw.begin();
 			if (test===5) {
 				path.addoval(0,0,1,1);
 			} else if (test===6) {
@@ -267,7 +265,7 @@ export class DrawPerf {
 			}
 		}
 		let time=performance.now()-timestart;
-		console.log(`test: ${this.test}, samples: ${samples}, pixels: ${pixels}, time: ${time.toFixed(0)}`);
+		//console.log(`test: ${this.test}, samples: ${samples}, pixels: ${pixels}, time: ${time.toFixed(0)}`);
 		draw.screenflip();
 		// Format our test results. Don't display if this is a warmup.
 		if (test && (!pixels || isNaN(pixels))) {
@@ -418,6 +416,7 @@ export class DrawDemo {
 		let ang=performance.now()/1500;
 		draw.setcolor(0xff8000ff);
 		draw.fillpath(this.star,{vec:[mx,my],scale:40,ang:ang});
+		draw.setcolor(255,255,255);
 		// Display FPS.
 		draw.setcolor(0xffffffff);
 		draw.filltext(5,5,this.framestr,16);
@@ -458,7 +457,7 @@ export class OBBDemo {
 			-24-80-101 2-188-97-106-16-324 217-269ZM269 522c143 0 143-212 0-212-141 0-141
 			212 0 212ZM191 735c-23 16-54 39-54 82 0 51 53 69 139 69 104 0 143-40 143-87 0-45
 			-46-57-98-59Z
-		`,{scale:scale,pos:[-553*scale*.5,-200*scale]});
+		`,{scale:scale,vec:[-553*scale*.5,-200*scale]});
 		let state=this;
 		function update(time) {
 			state.update(time);
@@ -541,7 +540,7 @@ export class OBBDemo {
 		draw.fill(0,0,0,255);
 		draw.linewidth=0.004*scale;
 		let path=this.path;
-		let trans=new Transform({pos:[0.84*scale,0.16*scale],ang:angle});
+		let trans=new Transform({vec:[0.84*scale,0.16*scale],ang:angle});
 		let imgaabb={minx:0.2*scale,miny:0.2*scale,maxx:0.8*scale,maxy:0.6*scale};
 		draw.setcolor(this.backrgb);
 		draw.filltext(0.43*scale,0.38*scale,"image",0.048*scale);
@@ -598,7 +597,7 @@ export class CurveDemo {
 		this.frame=frame;
 		let draw=this.draw;
 		let scale=draw.img.width*0.000840;
-		let trans=new Transform({scale:scale,pos:[97*scale,488*scale]});
+		let trans=new Transform({scale:scale,vec:[97*scale,488*scale]});
 		draw.fill(0,0,0,255);
 		let outline=new Draw.Path('M -5 0 C 275 -343 768 -607 1005 0 L 995 0 C 758 -597 284 -333 5 0 Z');
 		draw.settransform(trans);

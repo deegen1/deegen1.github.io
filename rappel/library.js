@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v18.70
+library.js - v17.55
 
 Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -14,12 +14,12 @@ Versions
 Env     - v1.02
 Random  - v1.11
 Data    - v1.00
-Vector  - v3.08
+Vector  - v3.09
 Input   - v1.19
-Drawing - v4.04
+Drawing - v5.01
 UI      - v1.02
 Audio   - v3.11
-Physics - v3.13
+Physics - v1.00
 
 
 --------------------------------------------------------------------------------
@@ -576,7 +576,7 @@ export {Data};
 
 
 //---------------------------------------------------------------------------------
-// Vector - v3.08
+// Vector - v3.09
 
 
 export class Vector extends Array {
@@ -1042,7 +1042,7 @@ export class Transform {
 
 
 	constructor(params) {
-		// Accepts: transform, mat, vec, dim, {mat,vec,dim,scale,ang}
+		// Accepts: Vector, Matrix, Transform, dim, {ang,dim,mat,scale,vec}
 		// Parse what we're given.
 		let mat=null,vec=null,dim=NaN;
 		let scale=null,ang=null;
@@ -1056,6 +1056,9 @@ export class Transform {
 		} else if (!isNaN(params)) {
 			dim=params;
 		} else {
+			// Pull attributes from a dict.
+			const allow={"ang":1,"dim":1,"mat":1,"scale":1,"vec":1};
+			for (let attr in params) {if (!allow[attr]) {throw "Unknown attr: "+attr;}}
 			mat=params.mat??null;
 			vec=params.vec??null;
 			dim=params.dim??NaN;
@@ -1066,6 +1069,7 @@ export class Transform {
 		if (isNaN(dim)) {
 			if (vec!==null) {dim=vec.length;}
 			else if (mat!==null) {dim=mat.rows;}
+			else if (scale!==null && scale.length) {dim=scale.length;}
 		}
 		if (isNaN(dim)) {throw "no dimension";}
 		if (vec===null) {vec=new Vector(dim);}
@@ -1550,7 +1554,7 @@ export class Input {
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v4.04
+// Drawing - v5.01
 
 
 class DrawPath {
@@ -1559,6 +1563,8 @@ class DrawPath {
 	static CLOSE=1;
 	static LINE =2;
 	static CURVE=3;
+	static _traceline =new Float64Array(2);
+	static _tracecurve=new Float64Array(6);
 
 
 	constructor(str,trans) {
@@ -1574,6 +1580,9 @@ class DrawPath {
 
 	begin() {
 		this.vertidx=0;
+		this.area=0;
+		this.area0=0;
+		this.curve=3;
 		this.move=null;
 		this.minx=Infinity;
 		this.maxx=-Infinity;
@@ -1583,19 +1592,14 @@ class DrawPath {
 	}
 
 
-	aabbupdate() {
+	update() {
 		// Recompute the bounding box.
-		let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
 		let varr=this.vertarr,vidx=this.vertidx;
+		this.begin();
 		for (let i=0;i<vidx;i++) {
-			let v=varr[i],x=v.x,y=v.y;
-			minx=minx<x?minx:x;
-			maxx=maxx>x?maxx:x;
-			miny=miny<y?miny:y;
-			maxy=maxy>y?maxy:y;
+			let v=varr[i];
+			this.addvert(v.type,v.x,v.y);
 		}
-		this.minx=minx;this.maxx=maxx;
-		this.miny=miny;this.maxy=maxy;
 	}
 
 
@@ -1603,39 +1607,63 @@ class DrawPath {
 		if (!trans) {return;}
 		trans=new Transform(trans);
 		let varr=this.vertarr,vidx=this.vertidx;
+		this.begin();
 		for (let i=0;i<vidx;i++) {
 			let v=varr[i];
 			let t=trans.apply([v.x,v.y]);
-			v.x=t[0];v.y=t[1];
+			this.addvert(v.type,t[0],t[1]);
 		}
-		this.aabbupdate();
 	}
 
 
 	addvert(type,x,y) {
+		let m=this.move;
+		if (!m && type) {throw "first vert not move: "+type;}
+		if (type===1) {x=m.x;y=m.y;this.move=null;}
+		else if (y===undefined) {y=x[1];x=x[0];}
+		// Add to array.
 		let idx=this.vertidx++;
 		let arr=this.vertarr;
 		if (idx>=arr.length) {
-			let len=16;
-			while (len<=idx) {len+=len;}
-			while (arr.length<len) {arr.push({type:-1,x:0,y:0});}
+			arr.push({type:0,x:0,y:0});
 		}
 		let v=arr[idx];
 		v.type=type;
 		v.x=x;
 		v.y=y;
+		// Update AABB.
 		if (this.minx>x) {this.minx=x;}
 		if (this.maxx<x) {this.maxx=x;}
 		if (this.miny>y) {this.miny=y;}
 		if (this.maxy<y) {this.maxy=y;}
+		// Update area.
+		let w=null;
+		let area=this.area0;
+		if (type<1) {
+			area=this.area;
+			this.move=v;
+		} else if (type<3) {
+			w=arr[idx-1];
+		} else if (!--this.curve) {
+			this.curve=3;
+			w=arr[idx-1];let p2x=w.x-x,p2y=w.y-y;
+			w=arr[idx-2];let p1x=w.x-x,p1y=w.y-y;
+			w=arr[idx-3];let p0x=w.x-x,p0y=w.y-y;
+			area+=(p0x*(2*p1y+p2y)+p1x*(p2y-2*p0y)-p2x*(p1y+p0y))*0.3;
+		}
+		if (w!==null) {
+			area+=w.x*y-w.y*x;
+			// Pretend to close the subpath.
+			this.area=x*m.y-y*m.x+area;
+		}
+		this.area0=area;
 		return v;
 	}
 
 
 	moveto(x,y) {
 		// Move the pen to [x,y].
-		if (y===undefined) {y=x[1];x=x[0];}
-		this.move=this.addvert(DrawPath.MOVE,x,y);
+		this.addvert(DrawPath.MOVE,x,y);
 		return this;
 	}
 
@@ -1643,9 +1671,7 @@ class DrawPath {
 	lineto(x,y) {
 		// Draw a line from the last vertex to [x,y].
 		// If no moveto() was ever called, behave as moveto().
-		if (y===undefined) {y=x[1];x=x[0];}
-		if (!this.move) {return this.moveto(x,y);}
-		this.addvert(DrawPath.LINE,x,y);
+		this.addvert(this.move?DrawPath.LINE:DrawPath.MOVE,x,y);
 		return this;
 	}
 
@@ -1686,10 +1712,7 @@ class DrawPath {
 
 	close() {
 		// Draw a line from the current vertex to our last moveto() call.
-		let mx=0,my=0;
-		let m=this.move;
-		if (m) {mx=m.x;my=m.y;this.move=null;}
-		this.addvert(DrawPath.CLOSE,mx,my);
+		if (this.move) {this.addvert(DrawPath.CLOSE);}
 		return this;
 	}
 
@@ -1776,11 +1799,9 @@ class DrawPath {
 		trans=new Transform(trans?trans:{dim:2});
 		let varr=path.vertarr,vidx=path.vertidx;
 		for (let i=0;i<vidx;i++) {
-			let v=varr[i],x=v.x,y=v.y,t=v.type;
-			[x,y]=trans.apply([x,y]);
-			if (t===DrawPath.MOVE) {this.moveto(x,y);}
-			else if (t===DrawPath.CLOSE) {this.close();}
-			else {this.addvert(t,x,y);}
+			let v=varr[i];
+			let t=trans.apply([v.x,v.y]);
+			this.addvert(v.type,t[0],t[1]);
 		}
 		return this;
 	}
@@ -1796,36 +1817,261 @@ class DrawPath {
 	}
 
 
+	tracerect(x,y,w,h,outrad,inrad) {
+		let or=outrad??1;
+		let ir=inrad??-outrad;
+		this.addrect(x-or,y-or,w+or*2,h+or*2);
+		return this.addrect(x+w+ir,y-ir,-w-ir*2,h+ir*2);
+	}
+
+
+	traceoval(x,y,xrad,yrad,outrad,inrad) {
+		let or=outrad??1;
+		let ir=inrad??-outrad;
+		this.addoval(x,y,xrad+or,yrad+or);
+		return this.addoval(x,y,-xrad-ir,yrad+ir);
+	}
+
+
 	addline(x0,y0,x1,y1,rad) {
-		// Line with circular ends.
+		// Line with round ends.
 		let dx=x1-x0,dy=y1-y0;
 		let dist=dx*dx+dy*dy;
-		if (dist<1e-20) {
+		if (dist<1e-10) {
 			x1=x0;
 			y1=y0;
 			dx=rad;
-			dy=0.0;
+			dy=0;
 		} else {
-			dist=rad/Math.sqrt(dist);
-			dx*=dist;
-			dy*=dist;
+			rad/=Math.sqrt(dist);
+			dx*=rad;
+			dy*=rad;
 		}
-		const c=0.551915024;
-		let cx=c*dx,c0=cx-dy,c3=cx+dy;
-		let cy=c*dy,c1=dx+cy,c2=dx-cy;
+		let c=1.315739738,cx=c*dx,cy=c*dy;
 		this.moveto(x1+dy,y1-dx);
-		this.curveto(x1+c3,y1-c2,x1+c1,y1-c0,x1+dx,y1+dy);
-		this.curveto(x1+c2,y1+c3,x1+c0,y1+c1,x1-dy,y1+dx);
+		this.curveto(x1+dy+cx,y1-dx+cy,x1-dy+cx,y1+dx+cy,x1-dy,y1+dx);
 		this.lineto(x0-dy,y0+dx);
-		this.curveto(x0-c3,y0+c2,x0-c1,y0+c0,x0-dx,y0-dy);
-		this.curveto(x0-c2,y0-c3,x0-c0,y0-c1,x0+dy,y0-dx);
+		this.curveto(x0-dy-cx,y0+dx-cy,x0+dy-cx,y0-dx-cy,x0+dy,y0-dx);
 		return this.close();
 	}
 
 
-	trace(rad) {
-		throw "not implemented "+rad;
-		// Curve offseting. Project out based on tangent.
+	trace(outrad,inrad) {
+		// Path tracing.
+		outrad=outrad??0.5;
+		inrad=inrad??-outrad;
+		let out=new Draw.Path();
+		let scale=(this.maxx-this.minx+this.maxy-this.miny)/1000;
+		if (!(scale>1e-10)) {return out;}
+		let curvemaxdist2=0.03*scale*scale;
+		let maxext=Math.abs(outrad-inrad)+1e-10;
+		let lv=DrawPath._traceline,cv=DrawPath._tracecurve;
+		let li=0;
+		function AddSeg(x,y) {
+			if (li>=lv.length) {
+				let nv=new Float64Array(li*2);
+				nv.set(lv);
+				lv=nv;
+				DrawPath._traceline=lv;
+			}
+			lv[li++]=x;
+			lv[li++]=y;
+		}
+		let varr=this.vertarr;
+		let vidx=this.vertidx;
+		let area=this.area;
+		inrad=-inrad;
+		let p3x=0,p3y=0,closed=0;
+		for (let i=0;i<=vidx;i++) {
+			let v=varr[i<vidx?i:0];
+			let type=v.type;
+			if (type===DrawPath.CURVE) {v=varr[i+2];}
+			let p0x=p3x;p3x=v.x;
+			let p0y=p3y;p3y=v.y;
+			if (type===DrawPath.MOVE) {
+				// Remove overlapping points.
+				if (li>2) {
+					let x0=lv[0],y0=lv[1];
+					let ni=2;
+					for (let j=2;j<li;j+=2) {
+						let x1=lv[j  ],dx=x1-x0;
+						let y1=lv[j+1],dy=y1-y0;
+						if (dx*dx+dy*dy>1e-10) {
+							lv[ni++]=x1;x0=x1;
+							lv[ni++]=y1;y0=y1;
+						}
+					}
+					li=ni;
+					if (closed) {
+						x0=lv[0];y0=lv[1];
+						while (li>2) {
+							let dx=lv[li-2]-x0;
+							let dy=lv[li-1]-y0;
+							if (dx*dx+dy*dy>1e-10) {break;}
+							li-=2;
+						}
+					}
+				}
+				if (li===2) {
+					// Single point.
+					out.addoval(lv[0],lv[1],outrad,area<0?-outrad:outrad);
+				} else if (li>2) {
+					// Trace around line segments.
+					for (let side=0;side<2;side++) {
+						let rad=(side>0)===(area<0)?inrad:outrad;
+						let i0=2,i1=0;
+						if (side!==closed) {i1=li-2;i0=i1-2;}
+						let x0=lv[i0],y0=lv[i0+1];
+						let x1=lv[i1],y1=lv[i1+1];
+						let dx1=x1-x0,dy1=y1-y0;
+						let mag=Math.sqrt(dx1*dx1+dy1*dy1);
+						dx1/=mag;dy1/=mag;
+						for (let j=closed?0:2;j<li;j+=2) {
+							let k=side?li-2-j:j;
+							let dx0=dx1,dy0=dy1;
+							x0=x1;x1=lv[k  ];dx1=x1-x0;
+							y0=y1;y1=lv[k+1];dy1=y1-y0;
+							mag=Math.sqrt(dx1*dx1+dy1*dy1);
+							dx1/=mag;dy1/=mag;
+							// Calculate projection.
+							let dot=dx0*dx1+dy0*dy1;
+							let den=dx0*dy1-dy0*dx1;
+							let u=dot>0?0:maxext;
+							if (den<-1e-5 || den>1e-5) {u=(dot-1)*rad/den;}
+							// Miter if we need to.
+							if (u<=-maxext || u>=maxext) {
+								u=u<0?-maxext:maxext;
+								out.lineto(x0-dy0*rad+dx0*u,y0+dx0*rad+dy0*u);
+							}
+							out.lineto(x0-dy1*rad-dx1*u,y0+dx1*rad-dy1*u);
+						}
+						if (side || closed) {out.close();}
+					}
+				}
+				closed=0;
+				li=0;
+			} else if (type===DrawPath.CURVE) {
+				// Segment the curve.
+				v=varr[i++];let p1x=v.x,p1y=v.y;
+				v=varr[i++];let p2x=v.x,p2y=v.y;
+				let ci=0;
+				while (true) {
+					// Test if both control points are close to the line p0->p3.
+					// Clamp to ends and filter degenerates.
+					let dx=p3x-p0x,dy=p3y-p0y,den=dx*dx+dy*dy;
+					let lx=p1x-p0x,ly=p1y-p0y;
+					let u=dx*lx+dy*ly;
+					u=u>0?(u<den?u/den:1):0;
+					lx-=dx*u;ly-=dy*u;
+					let d1=lx*lx+ly*ly;
+					lx=p2x-p0x;ly=p2y-p0y;
+					u=dx*lx+dy*ly;
+					u=u>0?(u<den?u/den:1):0;
+					lx-=dx*u;ly-=dy*u;
+					let d2=lx*lx+ly*ly;
+					d1=(d1>d2 || !(d1===d1))?d1:d2;
+					if (!(d1>curvemaxdist2 && d1<Infinity)) {
+						// Commit the current segment.
+						if (!ci) {break;}
+						AddSeg(p3x,p3y);
+						p0x=p3x;p1x=cv[--ci];p2x=cv[--ci];p3x=cv[--ci];
+						p0y=p3y;p1y=cv[--ci];p2y=cv[--ci];p3y=cv[--ci];
+						continue;
+					}
+					// Split the curve in half. [p0,p1,p2,p3] = [p0,l1,l2,ph] + [ph,r1,r2,p3]
+					let t1x=(p1x+p2x)*0.5,t1y=(p1y+p2y)*0.5;
+					let r2x=(p2x+p3x)*0.5,r2y=(p2y+p3y)*0.5;
+					let r1x=(t1x+r2x)*0.5,r1y=(t1y+r2y)*0.5;
+					if (ci>=cv.length) {
+						let nv=new Float64Array(ci*2);
+						nv.set(cv);
+						cv=nv;
+						DrawPath._tracecurve=cv;
+					}
+					cv[ci++]=p3y;cv[ci++]=r2y;cv[ci++]=r1y;
+					cv[ci++]=p3x;cv[ci++]=r2x;cv[ci++]=r1x;
+					p1x=(p0x+p1x)*0.5;p1y=(p0y+p1y)*0.5;
+					p2x=(p1x+t1x)*0.5;p2y=(p1y+t1y)*0.5;
+					p3x=(p2x+r1x)*0.5;p3y=(p2y+r1y)*0.5;
+				}
+			} else if (type===DrawPath.CLOSE) {
+				closed=1;
+			}
+			AddSeg(p3x,p3y);
+		}
+		return out;
+	}
+
+
+	pointinside(point,trans) {
+		// Test if a point is in a path.
+		let vidx=this.vertidx;
+		if (!vidx) {return false;}
+		// Put the point in path-space.
+		let [px,py]=point;
+		if (trans) {
+			if (!(trans instanceof Transform)) {trans=new Transform(trans);}
+			let mat=trans.mat,vec=trans.vec;
+			let det=mat[0]*mat[3]-mat[1]*mat[2];
+			if (!(det<-1e-10 || det>1e-10)) {return false;}
+			let tx=px-vec[0],ty=py-vec[1];
+			px=(tx*mat[3]-ty*mat[1])/det;
+			py=(ty*mat[0]-tx*mat[2])/det;
+		}
+		if (px<this.minx || px>this.maxx || py<this.miny || py>this.maxy) {return false;}
+		let p3x=0,p3y=0,movex=0,movey=0;
+		let parity=0;
+		let varr=this.vertarr;
+		let intr=[0,0,0];
+		for (let i=0;i<=vidx;i++) {
+			let v=varr[i<vidx?i:0];
+			let p0x=p3x,p0y=p3y;
+			p3x=v.x-px;
+			p3y=v.y-py;
+			let p1x=p3x,p1y=p3y;
+			if (v.type!==DrawPath.CURVE) {
+				if (v.type===DrawPath.MOVE) {
+					// Close any unclosed subpaths.
+					p1x=movex;movex=p3x;
+					p1y=movey;movey=p3y;
+				}
+				// Line test.
+				if ((p0y<0)!==(p1y<0)) {parity+=(p0y>p1y)-(p0x*p1y<p1x*p0y);}
+				continue;
+			}
+			// Find all u where y(u)=py.
+			v=varr[++i];let p2x=v.x-px,p2y=v.y-py;
+			v=varr[++i];p3x=v.x-px;p3y=v.y-py;
+			if (!(((p0y<0)+(p1y<0)+(p2y<0)+(p3y<0))&3)) {continue;}
+			let q1x=3*(p1x-p0x),q2x=3*(p0x+p2x-2*p1x),q3x=p3x-p0x+3*(p1x-p2x);
+			let q1y=3*(p1y-p0y),q2y=3*(p0y+p2y-2*p1y),q3y=p3y-p0y+3*(p1y-p2y);
+			// 3 possible solutions between [0,1] and dy(u)=0.
+			let r=1;
+			let u0=1,y0=p3y,tmp=0;
+			let disc=q2y*q2y-3*q3y*q1y;
+			if (disc>1e-10) {
+				disc=Math.sqrt(disc);
+				let a=(-q2y-disc)/(3*q3y);
+				let b=(-q2y+disc)/(3*q3y);
+				if (a>b) {tmp=a;a=b;b=tmp;}
+				if (a>0 && a<1) {intr[r++]=a;}
+				if (b>0 && b<1) {intr[r++]=b;}
+			}
+			// Binary search for y(u)=py.
+			while (r>0) {
+				let h=u0,l=u0=intr[--r];
+				let y1=y0;y0=p0y+u0*(q1y+u0*(q2y+u0*q3y));
+				if ((y0<0)===(y1<0)) {continue;}
+				if (y0>y1) {l=h;h=u0;}
+				for (let j=0;j<32;j++) {
+					let u=(l+h)*0.5,y=p0y+u*(q1y+u*(q2y+u*q3y));
+					if (y<0) {l=u;} else {h=u;}
+				}
+				let x=p0x+l*(q1x+l*(q2x+l*q3x));
+				if (x<0) {parity+=y0>y1?1:-1;}
+			}
+		}
+		return parity && ((parity>0)===(this.area>0));
 	}
 
 }
@@ -1987,60 +2233,60 @@ class DrawFont {
 		! 553 M340 692c0-86-130-86-130 0 0 86 130 86 130 0ZM238 560h76L327 54H224Z
 		" 553 M332 284h80L426 54H318Zm-191 0h80L235 54H127Z
 		# 553 M173 106h71L228 268H354l17-162h72L426 268H532v64H420L403 504H506v64H396L378 748H306l18-180H198L180 748H108l18-180H21V504H132l18-172H46V268H156Zm49 226-17 172H331l17-172Z
-		$ 553 M291 14h71l-13 95c35 4 72 9 99 16v75c-29-7-72-16-108-18L312 392c96 37 181 80 181 177 0 122-107 171-229 178L248 864H177l16-117c-44-4-90-9-138-21V645c47 15 97 25 149 26l28-221C150 420 59 378 59 277c0-87 80-164 220-170ZM269 181c-81 6-118 39-118 89 0 49 37 72 93 95Zm6 490c83-4 126-39 126-95 0-63-59-80-101-99Z
-		% 553 M462 54h81L90 748H10ZM404 755c-80 0-133-47-133-149 0-74 51-145 133-145 87 0 132 57 132 145 0 80-52 149-132 149Zm-1-62c34 0 60-31 60-87 0-47-17-83-59-83-39 0-60 37-60 83 0 65 26 87 59 87ZM150 341C70 341 18 294 18 192 18 118 68 47 150 47c87 0 132 57 132 145 0 80-52 149-132 149Zm-1-62c34 0 60-31 60-87 0-47-17-83-59-83-38 0-60 39-60 83 0 65 26 87 59 87Z
-		& 553 M396 553c11-32 23-81 21-140h86c0 68-8 135-49 211l99 124H440l-43-54c-43 35-95 61-171 61-125 0-198-72-198-181 0-94 53-150 121-190-35-46-65-88-65-153C84 117 165 68 256 68c91 0 160 52 160 143 0 85-58 134-146 183ZM227 341c40-25 102-54 102-123 0-49-29-78-76-78-54 0-81 37-81 83 0 54 32 89 55 118Zm-34 98c-34 23-76 59-76 126 0 72 49 117 119 117 45 0 80-16 113-48Z
+		$ 553 M291 14h71l-13 95c35 4 72 9 99 16v75c-29-7-72-16-108-18L312 392c283 85 213 350-48 355L248 864H177l16-117c-44-4-90-9-138-21V645c47 15 97 25 149 26l28-221C-49 366 44 107 279 107ZM268 182c-117-1-183 125-25 183Zm7 489c153-4 174-152 25-193Z
+		% 553 M344 606c0-109 119-112 119 0 0 109-119 123-119 0Zm57 149c176 0 183-294 6-294-180 0-182 294-6 294ZM90 192c0-109 119-112 119 0 0 109-119 123-119 0Zm57 149c176 0 183-294 6-294-180 0-182 294-6 294ZM10 748H90L543 54H462Z
+		& 553 M396 553c11-32 23-81 21-140h86c0 68-8 135-49 211l99 124H440l-43-54C304 786 28 796 28 573c0-121 84-164 121-189C26 244 82 68 254 68c192 0 234 231 16 326ZM227 341c160-81 104-201 26-201-95 0-109 118-26 201Zm-34 98C8 563 188 780 349 634Z
 		' 553 M234 284h85L333 54H221Z
-		( 553 M376 17C266 117 147 277 147 484c0 208 107 357 226 470l52-53C310 788 235 648 235 484c0-167 78-308 191-416Z
-		) 553 M180 17C294 124 406 276 406 481c0 194-94 349-229 472l-49-50C236 794 318 667 318 481c0-162-83-309-190-411Z
+		( 553 M376 17C72 293 70 678 373 954l52-53C162 647 182 298 426 68Z
+		) 553 M127 903c244-230 264-579 1-833l52-53c303 276 301 661-3 937Z
 		* 553 M241 54h71L299 222l140-94 34 60-152 75 151 73-33 58-139-92 12 169H241l12-169-141 92-31-57 151-75L81 186l33-57 140 93Z
 		+ 553 M234 244h85V443H512v75H319V718H234V518H41V443H234Z
-		, 553 M117 849c39 1 129-13 129-84 0-53-46-59-46-112 0-32 25-63 66-63 45 0 88 35 88 117 0 117-87 209-237 209Z
+		, 553 M117 916c278 5 291-326 149-326-41 0-66 31-66 63 0 53 46 59 46 112 0 71-90 85-129 84Z
 		- 553 M130 441H423v80H130Z
-		. 553 M273 757c-45 0-82-37-82-82 0-45 37-82 82-82 45 0 82 37 82 82 0 45-37 82-82 82Z
+		. 553 M354 675c0 109-163 109-163 0 0-108 163-108 163 0Z
 		/ 553 M393 54h82L138 854H56Z
-		0 553 M420 363c18 193-36 321-143 321-54 0-105-31-129-117ZM132 484c-14-188 35-314 145-314 74 0 114 63 126 113ZM281 97C122 97 43 235 43 418c0 229 83 339 228 339 143 0 239-105 239-339 0-206-83-321-229-321Z
+		0 553 M420 363c41 394-236 380-272 204ZM132 484C97 94 368 117 403 283ZM281 97C122 97 43 235 43 418c0 229 83 339 228 339 143 0 239-105 239-339 0-206-83-321-229-321Z
 		1 553 M66 210l32 73 154-84V668H86v80H490V668H346V103H271Z
 		2 553 M75 181c44-40 90-84 195-84 121 0 191 81 191 185 0 131-85 195-278 385H495v81H72V672C307 432 368 401 368 290c0-137-147-155-246-53Z
-		3 553 M98 197c200-62 264-5 264 71 0 85-71 114-117 114H159v70h91c55 0 144 25 144 109 0 86-70 122-186 122-51 0-88-6-127-11v77c35 4 74 8 120 8 172 0 282-77 282-203 0-91-82-138-137-146 72-34 106-81 106-154C452 136 351 97 243 97c-49 0-96 9-145 25Z
+		3 553 M98 197c70-25 264-65 264 69 0 83-62 116-126 116H159v70h79c67 0 155 22 155 109 0 169-272 115-312 111v77c472 75 483-307 265-341C527 339 497 1 98 122Z
 		4 553 M106 531 330 188V531Zm-85 0v75H330V748h88V606H527V531H418V106H295Z
-		5 553 M99 434H224c93 0 163 30 163 114 0 60-39 135-172 135-45 0-85-3-128-12v77c42 5 79 9 123 9 145 0 269-83 269-214 0-107-72-182-235-182H179V180H444V106H99Z
-		6 553 M149 465c54-30 99-43 143-43 84 0 122 51 122 126 0 87-53 139-129 139-88 0-136-54-136-223ZM453 106H380C176 106 60 225 60 470c0 200 79 287 217 287 155 0 226-111 226-215 0-111-69-189-199-189-40 0-98 8-155 40 5-149 99-212 232-212h72Z
+		5 553 M99 106H444v74H179V361h51c175 0 249 72 249 180 0 126-117 252-392 207V671c182 36 300-6 300-125 0-85-71-112-180-112H99Z
+		6 553 M149 465c142-81 265-46 265 83 0 180-286 220-265-84ZM453 106H380C176 106 60 225 60 470c0 200 79 287 217 287 335 0 305-555-128-364 5-149 99-212 232-212h72Z
 		7 553 M57 106H491v80L222 748H125L404 185H57Z
-		8 553 M281 97c137 0 200 62 200 154 0 87-62 129-120 161 89 46 134 94 134 175 0 108-94 170-222 170-116 0-215-49-215-160 0-93 62-139 135-178C90 365 72 306 72 257c0-86 72-160 209-160Zm3 278c70-34 109-67 109-121 0-58-42-86-115-86-69 0-118 24-118 83 0 66 64 94 124 124Zm-14 81c-77 37-119 74-119 133 0 58 46 95 126 95 82 0 125-37 125-92 0-64-57-103-132-136Z
-		9 553 M89 748V673h57c175 0 250-71 257-212-42 21-86 40-161 40-113 0-193-69-193-192C49 184 146 97 272 97c167 0 220 136 220 293 0 280-153 358-351 358ZM403 389c0-120-23-222-135-222-89 0-129 63-129 137 0 92 52 128 119 128 59 0 110-20 145-43Z
-		: 553 M277 757c-42 0-75-33-75-75 0-42 33-75 75-75 42 0 75 33 75 75 0 42-33 75-75 75Zm0-361c-42 0-75-33-75-75 0-42 33-75 75-75 42 0 75 33 75 75 0 42-33 75-75 75Z
-		; 553 M277 396c-42 0-75-33-75-75 0-42 33-75 75-75 42 0 75 33 75 75 0 42-33 75-75 75ZM123 849c39 1 129-13 129-84 0-53-46-59-46-112 0-32 25-63 66-63 45 0 88 35 88 117 0 117-87 209-237 209Z
+		8 553 M281 97c251 0 254 235 80 315 197 80 184 345-88 345C8 757-5 505 193 419 1 334 42 97 281 97Zm3 278c171-81 123-207-6-207-141 0-181 129 6 207Zm-14 81c-159 61-162 228 7 228 147 0 189-146-7-228Z
+		9 553 M88 673h70c135 0 237-51 246-212C-25 654-64 97 276 97c127 0 216 91 216 287 0 267-130 364-350 364H88ZM404 390c6-313-265-258-265-84 0 132 115 162 265 83Z
+		: 553 M352 321c0 100-151 100-151 0 0-99 151-99 151 0zm0 360c0 100-151 100-151 0 0-99 151-99 151 0z
+		; 553 M352 321c0-99-151-99-151 0 0 100 151 100 151 0ZM123 916c278 5 291-326 149-326-41 0-66 31-66 63 0 53 46 59 46 112 0 71-90 85-129 84Z
 		< 553 M398 205l53 54L184 480l267 221-53 54L68 480Z
 		= 553 M65 359H488v72H65Zm0 171H488v72H65Z
 		> 553 M103 260 370 481 103 702l53 54L485 480 156 204Z
-		? 553 M149 54c191-5 304 104 304 220 0 84-42 158-173 165l-3 121H203l-6-188h58c34 0 105-4 105-92 0-109-106-152-211-149Zm90 703c-36 0-65-29-65-65 0-36 29-65 65-65 36 0 65 29 65 65 0 36-29 65-65 65Z
-		@ 553 M423 292 384 544c-13 84-4 109 22 109 46 0 71-97 71-248 0-190-49-297-160-297C182 108 74 320 74 580c0 249 99 311 175 311 73 0 108-13 167-39v63c-53 22-91 37-167 37C55 952 5 771 5 579 5 258 145 48 321 48c121 0 225 80 225 357 0 182-43 312-147 312-42 0-76-18-76-73-29 57-57 73-92 73-67 0-93-51-93-145 0-139 52-278 161-278 31 0 43 5 60 13Zm-90 81c-13-13-22-16-35-16-60 0-82 132-82 202 0 62 4 94 28 94 19 0 32-16 47-46l10-20Z
+		? 553 M304 692c0-86-130-86-130 0 0 86 130 87 130 0ZM149 131c250-12 263 241 121 241H197l6 188h74l3-121C551 432 503 40 149 54Z
+		@ 553 M423 292 384 544c-13 84-4 109 22 109 46 0 71-97 71-248 0-190-49-297-160-297C182 108 74 320 74 580c0 293 130 369 342 272v63C127 1029 5 873 5 579 5 258 145 48 321 48c121 0 225 80 225 357 0 411-235 330-223 239-17 72-185 147-185-72 0-199 95-319 221-265Zm-90 81c-84-70-117 106-117 186 0 147 53 95 84 30Z
 		A 553 M275 186 383 530H166Zm-57-80L5 748H95l46-141H408l45 141h95L338 106Z
-		B 553 M261 106c108 0 215 28 215 156 0 71-32 121-106 145 87 18 129 76 129 149 0 127-107 192-246 192H78V106ZM165 380h94c71 0 126-35 126-105 0-76-58-95-128-95H165Zm0 294h97c93 0 144-36 144-112 0-74-67-109-144-109H165Z
-		C 553 M489 214c-51-25-96-39-152-39-144 0-199 125-199 248 0 183 80 255 198 255 68 0 97-13 153-36v83c-45 16-88 31-161 31C122 756 45 622 45 423 45 251 136 98 337 98c64 0 108 13 152 30Z
+		B 553 M261 106c285 0 251 261 109 301 192 35 185 341-117 341H78V106ZM165 380h94c163 0 176-200-1-200H165Zm0 294h97c199 0 188-221 0-221H165Z
+		C 553 M489 214C30-21 6 869 489 642v83C-132 949-79-97 489 128Z
 		D 553 M141 672V180h75c148 0 209 75 209 237 0 185-81 255-217 255ZM54 106V748H197c166 0 320-72 320-331 0-140-42-311-294-311Z
 		E 553 M464 106v74H186V378H453v74H186V673H464v75H99V106Z
 		F 553 M463 106v75H190V389H449v73H190V748H101V106Z
-		G 553 M494 128c-41-18-92-31-156-31C152 97 32 229 32 426c0 199 89 331 285 331 72 0 132-17 180-39V390H279v72H411V666c-28 10-54 13-85 13-145 0-202-99-202-253 0-147 77-251 214-251 71 0 118 21 156 40Z
+		G 553 M494 128c-612-226-620 845 3 590V390H279v72H411V666C-14 796 43-13 494 215Z
 		H 553 M412 106h87V748H412V453H142V748H55V106h87V377H412Z
 		I 553 M84 106H469v74H321V673H469v75H84V673H232V180H84Z
-		J 553 M98 182H342V552c0 76-36 127-113 127-58 0-116-30-139-48v88c22 15 76 36 142 36 119 0 199-77 199-209V106H98Z
+		J 553 M98 182H342V552c0 156-147 151-252 79v88c116 68 341 57 341-173V106H98Z
 		K 553 M77 106h87V404L399 106H503L249 411 514 748H404L164 433V748H77Z
 		L 553 M114 106h89V673H484v75H114Z
-		M 553 M24 748h83l11-395 2-157 29 95 91 248h61l95-258 29-85 19 552h85L498 106H392L301 346l-27 83L159 106H55Z
-		N 553 M58 106H171L346 479l68 154V106h81V748H381L193 345 140 218V748H58Z
-		O 553 M277 174c109 0 158 95 158 256 0 139-48 251-161 251-97 0-155-82-155-261 0-143 54-246 158-246Zm4-77C107 97 28 250 28 423c0 169 48 334 244 334 149 0 254-114 254-337 0-192-75-323-245-323Z
-		P 553 M165 443V179h92c81 0 151 35 151 126 0 93-56 138-164 138ZM78 106V748h87V518h84c156 0 250-95 250-219 0-125-96-193-240-193Z
-		Q 553 M553 876c-37 28-75 49-138 49-116 0-180-73-185-171C83 732 28 601 28 432 28 251 107 97 281 97c202 0 245 180 245 321 0 152-52 307-215 336 11 64 51 96 109 96 41 0 63-12 94-34ZM275 680c115 0 160-115 160-253 0-153-46-253-159-253-98 0-157 95-157 246 0 189 65 260 156 260Z
-		R 553 M171 392V180h85c81 0 120 39 120 102 0 69-49 110-133 110ZM83 106V748h88V462h41c64 0 86 31 110 82l96 204h98L420 548c-24-50-51-94-90-106 74-18 138-73 138-168 0-95-58-168-211-168Z
-		S 553 M448 115c-48-8-83-18-149-18C174 97 62 158 62 273c0 96 74 137 150 169l95 40c57 24 91 54 91 96 0 65-41 102-162 102-72 0-136-13-182-30v85c61 14 119 22 178 22 157 0 258-63 258-182 0-72-40-126-148-171l-96-40c-60-25-92-56-92-101 0-77 87-90 141-90 63 0 111 10 153 21Z
+		M 553 M24 748h83l13-552L240 539h61L425 196l19 552h85L498 106H392L274 429 159 106H55Z
+		N 553 M58 106H171L414 633V106h81V748H381L140 218V748H58Z
+		O 553 M277 174c216 0 215 507-3 507-211 0-207-507 3-507Zm4-77c-318 0-352 660-9 660 344 0 332-659 9-660Z
+		P 553 M259 106c343 0 295 412 6 412H165V748H78V106Zm9 337c180 0 197-264-3-264H165V443Z
+		Q 553 M553 876C445 966 237 938 230 754-55 717-44 97 281 97c345 0 301 639 30 657 23 138 172 95 203 62ZM275 680c216 0 222-506 1-506-210 0-215 506-1 506Z
+		R 553 M171 392V180h85c169 0 162 212-13 212ZM83 106V748h88V462h41c100 0 99 72 205 286h99C396 498 386 463 330 442c169-23 225-336-73-336Z
+		S 553 M448 115C182 55 62 158 62 273c0 205 336 167 336 305 0 153-273 97-344 72v85c317 71 436-36 436-160 0-208-336-167-336-312 0-98 145-107 294-69Z
 		T 553 M42 106H511v75H321V748H232V181H42Z
 		U 553 M54 106V532c0 173 92 225 221 225 142 0 225-92 225-225V106H413V532c0 89-40 152-136 152-91 0-136-44-136-152V106Z
 		V 553 M101 106 278 666 458 106h93L333 748H215L2 106Z
-		W 553 M105 106l32 556 35-115 73-224h61L425 662l3-98 25-458h78L488 748H374l-79-227-22-74-24 79-73 222H66L22 106Z
+		W 553 M105 106l32 556L245 323h61L425 662l28-556h78L488 748H374L273 447 176 748H66L22 106Z
 		X 553 M130 106 277 348 424 106H524L328 416 541 748H431L275 488 118 748H9L223 420 26 106Z
-		Y 553 M106 106 231 337l50 99 41-83L453 106H553L321 518V748H232V517L0 106Z
+		Y 553 M0 106 232 517V748h89V518L553 106H453L281 436 106 106Z
 		Z 553 M64 106H492v69L164 667H498v81H55V682L385 185H64Z
 		[ 553 M169 37H412v69H251V880H412v69H169Z
 		\\ 553 M79 54h81L497 854H416Z
@@ -2048,36 +2294,36 @@ class DrawFont {
 		^ 553 M60 420h77L271 174 412 420h86L309 106H239Z
 		_ 553 M0 878H553v71H0Z
 		\` 553 M242 173h86L209 54H86Z
-		a 553 M386 524v87c-44 42-103 75-150 75-50 0-80-27-80-73 0-65 53-89 118-89ZM107 355c69-29 121-36 167-36 84 0 112 48 112 93v47H271C146 459 65 517 65 616c0 85 54 141 159 141 88 0 139-47 170-75l1 66h77V406c0-99-63-160-193-160-67 0-123 14-172 31Z
-		b 553 M164 423c54-64 90-102 150-102 77 0 99 93 99 174 0 95-33 190-148 190-40 0-70-11-101-21ZM79 719c47 19 105 35 177 35 133 0 244-75 244-266 0-146-60-242-170-242-73 0-128 32-170 91l4-91V54H79Z
-		c 553 M462 353c-37-19-77-33-132-33-84 0-163 61-163 186 0 123 69 176 164 176 62 0 100-17 131-31v79c-42 16-88 25-143 25-127 0-241-60-241-247 0-158 99-260 250-260 62 0 96 9 134 23Z
-		d 553 M386 569c-43 59-91 115-146 115-64 0-99-62-99-176 0-140 61-188 152-188 41 0 65 9 93 20Zm0-308c-26-6-48-12-91-12C108 249 53 395 53 508c0 138 52 249 170 249 85 0 134-53 170-103l2 94h77V54H386Z
-		e 553 M147 529c0 93 48 157 165 157 56 0 107-9 157-21v70c-54 13-98 22-174 22-164 0-238-98-238-253 0-183 122-258 224-258 214 0 223 198 212 283Zm259-66c3-61-22-149-128-149-72 0-124 56-131 149Z
+		a 553 M386 524v87C158 821 58 524 274 524ZM107 355c220-85 279-6 279 57v47H271C146 459 65 517 65 616c0 176 238 174 329 66l1 66h77V406c0-187-217-181-365-129Z
+		b 553 M79 54h86l-5 283c77-124 340-162 340 151 0 235-176 322-421 231Zm85 610c38 16 249 85 249-169 0-212-136-225-249-72Z
+		c 553 M462 353C78 173 51 829 462 651v79C-74 905-34 107 462 271Z
+		d 553 M386 569C114 968-2 180 386 340Zm0-308C119 201 53 391 53 508c0 309 246 299 340 146l2 94h77V54H386Z
+		e 553 M147 529c-2 222 268 147 322 136v70C124 817 57 659 57 504c0-353 490-345 436 25Zm259-66c8-197-250-201-259 0Z
 		f 553 M516 60C268 12 198 113 198 243v84H39v71H198V748h87V398H501V327H285V236c0-111 77-137 231-103Z
-		g 553 M513 255v70H434c69 91 16 261-160 261-46 0-74-7-105-23-58 79 12 97 41 98l145 5c87 3 156 49 156 123 0 101-91 165-243 165-120 0-222-33-222-128 0-58 35-90 68-114-50-24-80-101 2-188-97-106-16-324 217-269ZM269 522c143 0 143-212 0-212-141 0-141 212 0 212ZM191 735c-23 16-54 39-54 82 0 51 53 69 139 69 104 0 143-40 143-87 0-45-46-57-98-59Z
-		h 553 M79 748h85V420c31-28 73-100 142-100 63 0 84 50 84 112V748h85V420c0-106-52-174-154-174-80 0-124 45-160 87l3-79V54H79Z
-		i 553 M276 183c-37 0-67-30-67-67 0-37 30-67 67-67 37 0 67 30 67 67 0 37-30 67-67 67ZM101 255H333V677H480v71H85V677H247V326H101Z
-		j 553 M361 183c-37 0-67-30-67-67 0-37 30-67 67-67 37 0 67 30 67 67 0 37-30 67-67 67ZM85 255H413V737c0 221-200 249-348 192V848c172 74 261 19 261-99V326H85Z
+		g 553 M328 739c141 6 118 147-52 147-180 0-161-98-85-151ZM269 522c-141 0-141-212 0-212 143 0 143 212 0 212Zm64-267C100 200 19 418 116 524c-82 87-52 164-2 188C26 763-24 954 268 954c152 0 243-64 243-165 0-231-467-25-342-226 191 87 365-80 265-238h79V255Z
+		h 553 M79 748h85V420c130-169 226-99 226 12V748h85V420c0-227-238-207-314-87l3-279H79Z
+		i 553 M344 116c0 89-135 89-135 0 0-90 135-90 135 0ZM101 255H333V677H480v71H85V677H247V326H101Z
+		j 553 M85 326H326V749c0 118-89 173-261 99v81c148 57 348 29 348-192V255H85ZM428 116c0-90-134-90-134 0 0 89 134 89 134 0Z
 		k 553 M89 54h86V480L397 255H509L278 482 522 748H405L175 484V748H89Z
 		l 553 M101 54H333V677H480v71H85V677H247V124H101Z
-		m 553 M110 255l3 94c25-54 51-103 110-103 58 0 80 40 81 107 39-90 71-107 113-107 54 0 92 41 92 136V748H430V391c0-30 2-74-31-74-28 0-48 43-84 115V748H237V393c0-50-6-76-31-76-20 0-40 20-83 114V748H44V255Z
-		n 553 M155 255l3 80c47-53 86-89 162-89 108 0 155 71 155 170V748H390V429c0-65-25-109-86-109-37 0-68 12-140 101V748H79V255Z
-		o 553 M277 319c107 0 143 88 143 182 0 106-47 184-143 184-75 0-144-46-144-184 0-141 78-182 144-182Zm4-73C128 246 45 359 45 503c0 142 67 254 227 254 138 0 236-98 236-260 0-109-44-251-227-251Z
-		p 553 M154 255l6 83c32-43 79-92 170-92 90 0 170 68 170 249 0 172-105 259-242 259-32 0-64-4-94-11V949H79V255Zm10 409c31 12 66 21 97 21 106 0 152-75 152-188 0-108-33-176-101-176-46 0-89 27-148 103Z
-		q 553 M472 246V949H386V763l4-105c-35 49-87 99-167 99-104 0-170-88-170-246 0-131 66-262 242-262 31 0 59 3 101 16Zm-86 93c-27-10-55-20-97-20-109 0-148 81-148 187 0 136 49 178 99 178 47 0 86-34 146-116Z
-		r 553 M99 255V748h86V431c69-84 107-111 154-111 74 0 79 75 79 123h86c3-95-26-197-152-197-58 0-121 34-173 100l-2-91Z
-		s 553 M437 337c-155-38-254-20-254 43 0 35 14 52 129 87 115 35 157 72 157 144 0 134-172 175-380 127v-78c182 46 292 27 292-40 0-34-13-51-128-86-115-35-157-77-157-148 0-81 82-178 341-126Z
+		m 553 M110 255l3 94c63-158 196-120 191 4 55-155 205-140 205 29V748H430V391c0-108-52-104-115 41V748H237V393c0-92-43-127-114 38V748H44V255Z
+		n 553 M79 255V748h85V421c118-164 226-108 226 8V748h85V416c0-200-212-222-317-81l-3-80Z
+		o 553 M277 319c196 0 192 366 0 366-199 0-191-366 0-366Zm4-73c-306 0-324 511-9 511 304 0 327-511 9-511Z
+		p 553 M164 424c280-374 384 399 0 240ZM79 255V949h85V743c66 24 336 40 336-248 0-318-255-286-340-157l-6-83Z
+		q 553 M386 568C119 972-2 177 386 339Zm10-303C267 221 53 254 53 511c0 309 249 291 337 147l-4 291h86V246Z
+		r 553 M99 255V748h86V431c125-171 242-128 233 12h86c14-237-214-249-325-97l-2-91Z
+		s 553 M437 260C178 208 96 305 96 386c0 176 285 127 285 234 0 67-110 86-292 40v78c208 48 380 7 380-127 0-173-286-121-286-231 0-63 99-81 254-43Z
 		t 553 M254 97V255H476v72H254V579c0 107 94 121 222 89v74c-220 41-307-16-307-162V327H31V255H169V119Z
-		u 553 M390 255h85V748H398l-2-80c-39 42-80 89-165 89-102 0-152-63-152-176V255h85V581c0 62 30 103 85 103 62 0 99-54 141-102Z
-		v 553 M423 255h94L324 748H225L32 255h98L249 576l28 84 25-77Z
-		w 553 M451 255h85L464 748H360l-71-205-14-52-17 56-68 201H90L18 255h84l50 410 92-287h62l78 221 21 63Z
+		u 553 M390 255h85V748H398l-2-80C314 790 79 812 79 581V255h85V581c0 114 116 159 226 1Z
+		v 553 M423 255h94L324 748H225L32 255h98L277 660Z
+		w 553 M451 255h85L464 748H360L275 491 190 748H90L18 255h84l50 410 92-287h62l99 284Z
 		x 553 M153 255 282 444 410 255H515L330 503 523 748H410L277 559 145 748H34L226 500 43 255Z
-		y 553 M130 255 253 577l27 81L423 255h94L349 696C253 948 149 957 29 950V872c99 15 147-10 200-124L33 255Z
+		y 553 M33 255 229 748C176 862 128 887 29 872v78c120 7 224-2 320-254L517 255H423L280 658 130 255Z
 		z 553 M87 255H462v66L188 676H478v72H81V686L359 327H87Z
-		{ 553 M441 37H404c-94 0-187 32-187 174V336c0 69-34 95-109 95H80v68h28c75 0 109 35 109 95V772c0 91 39 177 180 177h44V880H406c-64 0-107-35-107-108V595c0-62-26-124-105-130 81-11 104-75 104-126V211c0-81 57-105 106-105h37Z
+		{ 553 M441 37H407C62 37 339 430 127 430H80v70h44c219 0-64 449 274 449h43V880H406c-231 0 15-394-212-415 215-30-8-359 211-359h36Z
 		| 553 M236 0h81V949H236Z
-		} 553 M112 37h37c94 0 187 33 187 174V337c0 56 34 94 109 94h29v68H445c-75 0-109 26-109 95V772c0 91-39 177-180 177H112V880h35c61 0 108-31 108-108V594c0-53 19-118 104-129-85-8-104-75-104-126V212c0-78-55-106-106-106H112Z
-		~ 553 M521 406v11c0 97-53 162-139 162-40 0-80-19-117-56l-28-28c-17-17-42-40-69-40-42 0-57 45-57 82v14H32V537c0-83 45-159 140-159 49 0 89 29 116 56l28 28c29 29 49 40 68 40 39 0 58-28 58-85V406Z
+		} 553 M112 37h34c348 0 61 393 291 393h36v70H429c-219 0 64 449-274 449H112V880h35c231 0-11-393 212-415-216-25 8-359-211-359H112Z
+		~ 553 M443 407c0 95-40 94-59 94-69 0-100-123-216-123-67 0-136 45-136 173h79c0-57 14-96 57-96 66 0 103 124 216 124 75 0 137-51 137-173Z
 	`;
 	// `
 
@@ -2111,21 +2357,16 @@ class DrawFont {
 		token(10); idx++; // info
 		let scale=parseFloat(token(10));
 		let special={"SPC":32};
+		let trans=new Transform({dim:2,scale:1/scale});
 		while (idx<len) {
 			idx++;
 			let chr=token(32);
 			if (chr.length<=0) {continue;}
 			chr=special[chr]??chr.charCodeAt(0);
-			let g={};
-			g.width=parseInt(token(32))/scale;
-			g.path=new DrawPath(token(10));
-			let varr=g.path.vertarr,vidx=g.path.vertidx;
-			for (let i=0;i<vidx;i++) {
-				let v=varr[i];
-				v.x/=scale;
-				v.y/=scale;
-			}
-			g.path.aabbupdate();
+			let g={
+				width:parseInt(token(32))/scale,
+				path :new DrawPath(token(10),trans)
+			};
 			this.glyphs[chr]=g;
 			if (this.unknown===undefined || chr===63) {
 				this.unknown=g;
@@ -2216,7 +2457,6 @@ export class Draw {
 		// Rendering variables
 		this.linewidth=1.0;
 		this.tmptrans =new Transform(2);
-		this.tmppath  =new DrawPath();
 		this.tmpline  =[];
 	}
 
@@ -2522,43 +2762,44 @@ export class Draw {
 
 
 	// ----------------------------------------
-	// Paths
-
-
-	beginpath() {return this.defpath.begin(...arguments);}
-	closepath() {return this.defpath.close(...arguments);}
-	moveto() {return this.defpath.moveto(...arguments);}
-	lineto() {return this.defpath.lineto(...arguments);}
-	curveto() {return this.defpath.curveto(...arguments);}
-	arcto() {return this.defpath.arcto(...arguments);}
-
-
-	// ----------------------------------------
 	// Primitives
 
 
-	drawline(x0,y0,x1,y1) {
-		let w=this.linewidth;
-		let path=this.tmppath.begin().addline(x0,y0,x1,y1,w*0.5);
-		this.fillpath(path);
+	begin() {return this.defpath.begin();}
+
+
+	drawline(x0,y0,x1,y1,rad) {
+		let w=rad??this.linewidth*0.5;
+		this.begin().addline(x0,y0,x1,y1,w);
+		this.fillpath();
 	}
 
 
 	fillrect(x,y,w,h) {
-		let path=this.tmppath.begin().addrect(x,y,w,h);
-		this.fillpath(path);
-	}
-
-
-	fillcircle(x,y,rad) {
-		this.filloval(x,y,rad,rad);
+		this.begin().addrect(x,y,w,h);
+		this.fillpath();
 	}
 
 
 	filloval(x,y,xrad,yrad) {
 		yrad=yrad??xrad;
-		let path=this.tmppath.begin().addoval(x,y,xrad,yrad);
-		this.fillpath(path);
+		this.begin().addoval(x,y,xrad,yrad);
+		this.fillpath();
+	}
+
+
+	tracerect(x,y,w,h,outrad,inrad) {
+		outrad=outrad??this.linewidth*0.5;
+		this.begin().tracerect(x,y,w,h,outrad,inrad);
+		this.fillpath();
+	}
+
+
+	traceoval(x,y,xrad,yrad,outrad,inrad) {
+		outrad=outrad??this.linewidth*0.5;
+		yrad=yrad??xrad;
+		this.begin().traceoval(x,y,xrad,yrad,outrad,inrad);
+		this.fillpath();
 	}
 
 
@@ -2627,21 +2868,14 @@ export class Draw {
 	// Path Filling
 
 
-	fillresize(size) {
+	fillextend() {
 		// Declaring line objects this way allows engines to optimize their structs.
-		let len=this.tmpline.length;
-		while (len<size) {len+=len+1;}
-		while (this.tmpline.length<len) {
-			this.tmpline.push({
-				sort:0,
-				end:0,
-				x0:0,y0:0,
-				x1:0,y1:0,
-				x2:0,y2:0,
-				x3:0,y3:0
-			});
-		}
-		return this.tmpline;
+		this.tmpline.push({
+			sort:0,
+			x0:0,y0:0,
+			x1:0,y1:0,
+			x2:0,y2:0
+		});
 	}
 
 
@@ -2654,142 +2888,138 @@ export class Draw {
 		if (path===undefined) {path=this.defpath;}
 		if (trans===undefined) {trans=this.deftrans;}
 		else if (!(trans instanceof Transform)) {trans=new Transform(trans);}
-		const curvemaxdist2=0.02;
-		let iw=this.img.width,ih=this.img.height;
-		let alpha=this.rgba[3]/255.0;
-		if (path.vertidx<3 || iw<1 || ih<1 || alpha<1e-4) {return;}
 		// Screenspace transformation.
 		let matxx=trans.mat[0],matxy=trans.mat[1],matx=trans.vec[0];
 		let matyx=trans.mat[2],matyy=trans.mat[3],maty=trans.vec[1];
-		// Perform an AABB-OBB overlap test.
-		// Define the transformed bounding box.
-		let bx=path.minx,by=path.miny;
-		let bndx=bx*matxx+by*matxy+matx;
-		let bndy=bx*matyx+by*matyy+maty;
-		bx=path.maxx-bx;by=path.maxy-by;
-		let bndxx=bx*matxx,bndxy=bx*matyx;
-		let bndyx=by*matxy,bndyy=by*matyy;
-		// Test if the image AABB has a separating axis.
-		let minx=bndx-iw,maxx=bndx;
-		if (bndxx<0) {minx+=bndxx;} else {maxx+=bndxx;}
-		if (bndyx<0) {minx+=bndyx;} else {maxx+=bndyx;}
-		if (!(minx<0 && 0<maxx)) {return;}
-		let miny=bndy-ih,maxy=bndy;
-		if (bndxy<0) {miny+=bndxy;} else {maxy+=bndxy;}
-		if (bndyy<0) {miny+=bndyy;} else {maxy+=bndyy;}
-		if (!(miny<0 && 0<maxy)) {return;}
-		// Test if the path OBB has a separating axis.
-		let cross=bndxx*bndyy-bndxy*bndyx;
-		minx=bndy*bndxx-bndx*bndxy;maxx=minx;
-		bndxx*=ih;bndxy*=iw;
-		if (cross<0) {minx+=cross;} else {maxx+=cross;}
-		if (bndxx<0) {maxx-=bndxx;} else {minx-=bndxx;}
-		if (bndxy<0) {minx+=bndxy;} else {maxx+=bndxy;}
-		if (!(minx<0 && 0<maxx)) {return;}
-		miny=bndy*bndyx-bndx*bndyy;maxy=miny;
-		bndyx*=ih;bndyy*=iw;
-		if (cross<0) {maxy-=cross;} else {miny-=cross;}
-		if (bndyx<0) {maxy-=bndyx;} else {miny-=bndyx;}
-		if (bndyy<0) {miny+=bndyy;} else {maxy+=bndyy;}
-		if (!(miny<0 && 0<maxy)) {return;}
+		let det=(matxx*matyy-matxy*matyx)*path.area;
+		const curvemaxdist2=0.02;
+		let iw=this.img.width,ih=this.img.height;
+		let alpha=this.rgba[3]/255.0;
+		let amul=det<0?-alpha:alpha;
+		if (path.vertidx<3 || iw<1 || ih<1 || det*amul<1e-6) {return;}
+		// Check if trans(path) and image AABB overlap. Calculate y intercepts.
+		let min=Infinity,max=-Infinity;
+		let vx=0,vy=0;
+		for (let i=0;i<5;i++) {
+			let w=((i+1)&2)?path.maxx:path.minx;
+			let h=((i  )&2)?path.maxy:path.miny;
+			let x0=vx,y0=vy;
+			vx=w*matxx+h*matxy+matx;
+			vy=w*matyx+h*matyy+maty;
+			let x1=vx,y1=vy;
+			if (x0>x1) {x1=x0;x0=vx;y1=y0;y0=vy;}
+			let dx=x1-x0,dy=y1-y0;
+			if (!(dx>=0 && dy===dy)) {return;}
+			if (!i || x0>=iw || x1<0) {continue;}
+			y0+=x0<0?-(x0/dx)*dy:0;
+			y1+=x1>iw?((iw-x1)/dx)*dy:0;
+			if (y0>y1) {x0=y0;y0=y1;y1=x0;}
+			min=min<y0?min:y0;
+			max=max>y1?max:y1;
+		}
+		if (!(min<ih && max>0)) {return;}
+		let pminy=min>0?~~min:0;
+		let pmaxy=max<ih?Math.ceil(max):ih;
 		// Loop through the path nodes.
 		let lr=this.tmpline,lrcnt=lr.length,lcnt=0;
-		let movex=0,movey=0,area=0;
-		let p0x=0,p0y=0,p1x=0,p1y=0;
+		let movex=0,movey=0;
+		let p2x=0,p2y=0,p3x=0,p3y=0;
 		let varr=path.vertarr;
 		let vidx=path.vertidx;
 		for (let i=0;i<=vidx;i++) {
 			let v=varr[i<vidx?i:0];
-			if (v.type===DrawPath.CURVE) {v=varr[i+2];}
-			p0x=p1x;p1x=v.x*matxx+v.y*matxy+matx;
-			p0y=p1y;p1y=v.x*matyx+v.y*matyy+maty;
+			let type=v.type;
+			let p0x=p3x,p0y=p3y;
+			p3x=v.x*matxx+v.y*matxy+matx;
+			p3y=v.x*matyx+v.y*matyy+maty;
+			let p1x=p3x,p1y=p3y;
 			// Add a basic line.
-			let m1x=p1x,m1y=p1y;
-			if (v.type===DrawPath.MOVE) {
-				// Close any unclosed subpaths.
-				m1x=movex;movex=p1x;
-				m1y=movey;movey=p1y;
-				if (!i || (m1x===p0x && m1y===p0y)) {continue;}
-			}
 			if (lrcnt<=lcnt) {
-				lr=this.fillresize(lcnt+1);
+				this.fillextend();
 				lrcnt=lr.length;
 			}
 			let l=lr[lcnt++];
-			l.sort=0;l.end=-1;
-			area+=p0x*m1y-m1x*p0y;
-			l.x0=p0x;
-			l.y0=p0y;
-			l.x1=m1x;
-			l.y1=m1y;
-			if (v.type!==DrawPath.CURVE) {continue;}
+			if (type!==DrawPath.CURVE) {
+				if (type===DrawPath.MOVE) {
+					// Close any unclosed subpaths.
+					p1x=movex;movex=p3x;
+					p1y=movey;movey=p3y;
+				}
+				l.sort=0;
+				l.x0=p0x;l.y0=p0y;
+				l.x1=p1x;l.y1=p1y;
+				if (p1y===p0y) {lcnt--;}
+				continue;
+			}
 			// Linear decomposition of curves.
-			v=varr[i++];let n1x=v.x*matxx+v.y*matxy+matx,n1y=v.x*matyx+v.y*matyy+maty;
-			v=varr[i++];let n2x=v.x*matxx+v.y*matxy+matx,n2y=v.x*matyx+v.y*matyy+maty;
-			l.x2=n1x;l.x3=n2x;
-			l.y2=n1y;l.y3=n2y;
-			area-=((n1x-p0x)*(2*p0y-n2y-p1y)+(n2x-p0x)*(p0y+n1y-2*p1y)
-				 +(p1x-p0x)*(2*n2y+n1y-3*p0y))*0.3;
-			for (let j=lcnt-1;j<lcnt;j++) {
-				// The curve will stay inside the bounding box of [c0,c1,c2,c3].
+			v=varr[++i];p2x=v.x*matxx+v.y*matxy+matx;p2y=v.x*matyx+v.y*matyy+maty;
+			v=varr[++i];p3x=v.x*matxx+v.y*matxy+matx;p3y=v.x*matyx+v.y*matyy+maty;
+			let next=-1,next0=0;
+			while (true) {
+				// The curve will stay inside the bounding box of [p0,p1,p2,p3].
 				// If the subcurve is outside the image, stop subdividing.
-				l=lr[j];
-				let c3x=l.x1,c2x=l.x3,c1x=l.x2,c0x=l.x0;
-				let c3y=l.y1,c2y=l.y3,c1y=l.y2,c0y=l.y0;
-				if ((c0x<=0 && c1x<=0 && c2x<=0 && c3x<=0) || (c0x>=iw && c1x>=iw && c2x>=iw && c3x>=iw) ||
-				    (c0y<=0 && c1y<=0 && c2y<=0 && c3y<=0) || (c0y>=ih && c1y>=ih && c2y>=ih && c3y>=ih)) {
+				if (next===next0) {
+					l.sort=0;
+					l.x0=p0x;l.y0=p0y;
+					l.x1=p3x;l.y1=p3y;
+					if (next<0) {break;}
+					l=lr[next];
+					next=l.sort;
+					p0x=p3x;p1x=l.x0;p2x=l.x1;p3x=l.x2;
+					p0y=p3y;p1y=l.y0;p2y=l.y1;p3y=l.y2;
+				}
+				next0=next;
+				if ((p0x<=0 && p1x<=0 && p2x<=0 && p3x<=0) || (p0x>=iw && p1x>=iw && p2x>=iw && p3x>=iw) ||
+				    (p0y<=0 && p1y<=0 && p2y<=0 && p3y<=0) || (p0y>=ih && p1y>=ih && p2y>=ih && p3y>=ih)) {
 					continue;
 				}
-				let dx=c3x-c0x,dy=c3y-c0y,den=dx*dx+dy*dy;
-				// Test if both control points are close to the line c0->c3.
+				// Test if both control points are close to the line p0->p3.
 				// Clamp to ends and filter degenerates.
-				let lx=c1x-c0x,ly=c1y-c0y;
+				let dx=p3x-p0x,dy=p3y-p0y,den=dx*dx+dy*dy;
+				let lx=p1x-p0x,ly=p1y-p0y;
 				let u=dx*lx+dy*ly;
 				u=u>0?(u<den?u/den:1):0;
 				lx-=dx*u;ly-=dy*u;
 				let d1=lx*lx+ly*ly;
-				lx=c2x-c0x;ly=c2y-c0y;
+				lx=p2x-p0x;ly=p2y-p0y;
 				u=dx*lx+dy*ly;
 				u=u>0?(u<den?u/den:1):0;
 				lx-=dx*u;ly-=dy*u;
 				let d2=lx*lx+ly*ly;
 				d1=(d1>d2 || !(d1===d1))?d1:d2;
 				if (!(d1>curvemaxdist2 && d1<Infinity)) {continue;}
-				// Split the curve in half. [c0,c1,c2,c3] = [c0,l1,l2,ph] + [ph,r1,r2,c3]
+				// Split the curve in half. [p0,p1,p2,p3] = [p0,l1,l2,ph] + [ph,r1,r2,p3]
 				if (lrcnt<=lcnt) {
-					lr=this.fillresize(lcnt+1);
+					this.fillextend();
 					lrcnt=lr.length;
 				}
-				let l1x=(c0x+c1x)*0.5,l1y=(c0y+c1y)*0.5;
-				let t1x=(c1x+c2x)*0.5,t1y=(c1y+c2y)*0.5;
-				let r2x=(c2x+c3x)*0.5,r2y=(c2y+c3y)*0.5;
-				let l2x=(l1x+t1x)*0.5,l2y=(l1y+t1y)*0.5;
+				let t1x=(p1x+p2x)*0.5,t1y=(p1y+p2y)*0.5;
+				let r2x=(p2x+p3x)*0.5,r2y=(p2y+p3y)*0.5;
 				let r1x=(t1x+r2x)*0.5,r1y=(t1y+r2y)*0.5;
-				let phx=(l2x+r1x)*0.5,phy=(l2y+r1y)*0.5;
-				l.x1=phx;l.x3=l2x;l.x2=l1x;
-				l.y1=phy;l.y3=l2y;l.y2=l1y;
-				l=lr[lcnt++];
-				l.sort=0;l.end=-1;
-				l.x1=c3x;l.x3=r2x;l.x2=r1x;l.x0=phx;
-				l.y1=c3y;l.y3=r2y;l.y2=r1y;l.y0=phy;
-				j--;
+				let n=lr[lcnt];
+				n.sort=next;
+				n.x0=r1x;n.x1=r2x;n.x2=p3x;
+				n.y0=r1y;n.y1=r2y;n.y2=p3y;
+				p1x=(p0x+p1x)*0.5;p1y=(p0y+p1y)*0.5;
+				p2x=(p1x+t1x)*0.5;p2y=(p1y+t1y)*0.5;
+				p3x=(p2x+r1x)*0.5;p3y=(p2y+r1y)*0.5;
+				next=lcnt++;
 			}
 		}
 		// Init blending.
-		let amul=area<0?-alpha:alpha;
 		let ashift=this.rgbashift[3],amask=(255<<ashift)>>>0;
 		let maskl=(0x00ff00ff&~amask)>>>0,maskh=(0xff00ff00&~amask)>>>0;
 		let colrgb=(this.rgba32[0]|amask)>>>0;
 		let coll=(colrgb&maskl)>>>0,colh=(colrgb&maskh)>>>0,colh8=colh>>>8;
 		// Process the lines row by row.
-		let p=0,y=0,pixels=iw*ih;
-		let pnext=0,prow=0;
-		let areadx1=0;
+		let p=0,pmax=pmaxy*iw,y=0;
+		let pnext=pminy*iw,prow=0;
+		let area=0,areadx1=0;
 		let imgdata=this.img.data32;
 		while (true) {
 			if (p>=prow) {
 				p=pnext;
-				if (p>=pixels || lcnt<1) {break;}
+				if (p>=pmax || lcnt<1) {break;}
 				y=~~(p/iw);
 				prow=y*iw+iw;
 				area=0;
@@ -2810,66 +3040,72 @@ export class Draw {
 				let x0=l.x0,y0=l.y0;
 				let x1=l.x1,y1=l.y1;
 				let sign=amul,tmp=0;
-				let end=l.end,sort=prow-iw,x=p-sort;
-				l.end=-1;
 				if (y0>y1) {
 					sign=-sign;
 					tmp=x0;x0=x1;x1=tmp;
 					tmp=y0;y0=y1;y1=tmp;
 				}
-				let fy=y0<ih?y0:ih;
-				fy=fy>y?~~fy:y;
-				let dx=x1-x0,dy=y1-y0,dxy=dx/dy;
-				// Use y0x for large coordinate stability.
-				let y0x=x0-y0*dxy+fy*dxy;
-				y0-=fy;y1-=fy;
-				let nx=y1>2?y0x+2*dxy:x1;
-				if (y1>1) {y1=1;x1=y0x+dxy;}
-				if (y0<0) {y0=0;x0=y0x;}
-				// Subtract x after normalizing to row.
-				x0-=x;x1-=x;nx-=x;
+				// Calculate row and col.
+				let sort=prow-iw,c0=p-sort,c1=c0+1;
+				let r0=y0<ih?~~y0:ih;
+				r0=y0>y?r0:y;
+				let r1=r0+1,r2=r0+2;
+				// Clamp y to row. Ensure consecutive rows use the same calculations.
+				let dx=x1-x0,dy=y1-y0,nx=x1;
+				if (dy>1) {
+					// Large numbers.
+					let dxy=dx/dy,y0x=x0-y0*dxy;
+					if (y1>r2) {nx=y0x+r2*dxy;}
+					if (y1>r1) {x1=y0x+r1*dxy;y1=r1;}
+					if (y0<r0) {x0=y0x+r0*dxy;y0=r0;}
+				} else {
+					// Small numbers.
+					if (y1>r2) {nx=x0-((y0-r2)/dy)*dx;}
+					if (y1>r1) {x1=x0-((y0-r1)/dy)*dx;y1=r1;}
+					if (y0<r0) {x0=x0-((y0-r0)/dy)*dx;y0=r0;}
+				}
 				nx=nx<x1?nx:x1;
 				if (x0>x1) {dx=-dx;tmp=x0;x0=x1;x1=tmp;}
 				dy*=sign;let dyx=dy/dx;dy*=0.5;
-				if (!(y1>0 && dyx!==0)) {
+				if (!(y1>r0 && dyx!==0)) {
 					// Above or degenerate.
-					sort=pixels;
-				} else if (x0>=1 || fy>y) {
+					sort=pmax;
+				} else if (x0>=c1 || r0>y) {
 					// Below or to the left.
 					nx=x0;
-					sort=fy*iw;
-				} else if (x1<=1) {
+					sort=r0*iw;
+				} else if (x1<=c1) {
 					// Vertical line or last pixel.
-					tmp=x1>0?-(x1*x1/dx)*dy:0;
-					if (end<p && end>=sort) {
+					let t0=x1-c0,t1=x1-c1;
+					tmp=x1>c0?-(t0*t0/dx)*dy:0;
+					if (c0>1 && x0<c0-1) {
 						areadx1+=dyx;
-						area+=((x1>0?(1-x1)*(1-x1):(1-2*x1))/dx)*dy;
+						area+=((x1>c0?t1*t1:-t0-t1)/dx)*dy;
 					} else {
 						dy=(y0-y1)*sign;
-						tmp=x0>=0?0.5*(x0+x1)*dy:tmp;
+						tmp=x0>=c0?0.5*(x0-c0+t0)*dy:tmp;
 						area+=dy-tmp;
 					}
 					areadx2+=tmp;
-					sort+=y1<1?pixels:iw;
+					sort+=y1<r1?pmax:iw;
 				} else {
 					// Spanning 2+ pixels.
-					tmp=((x0>0?(1-x0)*(1-x0):(1-2*x0))/dx)*dy;
+					let t0=x0-c0,t1=x0-c1;
+					tmp=((x0>c0?t1*t1:-t0-t1)/dx)*dy;
 					area-=tmp;
-					if (x1>=2) {
+					if (x1>=c0+2) {
 						areadx1-=dyx;
-						tmp=x0>0?(x0*x0/dx)*dy:0;
-						l.end=p;
+						tmp=x0>c0?(t0*t0/dx)*dy:0;
 					}
 					areadx2+=tmp;
 					nx=x1;
 				}
-				nx+=x;
 				nx=nx<0?0:nx;
 				sort+=nx<iw?~~nx:iw;
-				sort=sort>p?sort:pixels;
+				sort=sort>p?sort:pmax;
 				l.sort=sort;
 				// Heap sort down.
-				if (sort>=pixels) {
+				if (sort>=pmax) {
 					let t=lr[--lcnt];
 					lr[lcnt]=l;l=t;
 					sort=l.sort;
@@ -2926,8 +3162,9 @@ export class Draw {
 	}
 
 
-	tracepath(path,rad,trans) {
-		return this.fillpath(path.trace(rad),trans);
+	tracepath(path,trans,outrad,inrad) {
+		outrad=outrad??this.linewidth*0.5;
+		return this.fillpath(path.trace(outrad,inrad),trans);
 	}
 
 }
@@ -4462,7 +4699,7 @@ export class Audio {
 
 
 //---------------------------------------------------------------------------------
-// Physics - v3.13
+// Physics - v1.00
 
 
 class PhyLink {
@@ -4603,7 +4840,7 @@ class PhyList {
 }
 
 
-class PhyAtomInteraction {
+class PhyInteraction {
 
 	constructor(a,b) {
 		this.world=a.world;
@@ -4614,10 +4851,10 @@ class PhyAtomInteraction {
 		this.pmul=0;
 		this.vmul=0;
 		this.vpmul=0;
-		this.dt=NaN;
-		this.push0=0;
 		this.statictension=0;
 		this.staticdist=0;
+		this.dt=NaN;
+		this.push0=0;
 		this.updateconstants();
 	}
 
@@ -4649,22 +4886,21 @@ class PhyAtomInteraction {
 }
 
 
-class PhyAtomType {
+class PhyBodyType {
 
-	constructor(world,id,damp,density,elasticity=1,push=1,statictension=50) {
+	constructor(world,id,damp,density,elasticity,push,statictension,staticdist) {
 		this.world=world;
 		this.worldlink=new PhyLink(this);
-		this.atomlist=new PhyList();
+		this.bodylist=new PhyList();
 		this.id=id;
 		this.intarr=[];
 		this.damp=damp;
 		this.density=density;
 		this.pmul=push;
 		this.vmul=elasticity;
-		this.vpmul=1.0;
+		this.vpmul=0.95;
 		this.statictension=statictension;
-		this.staticdist=1.0;
-		this.bound=true;
+		this.staticdist=staticdist;
 		this.dt =NaN;
 		this.dt0=0;
 		this.dt1=0;
@@ -4681,7 +4917,7 @@ class PhyAtomType {
 			link.obj.intarr[id]=null;
 			link=link.next;
 		}
-		this.atomlist.clear();
+		this.bodylist.clear();
 		this.worldlink.remove();
 	}
 
@@ -4746,25 +4982,25 @@ class PhyAtomType {
 		//      dt3=(dt1-dt)/ln(1-damp)
 		//
 		this.dt=dt;
-		let damp=this.damp,idamp=1.0-damp;
+		let damp=this.damp,idamp=1-damp;
 		let dt0=0,dt1=0,dt2=0;
 		if (damp<=1e-10) {
 			// Special case damping=0: just integrate.
-			dt0=1.0;
+			dt0=1;
 			dt1=dt;
 			dt2=dt*dt*0.5;
 		} else if (idamp<=1e-10) {
 			// Special case damping=1: all velocity=0.
 			// If dt=0 then time isn't passing, so maintain velocity.
-			dt0=(dt>=-1e-20 && dt<=1e-20)?1.0:0.0;
-			dt1=0.0;
-			dt2=0.0;
+			dt0=(dt>=-1e-20 && dt<=1e-20)?1:0;
+			dt1=0;
+			dt2=0;
 		} else {
 			// Normal case.
 			let lnd=Math.log(idamp);
 			dt0=Math.exp(dt*lnd);
-			dt1=(dt0-1.0)/lnd;
-			dt2=(dt1-dt )/lnd;
+			dt1=(dt0-1 )/lnd;
+			dt2=(dt1-dt)/lnd;
 		}
 		this.dt0=dt0;
 		this.dt1=dt1;
@@ -4781,7 +5017,7 @@ class PhyAtomType {
 
 
 	static initinteraction(a,b) {
-		let inter=new PhyAtomInteraction(a,b);
+		let inter=new PhyInteraction(a,b);
 		while (a.intarr.length<=b.id) {a.intarr.push(null);}
 		while (b.intarr.length<=a.id) {b.intarr.push(null);}
 		a.intarr[b.id]=inter;
@@ -4791,167 +5027,288 @@ class PhyAtomType {
 }
 
 
-class PhyAtom {
+class PhyBody {
 
-	constructor(pos,rad,type) {
+	constructor(world,verts,pos,angle,type) {
+		type=type??world.deftype;
+		this.world=world;
 		this.worldlink=new PhyLink(this);
-		this.world=type.world;
-		this.world.atomlist.addbefore(this.worldlink);
+		this.world.bodylist.addbefore(this.worldlink);
 		this.deleted=false;
 		this.sleeping=false;
-		this.updatetime=0;
-		pos=new Vector(pos);
-		this.pos=pos;
-		this.vel=new Vector(pos.length);
-		this.rad=rad;
 		this.bondlist=new PhyList();
 		this.typelink=new PhyLink(this);
 		this.type=type;
-		type.atomlist.add(this.typelink);
+		type.bodylist.add(this.typelink);
 		this.data={};
+		//
+		let vertarr=[];
+		this.volume=0;
+		if (verts instanceof PhyBody) {
+			let body=verts;
+			verts=body.vertarr;
+			this.volume=body.volume;
+			type=type??body.type;
+			// trans=trans??body.trans;
+		}
+		let dim=world.dim,dim2=(dim*(dim-1))>>>1;
+		for (let v of verts) {vertarr.push(new Vector(v));}
+		this.vertarr=vertarr;
+		this.facearr=[];
+		this.type=type;
+		this.vel=new Vector(dim);
+		this.spin=(new Float64Array(dim2)).fill(0);
+		this.angle=(new Float64Array(dim2)).fill(0);
+		if (angle) {for (let i=0;i<dim2;i++) {this.angle[i]=angle[i];}}
+		this.trans=new Transform({vec:pos,ang:this.angle});
+		this.inv=this.trans.mat.inv();
 		this.updateconstants();
 	}
 
 
-	release() {
-		if (this.deleted) {return;}
-		this.deleted=true;
-		let link=null;
-		while ((link=this.bondlist.head)!==null) {
-			link.obj.release();
-		}
-		this.typelink.remove();
-		this.worldlink.remove();
-	}
-
-
-	bonditer() {return this.bondlist.iter();}
+	relpos(v) {return this.trans.apply(v);}
+	invpos(v) {return this.trans.inv().apply(v);}
 
 
 	updateconstants() {
-		// Calculate the mass of the atom, where mass=volume*density.
-		let dim=this.pos.length;
-		let mass=this.type.density;
-		if (dim>0) {
-			let vol0=mass,rad=this.rad;
-			let volmul=rad*rad*6.283185307;
-			mass*=2.0*rad;
-			for (let i=2;i<=dim;i++) {
-				let vol1=vol0*volmul/i;
-				vol0=mass;
-				mass=vol1;
-			}
+		// Calculate mass and inertia.
+		let dim=this.world.dim,dim2=(dim*(dim-1))>>>1;
+		let dist=0;
+		for (let v of this.vertarr) {
+			dist+=v.sqr();
 		}
-		this.mass=mass;
+		this.inertia=new Matrix(dim2,dim2);
+		if (this.vertarr.length===0) {
+			this.volume=0;
+		} else if (dim!==2) {
+			this.volume=1;
+			for (let i=0;i<dim2;i++) {
+				this.inertia[i*dim2+i]=dist;
+			}
+		} else {
+			let vertarr=this.vertarr;
+			let verts=vertarr.length;
+			// Find the left-most vertex.
+			let minv=vertarr[0];
+			let mini=0;
+			for (let i=1;i<verts;i++) {
+				let u=vertarr[i];
+				for (let d=0;d<dim;d++) {
+					let vx=minv[d],ux=u[d];
+					if (vx!==ux) {
+						if (vx>ux) {minv=u;mini=i;}
+						break;
+					}
+				}
+			}
+			// Wrap around to find the hull.
+			vertarr[mini]=vertarr[0];
+			vertarr[0]=minv;
+			let hverts=1;
+			while (hverts<verts) {
+				mini=hverts;
+				minv=vertarr[mini];
+				let v0=vertarr[mini-1];
+				for (let i=0;i<verts;i++) {
+					let u=vertarr[i];
+					let dx0=minv[0]-v0[0],dy0=minv[1]-v0[1];
+					let dx1=u[0]-v0[0],dy1=u[1]-v0[1];
+					if (dx0*dy1-dy0*dx1<0) {
+						minv=u;
+						mini=i;
+					}
+				}
+				if (mini===0) {break;}
+				// if (mini<hverts) {throw "loop";}
+				vertarr[mini]=vertarr[hverts];
+				vertarr[hverts++]=minv;
+			}
+			vertarr=vertarr.slice(0,hverts);
+			this.vertarr=vertarr;
+			// Calculate geometry.
+			let facearr=[];
+			let volume=0;
+			let v0=null,v1=vertarr[hverts-1],cen=new Vector(dim);
+			for (let i=0;i<hverts;i++) {
+				v0=v1;
+				v1=vertarr[i];
+				facearr.push([(i?i:hverts)-1,i]);
+				let cross=v0[0]*v1[1]-v1[0]*v0[1];
+				volume+=cross;
+				cen.iadd(v0.add(v1).imul(cross));
+			}
+			this.facearr=facearr;
+			volume*=0.5;
+			// Zero on center of mass.
+			cen.imul(1/(volume*6));
+			for (let v of vertarr) {
+				v.isub(cen);
+			}
+			// Inertia.
+			let inertia=0;
+			for (let face of facearr) {
+				v0=vertarr[face[0]];
+				v1=vertarr[face[1]];
+				inertia+=v0.mul(v0)+v0.mul(v1)+v1.mul(v1);
+			}
+			inertia/=6;
+			this.inertia[0]=inertia;
+			this.volume=volume;
+		}
+		this.mass=this.type.density*this.volume;
+		try {this.inertiainv=this.inertia.inv();}
+		catch {this.inertiainv=new Matrix(dim2,dim2);}
+	}
+
+
+	closestpoint(point) {
+		// Returns [overlapping, point] with a point on the border.
+		let world=this.world;
+		let trans=new Transform({dim:world.dim});
+		point=new Vector(point);
+		let col=world.closestpoint(this.vertarr,this.trans,[point],trans);
+		return [col[0],col[1]];
 	}
 
 
 	update() {
-		// Move the particle and apply damping to the velocity.
+		// Move the body and apply damping to the velocity.
 		// acc+=gravity
 		// pos+=vel*dt1+acc*dt2
 		// vel =vel*dt0+acc*dt1
 		let world=this.world;
-		let bndmin=world.bndmin;
-		let bndmax=world.bndmax;
-		let pe=this.pos,ve=this.vel;
-		let dim=pe.length,type=this.type;
-		let bound=type.bound;
+		let trans=this.trans;
+		let pe=trans.vec,ve=this.vel;
+		let dim=world.dim,type=this.type;
 		let ge=type.gravity;
-		ge=(ge===null?this.world.gravity:ge);
+		ge=(ge===null?world.gravity:ge);
 		let dt0=type.dt0,dt1=type.dt1,dt2=type.dt2;
-		let rad=this.rad,energy=0;
 		for (let i=0;i<dim;i++) {
 			let vel=ve[i],acc=ge[i];
-			let pos=vel*dt1+acc*dt2+pe[i];
-			vel=vel*dt0+acc*dt1;
-			let b=bound?bndmin[i]+rad:-Infinity;
-			if (pos<b) {pos=b;vel=vel<0?-vel:vel;}
-			b=bound?bndmax[i]-rad:Infinity;
-			if (pos>b) {pos=b;vel=vel>0?-vel:vel;}
-			pe[i]=pos;
-			ve[i]=vel;
-			energy+=vel*vel;
+			pe[i]+=vel*dt1+acc*dt2;
+			ve[i] =vel*dt0+acc*dt1;
 		}
-		this.sleeping=energy<1e-10;
-		this.updatetime=0;
+		// Spin.
+		const PI2=Math.PI*2;
+		let se=this.spin,ae=this.angle;
+		let dim2=(dim*(dim-1))>>>1;
+		for (let i=0;i<dim2;i++) {
+			let spin=se[i];
+			let ang=ae[i]+spin*dt1;
+			if (ang<0 || ang>PI2) {ang=(ang%PI2)+(ang<0?PI2:0);}
+			se[i]=spin*dt0;
+			ae[i]=ang;
+		}
+		trans.mat.one().rotate(ae);
+		this.inv=trans.mat.inv();
 	}
 
 
 	static collide(a,b) {
-		// Collides two atoms. Vector operations are unrolled to use constant memory.
 		if (a===b || a.deleted || b.deleted) {return;}
-		// Determine if the atoms are overlapping.
-		let apos=a.pos,bpos=b.pos;
-		let dim=apos.length;
-		let dist=0.0,norm=a.world.tmpvec;
-		for (let i=0;i<dim;i++) {
-			let dif=bpos[i]-apos[i];
-			norm[i]=dif;
-			dist+=dif*dif;
-		}
-		let rad=a.rad+b.rad;
-		if (dist>=rad*rad) {return;}
-		// Bonds can limit the distance between the atoms.
-		let b0=a,b1=b;
-		if (a.bondlist.count>b.bondlist.count) {b0=b;b1=a;}
-		let link=b0.bondlist.head;
-		let bonded=null;
-		while (link!==null) {
-			let bond=link.obj;
-			link=link.next;
-			if (bond.a===b1 || bond.b===b1) {
-				rad=rad<bond.dist?rad:bond.dist;
-				bonded=bond;
-			}
-		}
-		if (dist>=rad*rad) {return;}
-		let amass=a.mass,bmass=b.mass;
+		let world=a.world;
+		let dim=world.dim;
+		let amass=b.mass,bmass=a.mass;
 		let mass=amass+bmass;
 		if ((amass>=Infinity && bmass>=Infinity) || mass<=1e-10 || dim===0) {
 			return;
 		}
-		amass=amass>=Infinity? 1.0: amass/mass;
-		bmass=bmass>=Infinity?-1.0:-bmass/mass;
-		// If the atoms are too close together, randomize the direction.
-		let den=1;
-		if (dist>1e-10) {
-			dist=Math.sqrt(dist);
-			den=1.0/dist;
-		} else {
-			norm.randomize();
-		}
-		// Check the relative velocity. We can have situations where two atoms increase
-		// eachother's velocity because they've been pushed past eachother.
-		let avel=a.vel,bvel=b.vel;
-		let veldif=0.0;
+		amass=amass>=Infinity?1.0:amass/mass;
+		bmass=bmass>=Infinity?1.0:bmass/mass;
+		// Get the collision normal and contact points.
+		let col=world.closestpoint(a.vertarr,a.trans,b.vertarr,b.trans);
+		if (!col[0]) {return;}
+		let acon=col[1],bcon=col[2];
+		let norm=world.tmpvec[0];
+		let push=0;
 		for (let i=0;i<dim;i++) {
-			norm[i]*=den;
-			veldif+=(avel[i]-bvel[i])*norm[i];
+			let x=acon[i]-bcon[i];
+			norm[i]=x;
+			push+=x*x;
 		}
-		let posdif=rad-dist;
-		// If we have a callback, allow it to handle the collision.
+		if (push<1e-10) {return;}
+		push=Math.sqrt(push);
+		let apos=a.trans.vec,bpos=b.trans.vec;
+		// norm=|norm|, acon-=apos, bcon-=bpos
+		for (let i=0;i<dim;i++) {
+			norm[i]/=push;
+			acon[i]-=apos[i];
+			bcon[i]-=bpos[i];
+		}
+		// Calculate normal and perpendicular collision forces.
+		// If they're moving away, don't apply any force.
 		let intr=a.type.intarr[b.type.id];
-		let callback=a.world.collcallback;
-		if (callback!==null && !callback(intr,a,b,norm,veldif,posdif,bonded)) {return;}
-		posdif*=intr.push0;
-		veldif=veldif>0?veldif:0;
-		veldif=veldif*intr.vmul+posdif*intr.vpmul;
-		// Create an electrostatic bond between the atoms.
-		if (bonded===null && intr.statictension>0) {
-			let bond=a.world.createbond(a,b,rad,intr.statictension);
-			bond.breakdist=rad+(a.rad<b.rad?a.rad:b.rad)*intr.staticdist;
-		}
-		// Push the atoms apart.
-		let aposmul=posdif*bmass,avelmul=veldif*bmass;
-		let bposmul=posdif*amass,bvelmul=veldif*amass;
+		let vel=world.tmpvec[1];
+		let avel=a.vel,bvel=b.vel;
+		vel[0] =avel[0]-acon[1]*a.spin[0];
+		vel[1] =avel[1]+acon[0]*a.spin[0];
+		vel[0]-=bvel[0]-bcon[1]*b.spin[0];
+		vel[1]-=bvel[1]+bcon[0]*b.spin[0];
+		let ndot=0;
 		for (let i=0;i<dim;i++) {
-			let dif=norm[i];
-			apos[i]+=dif*aposmul;
-			avel[i]+=dif*avelmul;
-			bpos[i]+=dif*bposmul;
-			bvel[i]+=dif*bvelmul;
+			ndot+=vel[i]*norm[i];
 		}
+		let nmag=ndot>0?ndot:0;
+		nmag=nmag*intr.vmul+push*intr.vpmul;
+		push*=intr.push0;
+		// If we have a callback, allow it to handle the collision.
+		let callback=world.collcallback;
+		if (callback!==null && !callback(intr,a,acon,b,bcon,norm,nmag,push)) {return;}
+		// Add static friction bonds.
+		let staticdist=intr.staticdist;
+		if (staticdist>0 && intr.statictension>0) {
+			// Get inverse contact points.
+			let ainv=world.tmpvec[2],binv=world.tmpvec[3];
+			let amat=a.inv,bmat=b.inv;
+			let ai=0,bi=0;
+			for (let d=0;d<dim;d++) {
+				let ax=0,bx=0;
+				for (let j=0;j<dim;j++) {
+					ax+=amat[ai++]*acon[j];
+					bx+=bmat[bi++]*bcon[j];
+				}
+				ainv[d]=ax;
+				binv[d]=bx;
+			}
+			// Find any bonds close to the contact points.
+			let dist2=staticdist*staticdist;
+			let al=a.bondlist,bl=b.bondlist;
+			let link=(al.count<bl.count?al:bl).head;
+			while (link!==null) {
+				let bond=link.obj;
+				link=link.next;
+				let u=bond.a,v=bond.b;
+				let ucon=bond.apos,vcon=bond.bpos;
+				if (v===a) {
+					v=u;u=bond.b;
+					vcon=ucon;ucon=bond.bpos;
+				}
+				if (bond.breakdist<Infinity && u===a && v===b) {
+					if (ucon.dist2(ainv)<dist2 || vcon.dist2(binv)<dist2) {
+						break;
+					}
+				}
+			}
+			if (link===null) {
+				let bond=world.createbond(a,ainv,b,binv,0,intr.statictension);
+				bond.breakdist=staticdist;
+			}
+		}
+		// Apply forces and separate.
+		let ainertia=amass*a.inertiainv[0],binertia=bmass*b.inertiainv[0];
+		let ancross=acon[0]*norm[1]-acon[1]*norm[0];
+		let bncross=bcon[0]*norm[1]-bcon[1]*norm[0];
+		let nden=amass+bmass+ainertia*ancross*ancross+binertia*bncross*bncross;
+		nmag/=nden;
+		for (let i=0;i<dim;i++) {
+			let n=norm[i];
+			apos[i]-=amass*n*push;
+			avel[i]-=amass*n*nmag;
+			bpos[i]+=bmass*n*push;
+			bvel[i]+=bmass*n*nmag;
+		}
+		a.spin[0]-=ainertia*ancross*nmag;
+		b.spin[0]+=binertia*bncross*nmag;
 	}
 
 }
@@ -4959,13 +5316,16 @@ class PhyAtom {
 
 class PhyBond {
 
-	constructor(world,a,b,dist,tension) {
+	constructor(world,a,apos,b,bpos,dist,tension) {
 		this.world=world;
 		this.worldlink=new PhyLink(this);
 		this.world.bondlist.add(this.worldlink);
 		this.deleted=false;
 		this.a=a;
+		this.apos=new Vector(apos);
 		this.b=b;
+		this.bpos=new Vector(bpos);
+		if (!(dist>=0)) {dist=this.relapos().dist(this.relbpos());}
 		this.dist=dist;
 		this.breakdist=Infinity;
 		this.tension=tension;
@@ -4986,33 +5346,54 @@ class PhyBond {
 	}
 
 
+	relapos() {return this.a.trans.apply(this.apos);}
+	relbpos() {return this.b.trans.apply(this.bpos);}
+
+
 	update() {
 		// Pull two atoms toward eachother based on the distance and bond strength.
 		// Vector operations are unrolled to use constant memory.
 		let a=this.a,b=this.b;
 		if (this.deleted || (a.sleeping && b.sleeping)) {return;}
-		let amass=a.mass,bmass=b.mass;
+		let amass=b.mass,bmass=a.mass;
 		let mass=amass+bmass;
-		if ((amass>=Infinity && bmass>=Infinity) || mass<=1e-10) {
+		let world=a.world;
+		let dim=world.dim;
+		if ((amass>=Infinity && bmass>=Infinity) || mass<=1e-10 || dim===0) {
 			return;
 		}
-		amass=amass>=Infinity? 1.0: amass/mass;
-		bmass=bmass>=Infinity?-1.0:-bmass/mass;
+		amass=amass>=Infinity?1.0:amass/mass;
+		bmass=bmass>=Infinity?1.0:bmass/mass;
 		// Get the distance and direction between the atoms.
-		let apos=a.pos,bpos=b.pos;
-		let dim=apos.length;
-		let norm=a.world.tmpvec;
+		let apos=a.trans.vec,bpos=b.trans.vec;
+		let acon=world.tmpvec[1];
+		let bcon=world.tmpvec[2];
+		for (let side=0;side<2;side++) {
+			let mat=(side?b:a).trans.mat;
+			let scon=side?this.bpos:this.apos;
+			let dcon=side?bcon:acon;
+			let midx=0;
+			for (let i=0;i<dim;i++) {
+				let x=0;
+				for (let j=0;j<dim;j++) {
+					x+=mat[midx++]*scon[j];
+				}
+				dcon[i]=x;
+			}
+		}
+		let norm=world.tmpvec[0];
 		let dist=0.0;
 		for (let i=0;i<dim;i++) {
-			let dif=bpos[i]-apos[i];
-			norm[i]=dif;
-			dist+=dif*dif;
+			let x=bcon[i]-acon[i]+bpos[i]-apos[i];
+			norm[i]=x;
+			dist+=x*x;
 		}
 		// If the atoms are too close together, randomize the direction.
 		let tension=this.tension;
 		if (dist>1e-10) {
 			dist=Math.sqrt(dist);
-			tension/=dist;
+			// tension/=dist;
+			for (let i=0;i<dim;i++) {norm[i]/=dist;}
 		} else {
 			norm.randomize();
 		}
@@ -5020,20 +5401,35 @@ class PhyBond {
 			this.release();
 			return;
 		}
+		// let ainertia=0,binertia=0;
+		let ainertia=amass*a.inertiainv[0],binertia=bmass*b.inertiainv[0];
+		let ancross=acon[0]*norm[1]-acon[1]*norm[0];
+		let bncross=bcon[0]*norm[1]-bcon[1]*norm[0];
+		let nden=amass+bmass+ainertia*ancross*ancross+binertia*bncross*bncross;
+		tension/=nden;
 		// Apply equal and opposite acceleration. Updating pos and vel in this
-		// function, instead of waiting for atom.update(), increases stability.
+		// function, instead of waiting for body.update(), increases stability.
 		let at=a.type,bt=b.type;
 		let acc=(this.dist-dist)*tension;
-		let aacc=acc*bmass,aposmul=aacc*at.dt2,avelmul=aacc*at.dt1;
-		let bacc=acc*amass,bposmul=bacc*bt.dt2,bvelmul=bacc*bt.dt1;
+		let aacc=acc*amass,aposmul=aacc*at.dt2,avelmul=aacc*at.dt1;
+		let bacc=acc*bmass,bposmul=bacc*bt.dt2,bvelmul=bacc*bt.dt1;
 		let avel=a.vel,bvel=b.vel;
 		for (let i=0;i<dim;i++) {
 			let dif=norm[i];
-			apos[i]+=dif*aposmul;
-			avel[i]+=dif*avelmul;
+			apos[i]-=dif*aposmul;
+			avel[i]-=dif*avelmul;
 			bpos[i]+=dif*bposmul;
 			bvel[i]+=dif*bvelmul;
 		}
+		// Apply rotation.
+		ainertia*=ancross*acc;
+		a.angle[0]-=ainertia*at.dt2;
+		a.spin[0] -=ainertia*at.dt1;
+		a.trans.mat.one().rotate(a.angle);
+		binertia*=bncross*acc;
+		b.angle[0]+=binertia*bt.dt2;
+		b.spin[0] +=binertia*bt.dt1;
+		b.trans.mat.one().rotate(b.angle);
 	}
 
 }
@@ -5058,7 +5454,7 @@ class PhyBroadphase {
 	//      5 y min
 	//        ...
 	//
-	// If flags&1: atom_id=right
+	// If flags&1: body_id=right
 	// If flags&2: sleeping
 	//
 	// Center splitting.
@@ -5068,58 +5464,86 @@ class PhyBroadphase {
 	constructor(world) {
 		this.world=world;
 		this.slack=0.05;
+		this.bodycnt=0;
+		this.bodyarr=null;
 		this.memi32=[];
 		this.memf32=null;
 	}
 
 
 	release() {
+		this.bodyarr=null;
+		this.bodycnt=0;
 		this.memi32=[];
 		this.memf32=null;
 	}
 
 
 	build() {
-		// Build a bounding volume hierarchy for the atoms.
+		// Build a bounding volume hierarchy for the bodies.
 		//
 		// During each step, find the axis with the largest range (x_max-x_min).
-		// Sort the atoms by whether they're above or below the center of this range.
+		// Sort the bodies by whether they're above or below the center of this range.
 		let world=this.world;
 		let dim=world.dim;
-		let atomcnt=world.activecnt;
-		if (atomcnt===0) {return;}
+		let bodycnt=world.bodylist.count;
+		this.bodycnt=bodycnt;
+		if (bodycnt===0) {return;}
 		// Allocate working arrays.
 		let dim2=2*dim,nodesize=3+dim2;
-		let sortstart=nodesize*(atomcnt*2-1);
+		let sortstart=nodesize*(bodycnt*2-1);
 		let treesize=sortstart*2;
 		let memi=this.memi32;
 		if (memi.length<treesize) {
 			memi=new Int32Array(treesize*2);
 			this.memi32=memi;
 			this.memf32=new Float32Array(memi.buffer);
+			this.bodyarr=new Array(bodycnt*2);
 		}
 		let memf=this.memf32;
-		// Store atoms and their bounds. atom_id*2+sleeping.
-		let leafstart=sortstart+atomcnt;
-		let slack=1+this.slack;
+		// Store bodies and their bounds. body_id*2+sleeping.
+		let leafstart=sortstart+bodycnt;
+		let slack=(1+this.slack)*0.5;
 		let leafidx=leafstart;
-		let atomarr=world.atomarr;
-		for (let i=0;i<atomcnt;i++) {
-			let atom=atomarr[i];
-			memi[leafidx++]=(i<<1)|(atom.sleeping?1:0);
+		let bodyarr=this.bodyarr;
+		let bodylink=world.bodylist.head;
+		let tmpbnd=new Float32Array(dim*2);
+		for (let i=0;i<bodycnt;i++) {
+			let body=bodylink.obj;
+			bodylink=bodylink.next;
+			bodyarr[i]=body;
+			memi[leafidx++]=(i<<1)|(body.sleeping?1:0);
 			memi[sortstart+i]=leafidx;
-			let pos=atom.pos,rad=atom.rad*slack;
-			rad=rad>0?rad:-rad;
-			for (let axis=0;axis<dim;axis++) {
-				let x=pos[axis],x0=x-rad,x1=x+rad;
-				x0=x0>-Infinity?x0:-Infinity;
-				x1=x1>=x0?x1:x0;
-				memf[leafidx++]=x0;
-				memf[leafidx++]=x1;
+			// Find the bounding box of the transformed body.
+			let trans=body.trans;
+			let pos=trans.vec,mat=trans.mat;
+			for (let d=0;d<dim;d++) {
+				tmpbnd[d*2  ]= Infinity;
+				tmpbnd[d*2+1]=-Infinity;
+			}
+			for (let v of body.vertarr) {
+				let midx=0;
+				for (let d=0;d<dim;d++) {
+					let d2=d+d;
+					let x=pos[d];
+					for (let j=0;j<dim;j++) {
+						x+=mat[midx++]*v[j];
+					}
+					let y=tmpbnd[d2];
+					tmpbnd[d2]=x<y?x:y;
+					y=tmpbnd[++d2];
+					tmpbnd[d2]=x>y?x:y;
+				}
+			}
+			for (let d=0;d<dim2;d+=2) {
+				let min=tmpbnd[d],max=tmpbnd[d+1];
+				let cen=(max+min)*0.5,dev=(max-min)*slack;
+				memf[leafidx++]=cen-dev;
+				memf[leafidx++]=cen+dev;
 			}
 		}
 		memi[1]=-1;
-		memi[2]=sortstart+atomcnt;
+		memi[2]=sortstart+bodycnt;
 		let worklo=sortstart;
 		for (let work=0;work<sortstart;work+=nodesize) {
 			// Pop the top working range off the stack.
@@ -5191,20 +5615,19 @@ class PhyBroadphase {
 	collide() {
 		// Check for collisions among leaves. Randomly reorder the tree to randomize
 		// collision order.
-		let world=this.world;
-		let atomcnt=world.activecnt;
-		if (atomcnt<=1) {return;}
-		let nodesize=3+world.dim*2;
-		let treeend=nodesize*(atomcnt*2-1);
+		let bodycnt=this.bodycnt;
+		if (bodycnt<=1) {return;}
+		let nodesize=3+this.world.dim*2;
+		let treeend=nodesize*(bodycnt*2-1);
 		let memi=this.memi32;
 		let memf=this.memf32;
-		let atomarr=world.atomarr;
-		let collide=PhyAtom.collide;
+		let bodyarr=this.bodyarr;
+		let collide=PhyBody.collide;
 		// Randomly flip the left and right children and repack them.
 		// Also find the next node to skip AABB's we've already checked.
 		let randstart=treeend;
 		let randend=randstart+treeend;
-		let rnd=world.rnd;
+		let rnd=this.world.rnd;
 		let swap=0;
 		memi[randstart  ]=0;
 		memi[randstart+1]=randend;
@@ -5240,7 +5663,7 @@ class PhyBroadphase {
 			let node=memi[n+1];
 			if (!(node&1)) {continue;}
 			let sleeping=node&2;
-			let atom=atomarr[memi[n+2]];
+			let body=bodyarr[memi[n+2]];
 			let nbnd=n+3,ndim=n+nodesize;
 			node>>>=2;
 			while (node<randend) {
@@ -5251,7 +5674,7 @@ class PhyBroadphase {
 					while (u<ndim && memf[u]<=memf[v+1] && memf[v]<=memf[u+1]) {u+=2;v+=2;}
 					if (u===ndim) {
 						if (!(next&1)) {node+=nodesize;continue;}
-						else {collide(atom,atomarr[memi[node+2]]);}
+						else {collide(body,bodyarr[memi[node+2]]);}
 					}
 				}
 				node=next>>>2;
@@ -5264,44 +5687,45 @@ class PhyBroadphase {
 
 class PhyWorld {
 
-	constructor(dim) {
+	constructor(dim,gravity=0.2,statictension=50.0,staticdist=0.005) {
 		this.dim=dim;
 		this.maxsteptime=1/180;
 		this.rnd=new Random();
+		this.tmpvec=[];
+		for (let i=0;i<4;i++) {this.tmpvec.push(new Vector(dim));}
 		this.gravity=new Vector(dim);
-		this.gravity[dim-1]=0.2;
-		this.bndmin=(new Vector(dim)).set(-Infinity);
-		this.bndmax=(new Vector(dim)).set( Infinity);
+		this.gravity[dim-1]=gravity;
 		this.typelist=new PhyList();
 		this.intrlist=new PhyList();
-		this.atomlist=new PhyList();
+		this.bodylist=new PhyList();
 		this.bondlist=new PhyList();
-		this.atomarr=[];
-		this.bondarr=[];
-		this.activecnt=0;
-		this.activeregions=[];
-		this.tmpvec=new Vector(dim);
+		this.bondarr =[];
 		this.broad=new PhyBroadphase(this);
 		this.stepcallback=null;
 		this.collcallback=null;
 		this.data={};
+		this.epainit();
+		// Default type
+		this.deftension=statictension;
+		this.defdist=staticdist;
+		this.deftype=this.createbodytype();
 	}
 
 
 	release() {
-		this.atomlist.release();
+		this.bodylist.release();
 		this.typelist.release();
 		this.intrlist.release();
-		this.bondlist.release();
+		this.bodylist.release();
 		this.broad.release();
 	}
 
 
-	atomiter() {return this.atomlist.iter();}
+	bodyiter() {return this.bodylist.iter();}
 	bonditer() {return this.bondlist.iter();}
 
 
-	createatomtype(damp,density,elasticity=1,push=1,statictension=50) {
+	createbodytype(damp=0.02,density=1,elasticity=0.95,push=1,statictension,staticdist) {
 		// Assume types are sorted from smallest to largest.
 		// Find if there's any missing ID or add to the end.
 		let link=this.typelist.head;
@@ -5312,19 +5736,45 @@ class PhyWorld {
 			id=nextid+1;
 			link=link.next;
 		}
-		let type=new PhyAtomType(this,id,damp,density,elasticity,push,statictension);
+		statictension=statictension??this.deftension;
+		staticdist=staticdist??this.defdist;
+		let type=new PhyBodyType(this,id,damp,density,elasticity,push,statictension,staticdist);
 		this.typelist.addbefore(type.worldlink,link);
 		link=this.typelist.head;
 		while (link!==null) {
-			PhyAtomType.initinteraction(link.obj,type);
+			PhyBodyType.initinteraction(link.obj,type);
 			link=link.next;
 		}
 		return type;
 	}
 
 
-	createatom(pos,rad,type) {
-		return new PhyAtom(pos,rad,type);
+	createbody(verts,pos,angle,type) {
+		return new PhyBody(this,verts,pos,angle,type);
+	}
+
+
+	createbox(sides,pos,angle,type) {
+		let vertarr=[];
+		let dim=this.dim,verts=1<<dim;
+		for (let i=0;i<verts;i++) {
+			let v=new Vector(dim);
+			for (let j=0;j<dim;j++) {v[j]=(((i>>>j)&1)*2-1)*sides[j];}
+			vertarr.push(v);
+		}
+		return this.createbody(vertarr,pos,angle,type);
+	}
+
+
+	createsphere(sides,detail,pos,angle,type) {
+		if (isNaN(detail) || detail<3) {throw "no detail";}
+		let vertarr=[];
+		for (let i=0;i<detail;i++) {
+			let ang=Math.PI*2*i/detail;
+			let v=new Vector([Math.cos(ang)*sides[0],Math.sin(ang)*sides[1]]);
+			vertarr.push(v);
+		}
+		return this.createbody(vertarr,pos,angle,type);
 	}
 
 
@@ -5348,237 +5798,10 @@ class PhyWorld {
 	}
 
 
-	createbond(a,b,dist,tension) {
-		// Create a bond. If dist<0, use the current distance between the atoms.
-		if (dist<0.0) {dist=a.pos.dist(b.pos);}
-		let bond=new PhyBond(this,a,b,dist,tension);
+	createbond(a,apos,b,bpos,dist,tension) {
+		// Create a bond. If dist<0, use the current distance between the bodies.
+		let bond=new PhyBond(this,a,apos,b,bpos,dist,tension);
 		return bond;
-	}
-
-
-	autobond(atomarr,tension) {
-		// Balance distance, mass, # of bonds, direction.
-		let count=atomarr.length;
-		if (count===0 || isNaN(tension)) {return;}
-		let infoarr=new Array(count);
-		for (let i=0;i<count;i++) {
-			let info={
-				atom:atomarr[i]
-			};
-			infoarr[i]=info;
-		}
-		for (let i=0;i<count;i++) {
-			let mainatom=infoarr[i].atom;
-			let rad=mainatom.rad*4.1;
-			for (let j=0;j<i;j++) {
-				let atom=infoarr[j].atom;
-				if (Object.is(atom,mainatom)) {continue;}
-				let dist=atom.pos.dist(mainatom.pos);
-				if (dist<rad) {
-					this.createbond(atom,mainatom,-1.0,tension);
-				}
-			}
-		}
-	}
-
-
-	createbox(cen,side,rad,dist,type,tension=NaN) {
-		// O O O O
-		//  O O O
-		// O O O O
-		let pos=new Vector(cen);
-		let atomcombos=1;
-		let dim=this.dim;
-		if (side.length===undefined) {side=(new Array(dim)).fill(side);}
-		for (let i=0;i<dim;i++) {atomcombos*=side[i];}
-		let atomarr=new Array(atomcombos);
-		for (let atomcombo=0;atomcombo<atomcombos;atomcombo++) {
-			// Find the coordinates of the atom.
-			let atomtmp=atomcombo;
-			for (let i=0;i<dim;i++) {
-				let s=side[i],x=atomtmp%s;
-				atomtmp=Math.floor(atomtmp/s);
-				pos[i]=cen[i]+(x*2-s+1)*dist;
-			}
-			atomarr[atomcombo]=this.createatom(pos,rad,type);
-		}
-		this.autobond(atomarr,tension);
-		return atomarr;
-	}
-
-
-	createshape(fill,mat,minrad,spacing,vertarr,facearr,transform=null,bonddist=NaN,bondtension=NaN,bondbreak=Infinity) {
-		// Fill types: 0 Outline, 1 Uniform, 2 Greedy.
-		//
-		// Atoms and bonds are placed *before* applying transform.
-		// Radii and bond lengths will be rescaled if needed.
-		// Unrolled ops are 5x as fast.
-		let dim=this.dim;
-		if (dim!==2) {throw `Only implemented for 2 dimensions: ${dim}`;}
-		if (!(spacing>1e-10 && minrad>1e-10)) {throw `Invalid spacing: ${spacing}, ${minrad}`;}
-		let iter=spacing*0.25;
-		let subspace=spacing*0.5;
-		// Find the bounds of our shape.
-		let bndmin=(new Vector(dim)).set(Infinity);
-		let bndmax=(new Vector(dim)).set(-Infinity);
-		for (let vert of vertarr) {
-			bndmin.imin(vert);
-			bndmax.imax(vert);
-		}
-		bndmin.isub(spacing);
-		bndmax.iadd(spacing);
-		let newface=[];
-		for (let face of facearr) {
-			if (face.length!==dim) {throw `invalid face: ${face}`;}
-			let vert=new Array(dim);
-			for (let i=0;i<dim;i++) {vert[i]=new Vector(vertarr[face[i]]);}
-			newface.push(vert);
-		}
-		// Loop through each cell.
-		let cellarr=[];
-		let cellpos=new Vector(bndmin);
-		let minpos=new Vector(dim),minbary=new Vector(dim);
-		let dif=new Vector(dim);
-		while (true) {
-			// Get the distance to the nearest edge and determine if we're inside.
-			let mindist=Infinity;
-			let parity=0;
-			for (let face of newface) {
-				// dif=b-a, u=(pos-a)*dif/dif^2
-				let a=face[0],b=face[1];
-				let u=0,den=0,dist=0;
-				for (let i=0;i<dim;i++) {
-					let x=a[i],d=b[i]-x;
-					dif[i]=d;
-					den+=d*d;
-					u+=(cellpos[i]-x)*d;
-				}
-				u=u>0?u:0;
-				u=u<den?u/den:1;
-				let eps=1e-10;
-				let cy=cellpos[1]-a[1];
-				if ((cy>=eps && cy<=dif[1]-eps) || (cy<=-eps && cy>=dif[1]+eps)) {
-					let x=a[0]+cy*dif[0]/dif[1];
-					parity^=x<cellpos[0]?1:0;
-				}
-				// dif=dif*u+a, dist=(dif-cellpos)^2
-				for (let i=0;i<dim;i++) {
-					let d=dif[i];
-					dif[i]=d=d*u+a[i];
-					d-=cellpos[i];
-					dist+=d*d;
-				}
-				if (mindist>dist) {
-					mindist=dist;
-					let tmp=minpos;
-					minpos=dif;
-					dif=tmp;
-					minbary[0]=u;
-					minbary[1]=1-u;
-				}
-			}
-			// If we're outside, clamp to the edge. Sort edges based on
-			// barycenter to give vertices and edges better definition.
-			mindist=Math.sqrt(mindist)*(parity && fill?-1:1);
-			if (mindist<spacing) {
-				if (mindist<0) {minpos.set(cellpos);}
-				else {mindist=Math.max(1-minbary.sqr(),0);}
-				cellarr.push({dist:mindist,pos:minpos.copy()});
-			}
-			// Advance to next cell. Skip gaps if we're far from a face.
-			let skip=(fill===2 && mindist<0?-mindist:mindist)-spacing*2-iter;
-			if (skip>0) {cellpos[0]+=(skip/iter|0)*iter;}
-			let i=0;
-			for (;i<dim;i++) {
-				cellpos[i]+=iter;
-				if (cellpos[i]<bndmax[i]) {break;}
-				cellpos[i]=bndmin[i];
-			}
-			if (i>=dim) {break;}
-		}
-		// Prep bonds.
-		if (!(bondtension>0 && bondbreak>0 && bonddist>0)) {bonddist=NaN;}
-		bonddist-=minrad*2;
-		let bondarr=[];
-		// Fill from the center outward.
-		cellarr.sort((l,r)=>l.dist-r.dist);
-		let cells=cellarr.length,atoms=0;
-		let mincheck=-1;
-		let atomarr=[];
-		for (let c=0;c<cells;c++) {
-			let cell=cellarr[c];
-			cellpos=cell.pos;
-			let celldist=cell.dist<0?cell.dist:0;
-			let cellrad=fill===2 && celldist<0?spacing-celldist:minrad;
-			// Find the largest radius we can fill.
-			let atom=null;
-			if (mincheck<0 && celldist>=0) {mincheck=atoms;fill=0;}
-			let i=mincheck>0?mincheck:0,i0=i;
-			for (;i<atoms;i++) {
-				atom=atomarr[i];
-				let rad=0,a=atom.pos;
-				for (let j=0;j<dim;j++) {
-					let d=cellpos[j]-a[j];
-					rad+=d*d;
-				}
-				rad=Math.sqrt(rad);
-				let cutoff=fill===2?subspace+atom.rad:spacing;
-				if (rad<minrad || rad<cutoff) {break;}
-				cellrad=cellrad<rad?cellrad:rad;
-			}
-			if (i>=atoms) {
-				atom=this.createatom(cellpos,cellrad,mat);
-				atom.data._filldist=celldist;
-				// Bond before transforming.
-				if (bonddist>0) {
-					let bondmin=cellrad+bonddist;
-					for (let b of atomarr) {
-						let dist=b.pos.dist(cellpos);
-						if (dist<bondmin+b.rad) {
-							bondarr.push(this.createbond(atom,b,dist,bondtension));
-						}
-					}
-				}
-				atomarr.push(atom);
-				atoms++;
-			}
-			// Move the rejection atom nearer to the front.
-			i0+=(i-i0)>>1;
-			atomarr[i ]=atomarr[i0];
-			atomarr[i0]=atom;
-		}
-		// Transform and rescale everything.
-		transform=new Transform(transform??{dim:dim});
-		let scale=Math.pow(transform.mat.det(),1/dim);
-		for (let atom of atomarr) {
-			atom.pos=transform.apply(atom.pos);
-			atom.rad*=scale;
-			atom.updateconstants();
-		}
-		for (let bond of bondarr) {
-			bond.dist=bond.a.pos.dist(bond.b.pos);
-			bond.breakdist=bondbreak*scale;
-		}
-		return atomarr;
-	}
-
-
-	clearactive() {
-		this.activeregions=[];
-	}
-
-
-	addactive(cen,dev) {
-		// cen[i]+-dev[i]
-		let dim=this.dim;
-		cen=(new Vector(dim)).set(cen);
-		dev=(new Vector(dim)).set(dev);
-		let vol=1;
-		for (let i=0;i<dim;i++) {
-			vol*=dev[i];
-		}
-		vol=vol>0?vol:Infinity;
-		this.activeregions.push({cen:cen,dev:dev,vol:vol});
 	}
 
 
@@ -5602,69 +5825,13 @@ class PhyWorld {
 				intrlink.obj.calcdt(dt);
 				intrlink=intrlink.next;
 			}
-			// Integrate atoms.
-			let atomcnt=this.atomlist.count;
-			let atomarr=this.atomarr;
-			if (atomarr.length<atomcnt) {
-				atomarr=new Array(atomcnt*2);
-				this.atomarr=atomarr;
+			// Integrate bodies.
+			let bodylink=this.bodylist.head;
+			while (bodylink!==null) {
+				bodylink.obj.update();
+				bodylink=bodylink.next;
 			}
-			let atomlink=this.atomlist.head;
-			let activecnt=0;
-			let oldesttime=0;
-			let oldestatom=null;
-			while (atomlink!==null) {
-				let atom=atomlink.obj;
-				let uptime=atom.updatetime+dt;
-				atom.updatetime=uptime;
-				if (oldesttime<uptime) {
-					oldesttime=uptime;
-					oldestatom=atom;
-				}
-				atomarr[activecnt++]=atom;
-				atomlink=atomlink.next;
-			}
-			if (this.activeregions.length>0 && activecnt>0) {
-				activecnt=0;
-				let activesort=[];
-				for (let reg of this.activeregions) {
-					activesort.push(reg);
-					let i=activesort.length;
-					while (i>0 && reg.vol>activesort[i-1].vol) {
-						activesort[i]=activesort[i-1];
-						i--;
-					}
-					activesort[i]=reg;
-				}
-				let dim=this.dim;
-				for (let i=0;i<activesort.length+1;i++) {
-					let reg=activesort[i?i-1:0];
-					let cen=reg.cen,dev=reg.dev;
-					if (!i) {cen=oldestatom.pos;}
-					for (let j=activecnt;j<atomcnt;j++) {
-						let atom=atomarr[j];
-						let pos=atom.pos,rad=atom.rad;
-						let d=0;
-						for (;d<dim;d++) {
-							let x=pos[d]-cen[d];
-							x=(x<0?-x:x)-rad;
-							if (x>=dev[d]) {break;}
-						}
-						if (d===dim) {
-							atomarr[j]=atomarr[activecnt];
-							atomarr[activecnt++]=atom;
-						}
-					}
-				}
-			}
-			this.activecnt=activecnt;
-			for (let i=0;i<activecnt;i++) {
-				atomarr[i].update();
-			}
-			for (let i=activecnt;i<atomcnt;i++) {
-				atomarr[i].sleeping=true;
-			}
-			// Integrate bonds after atoms or vel will be counted twice.
+			// Integrate bonds after bodies or vel will be counted twice.
 			// Randomize the evaluation order to reduce oscillations.
 			let bondcnt=this.bondlist.count;
 			let bondarr=this.bondarr;
@@ -5682,21 +5849,353 @@ class PhyWorld {
 			for (let i=0;i<bondcnt;i++) {
 				bondarr[i].update();
 			}
-			// Collide atoms.
+			// Collide bodies.
 			this.broad.build();
 			this.broad.collide();
 		}
+	}
+
+
+	// ----------------------------------------
+	// Collisions
+
+
+	epainit() {
+		let dim=this.dim,dim1=(dim+1)*dim;
+		this.colepaarr=[];
+		this.coltmpvertarr=[new Float64Array(0),new Float64Array(0)];
+		this.coldif=new Float64Array(dim1);
+		this.colmat=new Float64Array(dim1);
+		this.colvertarr=new Float64Array(dim1);
+		this.colvertid=new Int32Array(dim+1);
+		this.colprevid=new Int32Array(dim+1);
+		this.colweight=new Float64Array(dim);
+		this.colepacmp=function epacmp(a,b) {
+			// If distances are the same, sort by vertices to detect duplicates.
+			let ad=a.dist,bd=b.dist;
+			// if (d<-1e-10 || d>1e-10) {return d<0?-1:1;}
+			if (ad!==bd) {return ad<bd?-1:1;}
+			let as=a.vertid,bs=b.vertid;
+			for (let i=0;i<dim;i++) {
+				let av=as[i],bv=bs[i];
+				if (av!==bv) {return av<bv?-1:1;}
+			}
+			return 0;
+		};
+		this.epaalloc(dim+1);
+	}
+
+
+	epaalloc(len) {
+		let epaarr=this.colepaarr;
+		if (len>epaarr.length) {
+			let dim=this.dim;
+			while (len&(len+1)) {len|=len>>>1;}
+			while (epaarr.length<=len) {
+				epaarr.push({
+					vertid:new Int32Array(dim),
+					weight:new Float64Array(dim),
+					norm:new Float64Array(dim),
+					dist:0
+				});
+			}
+			this.colepaarr=epaarr;
+		}
+		return epaarr;
+	}
+
+
+	closestpoint(_avertarr,atrans,_bvertarr,btrans) {
+		// GJK
+		// Determines if bodies are colliding.
+		// Doesn't use constant memory.
+		// Finds minimum separating vector.
+		// Inline everything for performance.
+		// EPA
+		//      vert IDs [D]
+		//      weights  [D]
+		//      normal   [D]
+		//      dist
+		let dim=this.dim;
+		let averts=_avertarr.length,bverts=_bvertarr.length;
+		if (!dim) {return [(averts>0 && bverts>0),new Vector(0),new Vector(0)];}
+		// Pick an initial direction. Any will work, but B.pos-A.pos works best.
+		let dif=this.coldif;
+		let normsum=0;
+		for (let i=0;i<dim;i++) {
+			let x=btrans.vec[i]-atrans.vec[i];
+			dif[i]=x;
+			normsum+=x*x;
+		}
+		// Pretransform the vertices. Flatten arrays to [x0,y0,z0,x1,y1,z1,...].
+		for (let side=0;side<2;side++) {
+			let srcarr=side?_bvertarr:_avertarr;
+			let dstarr=this.coltmpvertarr[side];
+			let verts=srcarr.length,vertlen=verts*dim;
+			if (dstarr.length<vertlen) {
+				dstarr=new Float64Array(vertlen*2);
+				this.coltmpvertarr[side]=dstarr;
+			}
+			let mat=(side?btrans:atrans).mat;
+			// mat*v+vec
+			for (let s=0,d=0;s<verts;s++) {
+				let v=srcarr[s];
+				for (let i=0,m=0;i<dim;i++) {
+					let x=side?dif[i]:0;
+					for (let j=0;j<dim;j++) {x+=mat[m++]*v[j];}
+					dstarr[d++]=x;
+				}
+			}
+		}
+		let avertlen=averts*dim,bvertlen=bverts*dim;
+		let avertarr=this.coltmpvertarr[0],bvertarr=this.coltmpvertarr[1];
+		if (normsum<1e-10) {dif[0]=1;}
+		let mat=this.colmat;
+		let vertarr=this.colvertarr;
+		let vertid=this.colvertid;
+		let previd=this.colprevid;
+		let weight=this.colweight;
+		previd.fill(-1);
+		// Setup EPA memory.
+		let epaarr=this.colepaarr;
+		let epaalloc=epaarr.length;
+		let epacmp=this.colepacmp;
+		let epalen=-1,epachild=0;
+		let epaprev=null;
+		// Stop searching for a separating vector at (a.verts+b.verts+1)^2.
+		let verts=1,reject=-1;
+		let test=0,tests=(averts+bverts+1)*(averts+bverts+1);
+		for (test=0;test<tests || epalen>=0;test++) {
+			let norm=dif;
+			let mask=1<<verts;
+			let dist=0;
+			if (epalen>=0) {
+				// If we've added child EPA faces, sort them.
+				if (epachild) {
+					for (let child=0;child<verts;child++) {
+						let i=epalen++;
+						let epa=epaarr[i];
+						while (i>0) {
+							let j=(i-1)>>>1;
+							let p=epaarr[j];
+							if (epacmp(p,epa)<0) {break;}
+							epaarr[i]=p;
+							i=j;
+						}
+						epaarr[i]=epa;
+					}
+					epachild=0;
+				}
+				// Find the next closest simplex.
+				let epa=epaarr[0];
+				let last=epaarr[--epalen];
+				let idx=0;
+				while (true) {
+					let i0=idx*2+1,i1=i0+1;
+					if (i0>=epalen) {break;}
+					if (i1>=epalen) {i1=i0;}
+					let e0=epaarr[i0],e1=epaarr[i1];
+					if (epacmp(e0,e1)>0) {i0=i1;e0=e1;}
+					if (epacmp(e0,last)>=0) {break;}
+					epaarr[idx]=e0;
+					idx=i0;
+				}
+				epaarr[idx]=last;
+				epaarr[epalen]=epa;
+				// Prevent backtracking and duplicates.
+				if (epaprev!==null && epacmp(epaprev,epa)>=0) {continue;}
+				if (epalen+verts+1>epaalloc) {
+					epaarr=this.epaalloc(epalen+verts+1);
+					epaalloc=epaarr.length;
+				}
+				// Move the current EPA to the end so it isn't overwritten.
+				epaprev=epa;
+				epaarr[epalen]=epaarr[epaalloc-1];
+				epaarr[epaalloc-1]=epaprev;
+				for (let i=0;i<dim;i++) {vertid[i]=epa.vertid[i];}
+				norm=epa.norm;
+				dist=epa.dist;
+				mask--;
+			}
+			// Find new supports. Direction is stored in dif[0...dim].
+			if (reject<0) {
+				let max=-Infinity,min=Infinity;
+				let a=0,b=0;
+				// Find max(A.verts*norm);
+				for (let i=0;i<avertlen;i+=dim) {
+					let p=0;
+					for (let j=0;j<dim;j++) {p+=avertarr[i+j]*norm[j];}
+					if (max<p) {max=p;a=i;}
+				}
+				// Find min(B.verts*bnorm)
+				for (let i=0;i<bvertlen;i+=dim) {
+					let p=0;
+					for (let j=0;j<dim;j++) {p+=bvertarr[i+j]*norm[j];}
+					if (min>p) {min=p;b=i;}
+				}
+				// If we have a separating vector or can't expand the EPA.
+				if (max-min-dist<1e-10) {break;}
+				let id=a*bvertlen+b,i=verts-1;
+				while (i>0 && vertid[i-1]>id) {
+					vertid[i]=vertid[i-1];
+					i--;
+				}
+				vertid[i]=id;
+			}
+			// Calculate the current set of minkowski vertices A.vert(i)-B.vert(j).
+			for (let i=0;i<verts;i++) {
+				let id=vertid[i];
+				if (previd[i]!==id) {
+					previd[i]=id;
+					let a=~~(id/bvertlen),b=id%bvertlen,d=i*dim;
+					for (let j=0;j<dim;j++) {vertarr[d+j]=avertarr[a+j]-bvertarr[b+j];}
+				}
+			}
+			// Find the closest point in a set of vertices to another point.
+			// Use linear algebra to compute the barycenter coordinates of the set.
+			while (--mask>0) {
+				// di = vi - v0
+				// dP =  P - v0, put in row 0
+				let vidx=dim,cols=0,v0=0;
+				for (let i=0;i<verts;i++) {
+					if (!(mask&(1<<i))) {continue;}
+					let r=i*dim;
+					if (!cols++) {v0=r;continue;}
+					for (let j=0;j<dim;j++) {dif[vidx++]=vertarr[r+j]-vertarr[v0+j];}
+				}
+				for (let j=0;j<dim;j++) {dif[j]=-vertarr[v0+j];}
+				// Create matrix. Note the solution column is on the left for efficiency.
+				// [ d1*dP | d1*d1 d1*d2 d1*d3 ... ]
+				// [ d2*dP | d2*d1 d2*d2 d2*d3 ... ]
+				let rows=cols-1,elems=rows*cols;
+				for (let i=1;i<cols;i++) {
+					let rvec=i*dim;vidx=0;
+					for (let j=0;j<=i;j++) {
+						let dot=0;
+						for (let k=0;k<dim;k++) {
+							dot-=dif[rvec+k]*dif[vidx++];
+						}
+						mat[(i-1)*cols+j]=dot;
+						if (j) {mat[(j-1)*cols+i]=dot;}
+					}
+				}
+				// Row reduce the matrix.
+				// [ u3 | 0 0 1 ]
+				// [ u2 | 0 1 0 ]
+				// [ u1 | 1 0 0 ]
+				for (let i=0;i<rows;i++) {
+					// Find the largest element in column i.
+					let row=i*cols,off=rows-i,last=row+off;
+					let src=0,dst=last;
+					let max=0;
+					for (let r=last;r<elems;r+=cols) {
+						let x=mat[r],a=x>0?x:-x;
+						if (max<a) {max=a;src=r;}
+					}
+					// Normalize and move picked row.
+					max=max>1e-10?1/mat[src]:0;
+					while (dst>=row) {
+						let a=mat[dst],b=mat[src];
+						mat[src--]=a;
+						mat[dst--]=b*max;
+					}
+					// Reduce other rows.
+					for (let r=off;r<elems;r+=cols) {
+						if (r===last) {continue;}
+						dst=r;src=last;
+						let mul=mat[dst];
+						while (src>row) {
+							mat[--dst]-=mul*mat[--src];
+						}
+					}
+				}
+				// The first column of mat holds the barycenter coordinates.
+				// Find a new direction. Store in dif[0...dim].
+				reject=-1;
+				vidx=dim;
+				let u0=1,min=0;
+				for (let i=1;i<=rows;i++) {
+					let u=mat[elems-i*cols];
+					for (let j=0;j<dim;j++) {
+						dif[j]-=u*dif[vidx++];
+					}
+					if (min>u) {min=u;reject=i;}
+					weight[i]=u;
+					u0-=u;
+				}
+				if (min>u0) {min=u0;reject=0;}
+				weight[0]=u0;
+				if (epalen>=0) {
+					// Check all combinations for the closest point.
+					if (reject>=0) {continue;}
+					dist=0;
+					for (let i=0;i<dim;i++) {
+						let x=dif[i];
+						dist+=x*x;
+					}
+					for (let child=0;child<verts;child++) {
+						// Record the new EPA face. NaN distances can occur.
+						let bit=1<<child;
+						let epa=epaarr[epalen+child];
+						let edist=(epachild&bit)?epa.dist:Infinity;
+						if (edist>dist && !(mask&bit)) {
+							epa.dist=dist;
+							epachild|=bit;
+							let wpos=0;
+							let enorm=epa.norm,eweight=epa.weight,evertid=epa.vertid;
+							for (let i=0;i<dim;i++) {
+								let j=i+(i>=child);
+								enorm[i]=-dif[i];
+								eweight[i]=((mask>>>j)&1)?weight[wpos++]:0;
+								evertid[i]=vertid[j];
+							}
+						}
+					}
+				} else if (verts<=dim) {
+					verts++;
+					reject=-1;
+					break;
+				} else if (reject>=0) {
+					verts--;
+					for (let i=reject;i<verts;i++) {vertid[i]=vertid[i+1];}
+					break;
+				} else {
+					// The polygons are colliding so build the EPA.
+					epalen=0;
+				}
+			}
+		}
+		if (epaprev!==null) {
+			// Calculate contact points based on weights.
+			let apos=atrans.vec;
+			let ap=new Vector(apos),bp=new Vector(apos);
+			for (let i=0;i<dim;i++) {
+				let w =epaprev.weight[i];
+				let id=epaprev.vertid[i];
+				let av=~~(id/bvertlen);
+				let bv=id%bvertlen;
+				for (let j=0;j<dim;j++) {
+					ap[j]+=w*avertarr[av+j];
+					bp[j]+=w*bvertarr[bv+j];
+				}
+			}
+			// Recalculate norm and magnitude based on contacts.
+			// let norm=bp.sub(ap);
+			// let mag=norm.mag();
+			// norm.imul(1/mag);
+			return [true,ap,bp];
+		}
+		// If we're rejecting.
+		return [false,null,null];
 	}
 
 }
 
 
 const Phy={
-	Intr:PhyAtomInteraction,
-	AtomType:PhyAtomType,
-	Atom:PhyAtom,
-	Bond:PhyBond,
-	Broadphase:PhyBroadphase,
+	Intr:PhyInteraction,
+	BodyType:PhyBodyType,
+	Body:PhyBody,
 	World:PhyWorld
 };
 export {Phy};

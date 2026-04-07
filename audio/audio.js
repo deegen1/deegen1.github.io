@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-audio.js - v3.09
+audio.js - v3.11
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -11,12 +11,7 @@ Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 Notes
 
 
-NSynth (magenta) library
-https://csounds.com/manual/html/MiscModalFreq.html
-http://aspress.co.uk/sd/index.html
-https://petersalomonsen.com/articles/assemblyscriptphysicalmodelingsynthesis/
-assemblyscriptphysicalmodelingsynthesis.html
-Supercollider patch files (.scd)
+Having a good beat is better than having good instruments.
 
 
 --------------------------------------------------------------------------------
@@ -64,6 +59,13 @@ History
      Fixed a bug in the linked list of queued sounds.
 3.08
      Switched to using modules.
+3.10
+     Removed music sequencer since it wasn't being used.
+     Moved instruments to sound effect library.
+3.11
+     Simplified tosound().
+     Removed trimming functions.
+     Added sound looping.
 
 
 --------------------------------------------------------------------------------
@@ -72,26 +74,7 @@ TODO
 
 Keep under 50kb, minus header.
 
-Waveguides
-	https://www.osar.fr/notes/waveguides/
-	https://petersalomonsen.com/articles/assemblyscriptphysicalmodelingsynth
-	esis/assemblyscriptphysicalmodelingsynthesis.html
-	fs/f-phase
-
 Better explanation of compiled form in article.
-
-UI
-	Add a piano roll editor.
-	Graphical node editor.
-	Line showing current position on waveform when playing.
-	Click anywhere to jump to time.
-	Start/resume/reset.
-	Syntax highlighting.
-
-Sequencerv2
-	[time (s)] [inst] [freq] [vol] [len]
-	' comment
-	Get rid of case sensitivity.
 
 Sound effects
 	Optimize %mod lines in sfx.fill().
@@ -100,26 +83,16 @@ Sound effects
 	Configure delay filter to cache at a static frequency. If rate is too
 	small accumulate till we have enough. If too large, split up and fill
 	multiple values. fill=delay_freq/play_freq
-	Convert oscillator table to AVL tree. Allow vars for points.
-	If node=last, return node.y. Otherwise lerp node and next(node).
-	Store {parent,weight},{prev,next},{left,right},{x},{y} = 20 bytes
 	Go through sound design book. Thunder, crickets, etc.
 	Dial up sound scratching. Use for electric guitar type sound.
-
-Allow inst to play effects
-	https://developer.mozilla.org/en-US/docs/Web/API/
-	Web_Audio_API/Using_AudioWorklet
 
 
 */
 /* npx eslint audio.js -c ../../standards/eslint.js */
 
 
-import {Random} from "./library.js";
-
-
 //---------------------------------------------------------------------------------
-// Audio - v3.09
+// Audio - v3.11
 
 
 class AudioSound {
@@ -128,6 +101,9 @@ class AudioSound {
 		// accepts len/path and frequency
 		this.audio=Audio.initdef();
 		this.freq=freq;
+		this.loopstart=Infinity;
+		this.loopend=0;
+		this.looptime=Infinity;
 		this.queue=null;
 		let type=typeof len;
 		if (type==="number") {
@@ -146,7 +122,7 @@ class AudioSound {
 		if (len<2) {return len?data[0]:0;}
 		if (i<0) {i=(i%len)+len;}
 		else if (i>=len) {i%=len;}
-		let j0=Math.floor(i);
+		let j0=~~i;
 		i-=j0;
 		let j1=j0+1<len?j0+1:0;
 		return data[j0]*(1-i)+data[j1]*i;
@@ -178,28 +154,6 @@ class AudioSound {
 	copy() {return this.slicelen();}
 
 
-	trim(eps=1e-4) {
-		return this.trimend(eps).trimstart(eps);
-	}
-
-
-	trimstart(eps=1e-4) {
-		let data=this.data;
-		let len=this.len,pos=0;
-		while (pos<len && Math.abs(data[pos])<=eps) {pos++;}
-		for (let i=pos;i<len;i++) {data[i-pos]=data[i];}
-		return this.resizelen(len-pos);
-	}
-
-
-	trimend(eps=1e-4) {
-		let data=this.data;
-		let len=this.len;
-		while (len>0 && Math.abs(data[len-1])<=eps) {len--;}
-		return this.resizelen(len);
-	}
-
-
 	resizelen(len) {
 		// Over-allocate in case we keep modifying the sound.
 		len=isNaN(len) || len<0?0:(len|0);
@@ -224,6 +178,7 @@ class AudioSound {
 		for (let i=len;i<clearlen;i++) {data[i]=0;}
 		this.len=len;
 		this.time=len/this.freq;
+		this.looptime=this.loopstart<this.time?Infinity:this.time;
 		return this;
 	}
 
@@ -437,6 +392,27 @@ class AudioSound {
 	}
 
 
+	setloop(start=0,end) {
+		this.loopstart=start;
+		this.loopend=end??this.time;
+		this.looptime=start<this.time?Infinity:this.time;
+	}
+
+
+	/*calctime(time) {
+		// Returns the corrected time if the sound is looped.
+		let start=this.loopstart;
+		if (time>start) {
+			let end=this.loopend;
+			time=(time-start)%(end-start);
+			time+=time<0?end:start;
+			time=time>start?time:start;
+			time=time<end?time:end;
+		}
+		return time;
+	}*/
+
+
 	getvol() {
 		let data=this.data,len=data.length;
 		let v=0;
@@ -502,40 +478,31 @@ class AudioSFX {
 
 	tosound(time=10,silence=0.1,freq=44100) {
 		// Plays the effect until a max time or span of silence.
-		if (isNaN(time) || time<0) {time=Infinity;}
-		if (isNaN(silence) || silence<0) {silence=Infinity;}
-		let snd=null;
-		let maxlen=Math.floor(freq*time);
-		if (silence>=Infinity) {
-			// Fill the whole time.
-			if (time>=Infinity) {throw "infinite sound";}
-			snd=new AudioSound(freq,maxlen);
-			this.fill(snd);
-		} else {
-			// Fill until max time or silence.
-			const thres=1e-5;
-			let sillen=Math.floor(freq*silence);
-			let genlen=Math.floor(freq*0.2)+1;
-			snd=new AudioSound(freq,0);
-			let len=snd.len,silpos=0;
+		time*=freq;
+		silence*=freq;
+		if (!(time>=0)) {throw `invalid time: ${time}`;}
+		if (!(silence>=0)) {silence=time;}
+		if (time>=Infinity && silence>=Infinity) {throw `infinite sfx`;}
+		let snd=new AudioSound(freq,0);
+		let genlen=Math.floor(0.1*freq)+1;
+		let maxlen=time<0x3fffffff?Math.round(time):0x3fffffff;
+		let sillen=silence<maxlen?Math.round(silence):maxlen;
+		// Fill until max time or silence.
+		const thres=1e-5;
+		let sndlen=0,silpos=0;
+		while (sndlen<maxlen && sndlen<silpos+sillen) {
+			let pos=sndlen;
+			sndlen+=genlen;
+			if (sndlen>maxlen) {sndlen=maxlen;}
+			snd.resizelen(sndlen);
+			this.fill(snd,pos,sndlen-pos);
 			let data=snd.data;
-			for (let dst=0;dst<maxlen && dst-silpos<sillen;) {
-				let newlen=dst+genlen;
-				if (newlen>len) {
-					if (newlen>maxlen) {newlen=maxlen;}
-					len=newlen;
-					snd.resizelen(len);
-					data=snd.data;
-				}
-				this.fill(snd,dst,newlen-dst);
-				while (dst<newlen) {
-					if (Math.abs(data[dst++])>thres) {silpos=dst;}
-				}
+			while (pos<sndlen) {
+				let x=data[pos++];
+				if (x<-thres || x>thres) {silpos=pos;}
 			}
-			while (len>silpos) {data[--len]=0;}
-			snd.len=len;
-			snd.time=len/freq;
 		}
+		snd.resizelen(silpos);
 		this.reset();
 		return snd;
 	}
@@ -597,6 +564,12 @@ class AudioSFX {
 		let dpos=0;
 		let di32=new Int32Array(0);
 		let df32=new Float32Array(di32.buffer);
+		let hash=1;
+		function addhash(val) {
+			hash+=val;
+			hash=Math.imul(hash^(hash>>>17),0x7eccc553)>>>0;
+			return hash;
+		}
 		function error(msg,s0,s1) {
 			let line=1,start=0;
 			for (let i=0;i<s0;i++) {if (seqstr.charCodeAt(i)===10) {start=i+1;line++;}}
@@ -609,6 +582,8 @@ class AudioSFX {
 			let i=str.length;while (--i>=0 && str.charCodeAt(i)!==c) {}
 			return i;
 		}
+		// Hash the string to vary our noise.
+		for (let i=0;i<seqlen;i++) {addhash(seqstr.charCodeAt(i));}
 		while (s<seqlen || node) {
 			// Read through whitespace and comments.
 			let c=0;
@@ -761,8 +736,7 @@ class AudioSFX {
 					}
 				} else if (type===NOI) {
 					// noise
-					let rand=dpos+params;
-					def=[1,-1,Math.imul(rand,0x7eccc553),Math.imul(rand,0x49e15d71)|1];
+					def=[1,-1,addhash(3),addhash(5)|1];
 					negp=1;
 				} else if (type===DEL) {
 					// delay
@@ -1017,6 +991,10 @@ class AudioSFX {
 		const EXPR=0,ENV=1,TBL=2,TRI=3,PLS=4,SAW=5,SIN=6,SQR=7,NOI=8,DEL=9;
 		const OSC0=2,OSC1=7,FIL0=10,FIL1=17;
 		const VBITS=24,VMASK=(1<<VBITS)-1;
+		function fmod(x,mod) {
+			x=(x<0 || x>=mod)?x%mod:x;
+			return x<0?x+mod:x;
+		}
 		for (let sndpos=fstart;sndpos<sndlen;sndpos++) {
 			let di32=this.di32,df32=this.df32;
 			let stack=this.stack;
@@ -1085,13 +1063,12 @@ class AudioSFX {
 					let lo   =df32[n+4];
 					let acc  =df32[n+5];
 					let mod  =type!==TBL?1:df32[next-2];
-					let u=(acc+phase)%mod;
-					if (u<0) {u+=mod;}
-					df32[n+5]=(acc+freq*sndrate)%mod;
+					let u=fmod(acc+phase,mod);
+					df32[n+5]=fmod(acc+freq*sndrate,mod);
 					if      (type===TRI) {out=(u<0.5?u:1-u)*2;}
 					else if (type===PLS) {out=u<df32[n+6]?0:1;}
 					else if (type===SAW) {out=u;}
-					else if (type===SIN) {out=Math.sin(u*(Math.PI*2))*0.5+0.5;}
+					else if (type===SIN) {out=Math.sin(u*6.283185307)*0.5+0.5;}
 					else if (type===SQR) {out=u<0.5?0:1;}
 					else if (type===TBL) {
 						// Binary search to find what points we're between.
@@ -1109,9 +1086,11 @@ class AudioSFX {
 					let inc=di32[n+4];
 					let val=di32[n+3]+inc;
 					di32[n+3]=val;
-					val=Math.imul(val^(val>>>16),0xf8b7629f);
-					val=Math.imul(val^(val>>> 8),0xcbc5c2b5);
-					val=Math.imul(val^(val>>>24),0xf5a5bda5);
+					val+=val<<16;val^=val>>>12;
+					val+=val<< 2;val^=val>>>11;
+					val+=val<< 3;val^=val>>>10;
+					val+=val<< 5;val^=val>>> 8;
+					val+=val<<14;val^=val>>>11;
 					out=((val>>>0)/4294967295)*(hi-lo)+lo;
 				} else if (type===DEL) {
 					// Delay.
@@ -1165,20 +1144,31 @@ class AudioSFX {
 
 
 	static deflib={
-		"uiinc":"#vol: .05 #freq: 1500 #time: 0.1 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 S #time .01 - .5 * R #time .01 - .5 * I #bpf #vol *",
-		"uidec":"#vol: .05 #freq: 1000 #time: 0.1 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 S #time .01 - .5 * R #time .01 - .5 * I #bpf #vol *",
-		"uiconf":"#vol: .05 #freq: 4000 #time: 1.0 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 R #time .01 - I #bpf #vol *",
-		"uierr":"#vol: .1 #freq: 400 #time: 0.5 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 R #time .01 - I #bpf #vol *",
-		"uiclick":"#vol: .1 #freq: 180 #time: 0.1 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 R #time .01 - I #bpf #vol *",
 		"explosion1":"#vol: 5 #freq: 300 #time: 2 #u: #freq #freq 1000 + / #noi: NOISE #lpf: LPF F #freq B 1 G 1 #u - I #noi #bpf: BPF F #freq B 2 G #u I #noi #del: DEL T 0.15 #u * 0.75 + M 0.9 I 0.5 #u * 0.9 - #sig * #sig: #del #lpf #bpf #out: ENV A 0.01 R #time 0.01 - I #sig #vol *",
 		"explosion2":"#vol: 9 #freq: 100 #time: 2 #u: #freq #freq 1000 + / #noi: NOISE #lpf: LPF F #freq B 1 G 1 #u - I #noi #bpf: BPF F #freq B 2 G #u I #noi #del: DEL T 0.15 #u * 0.75 + M 0.9 I 0.5 #u * 0.9 - #sig * #sig: #del #lpf #bpf #out: ENV A 0.01 R #time 0.01 - I #sig #vol *",
 		"gunshot1":"#vol: 5 #freq: 500 #time: .25 #u: #freq #freq 1000 + / #noi: NOISE #lpf: LPF F #freq B 1 G 1 #u - I #noi #bpf: BPF F #freq B 2 G #u I #noi #del: DEL T 0.15 #u * 0.75 + M 0.9 I 0.5 #u * 0.9 - #sig * #sig: #del #lpf #bpf #out: ENV A 0.01 R #time 0.01 - I #sig #vol *",
 		"gunshot2":"#vol: 1 #freq: 1000 #time: .25 #u: #freq #freq 1000 + / #noi: NOISE #lpf: LPF F #freq B 1 G 1 #u - I #noi #bpf: BPF F #freq B 2 G #u I #noi #del: DEL T 0.15 #u * 0.75 + M 0.9 I 0.5 #u * 0.9 - #sig * #sig: #del #lpf #bpf #out: ENV A 0.01 R #time 0.01 - I #sig #vol *",
 		"missile1":"#noi1: NOISE H 1000 #noi2: #noi1 1 < -1 > #freq: TRI F 20 H 1000 L 100 #sigl: LPF F #freq I #noi2 B 1 #sigb: BPF F #freq I #noi2 B 2 #out: ENV A .015 R .985 I #sigl #sigb",
-		"electricity":"#freq: 159 #saw0: SAW F #freq #saw1: SAW F #freq 1.002 * #sig: LPF F 3000 I #saw0 #saw1 + 0.5 < -0.5 > #out : ENV S 2 I #sig",
+		"electricity":"#freq: 159 #saw0: SAW F #freq #saw1: SAW F #freq 1.002 * #sig: LPF F 3000 I #saw0 #saw1 + 0.5 < -0.5 > #out: ENV S 2 I #sig",
 		"laser":"#vol: 1 #freq: 10000 #time: .25 #t: SAW F 1 #time / L 0 H #time #del1: DEL T #t .01 * M .5 I #sig -.35 * #del2: DEL T #t .10 * M .5 I #sig -.28 * #del3: DEL T #t .20 * M .5 I #sig -.21 * #del4: DEL T #t .60 * M .5 I #sig -.13 * #osc: SIN F #freq H 0.7 #sig: #osc #del1 #del2 #del3 #del4 #out: ENV A 0.01 R #time .01 - I #sig #vol *",
 		"thud":"#vol: 10 #freq: 80 #time: .2 #noi: NOISE #bpf1: BPF F #freq B 2 I #noi #bpf2: BPF F #freq B 2 I #bpf1 #sig: #bpf2 #del #del: DEL T 0.003 I #bpf2 0.9 * #out: ENV R #time I #sig #vol *",
-		"marble":"#vol: .05 #freq: 7000 #time: .02 #noi: NOISE #bpf1: BPF F #freq B 2 I #noi #bpf2: BPF F #freq B 2 I #bpf1 #sig: #bpf2 #del #del: DEL T 0.003 I #bpf2 0.9 * #out: ENV R #time I #sig #vol *"
+		"marble":"#vol: .05 #freq: 7000 #time: .02 #noi: NOISE #bpf1: BPF F #freq B 2 I #noi #bpf2: BPF F #freq B 2 I #bpf1 #sig: #bpf2 #del #del: DEL T 0.003 I #bpf2 0.9 * #out: ENV R #time I #sig #vol *",
+		// UI
+		"uiinc":"#vol: .05 #freq: 1500 #time: 0.1 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 S #time .01 - .5 * R #time .01 - .5 * I #bpf #vol *",
+		"uidec":"#vol: .05 #freq: 1000 #time: 0.1 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 S #time .01 - .5 * R #time .01 - .5 * I #bpf #vol *",
+		"uiconf":"#vol: .05 #freq: 4000 #time: 1.0 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 R #time .01 - I #bpf #vol *",
+		"uierr":"#vol: .1 #freq: 400 #time: 0.5 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 R #time .01 - I #bpf #vol *",
+		"uiclick":"#vol: .1 #freq: 180 #time: 0.1 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 R #time .01 - I #bpf #vol *",
+		// String
+		"string":"#vol: 1 #freq: 82 #time: 3 #slide: 0.5 #rate: 1 #freq / #dec: 0.01 #rate #time / ^ #sig1: NOISE 3 #sig: ENV A 0 S #rate R 0 I #sig1 #val: #sig #del + #val - #slide * #val + #del: DEL M 0.1 T #rate I #val #dec * #out: ENV A 0.01 S #time 0.11 - R 0.1 I #val -1 > 1 < #vol *",
+		"bell":"#vol: 1 #freq: 120 #time: 3 #sin1: SIN F #freq 1.00 * H 0.500 #env1: ENV R #time 1 / I #sin1 #sin2: SIN F #freq 2.25 * H 0.250 #env2: ENV R #time 2 / I #sin2 #sin3: SIN F #freq 3.93 * H 0.125 #env3: ENV R #time 3 / I #sin3 #sin4: SIN F #freq 8.89 * H 0.125 #env4: ENV R #time 4 / I #sin4 #out: #env1 #env2 + #env3 + #env4 + #vol *",
+		// Percussion
+		"hihat":"#vol: 0.2 #freq: 7000 #time: 0.1 #sig: NOISE H 0.7 #vol * #hpf: HPF F #freq I #sig #bpf: BPF F #freq 1.4 * I #sig #out: ENV A 0.005 R #time 0.005 - I #hpf #bpf",
+		"kick" :"#vol: 0.3 #freq: 80 #time: 0.2 #f: SAW F 1 #time / L #freq H #freq .25 * #sig1: NOISE H 8 #sig2: TRI F #f H 1.8 #lpf: LPF F #f B 1.75 I #sig1 #sig2 #out: ENV A 0.005 R #time 0.005 - I #lpf #vol *",
+		"snare":"#vol: 0.1 #freq: 200 #time: 0.2 #f: SAW F 1 #time / L #freq H #freq .5 * #sig1: NOISE H 1 #sig2: TRI F #f .5 * H 1 #hpf: HPF F #f I #sig1 #sig2 #lpf: LPF F 10000 I #hpf #out: ENV A 0.005 R #time 0.005 - I #lpf #vol *",
+		// Wind
+		"flute":"#vol: 1 #freq: 200 #time: 2.0 #noi: NOISE #nenv: ENV S #time .5 * I #noi #lpf: LPF F #freq B 2 I #nenv #sig: #del -.95 * #lpf #del: DEL T .5 #freq / M .2 I #sig #out: #sig",
+		"tuba" :"#vol: 1 #freq: 300 #time: 2.0 #noi: NOISE #nenv: ENV R #time I #noi #lpf: LPF F #freq I #nenv #sig: #del .95 * #lpf #del: DEL T .02 M .2 I #sig #out: #sig"
 	};
 
 
@@ -1195,8 +1185,7 @@ class AudioSFX {
 
 	static defsnd(name,vol,freq,time) {
 		let sfx=AudioSFX.defload(name,vol,freq,time);
-		let silence=Infinity;
-		if (isNaN(time) || time<0) {time=NaN;silence=0.1;}
+		let silence=time??Infinity;
 		return sfx.tosound(time,silence);
 	}
 
@@ -1215,7 +1204,7 @@ class AudioInstance {
 	// src -> gain -> pan -> output
 
 
-	constructor(snd,vol=1.0,pan=0.0,time=0,freq) {
+	constructor(snd,vol=1,pan=0,time=0) {
 		let audio=snd.audio;
 		// Audio player link
 		this.audio  =audio;
@@ -1235,7 +1224,6 @@ class AudioInstance {
 		this.time   =time;
 		this.volume =vol;
 		this.pan    =pan;
-		this.rate   =(freq??audio.freq)/audio.freq;
 		this.playing=false;
 		this.done   =false;
 		this.muted  =audio.muted;
@@ -1303,7 +1291,9 @@ class AudioInstance {
 		// Audio nodes can't restart, so recreate the node.
 		if (this.done || this.playing) {return;}
 		this.muted=this.audio.muted;
-		let rem=this.snd.time-this.time;
+		let snd=this.snd;
+		let time=this.time;
+		let rem=snd.looptime-time;
 		if (rem<=0) {
 			this.remove();
 			return;
@@ -1315,17 +1305,35 @@ class AudioInstance {
 			this.ctxpan.connect(ctx.destination);
 			this.ctxgain=ctx.createGain();
 			this.ctxgain.connect(this.ctxpan);
-			this.setpan();
 			this.setvolume();
+			this.setpan();
 			let src=ctx.createBufferSource();
 			let st=this;
 			src.onended=function(){st.remove();};
-			src.buffer=this.snd.ctxbuf;
+			src.buffer=snd.ctxbuf;
 			src.connect(this.ctxgain);
-			src.start(0,this.time,rem);
+			if (rem<Infinity) {
+				src.start(0,time,rem);
+			} else {
+				// loop the sound
+				src.loopStart=snd.loopstart;
+				src.loopEnd=snd.loopend;
+				src.loop=true;
+				src.start(0,time);
+			}
 			this.ctxsrc=src;
 		}
 		this.time-=performance.now()*0.001;
+	}
+
+
+	setvolume(vol) {
+		vol=isNaN(vol)?this.volume:vol;
+		this.volume=vol;
+		if (this.ctxgain) {
+			vol*=this.audio.volume;
+			this.ctxgain.gain.value=vol;
+		}
 	}
 
 
@@ -1339,16 +1347,6 @@ class AudioInstance {
 		this.pan=pan;
 		if (this.ctxpan) {
 			this.ctxpan.pan.value=pan;
-		}
-	}
-
-
-	setvolume(vol) {
-		vol=isNaN(vol)?this.volume:vol;
-		this.volume=vol;
-		if (this.ctxgain) {
-			vol*=this.audio.volume;
-			this.ctxgain.gain.value=vol;
 		}
 	}
 
@@ -1408,8 +1406,8 @@ export class Audio {
 	}
 
 
-	play(snd,volume,pan,time,freq) {
-		return new AudioInstance(snd,volume,pan,time,freq);
+	play(snd,volume,pan,time) {
+		return new AudioInstance(snd,volume,pan,time);
 	}
 
 
@@ -1443,7 +1441,7 @@ export class Audio {
 					inst.playing=true;
 				}
 				time+=performance.now()*0.001;
-				if (time>inst.snd.time || !muted) {
+				if (time>inst.snd.looptime || !muted) {
 					inst.playing=false;
 					inst.time=time;
 					inst.start();
@@ -1452,339 +1450,6 @@ export class Audio {
 			inst=next;
 		}
 		return true;
-	}
-
-
-	// ----------------------------------------
-	// Sequencer
-
-
-	static sequencer(seq) {
-		// Converts a shorthand script into music.
-		// The last sequence is returned as the sound.
-		// Note format: [CDEFGAB][#b][octave]. Ex: A4  B#12  C-1.2
-		//
-		//  Symbol |             Description             |         Parameters
-		// --------+-------------------------------------+-----------------------------
-		//   ,     | Separate and advance time by 1 BPM. |
-		//   , X   | Separate and advance time by X BPM. |
-		//   '     | Line Comment.                       |
-		//   "     | Block comment. Terminate with "     |
-		//   bass: | Define a sequence named bass.       |
-		//   bass  | Reference a sequence named bass.    | [vol=1]
-		//   BPM   | Beats per minute.                   | [240]
-		//   VOL   | Sets volume. Resets every sequence. | [1.0]
-		//   CUT   | Cuts off sequence at time+delta.    | [delta=0]
-		//   AG    | Acoustic Guitar                     | [note=A3] [vol=1] [len=5.0]
-		//   XY    | Xylophone                           | [note=C4] [vol=1] [len=2.2]
-		//   MR    | Marimba                             | [note=C4] [vol=1] [len=2.2]
-		//   GS    | Glockenspiel                        | [note=A6] [vol=1] [len=5.3]
-		//   MB    | Music Box                           | [note=A5] [vol=1] [len=3.0]
-		//   HH    | Hi-hat                              | [note=A8] [vol=1] [len=0.1]
-		//   KD    | Kick Drum                           | [note=B2] [vol=1] [len=0.2]
-		//   SD    | Snare Drum                          | [note=G3] [vol=1] [len=0.2]
-		//
-		let seqpos=0,seqlen=seq.length,sndfreq=44100;
-		let bpm=240,time=0,subvol=1,sepdelta=0;
-		let argmax=7,args=0;
-		let argstr=new Array(argmax);
-		for (let i=0;i<argmax;i++) {argstr[i]="";}
-		let subsnd=null,nextsnd=new Audio.Sound(sndfreq);
-		// ,:'"
-		let stoptoken={44:true,58:true,39:true,34:true};
-		let sequences={
-			"BPM": 1,"VOL": 2,"CUT": 3,
-			"AG": 10,
-			"XY": 11,"MR": 12,"GS": 13,"MB": 14,
-			"HH": 15,"KD": 16,"SD": 17,
-			"":nextsnd
-		};
-		function error(msg) {
-			let line=1;
-			for (let i=0;i<seqpos;i++) {line+=seq.charCodeAt(i)===10;}
-			let argsum=argstr.slice(0,args).join(" ");
-			throw "Sequencer error:\n\tError: "+msg+"\n\tLine : "+line+"\n\targs : "+argsum;
-		}
-		function parsenum(str,def=NaN,name="") {
-			// Parse numbers in format: [+-]\d*(\.\d*)?
-			if (!str && !isNaN(def)) {return def;}
-			let len=str.length,i=0,d=0;
-			let c=i<len?str.charCodeAt(i):0;
-			let neg=c===45;
-			if (c===45 || c===43) {i++;}
-			let num=0,den=1;
-			while (i<len && (c=str.charCodeAt(i)-48)>=0 && c<=9) {d=1;i++;num=num*10+c;}
-			if (c===-2) {i++;}
-			while (i<len && (c=str.charCodeAt(i)-48)>=0 && c<=9) {d=1;i++;den*=0.1;num+=c*den;}
-			if (i===len && d) {return neg?-num:num;}
-			if (name) {error("invalid "+name);}
-			return NaN;
-		}
-		function parsenote(str,def,name) {
-			// Convert a piano note to a frequency. Ex: A4 = 440hz
-			// Format: sign + BAGFEDC + #b + octave.
-			if (!str) {str=def;}
-			let val=parsenum(str);
-			if (!isNaN(val)) {return val;}
-			let slen=str.length,i=0;
-			let c=i<slen?str.charCodeAt(i):0;
-			let mag=c===45?-440:440;
-			if (c===45 || c===43) {i++;}
-			c=(i<slen?str.charCodeAt(i++):0)-65;
-			if (c<0 || c>6) {error("invalid "+name);}
-			let n=[48,46,57,55,53,52,50][c];
-			c=i<slen?str.charCodeAt(i):0;
-			if (c===35 || c===98) {n+=c===98?1:-1;i++;}
-			let oct=parsenum(str.substring(i),NaN,name);
-			return mag*Math.pow(2,-n/12+oct);
-		}
-		while (seqpos<seqlen || args>0) {
-			// We've changed sequences.
-			if (!Object.is(subsnd,nextsnd)) {
-				subsnd=nextsnd;
-				subvol=1;
-				time=0;
-				sepdelta=0;
-			}
-			// Read through whitespace and comments.
-			let c=0;
-			while (seqpos<seqlen && (c=seq.charCodeAt(seqpos))<33) {seqpos++;}
-			if (c===39 || c===34) {
-				// If " stop at ". If ' stop at \n.
-				let eoc=c===34?34:10;
-				while (seqpos<seqlen && seq.charCodeAt(++seqpos)!==eoc) {}
-				seqpos++;
-				continue;
-			}
-			c=seqpos<seqlen?seq[seqpos]:"";
-			if (c===",") {
-				seqpos++;
-			} else if (c===":") {
-				// Sequence definition.
-				seqpos++;
-				if (!args) {error("Invalid label");}
-				let name=argstr[--args];
-				argstr[args]="";
-				if (!name || sequences[name]) {error("'"+name+"' already defined");}
-				nextsnd=new AudioSound(sndfreq);
-				sequences[name]=nextsnd;
-			} else if (seqpos<seqlen) {
-				// Read the next token.
-				if (args>=argmax) {error("Too many arguments");}
-				let start=seqpos;
-				while (seqpos<seqlen && (c=seq.charCodeAt(seqpos))>32 && !stoptoken[c]) {seqpos++;}
-				argstr[args++]=seq.substring(start,seqpos);
-				continue;
-			}
-			// Parse current tokens. Check for a time delta.
-			let a=0;
-			let delta=parsenum(argstr[a++]);
-			if (isNaN(delta)) {delta=sepdelta;a--;}
-			if (bpm) {sepdelta=1;time+=delta*60/bpm;}
-			else {sepdelta=0;time+=delta;}
-			time=time>0?time:0;
-			if (a>=args) {continue;}
-			// Find the instrument or sequence to play.
-			let inst=sequences[argstr[a++]];
-			if (inst===undefined) {error("Unrecognized instrument");}
-			let type=isNaN(inst)?0:inst;
-			let snd=null,vol=1;
-			if (type===0) {
-				vol=parsenum(argstr[a],1,"volume");
-				snd=inst;
-			} else if (type===1) {
-				bpm=parsenum(argstr[a],240,"BPM");
-			} else if (type===2) {
-				subvol=parsenum(argstr[a],1,"volume");
-			} else if (type===3) {
-				time+=parsenum(argstr[a],0,"delta");
-				time=time>0?time:0;
-				subsnd.resizetime(time);
-			} else {
-				// Instruments
-				type-=10;
-				let note =["A3","C4","C4","A6","A5","A8","B2","G3"][type];
-				let ntime=[3.0,2.2,2.2,5.3,3.0,0.1,0.2,0.2][type];
-				let freq =parsenote(argstr[a++],note,"note or frequency");
-				vol=parsenum(argstr[a++],1,"volume");
-				ntime=parsenum(argstr[a],ntime,"length");
-				if      (type===0) {snd=Audio.createguitar(1,freq,0.2,ntime);}
-				else if (type===1) {snd=Audio.createxylophone(1,freq,0.5,ntime);}
-				else if (type===2) {snd=Audio.createmarimba(1,freq,0.5,ntime);}
-				else if (type===3) {snd=Audio.createglockenspiel(1,freq,0.5,ntime);}
-				else if (type===4) {snd=Audio.createmusicbox(1,freq,ntime);}
-				else if (type===5) {snd=Audio.createdrumhihat(1,freq,ntime);}
-				else if (type===6) {snd=Audio.createdrumkick(1,freq,ntime);}
-				else if (type===7) {snd=Audio.createdrumsnare(1,freq,ntime);}
-			}
-			// Add the new sound to the sub sequence.
-			if (!snd) {sepdelta=0;}
-			else {subsnd.add(snd,time,subvol*vol);}
-			while (args>0) {argstr[--args]="";}
-		}
-		return nextsnd;
-	}
-
-
-	// ----------------------------------------
-	// String Instruments
-
-
-	static generatestring(volume=1.0,freq=200,pos=0.5,inharm=0.00006,time=3,sndfreq=44100) {
-		// Jason Pelc
-		// http://large.stanford.edu/courses/2007/ph210/pelc2/
-		// Stop when e^(-decay*time/sndfreq)<=cutoff
-		const cutoff=1e-3;
-		freq/=sndfreq;
-		let harmonics=Math.ceil(0.5/freq);
-		let sndlen=Math.ceil(sndfreq*time);
-		let snd=new AudioSound(sndfreq,sndlen);
-		let data=snd.data;
-		// Generate coefficients.
-		if (pos<0.0001) {pos=0.0001;}
-		if (pos>0.9999) {pos=0.9999;}
-		let listen=pos; // 0.16;
-		let c0=listen*Math.PI;
-		let c1=(2*volume)/(Math.PI*Math.PI*pos*(1-pos));
-		let c2=freq*Math.PI*2;
-		let decay=Math.log(0.01)/sndlen;
-		let rnd=new Random();
-		// Process highest to lowest for floating point accuracy.
-		for (let n=harmonics;n>0;n--) {
-			// Calculate coefficients for the n'th harmonic.
-			let n2=n*n;
-			let harmvol=Math.sin(n*c0)*c1/n2;
-			if (Math.abs(harmvol)<=cutoff) {continue;}
-			// Correct n2 by -1 so the fundamental = freq.
-			let ihscale=n*Math.sqrt(1+(n2-1)*inharm);
-			let harmdecay=decay*ihscale;
-			let harmmul=Math.exp(harmdecay);
-			let harmlen=Math.ceil(Math.log(cutoff/Math.abs(harmvol))/harmdecay);
-			if (harmlen>sndlen) {harmlen=sndlen;}
-			// Randomize the phase to prevent aliasing.
-			let harmfreq=c2*ihscale;
-			let harmphase=rnd.gets()*3.141592654;
-			// Generate the waveform.
-			for (let i=0;i<harmlen;i++) {
-				data[i]+=harmvol*Math.sin(harmphase);
-				harmvol*=harmmul;
-				harmphase+=harmfreq;
-			}
-		}
-		// Taper the ends.
-		let end=Math.ceil(0.01*sndfreq);
-		end=end<sndlen?end:sndlen;
-		for (let i=0;i<end;i++) {let u=i/end;data[i]*=u;}
-		end=Math.ceil(0.5*sndfreq);
-		end=end<sndlen?end:sndlen;
-		for (let i=0;i<end;i++) {let u=i/end;data[sndlen-1-i]*=u;}
-		return snd;
-	}
-
-
-	static createguitar(volume=1.0,freq=200,pluck=0.5,time=3,sndfreq=44100) {
-		return Audio.generatestring(volume,freq,pluck,0.000050,time,sndfreq);
-	}
-
-
-	static createxylophone(volume=1.0,freq=250,pos=0.5,time=2.2,sndfreq=44100) {
-		// freq = constant / length^2
-		return Audio.generatestring(volume,freq,pos,0.374520,time,sndfreq);
-	}
-
-
-	static createmarimba(volume=1.0,freq=250,pos=0.5,time=2.2,sndfreq=44100) {
-		return Audio.generatestring(volume,freq,pos,0.947200,time,sndfreq);
-	}
-
-
-	static createglockenspiel(volume=0.2,freq=1867,pos=0.5,time=5.3,sndfreq=44100) {
-		return Audio.generatestring(volume,freq,pos,0.090000,time,sndfreq);
-	}
-
-
-	static createmusicbox(volume=0.1,freq=877,time=3.0,sndfreq=44100) {
-		return Audio.generatestring(volume,freq,0.40,0.050000,time,sndfreq);
-	}
-
-
-	// ----------------------------------------
-	// Percussion Instruments
-
-
-	static createdrumhihat(volume=0.2,freq=7000,time=0.1) {
-		return (new AudioSFX(`
-			#vol : ${volume}
-			#freq: ${freq}
-			#time: ${time}
-			#sig : NOISE H 0.7 #vol *
-			#hpf : HPF F #freq I #sig
-			#bpf : BPF F #freq 1.4 * I #sig
-			#out : ENV A 0.005 R #time 0.005 - I #hpf #bpf`
-		)).tosound(time);
-	}
-
-
-	static createdrumkick(volume=0.3,freq=80,time=0.2) {
-		return (new AudioSFX(`
-			#vol : ${volume}
-			#freq: ${freq}
-			#time: ${time}
-			#f   : SAW F 1 #time / L #freq H #freq .25 *
-			#sig1: NOISE H 8
-			#sig2: TRI F #f H 1.8
-			#lpf : LPF F #f B 1.75 I #sig1 #sig2
-			#out : ENV A 0.005 R #time 0.005 - I #lpf #vol *`
-		)).tosound(time);
-	}
-
-
-	static createdrumsnare(volume=0.1,freq=200,time=0.2) {
-		return (new AudioSFX(`
-			#vol : ${volume}
-			#freq: ${freq}
-			#time: ${time}
-			#f   : SAW F 1 #time / L #freq H #freq .5 *
-			#sig1: NOISE H 1
-			#sig2: TRI F #f .5 * H 1
-			#hpf : HPF F #f I #sig1 #sig2
-			#lpf : LPF F 10000 I #hpf
-			#out : ENV A 0.005 R #time 0.005 - I #lpf #vol *`
-		)).tosound(time);
-	}
-
-
-	// ----------------------------------------
-	// Wind Instruments
-
-
-	static createflute(volume=1.0,freq=200,time=2.0) {
-		return (new AudioSFX(`
-			#vol : ${volume}
-			#freq: ${freq}
-			#time: ${time}
-			#noi : NOISE
-			#nenv: ENV S #time .5 * I #noi
-			#lpf : LPF F #freq B 2 I #nenv
-			#sig : #del -.95 * #lpf
-			#del : DEL T .5 #freq / M .2 I #sig
-			#out : #sig`
-		)).tosound(time);
-	}
-
-
-	static createtuba(volume=1.0,freq=300,time=2.0) {
-		return (new AudioSFX(`
-			#vol : ${volume}
-			#freq: ${freq}
-			#time: ${time}
-			#noi : NOISE
-			#nenv: ENV R #time I #noi
-			#lpf : LPF F #freq I #nenv
-			#sig : #del .95 * #lpf
-			#del : DEL T .02 M .2 I #sig
-			#out : #sig`
-		)).tosound(time);
 	}
 
 }

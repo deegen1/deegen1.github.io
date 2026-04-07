@@ -71,12 +71,18 @@ History
 TODO
 
 
-Reduce to 20kb.
-	remove dt derivation
-	remove autobond and createbox
-
-collide
-	Unroll for 2 or 3 dim. Check speed.
+Sleeping
+	Define active regions
+	If no active region, update everything
+	During first update, track oldest
+	if oldest>dt*1e-10, copy first update region and apply it around oldest atom
+	copy largest region
+	reuse atomarr in BVH, activecnt
+	make demo with fake small regions
+	flag everything after activecnt as sleeping
+	oldesttime,oldestatom
+	update(): this.updatetime=0
+	active region: [cen],[span]
 
 createshape
 	Inside/outside test for dim>2.
@@ -94,25 +100,13 @@ createshape
 		dist
 		pos
 	After filling a cell, update dist for everything within 2*rad
+	remove autobond and createbox
 
 callbacks
 	atomdelcallback
 	bonddelcallback
 	process deletions at start of main loop
 	add to release queue
-
-Sleeping
-	ACTIVE
-	NATURAL_SLEEP
-	FORCE_SLEEP
-	INACTIVE
-	sleeptime+=dt
-	if vel>1e-10: sleeptime=0
-	if sleeptime>grav.mag(): sleeping=true
-	What to do if gravity is changed after sleeping?
-	If bonded with a sleeping atom, consider sleeping.
-	If a bond is released, wake up both atoms.
-	If vel<mag, sleep for longer and longer durations.
 
 BVH
 	AABB isn't properly separating [-inf,-inf].
@@ -127,7 +121,6 @@ Remove world bounds. Add to timestep in demo.
 Add static bonds to article.
 New article: friction with springs.
 Remove static bonds if another bond is formed afterwards?
-Use module to put everything under Phy namespace.
 Motors: linear, angular, range. Add acceleration?
 
 
@@ -476,6 +469,7 @@ class PhyAtom {
 		this.world.atomlist.addbefore(this.worldlink);
 		this.deleted=false;
 		this.sleeping=false;
+		this.updatetime=0;
 		pos=new Vector(pos);
 		this.pos=pos;
 		this.vel=new Vector(pos.length);
@@ -550,6 +544,7 @@ class PhyAtom {
 			energy+=vel*vel;
 		}
 		this.sleeping=energy<1e-10;
+		this.updatetime=0;
 	}
 
 
@@ -743,16 +738,12 @@ class PhyBroadphase {
 	constructor(world) {
 		this.world=world;
 		this.slack=0.05;
-		this.atomcnt=0;
-		this.atomarr=null;
 		this.memi32=[];
 		this.memf32=null;
 	}
 
 
 	release() {
-		this.atomarr=null;
-		this.atomcnt=0;
 		this.memi32=[];
 		this.memf32=null;
 	}
@@ -765,8 +756,7 @@ class PhyBroadphase {
 		// Sort the atoms by whether they're above or below the center of this range.
 		let world=this.world;
 		let dim=world.dim;
-		let atomcnt=world.atomlist.count;
-		this.atomcnt=atomcnt;
+		let atomcnt=world.activecnt;
 		if (atomcnt===0) {return;}
 		// Allocate working arrays.
 		let dim2=2*dim,nodesize=3+dim2;
@@ -777,19 +767,15 @@ class PhyBroadphase {
 			memi=new Int32Array(treesize*2);
 			this.memi32=memi;
 			this.memf32=new Float32Array(memi.buffer);
-			this.atomarr=new Array(atomcnt*2);
 		}
 		let memf=this.memf32;
 		// Store atoms and their bounds. atom_id*2+sleeping.
 		let leafstart=sortstart+atomcnt;
 		let slack=1+this.slack;
 		let leafidx=leafstart;
-		let atomarr=this.atomarr;
-		let atomlink=world.atomlist.head;
+		let atomarr=world.atomarr;
 		for (let i=0;i<atomcnt;i++) {
-			let atom=atomlink.obj;
-			atomlink=atomlink.next;
-			atomarr[i]=atom;
+			let atom=atomarr[i];
 			memi[leafidx++]=(i<<1)|(atom.sleeping?1:0);
 			memi[sortstart+i]=leafidx;
 			let pos=atom.pos,rad=atom.rad*slack;
@@ -875,19 +861,20 @@ class PhyBroadphase {
 	collide() {
 		// Check for collisions among leaves. Randomly reorder the tree to randomize
 		// collision order.
-		let atomcnt=this.atomcnt;
+		let world=this.world;
+		let atomcnt=world.activecnt;
 		if (atomcnt<=1) {return;}
-		let nodesize=3+this.world.dim*2;
+		let nodesize=3+world.dim*2;
 		let treeend=nodesize*(atomcnt*2-1);
 		let memi=this.memi32;
 		let memf=this.memf32;
-		let atomarr=this.atomarr;
+		let atomarr=world.atomarr;
 		let collide=PhyAtom.collide;
 		// Randomly flip the left and right children and repack them.
 		// Also find the next node to skip AABB's we've already checked.
 		let randstart=treeend;
 		let randend=randstart+treeend;
-		let rnd=this.world.rnd;
+		let rnd=world.rnd;
 		let swap=0;
 		memi[randstart  ]=0;
 		memi[randstart+1]=randend;
@@ -959,7 +946,10 @@ class PhyWorld {
 		this.intrlist=new PhyList();
 		this.atomlist=new PhyList();
 		this.bondlist=new PhyList();
-		this.tmpmem=[];
+		this.atomarr=[];
+		this.bondarr=[];
+		this.activecnt=0;
+		this.activeregions=[];
 		this.tmpvec=new Vector(dim);
 		this.broad=new PhyBroadphase(this);
 		this.stepcallback=null;
@@ -974,17 +964,6 @@ class PhyWorld {
 		this.intrlist.release();
 		this.bondlist.release();
 		this.broad.release();
-	}
-
-
-	gettmpmem(size) {
-		// Use a common pool of temporary memory to avoid constant allocations.
-		let tmp=this.tmpmem;
-		while (tmp.length<size) {
-			tmp=tmp.concat(Array(tmp.length+1));
-			this.tmpmem=tmp;
-		}
-		return tmp;
 	}
 
 
@@ -1254,6 +1233,25 @@ class PhyWorld {
 	}
 
 
+	clearactive() {
+		this.activeregions=[];
+	}
+
+
+	addactive(cen,dev) {
+		// cen[i]+-dev[i]
+		let dim=this.dim;
+		cen=(new Vector(dim)).set(cen);
+		dev=(new Vector(dim)).set(dev);
+		let vol=1;
+		for (let i=0;i<dim;i++) {
+			vol*=dev[i];
+		}
+		vol=vol>0?vol:Infinity;
+		this.activeregions.push({cen:cen,dev:dev,vol:vol});
+	}
+
+
 	update(time) {
 		// Process the simulation in multiple steps if time is too large.
 		if (time<1e-9 || isNaN(time)) {return;}
@@ -1264,35 +1262,95 @@ class PhyWorld {
 		for (let step=0;step<steps;step++) {
 			if (this.stepcallback!==null) {this.stepcallback(dt);}
 			// Update types and interactions.
-			let link=this.typelist.head;
-			while (link!==null) {
-				link.obj.updateconstants(dt);
-				link=link.next;
+			let typelink=this.typelist.head;
+			while (typelink!==null) {
+				typelink.obj.updateconstants(dt);
+				typelink=typelink.next;
 			}
-			link=this.intrlist.head;
-			while (link!==null) {
-				link.obj.calcdt(dt);
-				link=link.next;
+			let intrlink=this.intrlist.head;
+			while (intrlink!==null) {
+				intrlink.obj.calcdt(dt);
+				intrlink=intrlink.next;
 			}
 			// Integrate atoms.
-			let next=this.atomlist.head;
-			while ((link=next)!==null) {
-				next=next.next;
-				link.obj.update();
+			let atomcnt=this.atomlist.count;
+			let atomarr=this.atomarr;
+			if (atomarr.length<atomcnt) {
+				atomarr=new Array(atomcnt*2);
+				this.atomarr=atomarr;
+			}
+			let atomlink=this.atomlist.head;
+			let activecnt=0;
+			let oldesttime=0;
+			let oldestatom=null;
+			while (atomlink!==null) {
+				let atom=atomlink.obj;
+				let uptime=atom.updatetime+dt;
+				atom.updatetime=uptime;
+				if (oldesttime<uptime) {
+					oldesttime=uptime;
+					oldestatom=atom;
+				}
+				atomarr[activecnt++]=atom;
+				atomlink=atomlink.next;
+			}
+			if (this.activeregions.length>0 && activecnt>0) {
+				activecnt=0;
+				let activesort=[];
+				for (let reg of this.activeregions) {
+					activesort.push(reg);
+					let i=activesort.length;
+					while (i>0 && reg.vol>activesort[i-1].vol) {
+						activesort[i]=activesort[i-1];
+						i--;
+					}
+					activesort[i]=reg;
+				}
+				let dim=this.dim;
+				for (let i=0;i<activesort.length+1;i++) {
+					let reg=activesort[i?i-1:0];
+					let cen=reg.cen,dev=reg.dev;
+					if (!i) {cen=oldestatom.pos;}
+					for (let j=activecnt;j<atomcnt;j++) {
+						let atom=atomarr[j];
+						let pos=atom.pos,rad=atom.rad;
+						let d=0;
+						for (;d<dim;d++) {
+							let x=pos[d]-cen[d];
+							x=(x<0?-x:x)-rad;
+							if (x>=dev[d]) {break;}
+						}
+						if (d===dim) {
+							atomarr[j]=atomarr[activecnt];
+							atomarr[activecnt++]=atom;
+						}
+					}
+				}
+			}
+			this.activecnt=activecnt;
+			for (let i=0;i<activecnt;i++) {
+				atomarr[i].update();
+			}
+			for (let i=activecnt;i<atomcnt;i++) {
+				atomarr[i].sleeping=true;
 			}
 			// Integrate bonds after atoms or vel will be counted twice.
 			// Randomize the evaluation order to reduce oscillations.
-			let bondcount=this.bondlist.count;
-			let bondarr=this.gettmpmem(bondcount);
-			link=this.bondlist.head;
-			for (let i=0;i<bondcount;i++) {
+			let bondcnt=this.bondlist.count;
+			let bondarr=this.bondarr;
+			if (bondarr.length<bondcnt) {
+				bondarr=new Array(bondcnt*2);
+				this.bondarr=bondarr;
+			}
+			let bondlink=this.bondlist.head;
+			for (let i=0;i<bondcnt;i++) {
 				let j=rnd.getu32()%(i+1);
 				bondarr[i]=bondarr[j];
-				bondarr[j]=link;
-				link=link.next;
+				bondarr[j]=bondlink.obj;
+				bondlink=bondlink.next;
 			}
-			for (let i=0;i<bondcount;i++) {
-				bondarr[i].obj.update();
+			for (let i=0;i<bondcnt;i++) {
+				bondarr[i].update();
 			}
 			// Collide atoms.
 			this.broad.build();

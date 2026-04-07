@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.05
+demo.js - v1.06
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -18,6 +18,343 @@ TODO
 import {Audio} from "./audio.js";
 import {Input,Random} from "./library.js";
 Audio.initdef().mute(0);
+
+
+//---------------------------------------------------------------------------------
+// Guitar Strings
+
+
+class DemoInst {
+
+	static sequencer(seq) {
+		// Converts a shorthand script into music.
+		// The last sequence is returned as the sound.
+		// Note format: [CDEFGAB][#b][octave]. Ex: A4  B#12  C-1.2
+		//
+		//  Symbol |             Description             |         Parameters
+		// --------+-------------------------------------+-----------------------------
+		//   ,     | Separate and advance time by 1 BPM. |
+		//   , X   | Separate and advance time by X BPM. |
+		//   '     | Line Comment.                       |
+		//   "     | Block comment. Terminate with "     |
+		//   bass: | Define a sequence named bass.       |
+		//   bass  | Reference a sequence named bass.    | [vol=1]
+		//   BPM   | Beats per minute.                   | [240]
+		//   VOL   | Sets volume. Resets every sequence. | [1.0]
+		//   CUT   | Cuts off sequence at time+delta.    | [delta=0]
+		//   AG    | Acoustic Guitar                     | [note=A3] [vol=1] [len=5.0]
+		//   XY    | Xylophone                           | [note=C4] [vol=1] [len=2.2]
+		//   MR    | Marimba                             | [note=C4] [vol=1] [len=2.2]
+		//   GS    | Glockenspiel                        | [note=A6] [vol=1] [len=5.3]
+		//   MB    | Music Box                           | [note=A5] [vol=1] [len=3.0]
+		//   HH    | Hi-hat                              | [note=A8] [vol=1] [len=0.1]
+		//   KD    | Kick Drum                           | [note=B2] [vol=1] [len=0.2]
+		//   SD    | Snare Drum                          | [note=G3] [vol=1] [len=0.2]
+		//
+		let seqpos=0,seqlen=seq.length,sndfreq=44100;
+		let bpm=240,time=0,subvol=1,sepdelta=0;
+		let argmax=7,args=0;
+		let argstr=new Array(argmax);
+		for (let i=0;i<argmax;i++) {argstr[i]="";}
+		let subsnd=null,nextsnd=new Audio.Sound(sndfreq);
+		// ,:'"
+		let stoptoken={44:true,58:true,39:true,34:true};
+		let sequences={
+			"BPM": 1,"VOL": 2,"CUT": 3,
+			"AG": 10,
+			"XY": 11,"MR": 12,"GS": 13,"MB": 14,
+			"HH": 15,"KD": 16,"SD": 17,
+			"":nextsnd
+		};
+		function error(msg) {
+			let line=1;
+			for (let i=0;i<seqpos;i++) {line+=seq.charCodeAt(i)===10;}
+			let argsum=argstr.slice(0,args).join(" ");
+			throw "Sequencer error:\n\tError: "+msg+"\n\tLine : "+line+"\n\targs : "+argsum;
+		}
+		function parsenum(str,def=NaN,name="") {
+			// Parse numbers in format: [+-]\d*(\.\d*)?
+			if (!str && !isNaN(def)) {return def;}
+			let len=str.length,i=0,d=0;
+			let c=i<len?str.charCodeAt(i):0;
+			let neg=c===45;
+			if (c===45 || c===43) {i++;}
+			let num=0,den=1;
+			while (i<len && (c=str.charCodeAt(i)-48)>=0 && c<=9) {d=1;i++;num=num*10+c;}
+			if (c===-2) {i++;}
+			while (i<len && (c=str.charCodeAt(i)-48)>=0 && c<=9) {d=1;i++;den*=0.1;num+=c*den;}
+			if (i===len && d) {return neg?-num:num;}
+			if (name) {error("invalid "+name);}
+			return NaN;
+		}
+		function parsenote(str,def,name) {
+			// Convert a piano note to a frequency. Ex: A4 = 440hz
+			// Format: sign + BAGFEDC + #b + octave.
+			if (!str) {str=def;}
+			let val=parsenum(str);
+			if (!isNaN(val)) {return val;}
+			let slen=str.length,i=0;
+			let c=i<slen?str.charCodeAt(i):0;
+			let mag=c===45?-440:440;
+			if (c===45 || c===43) {i++;}
+			c=(i<slen?str.charCodeAt(i++):0)-65;
+			if (c<0 || c>6) {error("invalid "+name);}
+			let n=[48,46,57,55,53,52,50][c];
+			c=i<slen?str.charCodeAt(i):0;
+			if (c===35 || c===98) {n+=c===98?1:-1;i++;}
+			let oct=parsenum(str.substring(i),NaN,name);
+			return mag*Math.pow(2,-n/12+oct);
+		}
+		while (seqpos<seqlen || args>0) {
+			// We've changed sequences.
+			if (!Object.is(subsnd,nextsnd)) {
+				subsnd=nextsnd;
+				subvol=1;
+				time=0;
+				sepdelta=0;
+			}
+			// Read through whitespace and comments.
+			let c=0;
+			while (seqpos<seqlen && (c=seq.charCodeAt(seqpos))<33) {seqpos++;}
+			if (c===39 || c===34) {
+				// If " stop at ". If ' stop at \n.
+				let eoc=c===34?34:10;
+				while (seqpos<seqlen && seq.charCodeAt(++seqpos)!==eoc) {}
+				seqpos++;
+				continue;
+			}
+			c=seqpos<seqlen?seq[seqpos]:"";
+			if (c===",") {
+				seqpos++;
+			} else if (c===":") {
+				// Sequence definition.
+				seqpos++;
+				if (!args) {error("Invalid label");}
+				let name=argstr[--args];
+				argstr[args]="";
+				if (!name || sequences[name]) {error("'"+name+"' already defined");}
+				nextsnd=new Audio.Sound(sndfreq);
+				sequences[name]=nextsnd;
+			} else if (seqpos<seqlen) {
+				// Read the next token.
+				if (args>=argmax) {error("Too many arguments");}
+				let start=seqpos;
+				while (seqpos<seqlen && (c=seq.charCodeAt(seqpos))>32 && !stoptoken[c]) {seqpos++;}
+				argstr[args++]=seq.substring(start,seqpos);
+				continue;
+			}
+			// Parse current tokens. Check for a time delta.
+			let a=0;
+			let delta=parsenum(argstr[a++]);
+			if (isNaN(delta)) {delta=sepdelta;a--;}
+			if (bpm) {sepdelta=1;time+=delta*60/bpm;}
+			else {sepdelta=0;time+=delta;}
+			time=time>0?time:0;
+			if (a>=args) {continue;}
+			// Find the instrument or sequence to play.
+			let inst=sequences[argstr[a++]];
+			if (inst===undefined) {error("Unrecognized instrument");}
+			let type=isNaN(inst)?0:inst;
+			let snd=null,vol=1;
+			if (type===0) {
+				vol=parsenum(argstr[a],1,"volume");
+				snd=inst;
+			} else if (type===1) {
+				bpm=parsenum(argstr[a],240,"BPM");
+			} else if (type===2) {
+				subvol=parsenum(argstr[a],1,"volume");
+			} else if (type===3) {
+				time+=parsenum(argstr[a],0,"delta");
+				time=time>0?time:0;
+				subsnd.resizetime(time);
+			} else {
+				// Instruments
+				type-=10;
+				let note =["A3","C4","C4","A6","A5","A8","B2","G3"][type];
+				let ntime=[3.0,2.2,2.2,5.3,3.0,0.1,0.2,0.2][type];
+				let freq =parsenote(argstr[a++],note,"note or frequency");
+				vol=parsenum(argstr[a++],1,"volume");
+				ntime=parsenum(argstr[a],ntime,"length");
+				if      (type===0) {snd=DemoInst.createguitar(1,freq,0.2,ntime);}
+				else if (type===1) {snd=DemoInst.createxylophone(1,freq,0.5,ntime);}
+				else if (type===2) {snd=DemoInst.createmarimba(1,freq,0.5,ntime);}
+				else if (type===3) {snd=DemoInst.createglockenspiel(1,freq,0.5,ntime);}
+				else if (type===4) {snd=DemoInst.createmusicbox(1,freq,ntime);}
+				else if (type===5) {snd=DemoInst.createdrumhihat(1,freq,ntime);}
+				else if (type===6) {snd=DemoInst.createdrumkick(1,freq,ntime);}
+				else if (type===7) {snd=DemoInst.createdrumsnare(1,freq,ntime);}
+			}
+			// Add the new sound to the sub sequence.
+			if (!snd) {sepdelta=0;}
+			else {subsnd.add(snd,time,subvol*vol);}
+			while (args>0) {argstr[--args]="";}
+		}
+		return nextsnd;
+	}
+
+
+	// ----------------------------------------
+	// String Instruments
+
+
+	static generatestring(volume=1.0,freq=200,pos=0.5,inharm=0.00006,time=3,sndfreq=44100) {
+		// Jason Pelc
+		// http://large.stanford.edu/courses/2007/ph210/pelc2/
+		// Stop when e^(-decay*time/sndfreq)<=cutoff
+		const cutoff=1e-3;
+		freq/=sndfreq;
+		let harmonics=Math.ceil(0.5/freq);
+		let sndlen=Math.ceil(sndfreq*time);
+		let snd=new Audio.Sound(sndfreq,sndlen);
+		let data=snd.data;
+		// Generate coefficients.
+		if (pos<0.0001) {pos=0.0001;}
+		if (pos>0.9999) {pos=0.9999;}
+		let listen=pos; // 0.16;
+		let c0=listen*Math.PI;
+		let c1=(2*volume)/(Math.PI*Math.PI*pos*(1-pos));
+		let c2=freq*Math.PI*2;
+		let decay=Math.log(0.01)/sndlen;
+		let rnd=new Random();
+		// Process highest to lowest for floating point accuracy.
+		for (let n=harmonics;n>0;n--) {
+			// Calculate coefficients for the n'th harmonic.
+			let n2=n*n;
+			let harmvol=Math.sin(n*c0)*c1/n2;
+			if (Math.abs(harmvol)<=cutoff) {continue;}
+			// Correct n2 by -1 so the fundamental = freq.
+			let ihscale=n*Math.sqrt(1+(n2-1)*inharm);
+			let harmdecay=decay*ihscale;
+			let harmmul=Math.exp(harmdecay);
+			let harmlen=Math.ceil(Math.log(cutoff/Math.abs(harmvol))/harmdecay);
+			if (harmlen>sndlen) {harmlen=sndlen;}
+			// Randomize the phase to prevent aliasing.
+			let harmfreq=c2*ihscale;
+			let harmphase=rnd.gets()*3.141592654;
+			// Generate the waveform.
+			for (let i=0;i<harmlen;i++) {
+				data[i]+=harmvol*Math.sin(harmphase);
+				harmvol*=harmmul;
+				harmphase+=harmfreq;
+			}
+		}
+		// Taper the ends.
+		let end=Math.ceil(0.01*sndfreq);
+		end=end<sndlen?end:sndlen;
+		for (let i=0;i<end;i++) {let u=i/end;data[i]*=u;}
+		end=Math.ceil(0.5*sndfreq);
+		end=end<sndlen?end:sndlen;
+		for (let i=0;i<end;i++) {let u=i/end;data[sndlen-1-i]*=u;}
+		return snd;
+	}
+
+
+	static createguitar(volume=1.0,freq=200,pluck=0.5,time=3,sndfreq=44100) {
+		return DemoInst.generatestring(volume,freq,pluck,0.000050,time,sndfreq);
+	}
+
+
+	static createxylophone(volume=1.0,freq=250,pos=0.5,time=2.2,sndfreq=44100) {
+		// freq = constant / length^2
+		return DemoInst.generatestring(volume,freq,pos,0.374520,time,sndfreq);
+	}
+
+
+	static createmarimba(volume=1.0,freq=250,pos=0.5,time=2.2,sndfreq=44100) {
+		return DemoInst.generatestring(volume,freq,pos,0.947200,time,sndfreq);
+	}
+
+
+	static createglockenspiel(volume=0.2,freq=1867,pos=0.5,time=5.3,sndfreq=44100) {
+		return DemoInst.generatestring(volume,freq,pos,0.090000,time,sndfreq);
+	}
+
+
+	static createmusicbox(volume=0.1,freq=877,time=3.0,sndfreq=44100) {
+		return DemoInst.generatestring(volume,freq,0.40,0.050000,time,sndfreq);
+	}
+
+
+	// ----------------------------------------
+	// Percussion Instruments
+
+
+	static createdrumhihat(volume=0.2,freq=7000,time=0.1) {
+		return (new Audio.SFX(`
+			#vol : ${volume}
+			#freq: ${freq}
+			#time: ${time}
+			#sig : NOISE H 0.7 #vol *
+			#hpf : HPF F #freq I #sig
+			#bpf : BPF F #freq 1.4 * I #sig
+			#out : ENV A 0.005 R #time 0.005 - I #hpf #bpf`
+		)).tosound(time);
+	}
+
+
+	static createdrumkick(volume=0.3,freq=80,time=0.2) {
+		return (new Audio.SFX(`
+			#vol : ${volume}
+			#freq: ${freq}
+			#time: ${time}
+			#f   : SAW F 1 #time / L #freq H #freq .25 *
+			#sig1: NOISE H 8
+			#sig2: TRI F #f H 1.8
+			#lpf : LPF F #f B 1.75 I #sig1 #sig2
+			#out : ENV A 0.005 R #time 0.005 - I #lpf #vol *`
+		)).tosound(time);
+	}
+
+
+	static createdrumsnare(volume=0.1,freq=200,time=0.2) {
+		return (new Audio.SFX(`
+			#vol : ${volume}
+			#freq: ${freq}
+			#time: ${time}
+			#f   : SAW F 1 #time / L #freq H #freq .5 *
+			#sig1: NOISE H 1
+			#sig2: TRI F #f .5 * H 1
+			#hpf : HPF F #f I #sig1 #sig2
+			#lpf : LPF F 10000 I #hpf
+			#out : ENV A 0.005 R #time 0.005 - I #lpf #vol *`
+		)).tosound(time);
+	}
+
+
+	// ----------------------------------------
+	// Wind Instruments
+
+
+	static createflute(volume=1.0,freq=200,time=2.0) {
+		return (new Audio.SFX(`
+			#vol : ${volume}
+			#freq: ${freq}
+			#time: ${time}
+			#noi : NOISE
+			#nenv: ENV S #time .5 * I #noi
+			#lpf : LPF F #freq B 2 I #nenv
+			#sig : #del -.95 * #lpf
+			#del : DEL T .5 #freq / M .2 I #sig
+			#out : #sig`
+		)).tosound(time);
+	}
+
+
+	static createtuba(volume=1.0,freq=300,time=2.0) {
+		return (new Audio.SFX(`
+			#vol : ${volume}
+			#freq: ${freq}
+			#time: ${time}
+			#noi : NOISE
+			#nenv: ENV R #time I #noi
+			#lpf : LPF F #freq I #nenv
+			#sig : #del .95 * #lpf
+			#del : DEL T .02 M .2 I #sig
+			#out : #sig`
+		)).tosound(time);
+	}
+
+}
 
 
 //---------------------------------------------------------------------------------
@@ -105,7 +442,8 @@ export class StringSim {
 		let x=lx0+fret*(lx1-lx0);
 		fret=(1-fret)*(len-min)+min;
 		let pluck=1-(len-this.pluckpos)/fret;
-		Audio.createguitar(str.vol,str.freq*len/fret,pluck).play();
+		DemoInst.createguitar(str.vol,str.freq*len/fret,pluck).play();
+		// Audio.SFX.defplay("string",str.vol,str.freq*len/fret);
 		this.pluckarr[this.plucks++]={time:performance.now(),x:x,y:(id+0.75)*pad,str:str};
 	}
 
@@ -334,7 +672,8 @@ export class XylophoneSim {
 				let fret=(my-bar.y-bart)/(bar.h-2*bart);
 				fret=fret<1?fret:1;
 				fret=fret>0?fret:0;
-				Audio.createxylophone(0.5,bar.freq,fret).play();
+				DemoInst.createxylophone(0.5,bar.freq,fret).play();
+				// Audio.SFX.defplay("bell",0.5,bar.freq);
 				let x=(bar.x+bar.w*0.5)/scale;
 				let y=(bar.y+bart+fret*bar.h)/scale;
 				hitarr[hits++]={time:performance.now(),x:x,y:y,bar:bar};
@@ -421,9 +760,9 @@ export function PlayUI(name) {
 			#out: ENV A 0.01 R #time 0.01 - I #sig #vol *
 		`;
 	} else if (name==="hihat") {
-		Audio.createdrumhihat(1).play();
+		DemoInst.createdrumhihat(1).play();
 	} else if (name==="kick") {
-		Audio.createdrumkick(2).play();
+		DemoInst.createdrumkick(2).play();
 	} else if (name==="marble") {
 		str=`
 			#vol : 2
@@ -698,7 +1037,8 @@ export class Bebop {
 		let notepos=Bebop.notepos;
 		while (notepos<notelen && notes[notepos][0]<=time) {
 			let note=notes[notepos++];
-			Audio.createmusicbox(Bebop.volume,note[1]).play();
+			DemoInst.createmusicbox(Bebop.volume,note[1]).play();
+			// Audio.SFX.defplay("bell",Bebop.volume,note[1]);
 		}
 		Bebop.notepos=notepos;
 		let playing=notepos<notelen;
@@ -723,7 +1063,7 @@ function CompressPoints(ret,points,len,maxpoints) {
 		for (let i=len;i<maxpoints;i++) {ret[i]=0;}
 		return;
 	}
-	let sum=0,rem=0,val,j=0;
+	let sum=0,rem=0,val=0,j=0;
 	for (let i=0;i<len;i++) {
 		val=points[i];
 		sum+=val*maxpoints;
@@ -911,7 +1251,7 @@ export class MusicMaker {
 		try {
 			let snd=null;
 			if (this.mode==="music") {
-				snd=Audio.sequencer(str);
+				snd=DemoInst.sequencer(str);
 				this.log("compile: "+((performance.now()-time)/1000).toFixed(3)+"s");
 			} else {
 				// Generate 5 seconds of audio, or until there's 0.1s of silence.

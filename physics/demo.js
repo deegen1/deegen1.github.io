@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.14
+demo.js - v1.15
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -188,6 +188,8 @@ export class PhyScene {
 			let u=Math.floor((Math.sin(pframe*Math.PI*2)+1.0)*0.5*255.0);
 			pdata.rgb=[u,u,255,255];
 		}
+		// world.clearactive();
+		// world.addactive(player.pos,player.rad*2);
 		// Update atoms.
 		for (let atom of world.atomiter()) {
 			let data=atom.data;
@@ -800,27 +802,29 @@ export class BVHScene {
 		draw.setcolor(255,255,255,255);
 		let bvhi=world.broad.memi32;
 		let bvhf=world.broad.memf32;
-		let nodelen=1,nodemax=8,nodesize=3+2*2;
-		let nodearr=new Array(nodemax);
-		nodearr[0]=0;
-		while (nodelen<nodemax) {
-			let stop=nodelen;
-			for (let i=0;i<stop && nodelen<nodemax;i++) {
-				let n=nodearr[i];
-				if (!(bvhi[n]&1)) {
-					nodearr[i]=n+nodesize;
-					nodearr[nodelen++]=bvhi[n+2];
+		if (bvhf!==null) {
+			let nodelen=1,nodemax=8,nodesize=3+2*2;
+			let nodearr=new Array(nodemax);
+			nodearr[0]=0;
+			while (nodelen<nodemax) {
+				let stop=nodelen;
+				for (let i=0;i<stop && nodelen<nodemax;i++) {
+					let n=nodearr[i];
+					if (!(bvhi[n]&1)) {
+						nodearr[i]=n+nodesize;
+						nodearr[nodelen++]=bvhi[n+2];
+					}
 				}
 			}
-		}
-		for (let i=0;i<nodemax;i++) {
-			let n=nodearr[i];
-			let x0=bvhf[n+3]*scale,x1=bvhf[n+4]*scale;
-			let y0=bvhf[n+5]*scale,y1=bvhf[n+6]*scale;
-			draw.drawline(x0,y0,x1,y0);
-			draw.drawline(x1,y0,x1,y1);
-			draw.drawline(x1,y1,x0,y1);
-			draw.drawline(x0,y1,x0,y0);
+			for (let i=0;i<nodemax;i++) {
+				let n=nodearr[i];
+				let x0=bvhf[n+3]*scale,x1=bvhf[n+4]*scale;
+				let y0=bvhf[n+5]*scale,y1=bvhf[n+6]*scale;
+				draw.drawline(x0,y0,x1,y0);
+				draw.drawline(x1,y0,x1,y1);
+				draw.drawline(x1,y1,x0,y1);
+				draw.drawline(x0,y1,x0,y0);
+			}
 		}
 		// Get the energy of the system.
 		let energy=0;

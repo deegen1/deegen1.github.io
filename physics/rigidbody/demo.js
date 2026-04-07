@@ -18,9 +18,6 @@ Demo for physics.js
 TODO
 
 
-Use Draw.trace() for outlines.
-
-
 */
 /* npx eslint demo.js -c ../../../standards/eslint.js */
 
@@ -116,22 +113,12 @@ export class PhyScene {
 		this.player=player;
 		// Precompute drawing paths for each body.
 		for (let body of world.bodyiter()) {
-			let vertarr=body.vertarr;
-			let verts=vertarr.length;
-			let innerpath=new Draw.Path();
-			let outerpath=new Draw.Path();
-			for (let i=0;i<verts;i++) {
-				innerpath.lineto(vertarr[i]);
-				let v=vertarr[verts-1-i];
-				let mag=v.mag();
-				outerpath.lineto(v.mul((mag-0.003)/mag));
-			}
-			innerpath.close();
-			outerpath.close();
-			outerpath.addpath(innerpath);
+			let path=new Draw.Path();
+			for (let v of body.vertarr) {path.lineto(v);}
+			path.close();
 			let data=body.data;
-			data.innerpath=innerpath;
-			data.outerpath=outerpath;
+			data.innerpath=path;
+			data.outerpath=path.trace(0,-0.0025);
 			data.rgb=null;
 			if (body.type===walltype) {
 				data.rgb=[100,200,100];
