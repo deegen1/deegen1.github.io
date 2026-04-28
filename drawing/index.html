@@ -431,7 +431,7 @@ if (y0&lt;0) {x0+=((0-y0)/dy)*dx;y0=0;}
 <p>This worked perfectly well for almost all coordinates, but if the line
 coordinates were very large (close to floating point saturation) this could
 happen:</p>
-<img src="./fillpath_large_coords.png">
+<img src="./fillpath_large_coords.webp">
 <p>The exact problem is intricate, but basically the start and end pixels
 (<i>x0</i> and <i>x1</i>) would be calculated improperly and prevent the
 algorithm from setting the area to 0.</p>

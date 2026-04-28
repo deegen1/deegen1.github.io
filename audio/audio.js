@@ -76,6 +76,8 @@ Keep under 50kb, minus header.
 
 Better explanation of compiled form in article.
 
+MacOS keeps playing song even after hitting back button.
+
 Sound effects
 	Optimize %mod lines in sfx.fill().
 	Speed up input processing. Move constants to different section?

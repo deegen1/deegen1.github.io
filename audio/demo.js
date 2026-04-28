@@ -743,7 +743,7 @@ export function PlayUI(name) {
 			#sig1: BPF F 2000 B 12 I #sin1 #sin2 + .9 < -.9 >
 			#sig2: BPF F 400 B 3 I #sig1
 			#hpf1: HPF F 90 I #sig1 .15 * .06 < -.06 > #sig2
-			#hpf2: HPF F 90 I #hpf1 G .75
+			#hpf2: HPF F 90 I #hpf1 G .25
 			#out : ENV A .01 S 1.98 R .01 I #hpf2
 		`;
 	} else if (name==="explosion") {
@@ -777,7 +777,7 @@ export function PlayUI(name) {
 		`;
 	} else if (name==="knock") {
 		str=`
-			#sig  : NOISE H 12
+			#sig  : NOISE H 16
 			#bpf1 : BPF F 100 B 2 I #sig
 			#bpf2 : BPF F 100 B 2 I #bpf1
 			#knock: ENV A 0.001 R 0.199 I #bpf2
@@ -805,7 +805,7 @@ export function PlayUI(name) {
 			#saw0: SAW F #freq
 			#saw1: SAW F #freq 1.002 *
 			#sig: LPF F 3000 I #saw0 #saw1 + 0.5 < -0.5 >
-			#out : ENV S 2 I #sig
+			#out : ENV S 2 I #sig 0.5 *
 		`;
 	} else if (name==="beep") {
 		str=`

@@ -73,7 +73,6 @@ for (let i=0;i<tree.length();i++) {
 // Data - v1.00
 
 
-
 class TreeNode {
 
 	constructor(value) {

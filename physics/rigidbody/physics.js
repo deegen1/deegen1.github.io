@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v1.00
+physics.js - v1.01
 
 Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -33,6 +33,7 @@ Allow creating body from template.
 BVH
 	Omit if disabled or verts=0.
 	See what sorting method works best for long polygons.
+	Instead of just using min bounds, average (min+max)/2 and split min<mid.
 
 Hull Calc
 	pick D closest points
@@ -49,6 +50,7 @@ Impulse
 	N-D impulse calculation.
 
 Collision
+	Fix overlap detection sometimes returning wrong separating vector.
 	return [overlapping, a_point, b_point]
 	Return closest points even on failure.
 	Use hull points for collision.
@@ -62,7 +64,7 @@ import {Random,Vector,Matrix,Transform} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
-// Physics - v1.00
+// Physics - v1.01
 
 
 class PhyLink {
@@ -71,7 +73,7 @@ class PhyLink {
 		this.prev=null;
 		this.next=null;
 		this.list=null;
-		this.obj=obj||null;
+		this.obj=obj??null;
 		this.idx=null;
 	}
 
@@ -507,6 +509,7 @@ class PhyBody {
 			for (let v of vertarr) {
 				v.isub(cen);
 			}
+			this.trans.vec.iadd(cen);
 			// Inertia.
 			let inertia=0;
 			for (let face of facearr) {

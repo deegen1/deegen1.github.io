@@ -265,7 +265,8 @@ export class DrawPerf {
 			}
 		}
 		let time=performance.now()-timestart;
-		//console.log(`test: ${this.test}, samples: ${samples}, pixels: ${pixels}, time: ${time.toFixed(0)}`);
+		// console.log(`test: ${this.test}, samples: ${samples},
+		// pixels: ${pixels}, time: ${time.toFixed(0)}`);
 		draw.screenflip();
 		// Format our test results. Don't display if this is a warmup.
 		if (test && (!pixels || isNaN(pixels))) {

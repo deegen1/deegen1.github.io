@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-rappel.js - v5.02
+rappel.js - v3.00
 
 Copyright 2025 Alec Dee
 2dee.net - akdee144@gmail.com
@@ -30,27 +30,42 @@ History
 2.00
      Created a physically based grappeling hook.
 3.00
-     Added particle effects and autumn leaves.
-4.00
-     Created background music and added sound effects.
-5.00
-     Created tower demo with timer.
-     Added biome regions.
-5.01
-     Replaced background music with an actual beat.
-5.02
-     Objects far away from the player are disabled to cut down physics time.
+     Changed from atom-based physics to rigid body polygons.
 
 
 --------------------------------------------------------------------------------
 TODO
 
 
+Add player controls
+Hook bonds
+Particles
+Audio
+Fix collision detection randomly finding wrong separating vector.
+
+Randomly generate trees
+	let u=Math.pow(i/trees,1.5);
+	make height=max(rnd.getnorm()*0.2,-1)+1.5
+	let x=[0,0,0,0],y=[0,0,0,0];
+	for (let c=0;c<8;c++) {
+		let a=c>4?y:x,v=rnd.getf();
+		v=(c>4?(v-0.5)*0.3:v)*scale;
+		let i=c&3;
+		while (i>0 && v<a[i-1]) {a[i]=a[i-1];i--;}
+		a[i]=v;
+	}
+	lineto(x[0],y[3])
+	lineto(x[2],y[1])
+	lineto(x[1],y[2])
+	lineto(x[3],y[0])
+	generate multiple kinks?
+
+
 */
 /* npx eslint rappel.js -c ../../standards/eslint.js */
 
 
-import {Env,Random,Vector,Transform,Input,Draw,Audio,UI,Phy} from "./library.js";
+import {Env,Random,Vector,Matrix,Transform,Input,Draw,Audio,UI,Phy} from "./library.js";
 
 
 // Material IDs
@@ -61,6 +76,7 @@ const PART=6,LEAF=7,RUNE=8,RAIN=9,CHAR=10;
 export class Game {
 
 	constructor(bannerid,divid) {
+		let time=performance.now();
 		this.banner=document.getElementById(bannerid);
 		this.canvas=document.getElementById(divid);
 		this.canvas.style.imageRendering="pixelated";
@@ -81,6 +97,7 @@ export class Game {
 		function resize() {state.resize();}
 		window.addEventListener("resize",resize);
 		resize();
+		console.log("time:",(performance.now()-time)*0.001);
 		function update(time) {
 			if (state.update(time)) {
 				requestAnimationFrame(update);
@@ -113,7 +130,8 @@ export class Game {
 		let normmat=world.createbodytype(0.01,1.0,0.98);
 		let bodymat=world.createbodytype(0.01,5*.84/( 9*.7854),0.25);
 		let ropemat=world.createbodytype(0.50,5*.08/(20*.0804),0.00);
-		let hookmat=world.createbodytype(0.01,5*.08/(10*.0804),0.25);
+		// let hookmat=world.createbodytype(0.01,5*.08/(10*.0804),0.25);
+		let hookmat=world.createbodytype(1.00,Infinity,0.95);
 		// let edgemat=world.createbodytype(0.01,5*.08/(10*.0804),0.50,1,950);
 		let partmat=world.createbodytype(0.50,1e-9,0.50,1,NaN);
 		let leafmat=world.createbodytype(0.75,1e-8,0.00,1,0);
@@ -142,8 +160,8 @@ export class Game {
 		runemat.gravity=new Vector([0,0]);
 		charmat.gravity=new Vector([0,0]);
 		leafmat.intarr[hookmat.id].statictension=25;
-		// for (let intr of hookmat.intarr) {intr.staticdist=5.625;}
-		// world.collcallback=function() {return state.collcallback(...arguments);};
+		for (let intr of hookmat.intarr) {intr.staticdist=5.625;}
+		world.collcallback=function() {return state.collcallback(...arguments);};
 		// world.stepcallback=function(dt) {return state.stepcallback(dt);};
 		// this.initparticles();
 		// Setup the player.
@@ -155,19 +173,19 @@ export class Game {
 		this.camera=new Vector(2);
 		this.camcen=new Vector(playerpos);
 		let vertarr=[];
-		let rnd=new Random(1);
-		/*this.playerpos=playerpos;
-		this.playervel=new Vector(2);
 		// Create the hook.
 		this.hooktime=0;
 		this.hookatom=[];
 		this.hookbond=[];
-		let prev1=null;
+		let hooksize=0.3;
+		let hookvert=[[-1,0],[-0.5,-0.25],[0.5,-0.25],[1,0],[0.5,0.25],[-0.5,0.25]];
+		for (let i=0;i<6;i++) {hookvert[i]=new Vector(hookvert[i]).imul(hooksize);}
+		hooksize=.25;
 		for (let s=0;s<3;s++) {
 			let ang=[1.3,-1.3,0][s],len=4;
-			let dx=Math.cos(ang)*hookspace,dy=Math.sin(ang)*hookspace;
-			prev1=s?this.hookatom[0]:null;
-			for (let i=s?1:0;i<len;i++) {
+			let pos=[playerpos[0]+Math.cos(ang)*hooksize,playerpos[1]+Math.sin(ang)*hooksize];
+			let body=world.createbody(hookvert,pos,[ang],hookmat);
+			/*for (let i=s?1:0;i<len;i++) {
 				let pos=new Vector([(len-1)*hookspace-dx*i,dy*i]);
 				let supp=(!i || i===len-1)?1:0,disp=supp;
 				let mat=i===len-1?edgemat:hookmat;
@@ -186,10 +204,10 @@ export class Game {
 				}
 				this.hookatom.push(atom);
 				prev1=atom;
-			}
+			}*/
 		}
 		// Create the hair.
-		this.ropemin=50;
+		/*this.ropemin=50;
 		this.ropemax=5000;
 		this.ropeatom=[];
 		let prev2=prev1;
@@ -203,69 +221,32 @@ export class Game {
 			}
 			prev2=prev1;
 			prev1=atom;
-		}
-		// Create the body.
-		this.bodyatom=[];
-		for (let i=0;i<9;i++) {
-			let pos=new Vector([[0,1,-1][i%3]*0.5,[0,1,-1][(i/3)|0]*0.5]);
-			let atom=world.createatom(pos.add(playerpos),0.5,bodymat);
-			this.bodyatom.push(atom);
-			for (let j=0;j<i;j++) {world.createbond(atom,this.bodyatom[j],-1,1000);}
-			let bond=world.createbond(prev1,atom,-1,240);
-			if (!i) {bond.data.rgb=[255,255,255,255];}
-			world.createbond(prev2,this.bodyatom[0],ropespace*2,240);
 		}*/
 		this.bodyatom=world.createbody([[-1,-1],[1,-1],[1,1],[-1,1]],playerpos,null,bodymat);
 		// Set up the level.
 		// Create the walls
-		/*let rad=0.27,space=0.26,over=0;
-		for (let x=minx;x<maxx;x+=space) {
-			world.createatom([x,miny-over],rad,wallmat);
-			world.createatom([x,maxy+over],rad,wallmat);
-		}
-		for (let y=miny;y<maxy;y+=space) {
-			world.createatom([minx-over,y],rad,wallmat);
-			world.createatom([maxx+over,y],rad,wallmat);
-		}
-		rad=4;space=1;over=3.9;
-		for (let x=minx;x<maxx;x+=space) {
-			world.createatom([x,miny-over],rad,fillmat);
-			world.createatom([x,maxy+over],rad,fillmat);
-		}
-		for (let y=miny;y<maxy;y+=space) {
-			world.createatom([minx-over,y],rad,fillmat);
-			world.createatom([maxx+over,y],rad,fillmat);
-		}
+		let wallt=4,over=3.6;
+		let wallw=(maxx-minx+wallt)*0.5,wallx=(minx+maxx)*0.5;
+		let wallh=(maxy-miny+wallt)*0.5,wally=(miny+maxy)*0.5;
+		let topvert =[[-wallw,-wallt],[wallw,-wallt],[wallw,wallt],[-wallw,wallt]];
+		let sidevert=[[-wallt,-wallh],[wallt,-wallh],[wallt,wallh],[-wallt,wallh]];
+		world.createbody(topvert ,[wallx,miny-over],null,wallmat);
+		world.createbody(topvert ,[wallx,maxy+over],null,wallmat);
+		world.createbody(sidevert,[minx-over,wally],null,wallmat);
+		world.createbody(sidevert,[maxx+over,wally],null,wallmat);
 		// Create top and bottom barriers.
-		let bart=3,barw=maxx/5;
+		let bart=1.5,barw=wallw/5;
 		for (let i=0;i<3;i++) {
-			let x=i*barw*2;
-			world.createshape(2,wallmat,0.27,0.26,
-				[[0,0],[barw,0],[barw,bart],[0,bart]],
-				[[0,1],[1,2],[2,3],[3,0]],
-				{vec:[x,-bart]}
-			);
-			world.createshape(2,wallmat,0.27,0.26,
-				[[0,0],[barw,0],[barw,bart],[0,bart]],
-				[[0,1],[1,2],[2,3],[3,0]],
-				{vec:[x,miny+toph]}
-			);
+			let x=(i*4+1)*barw;
+			let verts=[[-barw,-bart],[barw,-bart],[barw,bart],[-barw,bart]];
+			world.createbody(verts,[x,-bart],null,wallmat);
+			world.createbody(verts,[x,miny+toph],null,wallmat);
 		}
 		for (let i=1;i<3;i++) {
-			world.createshape(2,wallmat,0.27,0.26,
-				[[-3,-3],[3,-3],[3,3],[-3,3]],
-				[[0,1],[1,2],[2,3],[3,0]],
-				{vec:[maxx*i/3,both/2],ang:Math.PI/4}
-			);
+			world.createbody([[-3,-3],[3,-3],[3,3],[-3,3]],[maxx*i/3,both*0.25],[Math.PI/4],wallmat);
 		}
-		for (let atom of world.atomiter()) {
-			let dist=atom.data._filldist;
-			Game.atominit(atom);
-			if (Object.is(atom.type,wallmat)) {
-				if (dist<0) {atom.type=fillmat;}
-			}
-		}*/
 		// Create holds
+		let rnd=new Random(1);
 		let holdgap=20;
 		let levels=Math.round(climb/holdgap)|1;
 		holdgap=climb/levels;
@@ -298,10 +279,17 @@ export class Game {
 			for (let v of body.vertarr) {path.lineto(v);}
 			path.close();
 			let data=body.data;
-			data.paths=[
-				[[ 32, 32, 32],path],
-				[[140,170,140],path.trace(0,-.2)]
-			];
+			let id=body.type.id;
+			if (id===BODY) {
+				data.paths=[[[128,128,255],path]];
+			} else if (id===HOOK) {
+				data.paths=[[[100,100,100],path]];
+			} else {
+				data.paths=[
+					[[ 32, 32, 32],path],
+					[[140,170,140],path.trace(0,-.2)]
+				];
+			}
 		}
 		// Game state
 		this.climbtime=0;
@@ -326,24 +314,24 @@ export class Game {
 	}
 
 
-	collcallback(intr,a,b,norm,veldif,posdif,bond) {
+	collcallback(intr,a,acon,b,bcon,norm,nmag,push) {
 		let aid=a.type.id,bid=b.type.id;
 		if (aid<=WALL && bid<=WALL) {
 			return false;
 		} else if (aid>=PART || bid>=PART) {
-			if ((aid>=CHAR && (bid<BODY || bid>EDGE))
-			||  (bid>=CHAR && (aid<BODY || aid>EDGE))) {return false;}
-		} else if ((aid>=ROPE && aid<=EDGE) || (bid>=ROPE && bid<=EDGE)) {
-			if (aid>=BODY && aid<=EDGE && bid>=BODY && bid<=EDGE) {return false;}
+			if ((aid>=CHAR && (bid<BODY || bid>HOOK))
+			||  (bid>=CHAR && (aid<BODY || aid>HOOK))) {return false;}
+		} else if ((aid>=ROPE && aid<=HOOK) || (bid>=ROPE && bid<=HOOK)) {
+			if (aid>=BODY && aid<=HOOK && bid>=BODY && bid<=HOOK) {return false;}
 			if (this.throwing<2) {return false;}
 			// Allow the hook to form bonds by flipping the tension sign.
-			if (aid===EDGE || bid===EDGE) {
+			if (aid===HOOK || bid===HOOK) {
 				let tension=intr.statictension;
 				intr.statictension=(tension>0)===(this.throwing===3)?tension:-tension;
 			}
 		}
 		// Track each atom's acceleration.
-		let vel=veldif*intr.vmul+posdif*intr.vpmul;
+		/*let vel=veldif*intr.vmul+posdif*intr.vpmul;
 		let u=a.mass/(a.mass+b.mass);
 		u=u<1?u:1;
 		a.data.accel+=vel*(1-u);
@@ -356,7 +344,7 @@ export class Game {
 			cen.iadd(dir.mul(over*this.rnd.getf()));
 			dir.imul(vel).iadd(a.vel.add(b.vel).imul(0.5));
 			this.createparticle(PART,cen,dir);
-		}
+		}*/
 		return true;
 	}
 
@@ -412,18 +400,20 @@ export class Game {
 		ui.addpath(UI.VOLUME_PATH,{vec:[21,20],scale:15});
 		// let slider=ui.addslider(45,5,140,30,this.audio.volume);
 		// slider.onchange=function(node) {state.audio.setvolume(node.value);};
-		this.cursor=new Draw.Path("M0 0 4 2 2 2 2 4Z");
+		this.cursor=new Draw.Path("M0 0 4 2 2 2 2 4Z",{scale:[5,5]});
+		this.cursortrace=this.cursor.trace(0.5);
 		// Draw a dark forest.
 		let bg=new Draw.Image(draww,drawh);
 		this.background=bg;
 		draw.pushstate();
 		draw.setimage(bg);
 		draw.fill(0,0,0,255);
+		let rnd=new Random(9);
 		let tower=new Draw.Path(`
 			M-200 0V-617L-300-717V-867h76v75h55v-75h76v75h55v-75H-5v-133H5v14c19-5 98-19 60
 			18 75 21 85 45 190 47-37 29-136 17-195 5-8-29-47-11-55-10v59H38v75H93v-75h76v75
 			h55v-75h76v150L200-617V0Z
-		`);
+		`,{dim:2,scale:1/1000});
 		let tree=new Draw.Path(`
 			M-43 0l22-110-89 35 16-35-93 35 46-72-143 47 36-26-102 14 32-22-100 5 185-108-93
 			20 30-25-91 5 181-111-98 8 31-18-69 2 172-99-91 12 18-14-64 4 131-89-51 11 9-17
@@ -432,27 +422,32 @@ export class Game {
 			-55 6 24 18-66-22 133 85-66 0 21 22-68-19 145 89-55 0 31 18-67-11 129 94-67-14
 			38 28-102-22 168 104-65-7 30 20-103-16 180 116-79-2 13 24-85-25 181 108-88-11 31
 			35-107-22 40 38-148-55 55 79-95-37 17 30-91-35 20 111Z
-		`);
-		let rnd=new Random(9);
-		let trees=400;
-		let xspan=1/23,towery=drawh*0.90;
-		for (let tid=0;tid<trees;tid++) {
-			let u=tid/(trees-1),z=2-1*u;
-			// Have trees get closer, and place each row in a zig-zag pattern.
-			let scale=0.08*(1+Math.abs(rnd.getnorm()))/z;
-			let y=drawh*(0.3+0.9*u+rnd.getf()*0.04-0.02);
-			let x=(u%xspan)/xspan;
-			x=(((u/xspan)&1)?1-x:x)+(rnd.getf()*0.5-0.25)*xspan;
-			x*=draww;
-			if (y>towery) {
+		`,{dim:2,scale:1/951});
+		let fov=90*Math.PI/180;
+		let f=drawh/(2*Math.tan(fov/2));
+		let inv=Matrix.fromangles([-1.4*fov,0,0]).inv();
+		let cam=new Vector([0,0,2]);
+		let c=f*2/draww,den=c*inv[0]-inv[6];
+		let xproj=new Vector([0,inv[7]-c*inv[1],inv[8]-c*inv[2]]).imul(1.1/den);
+		let trees=2000;
+		for (let i=0;i<trees;i++) {
+			let u=Math.pow(i/(trees-1),2);
+			let p=(new Vector([0,(1-u)*11-1,0])).isub(cam);
+			// Scale x to screen boundaries.
+			p[0]=rnd.gets()*p.mul(xproj)-cam[0];
+			let [x,y,z]=inv.mul(p);
+			x=x*f/z+draww/2;
+			y=y*f/z+drawh/2;
+			if (i===~~(trees*0.9)) {
 				draw.setcolor(16,16,16,255);
-				draw.fillpath(tower,{vec:[draww*0.43,drawh*0.75],scale:0.2});
-				towery=Infinity;
+				draw.fillpath(tower,{vec:[draww/2,y],scale:2.2*f/z});
 			}
+			let h=(rnd.getf()+0.5)*f/z;
+			if (z<1e-7 || y-h>drawh) {continue;}
 			// Shade based on proximity.
-			let c=1/(3-2*u);
-			draw.setcolor(60*c,80*c,60*c,255);
-			draw.fillpath(tree,{vec:[x,y],scale:scale});
+			let col=(rnd.getf()*0.2+0.9)/(3-2*u);
+			draw.setcolor(60*col,80*col,60*col,255);
+			draw.fillpath(tree,{vec:[x,y],scale:h});
 		}
 		draw.popstate();
 		// for (let atom of this.world.atomiter()) {
@@ -756,8 +751,13 @@ export class Game {
 			pos=pos>min?pos:min;
 			pos=pos<max?pos:max;
 			camera[i]=pos;
-			// camera[i]=playerpos[i];
 		}
+		// Test controls.
+		let input=this.input,speed=50*dt;
+		if (input.getkeydown(input.KEY.UP)) {playervel.iadd([0,-speed]);}
+		if (input.getkeydown(input.KEY.DOWN)) {playervel.iadd([0,speed]);}
+		if (input.getkeydown(input.KEY.LEFT)) {playervel.iadd([-speed,0]);}
+		if (input.getkeydown(input.KEY.RIGHT)) {playervel.iadd([speed,0]);}
 		// Play wind rushing sound.
 		/*let windnew=playervel.mag();
 		let wind=this.windvol*Math.pow(0.2,dt);
@@ -864,6 +864,7 @@ export class Game {
 		this.distmap.fill(Infinity);
 		let acceldecay=Math.pow(0.01,dt);
 		let [camx,camy]=this.camera;
+		let playerpos=this.bodyatom.trans.vec;
 		let trans=new Transform(2),vec=trans.vec,mat=trans.mat;
 		for (let atom of this.world.atomiter()) {
 			let adat=atom.data;
@@ -877,7 +878,7 @@ export class Game {
 				if (adat.sndready) {
 					adat.sndready=false;
 					let vol=(accel-sndmin)/(tdat.sndmax-sndmin);
-					let dist=(this.playerpos.dist(pos)-rad)/this.snddist;
+					let dist=(playerpos.dist(pos)-rad)/this.snddist;
 					dist=dist>0?dist*dist:0;
 					tdat.sndacc+=(vol<1?vol:1)*(1-dist);
 				}
@@ -1014,15 +1015,15 @@ export class Game {
 		// this.updateaudio();
 		this.ui.render();
 		draw.setcolor(255,255,255,255);
-		draw.fillpath(this.cursor,{vec:mouse.add(-1.5,-1.5),scale:5});
-		draw.setcolor(128,128,255,255);
-		draw.fillpath(this.cursor,{vec:mouse,scale:4});
-		draw.setcolor(255,255,255,255);
 		draw.filltext(draw.img.width-5-7*11,5,this.framestr,20);
 		let rem=this.climb-this.climbstop;
 		draw.filltext(5,45,`finish: ${rem.toFixed()} m`,20);
 		if (rem===0 || this.climb===0) {draw.setcolor(128,128,255,255);}
 		draw.filltext(5,70,`time  : ${this.climbtime.toFixed(2)} s`,20);
+		draw.setcolor(128,128,255,255);
+		draw.fillpath(this.cursor,{vec:mouse});
+		draw.setcolor(255,255,255,255);
+		draw.fillpath(this.cursortrace,{vec:mouse});
 		draw.screenflip();
 		// Calculate the frame time.
 		this.framesum+=performance.now()-starttime;
