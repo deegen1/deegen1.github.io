@@ -777,7 +777,7 @@ export function PlayUI(name) {
 		`;
 	} else if (name==="knock") {
 		str=`
-			#sig  : NOISE H 16
+			#sig  : NOISE H 20
 			#bpf1 : BPF F 100 B 2 I #sig
 			#bpf2 : BPF F 100 B 2 I #bpf1
 			#knock: ENV A 0.001 R 0.199 I #bpf2

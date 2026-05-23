@@ -167,6 +167,7 @@ Font
 
 DrawPath
 	Fix tracing for narrow edges.
+	Clip based on area sign?
 
 fillpath
 	Area accuracy
@@ -185,7 +186,6 @@ fillpath
 DrawImage
 	Make sure drawimagei() and drawimage() are 1-to-1.
 	See if narrow dx/dy causes problems.
-	Remove ceil() for srcmaxy. ceil(y)=h-~~(h-y)
 	Create page describing algorithm. Transforming an image (the hard way).
 	Faster pixel blending.
 
@@ -831,7 +831,7 @@ class DrawImage {
 			for (let x=0;x<w;x++) {
 				dst[didx++]=src[sidx+2];
 				dst[didx++]=src[sidx+1];
-				dst[didx++]=src[sidx+0];
+				dst[didx++]=src[sidx  ];
 				dst[didx++]=src[sidx+3];
 				sidx+=4;
 			}

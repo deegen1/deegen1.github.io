@@ -22,7 +22,7 @@ TODO
 /* npx eslint demo.js -c ../../../standards/eslint.js */
 
 
-import {Env,Vector,Transform,Input,Draw} from "./library.js";
+import {Env,Random,Vector,Transform,Input,Draw} from "./library.js";
 import {Phy} from "./physics.js";
 
 
@@ -95,9 +95,9 @@ export class PhyScene {
 			world.createbox([0.5,10],[-0.995,0],[0],walltype),
 			world.createbox([0.5,10],[ 0.995,0],[0],walltype)
 		];
-		let rnd=world.rnd;
-		for (let i=0;i<150;i++) {
-			let sides=[rnd.getf()*0.03+0.01,rnd.getf()*0.03+0.01];
+		let rnd=new Random(1);
+		for (let i=0;i<500;i++) {
+			let sides=[rnd.getf()*0.02+0.01,rnd.getf()*0.02+0.01];
 			let pos=[rnd.gets()*0.14,rnd.gets()*0.04];
 			if (i&1) {world.createbox(sides,pos);}
 			else     {world.createsphere(sides,16,pos);}
@@ -118,7 +118,7 @@ export class PhyScene {
 			path.close();
 			let data=body.data;
 			data.innerpath=path;
-			data.outerpath=path.trace(0,-0.0025);
+			data.outerpath=path.trace(0,-0.0015);
 			data.rgb=null;
 			if (body.type===walltype) {
 				data.rgb=[100,200,100];

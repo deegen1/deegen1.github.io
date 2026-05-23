@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v17.58
+library.js - v17.60
 
 Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -19,7 +19,7 @@ Input   - v1.19
 Drawing - v5.03
 UI      - v1.02
 Audio   - v3.11
-Physics - v1.01
+Physics - v1.03
 
 
 --------------------------------------------------------------------------------
@@ -2186,7 +2186,7 @@ class DrawImage {
 			for (let x=0;x<w;x++) {
 				dst[didx++]=src[sidx+2];
 				dst[didx++]=src[sidx+1];
-				dst[didx++]=src[sidx+0];
+				dst[didx++]=src[sidx  ];
 				dst[didx++]=src[sidx+3];
 				sidx+=4;
 			}
@@ -4347,9 +4347,9 @@ class AudioSFX {
 					let pos=di32[n+4];
 					let len=next-n-5;
 					if (++pos>=len) {pos=0;}
-					// Allpass the delayed output.
 					del=del<max?del:max;
 					del=del>0?del*sndfreq:0;
+					// Allpass the delayed output.
 					/*let i=del>>>0;
 					let f=del-i;
 					let ap=(1-f)/(1+f);
@@ -4625,11 +4625,13 @@ export class Audio {
 		this.mutefunc=function(){ctx.resume();};
 		this.updatetime=NaN;
 		if (!Audio.def) {Audio.initdef(this);}
+		let state=this;
 		if (autoupdate) {
-			let st=this;
-			function update() {if (st.update()) {requestAnimationFrame(update);}}
+			function update() {if (state.update()) {requestAnimationFrame(update);}}
 			update();
 		}
+		// Stop all sounds when exiting the page.
+		// window.addEventListener("beforeUnload",()=>{state.release();});
 	}
 
 
@@ -4638,6 +4640,13 @@ export class Audio {
 		if (!def) {def=new Audio();}
 		Audio.def=def;
 		return def;
+	}
+
+
+	release() {
+		// Stop and release all audio.
+		this.mute(true);
+		while (this.queue) {this.queue.remove();}
 	}
 
 
@@ -4703,7 +4712,7 @@ export class Audio {
 
 
 //---------------------------------------------------------------------------------
-// Physics - v1.01
+// Physics - v1.03
 
 
 class PhyLink {
@@ -4921,7 +4930,7 @@ class PhyBodyType {
 			link.obj.intarr[id]=null;
 			link=link.next;
 		}
-		this.bodylist.clear();
+		this.bodylist.release(true);
 		this.worldlink.remove();
 	}
 
@@ -5070,8 +5079,30 @@ class PhyBody {
 	}
 
 
+	release() {
+		if (this.deleted) {return;}
+		this.deleted=true;
+		let link=null;
+		while ((link=this.bondlist.head)!==null) {
+			link.obj.release();
+		}
+		this.typelink.remove();
+		this.worldlink.remove();
+	}
+
+
 	relpos(v) {return this.trans.apply(v);}
 	invpos(v) {return this.trans.inv().apply(v);}
+
+	relvel(p) {
+		let vel=this.vel,spin=this.spin[0];
+		let x=vel[0]-p[1]*spin;
+		let y=vel[1]+p[0]*spin;
+		return new Vector([x,y]);
+	}
+
+
+	bonditer() {return this.bondlist.iter();}
 
 
 	updateconstants() {
@@ -5256,25 +5287,23 @@ class PhyBody {
 		let nmag=ndot>0?ndot:0;
 		nmag=nmag*intr.vmul+push*intr.vpmul;
 		push*=intr.push0;
-		// If we have a callback, allow it to handle the collision.
-		let callback=world.collcallback;
-		if (callback!==null && !callback(intr,a,acon,b,bcon,norm,nmag,push)) {return;}
 		// Add static friction bonds.
 		let staticdist=intr.staticdist;
-		if (staticdist>0 && intr.statictension>0) {
-			// Get inverse contact points.
-			let ainv=world.tmpvec[2],binv=world.tmpvec[3];
-			let amat=a.inv,bmat=b.inv;
-			let ai=0,bi=0;
-			for (let d=0;d<dim;d++) {
-				let ax=0,bx=0;
-				for (let j=0;j<dim;j++) {
-					ax+=amat[ai++]*acon[j];
-					bx+=bmat[bi++]*bcon[j];
-				}
-				ainv[d]=ax;
-				binv[d]=bx;
+		let bonded=null,staticbond=false;
+		// Get inverse contact points.
+		let ainv=world.tmpvec[2],binv=world.tmpvec[3];
+		let amat=a.inv,bmat=b.inv;
+		let ai=0,bi=0;
+		for (let d=0;d<dim;d++) {
+			let ax=0,bx=0;
+			for (let i=0;i<dim;i++) {
+				ax+=amat[ai++]*acon[i];
+				bx+=bmat[bi++]*bcon[i];
 			}
+			ainv[d]=ax;
+			binv[d]=bx;
+		}
+		if (staticdist>0 && intr.statictension>0) {
 			// Find any bonds close to the contact points.
 			let dist2=staticdist*staticdist;
 			let al=a.bondlist,bl=b.bondlist;
@@ -5288,16 +5317,27 @@ class PhyBody {
 					v=u;u=bond.b;
 					vcon=ucon;ucon=bond.bpos;
 				}
-				if (bond.breakdist<Infinity && u===a && v===b) {
-					if (ucon.dist2(ainv)<dist2 || vcon.dist2(binv)<dist2) {
+				if (u===a && v===b) {
+					bonded=bond;
+					// if (bond.breakdist<Infinity) {
+					let d0=0,d1=0;
+					for (let i=0;i<dim;i++) {
+						let a=ucon[i]-ainv[i];d0+=a*a;
+						let b=vcon[i]-binv[i];d1+=b*b;
+					}
+					if (d0<dist2 || d1<dist2) {
+						staticbond=true;
 						break;
 					}
 				}
 			}
-			if (link===null) {
-				let bond=world.createbond(a,ainv,b,binv,0,intr.statictension);
-				bond.breakdist=staticdist;
-			}
+		}
+		// If we have a callback, allow it to handle the collision.
+		let callback=world.collcallback;
+		if (callback!==null && !callback(intr,a,acon,b,bcon,norm,nmag,push,bonded)) {return;}
+		if (!staticbond && intr.statictension>0 && intr.staticdist>0) {
+			let bond=world.createbond(a,ainv,b,binv,0,intr.statictension);
+			bond.breakdist=intr.staticdist;
 		}
 		// Apply forces and separate.
 		let ainertia=amass*a.inertiainv[0],binertia=bmass*b.inertiainv[0];
@@ -5356,7 +5396,7 @@ class PhyBond {
 
 
 	update() {
-		// Pull two atoms toward eachother based on the distance and bond strength.
+		// Pull two bodies toward eachother based on the distance and bond strength.
 		// Vector operations are unrolled to use constant memory.
 		let a=this.a,b=this.b;
 		if (this.deleted || (a.sleeping && b.sleeping)) {return;}
@@ -5369,10 +5409,10 @@ class PhyBond {
 		}
 		amass=amass>=Infinity?1.0:amass/mass;
 		bmass=bmass>=Infinity?1.0:bmass/mass;
-		// Get the distance and direction between the atoms.
+		// Get the distance and direction between the bodies.
+		let tmpvec=world.tmpvec;
 		let apos=a.trans.vec,bpos=b.trans.vec;
-		let acon=world.tmpvec[1];
-		let bcon=world.tmpvec[2];
+		let acon=tmpvec[1],bcon=tmpvec[2];
 		for (let side=0;side<2;side++) {
 			let mat=(side?b:a).trans.mat;
 			let scon=side?this.bpos:this.apos;
@@ -5386,25 +5426,26 @@ class PhyBond {
 				dcon[i]=x;
 			}
 		}
-		let norm=world.tmpvec[0];
+		let norm=tmpvec[0];
 		let dist=0.0;
 		for (let i=0;i<dim;i++) {
 			let x=bcon[i]-acon[i]+bpos[i]-apos[i];
 			norm[i]=x;
 			dist+=x*x;
 		}
-		// If the atoms are too close together, randomize the direction.
+		dist=Math.sqrt(dist);
+		// If the points are too far, break the bond.
+		if (!(dist<this.breakdist)) {
+			this.release();
+			return;
+		}
+		// If the points are too close together, randomize the direction.
 		let tension=this.tension;
 		if (dist>1e-10) {
-			dist=Math.sqrt(dist);
 			// tension/=dist;
 			for (let i=0;i<dim;i++) {norm[i]/=dist;}
 		} else {
 			norm.randomize();
-		}
-		if (dist>this.breakdist) {
-			this.release();
-			return;
 		}
 		// let ainertia=0,binertia=0;
 		let ainertia=amass*a.inertiainv[0],binertia=bmass*b.inertiainv[0];

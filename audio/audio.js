@@ -79,6 +79,8 @@ Better explanation of compiled form in article.
 MacOS keeps playing song even after hitting back button.
 
 Sound effects
+	Move constants to global constants.
+	Remove tbl
 	Optimize %mod lines in sfx.fill().
 	Speed up input processing. Move constants to different section?
 	Simplify attribute naming in namemap[].
@@ -1102,9 +1104,9 @@ class AudioSFX {
 					let pos=di32[n+4];
 					let len=next-n-5;
 					if (++pos>=len) {pos=0;}
-					// Allpass the delayed output.
 					del=del<max?del:max;
 					del=del>0?del*sndfreq:0;
+					// Allpass the delayed output.
 					/*let i=del>>>0;
 					let f=del-i;
 					let ap=(1-f)/(1+f);
@@ -1380,11 +1382,13 @@ export class Audio {
 		this.mutefunc=function(){ctx.resume();};
 		this.updatetime=NaN;
 		if (!Audio.def) {Audio.initdef(this);}
+		let state=this;
 		if (autoupdate) {
-			let st=this;
-			function update() {if (st.update()) {requestAnimationFrame(update);}}
+			function update() {if (state.update()) {requestAnimationFrame(update);}}
 			update();
 		}
+		// Stop all sounds when exiting the page.
+		// window.addEventListener("beforeUnload",()=>{state.release();});
 	}
 
 
@@ -1393,6 +1397,13 @@ export class Audio {
 		if (!def) {def=new Audio();}
 		Audio.def=def;
 		return def;
+	}
+
+
+	release() {
+		// Stop and release all audio.
+		this.mute(true);
+		while (this.queue) {this.queue.remove();}
 	}
 
 

@@ -141,7 +141,7 @@ class PhyLink {
 		this.prev=null;
 		this.next=null;
 		this.list=null;
-		this.obj=obj||null;
+		this.obj=obj??null;
 		this.idx=null;
 	}
 

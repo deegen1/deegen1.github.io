@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v1.01
+physics.js - v1.03
 
 Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -11,7 +11,7 @@ Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 Notes
 
 
-Two bodies will only collide once a step.
+Two bodies will only collide once per step.
 
 en.wikipedia.org/wiki/Collision_response#Impulse-Based_Reaction_Model
 
@@ -22,11 +22,25 @@ History
 
 1.00
      Initial version. Spun off of atom engine.
+1.02
+     Bonds apply force before breaking.
+1.03
+     Added bonditer().
+	Added Body.release().
+     Fixed bodylist.release() in bond.release().
 
 
 --------------------------------------------------------------------------------
 TODO
 
+
+Simplify bond normal calc.
+Allow body.trans.vec = body.pos. Sync if different.
+
+Minkowski wrapping.
+
+Inertia shouldn't change if more verts are added on a face.
+o-----------o vs o---o---o---o
 
 Allow creating body from template.
 
@@ -34,6 +48,7 @@ BVH
 	Omit if disabled or verts=0.
 	See what sorting method works best for long polygons.
 	Instead of just using min bounds, average (min+max)/2 and split min<mid.
+	Fix inf's.
 
 Hull Calc
 	pick D closest points
@@ -44,6 +59,8 @@ Hull Calc
 	2. Calc norm from [x,y,0,0] and find max.
 	3. Calc norm from [x,y,z,0] and find max.
 	Once seed face is found, use edge to make other faces.
+	Remove points too close.
+	Remove points colinear.
 
 Impulse
 	N-D inertia tensor.
@@ -51,6 +68,7 @@ Impulse
 
 Collision
 	Fix overlap detection sometimes returning wrong separating vector.
+	Usually happens when parallel boxes.
 	return [overlapping, a_point, b_point]
 	Return closest points even on failure.
 	Use hull points for collision.
@@ -64,7 +82,7 @@ import {Random,Vector,Matrix,Transform} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
-// Physics - v1.01
+// Physics - v1.03
 
 
 class PhyLink {
@@ -282,7 +300,7 @@ class PhyBodyType {
 			link.obj.intarr[id]=null;
 			link=link.next;
 		}
-		this.bodylist.clear();
+		this.bodylist.release(true);
 		this.worldlink.remove();
 	}
 
@@ -431,8 +449,33 @@ class PhyBody {
 	}
 
 
+	release() {
+		if (this.deleted) {return;}
+		this.deleted=true;
+		let link=null;
+		while ((link=this.bondlist.head)!==null) {
+			link.obj.release();
+		}
+		this.typelink.remove();
+		this.worldlink.remove();
+	}
+
+
 	relpos(v) {return this.trans.apply(v);}
+
+
 	invpos(v) {return this.trans.inv().apply(v);}
+
+
+	relvel(p) {
+		let vel=this.vel,spin=this.spin[0];
+		let x=vel[0]-p[1]*spin;
+		let y=vel[1]+p[0]*spin;
+		return new Vector([x,y]);
+	}
+
+
+	bonditer() {return this.bondlist.iter();}
 
 
 	updateconstants() {
@@ -617,25 +660,23 @@ class PhyBody {
 		let nmag=ndot>0?ndot:0;
 		nmag=nmag*intr.vmul+push*intr.vpmul;
 		push*=intr.push0;
-		// If we have a callback, allow it to handle the collision.
-		let callback=world.collcallback;
-		if (callback!==null && !callback(intr,a,acon,b,bcon,norm,nmag,push)) {return;}
 		// Add static friction bonds.
 		let staticdist=intr.staticdist;
-		if (staticdist>0 && intr.statictension>0) {
-			// Get inverse contact points.
-			let ainv=world.tmpvec[2],binv=world.tmpvec[3];
-			let amat=a.inv,bmat=b.inv;
-			let ai=0,bi=0;
-			for (let d=0;d<dim;d++) {
-				let ax=0,bx=0;
-				for (let j=0;j<dim;j++) {
-					ax+=amat[ai++]*acon[j];
-					bx+=bmat[bi++]*bcon[j];
-				}
-				ainv[d]=ax;
-				binv[d]=bx;
+		let bonded=null,staticbond=false;
+		// Get inverse contact points.
+		let ainv=world.tmpvec[2],binv=world.tmpvec[3];
+		let amat=a.inv,bmat=b.inv;
+		let ai=0,bi=0;
+		for (let d=0;d<dim;d++) {
+			let ax=0,bx=0;
+			for (let i=0;i<dim;i++) {
+				ax+=amat[ai++]*acon[i];
+				bx+=bmat[bi++]*bcon[i];
 			}
+			ainv[d]=ax;
+			binv[d]=bx;
+		}
+		if (staticdist>0 && intr.statictension>0) {
 			// Find any bonds close to the contact points.
 			let dist2=staticdist*staticdist;
 			let al=a.bondlist,bl=b.bondlist;
@@ -649,16 +690,27 @@ class PhyBody {
 					v=u;u=bond.b;
 					vcon=ucon;ucon=bond.bpos;
 				}
-				if (bond.breakdist<Infinity && u===a && v===b) {
-					if (ucon.dist2(ainv)<dist2 || vcon.dist2(binv)<dist2) {
+				if (u===a && v===b) {
+					bonded=bond;
+					// if (bond.breakdist<Infinity) {
+					let d0=0,d1=0;
+					for (let i=0;i<dim;i++) {
+						let a=ucon[i]-ainv[i];d0+=a*a;
+						let b=vcon[i]-binv[i];d1+=b*b;
+					}
+					if (d0<dist2 || d1<dist2) {
+						staticbond=true;
 						break;
 					}
 				}
 			}
-			if (link===null) {
-				let bond=world.createbond(a,ainv,b,binv,0,intr.statictension);
-				bond.breakdist=staticdist;
-			}
+		}
+		// If we have a callback, allow it to handle the collision.
+		let callback=world.collcallback;
+		if (callback!==null && !callback(intr,a,acon,b,bcon,norm,nmag,push,bonded)) {return;}
+		if (!staticbond && intr.statictension>0 && intr.staticdist>0) {
+			let bond=world.createbond(a,ainv,b,binv,0,intr.statictension);
+			bond.breakdist=intr.staticdist;
 		}
 		// Apply forces and separate.
 		let ainertia=amass*a.inertiainv[0],binertia=bmass*b.inertiainv[0];
@@ -717,7 +769,7 @@ class PhyBond {
 
 
 	update() {
-		// Pull two atoms toward eachother based on the distance and bond strength.
+		// Pull two bodies toward eachother based on the distance and bond strength.
 		// Vector operations are unrolled to use constant memory.
 		let a=this.a,b=this.b;
 		if (this.deleted || (a.sleeping && b.sleeping)) {return;}
@@ -730,10 +782,10 @@ class PhyBond {
 		}
 		amass=amass>=Infinity?1.0:amass/mass;
 		bmass=bmass>=Infinity?1.0:bmass/mass;
-		// Get the distance and direction between the atoms.
+		// Get the distance and direction between the bodies.
+		let tmpvec=world.tmpvec;
 		let apos=a.trans.vec,bpos=b.trans.vec;
-		let acon=world.tmpvec[1];
-		let bcon=world.tmpvec[2];
+		let acon=tmpvec[1],bcon=tmpvec[2];
 		for (let side=0;side<2;side++) {
 			let mat=(side?b:a).trans.mat;
 			let scon=side?this.bpos:this.apos;
@@ -747,25 +799,26 @@ class PhyBond {
 				dcon[i]=x;
 			}
 		}
-		let norm=world.tmpvec[0];
+		let norm=tmpvec[0];
 		let dist=0.0;
 		for (let i=0;i<dim;i++) {
 			let x=bcon[i]-acon[i]+bpos[i]-apos[i];
 			norm[i]=x;
 			dist+=x*x;
 		}
-		// If the atoms are too close together, randomize the direction.
+		dist=Math.sqrt(dist);
+		// If the points are too far, break the bond.
+		if (!(dist<this.breakdist)) {
+			this.release();
+			return;
+		}
+		// If the points are too close together, randomize the direction.
 		let tension=this.tension;
 		if (dist>1e-10) {
-			dist=Math.sqrt(dist);
 			// tension/=dist;
 			for (let i=0;i<dim;i++) {norm[i]/=dist;}
 		} else {
 			norm.randomize();
-		}
-		if (dist>this.breakdist) {
-			this.release();
-			return;
 		}
 		// let ainertia=0,binertia=0;
 		let ainertia=amass*a.inertiainv[0],binertia=bmass*b.inertiainv[0];
