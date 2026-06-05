@@ -1,0 +1,100 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>IC Index</title>
+	<link rel="stylesheet" href="./style.css" type="text/css">
+</head>
+<body>
+<div id="content">
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Index ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<!--
+Table layout:
+
++-----------------+---------------+
+|      Desc       |     Links     |
+|      Mod        |               |
++-----------------+---------------+
+|      Filter     |     Layout    |
+| +-------------+ | +-----------+ |
+| |             | | |   | L | R | |
+| |             | | | N | _ | _ | |
+| |             | | | N | _ | _ | |
+| |             | | | N | _ | _ | |
+| |             | | | N | _ | _ | |
+| +-------------+ | +-----------+ |
++-----------------+---------------+
+-->
+<h1>The Impossible Creatures Index</h1>
+<table style="table-layout:fixed;width:100%;">
+<tr>
+<td style="width:70%"><p style="margin-top:0">This tool indexes and filters all
+possible creature combinations for
+<a href="https://store.steampowered.com/app/324680/Impossible_Creatures_Steam_Edition/">
+Impossible Creatures</a>.</p>
+<p id="uimoddesc">Mod description</p>
+<select id="uimodselect"><option value="ICP">IC Paradise 1.1</option></select>
+<button id="uirun">Run Filter</button><span id="uicount">Waiting for initial
+run</span><br>
+</td>
+<td style="width:30%;text-align:right">
+<p style="margin-top:0"><a href="https://2dee.net">Author: Alec Dee</a></p>
+<p><a href="./icindex.zip">offline.zip</a></p>
+</td>
+</tr>
+<tr>
+<td></td>
+<td>
+<table id="uicreature" style="width:70%">
+<tr><td></td><td id="uistock0">Left</td><td id="uistock1">Right</td></tr>
+<tr><td>Head</td> <td><div id="uihead0"  class="uibox"></div></td><td><div id="uihead1"  class="uibox"></div></td></tr>
+<tr><td>Front</td><td><div id="uifront0" class="uibox"></div></td><td><div id="uifront1" class="uibox"></div></td></tr>
+<tr><td>Torso</td><td><div id="uitorso0" class="uibox"></div></td><td><div id="uitorso1" class="uibox"></div></td></tr>
+<tr><td>Back</td> <td><div id="uiback0"  class="uibox"></div></td><td><div id="uiback1"  class="uibox"></div></td></tr>
+<tr><td>Tail</td> <td><div id="uitail0"  class="uibox"></div></td><td><div id="uitail1"  class="uibox"></div></td></tr>
+<tr><td>Wings</td><td><div id="uiwings0" class="uibox"></div></td><td><div id="uiwings1" class="uibox"></div></td></tr>
+<tr><td>Claws</td><td><div id="uiclaws0" class="uibox"></div></td><td><div id="uiclaws1" class="uibox"></div></td></tr>
+</table>
+</td>
+</tr>
+</table>
+<br>
+<div id="uioutput" style="width:100%;margin:0;padding:0;">
+<table>
+<tr><td>Left</td><td>Right</td><td>Power</td><td>Level</td></tr>
+</table>
+</div>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Notes ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<h1>Notes</h1>
+<p>The first run will take about 4 seconds. After that results will be
+cached.</p>
+<p>The efficiency rating is based on Nandid's efficiency rating:
+<i>ehp*dps/(coal+elec)</i>.</p>
+<p>Many thanks to Will for showing me the IC-Combiner and helping with early
+versions. Most of the attribute equations I use are copied from Kev's
+Combiner.</p>
+<p>Will's fork of IC-Combiner:
+<a href="https://github.com/obsidian5m">github</a></p>
+<p>ddelamare's fork of IC-Combiner:
+<a href="https://github.com/ddelamare/IC-Combiner">github</a></p>
+<p>Kev's original IC-Combiner:
+<a href="https://github.com/KJones94/IC-Combiner">github</a></p>
+<p>LBFrank's: <a href="https://creaturecombiner.com">creaturecombiner.com</a></p>
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ History ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<!--<h1>History</h1>-->
+
+
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+</div><div id="footer">Created on 23 May 2026 - Modified on 4 Jun 2026<br>
+Questions and comments: akdee144@gmail.com<br>
+<a href="https://2dee.net">Alec Dee's General Site</a></div>
+<script src="./icindex.js" type="module"></script>
+</body>
+</html>
+
