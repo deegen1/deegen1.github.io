@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-icindex.js - v1.03
+icindex.js - v1.04
 
 Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -69,6 +69,8 @@ History
      Lua files are now bundled in a tar.gz file, and added a tar.gz parser.
      Ranged damage is no longer rounded down, unlike melee. Confirmed in IC.
      Limbs are flagged if they're selectable. This can be overridden.
+1.04
+     Merged melee and range damage types with abilities.
 
 
 --------------------------------------------------------------------------------
@@ -151,7 +153,7 @@ const Abilities=[
 	{name:"web throw",attr:"web_throw",mask:1},
 	{name:"assassinate",attr:"assassinate",mask:1},
 	{name:"flash",attr:"flash",mask:1},
-	{name:"flash",attr:"headflashdisplay",mask:1},
+	{name:"flash (head)",attr:"headflashdisplay",mask:1},
 	{name:"fly",attr:"fly",mask:1},
 	{name:"infestation",attr:"infestation",mask:1},
 	{name:"dig",attr:"can_dig",mask:1},
@@ -799,32 +801,23 @@ class UI {
 		this.sortord=0;
 		this.uiclear=document.getElementById("uiclear");
 		this.uiclear.onclick=function() {state.clearfilter();};
-		let sortab=Abilities.toSorted((l,r)=>{return l.name<r.name?-1:1;});
-		let meleearr=[],rangearr=[],abilityarr=[];
-		for (let a of sortab) {
-			let list=abilityarr;
-			if (a.attr.match(/^melee_/)) {list=meleearr;}
-			else if (a.attr.match(/^range_/)) {list=rangearr;}
-			list.push(a);
-		}
+		let sortability=Abilities.toSorted((l,r)=>{return l.name<r.name?-1:1;});
 		this.filters=[
-			{name:"Level"       ,type:"range",min:1,max:5   ,func:function(c){return c.creature_rank;}},
-			{name:"Power"       ,type:"range",min:0,max:1500,func:function(c){return c.power;}},
-			{name:"Stock"       ,type:"list" ,arr:[]},
-			{name:"Hitpoints"   ,type:"range",min:0,max:2000,func:function(c){return c.hitpoints;}},
-			{name:"Effective HP",type:"range",min:0,max:3000,func:function(c){return c.ehp;}},
-			{name:"Armour"      ,type:"range",min:0,max:0.6 ,func:function(c){return c.armour;}},
-			{name:"Efficiency"  ,type:"range",min:0,max:160 ,func:function(c){return c.calcefficiency();}},
-			{name:"Melee Damage",type:"range",min:0,max:100 ,func:function(c){return c.melee_damage;}},
-			{name:"Melee Type"  ,type:"list" ,arr:meleearr},
-			{name:"Range Damage",type:"range",min:0,max:100,func:function(c){let m=0;for (let l of c.rangearr) {m=Math.max(m,l.damage);};return m;}},
-			{name:"Range Type"  ,type:"list" ,arr:rangearr},
-			{name:"Range Dist"  ,type:"range",min:0,max:80 ,func:function(c){let m=0;for (let l of c.rangearr) {m=Math.max(m,l.max);};return m;}},
-			{name:"Build Time"  ,type:"range",min:0,max:600,func:function(c){return c.constructionticks;}},
-			{name:"Land Speed"  ,type:"range",min:0,max:50 ,func:function(c){return c.landspeed;}},
-			{name:"Water Speed" ,type:"range",min:0,max:50 ,func:function(c){return c.waterspeed;}},
+			{name:"Abilities"   ,type:"list" ,arr:sortability},
 			{name:"Air Speed"   ,type:"range",min:0,max:50 ,func:function(c){return c.airspeed;}},
-			{name:"Abilities"   ,type:"list" ,arr:abilityarr}
+			{name:"Armour"      ,type:"range",min:0,max:0.6 ,func:function(c){return c.armour;}},
+			{name:"Build Time"  ,type:"range",min:0,max:600,func:function(c){return c.constructionticks;}},
+			{name:"Efficiency"  ,type:"range",min:0,max:160 ,func:function(c){return c.calcefficiency();}},
+			{name:"Effective HP",type:"range",min:0,max:3000,func:function(c){return c.ehp;}},
+			{name:"Hitpoints"   ,type:"range",min:0,max:2000,func:function(c){return c.hitpoints;}},
+			{name:"Land Speed"  ,type:"range",min:0,max:50 ,func:function(c){return c.landspeed;}},
+			{name:"Level"       ,type:"range",min:1,max:5   ,func:function(c){return c.creature_rank;}},
+			{name:"Melee Damage",type:"range",min:0,max:100 ,func:function(c){return c.melee_damage;}},
+			{name:"Power"       ,type:"range",min:0,max:1500,func:function(c){return c.power;}},
+			{name:"Range Damage",type:"range",min:0,max:100,func:function(c){let m=0;for (let l of c.rangearr) {m=Math.max(m,l.damage);};return m;}},
+			{name:"Range Dist"  ,type:"range",min:0,max:80 ,func:function(c){let m=0;for (let l of c.rangearr) {m=Math.max(m,l.max);};return m;}},
+			{name:"Stock"       ,type:"list" ,arr:[]},
+			{name:"Water Speed" ,type:"range",min:0,max:50 ,func:function(c){return c.waterspeed;}}
 		];
 		this.uifiltable=document.getElementById("uifiltertable");
 		this.uifillist=document.getElementById("uifilterlist");
