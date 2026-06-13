@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-icindex.js - v1.02
+icindex.js - v1.03
 
 Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -23,19 +23,13 @@ Limb IDs
 	8: claws
 
 
-melee_dmgtype flags
-	0: regular
-	1: poison
-	2: horns
-	4: barrier destroy
-
-
-range_dmgtype flags
+dmgtype flags
 	 0: regular
 	 1: poison
-	 2: perforate (porcupine)
-	 8: unknown (eel, cuttlefish)
-	16: chemical (glue)
+	 2: horn (perforate)
+	 4: barrier destroy
+	 8: electric (eel, cuttlefish)
+	16: sonic (glue)
 
 
 Basic Equations:
@@ -50,9 +44,6 @@ SRF = short range flying = hovering
 
 melee_rate and damage_rate only affect animation speed.
 
-If only one stock has a limb (like claws), then the creature does not need to
-have that limb.
-
 
 --------------------------------------------------------------------------------
 History
@@ -60,7 +51,7 @@ History
 
 1.00
      Created to simplify IC Combiner (github.com/ddelamare/IC-Combiner).
-     Can load stock lua files and not much else.
+     Can load stock lua files and not do much else.
      Built off of work from Kjones94, ddelamare, iamwso.
 1.01
      Added math for limb attribute calculations.
@@ -72,16 +63,33 @@ History
      Updated color scheme and layout.
      Fixed stock names to match combiner names.
      Rejected multiple impossible stock combinations.
+1.03
+     Added ability filtering.
+     Fixed a bug with removing comments from lua files.
+     Lua files are now bundled in a tar.gz file, and added a tar.gz parser.
+     Ranged damage is no longer rounded down, unlike melee. Confirmed in IC.
+     Limbs are flagged if they're selectable. This can be overridden.
 
 
 --------------------------------------------------------------------------------
 TODO
 
 
-Test filter
-	Filters                                  [remove all]
-	[empty,level,power,etc] between [min,max]    remove
-	if empty and not last slot, remove
+efficiency
+	To win we need to deal damage.
+	The longer we live, the more damage we can deal.
+	The more damage we deal per cost, the more efficient.
+	If poison: dps+=level
+	if regen:
+		[5,15,20,25,45]
+		lifetime=hp/(level*5+5)
+		hp+=level*lifetime
+	sonic: dps*=2
+	if immune: hp*=1.05
+	eff=lifetime*damage/(coal+elec+build*0.1)
+
+Calculate weighted stats based on top 10% NER.
+See what stocks rate as most efficient.
 
 
 */
@@ -92,10 +100,131 @@ Test filter
 // Globals
 
 
-import * as MOD_ICP from "./icp/icindex_mod.js";
-//import * as MOD_TEL from "./tellurian/icdex_mod.js";
-//import * as MOD_INS from "./insect/icdex_mod.js";
-//import * as MOD_IC from "./ic/icdex_mod.js";
+import * as MOD_ICP from "./mod_icp.js";
+// import * as MOD_TEL from "./mod_tel.js";
+// import * as MOD_INS from "./mod_ins.js";
+// import * as MOD_IC  from "./mod_ic.js";
+
+// Damage types
+//const DT_REGULAR =0
+const DT_POISON  =1;
+const DT_HORN    =2;
+const DT_BARRIER =4;
+const DT_ELECTRIC=8;
+const DT_SONIC   =16;
+
+const Abilities=[
+	{name:"overpopulation",attr:"overpopulation",mask:1},
+	{name:"shell",attr:"shell",mask:1},
+	{name:"bipedal",attr:"bipedal",mask:1},
+	// Melee
+	{name:"poison (melee)",attr:"melee_dmgtype",mask:DT_POISON},
+	{name:"horns",attr:"melee_dmgtype",mask:DT_HORN},
+	{name:"barrier destroy",attr:"melee_dmgtype",mask:DT_BARRIER},
+	// Range
+	{name:"poison (range)",attr:"range_dmgtype",mask:DT_POISON},
+	{name:"piercing",attr:"range_dmgtype",mask:DT_HORN},
+	{name:"electric",attr:"range_dmgtype",mask:DT_ELECTRIC},
+	{name:"sonic",attr:"range_dmgtype",mask:DT_SONIC},
+	//{name:"piercing",attr:"ranged_piercing",mask:1},
+	{name:"artillery",attr:"range_special",mask:0xffffffff},
+	// Group
+	{name:"pack hunter",attr:"pack_hunter",mask:1},
+	{name:"herding",attr:"herding",mask:1},
+	{name:"loner",attr:"loner",mask:1},
+	// Autonomous Abilities
+	{name:"barbs",attr:"AutoDefense",mask:1},
+	{name:"leap attack",attr:"leap_attack",mask:1},
+	{name:"charge attack",attr:"charge_attack",mask:1},
+	{name:"camouflage",attr:"is_stealthy",mask:1},
+	{name:"immunity",attr:"is_immune",mask:1},
+	{name:"regeneration",attr:"regeneration",mask:1},
+	{name:"deflection",attr:"deflection_armour",mask:1},
+	{name:"keen sense",attr:"keen_sense",mask:1},
+	// Activated Abilities
+	{name:"stink attack",attr:"stink_attack",mask:1},
+	//{name:"stink attack",attr:"stink",mask:1},
+	{name:"electric burst",attr:"electric_burst",mask:1},
+	{name:"frenzy",attr:"frenzy_attack",mask:1},
+	{name:"plague",attr:"plague_attack",mask:1},
+	{name:"quill burst",attr:"quill_burst",mask:1},
+	{name:"web throw",attr:"web_throw",mask:1},
+	{name:"assassinate",attr:"assassinate",mask:1},
+	{name:"flash",attr:"flash",mask:1},
+	{name:"flash",attr:"headflashdisplay",mask:1},
+	{name:"fly",attr:"fly",mask:1},
+	{name:"infestation",attr:"infestation",mask:1},
+	{name:"dig",attr:"can_dig",mask:1},
+	{name:"hover",attr:"can_SRF",mask:1},
+	{name:"defile land",attr:"soiled_land",mask:1},
+	{name:"sonar pulse",attr:"sonar_pulse",mask:1}
+];
+
+
+//---------------------------------------------------------------------------------
+// Helper Functions
+
+
+function OpenTarGZ(path,callback) {
+	// Opens and parses a .tar.gz file.
+	// Async loading of the initial gzip data.
+	fetch(path)
+	.then(res=>{
+		if (!res.ok) {throw "Could not open "+res.url;}
+		return res.blob();
+	})
+	.then(blob=>{
+		let dec=blob.stream().pipeThrough(new DecompressionStream("gzip"));
+		return new Response(dec).blob();
+	})
+	.then(dec=>{
+		return dec.arrayBuffer();
+	})
+	.then(buf=>{
+		ParseTar(new Uint8Array(buf),callback);
+	});
+}
+
+
+function ParseTar(data,callback) {
+	// Read .tar data and return a list of files.
+	// https://www.gnu.org/software/tar/manual/html_node/Standard.html
+	function readstring(i,len) {
+		let s="",c=0,stop=i+len;
+		while (i<stop && (c=data[i])) {s+=String.fromCharCode(c);i++;}
+		return s;
+	}
+	function readoctal(i,len) {
+		let val=0,stop=i+len;
+		while (i<stop) {let c=data[i++]-48;if (c>=0 && c<8) {val=(val*8)+c;}}
+		return val;
+	}
+	const BLOCK=512;
+	let files=[],filemap={};
+	let idx=0,stop=data.byteLength-BLOCK;
+	while (idx<=stop) {
+		if (idx+BLOCK>stop) {throw `tar too small: ${idx}, ${stop}`;}
+		// Read short names.
+		let name=readstring(idx,100);
+		if (!name.length) {break;}
+		// If the name is too long, read first half.
+		let pref=readstring(idx+345,100);
+		if (pref.length) {name=pref+name;}
+		name=name.replace(/\\/g,"/");
+		let size=readoctal(idx+124,12);
+		let type=readoctal(idx+156,1);
+		if (type===0) {
+			if (idx+size>stop) {throw `file too big: ${name}, ${size}`;}
+			let filedata=new Uint8Array(data.buffer,idx+BLOCK,size);
+			filemap[name]=filedata;
+			files.push({name:name,data:filedata});
+		} else {
+			if (size) {throw `directory not empty: ${name}, ${size}`;}
+		}
+		idx+=BLOCK+BLOCK*(~~((size+BLOCK-1)/BLOCK));
+	}
+	if (callback) {callback(files,filemap);}
+}
 
 
 //---------------------------------------------------------------------------------
@@ -103,7 +232,6 @@ import * as MOD_ICP from "./icp/icindex_mod.js";
 
 
 class Limb {
-
 
 	static META =0;
 	static BODY =1;
@@ -134,6 +262,7 @@ class Limb {
 		this.name=Limb.Names[type];
 		this.size=0;
 		this.stocktype=0;
+		this.selectable=1;
 		// Sight
 		this.sight_radius=0;
 		this.sight_exp=0;
@@ -231,14 +360,14 @@ class Stock {
 	static FISH     =5;
 
 
-	constructor(str,name) {
+	constructor(str,name,mod) {
 		// Parses a lua file.
 		// this.lua=str;
 		this.name=name;
 		let limbarr=(new Array(9)).fill(null);
 		this.limbarr=limbarr;
 		// Strip comments and remove spaces.
-		str=str.replace(/--.*\n/g,"\n");
+		str=str.replace(/--[^\n]*/g,"");
 		str=str.replace(/[ \r\t]/g,"");
 		// Parse ["attr"] = {x,y}
 		let lines=str.split("\n");
@@ -251,16 +380,18 @@ class Stock {
 			let val=parseFloat(match[3]);
 			// let ival=val|0;
 			// Sanity check attribute values.
+			let san=attr.replace(/-/g,"_");
 			let error="";
 			if (isNaN(id) || id<0 || id>8) {error="Limb ID";}
 			if (isNaN(val) || val<=-Infinity || val>=Infinity) {error="Invalid value";}
-			if (attr.match(/front$/) && id!==2) {error="Front ID";}
-			if (attr.match(/back$/)  && id!==3) {error="Back ID";}
-			if (attr.match(/head$/)  && id!==4) {error="Head ID";}
-			if (attr.match(/tail$/)  && id!==5) {error="Tail ID";}
-			if (attr.match(/torso$/) && id!==6) {error="Torso ID";}
-			if (attr.match(/wings$/) && id!==7) {error="Wings ID";}
-			// if ((!attr.match(/\d/))!==(id===1)) {error="Global ID";}
+			if (san.match(/(_front|front_)/) && id!==2) {error="Front ID";}
+			if (san.match(/(_back|back_)/)   && id!==3) {error="Back ID";}
+			if (san.match(/(_rear|rear_)/)   && id!==3) {error="Rear ID";}
+			if (san.match(/(_head|head_)/)   && id!==4) {error="Head ID";}
+			if (san.match(/(_tail|tail_)/)   && id!==5) {error="Tail ID";}
+			if (san.match(/(_torso|torso_)/) && id!==6) {error="Torso ID";}
+			if (san.match(/(_wings|wings_)/) && id!==7) {error="Wings ID";}
+			// if ((!san.match(/\d/))!==(id===1)) {error="Global ID";}
 			if (error) {
 				console.log(error);
 				console.log(attr,id,val);
@@ -270,7 +401,8 @@ class Stock {
 			// Account for every possible attribute.
 			// Sanitize things like "armour[-head]" and "melee[N]_damage".
 			// melee[N] takes priority over the limb it's assigned in {M,value}.
-			let san=attr.replace(/[_-]?(front|back|head|tail|torso|wings)$/g,"");
+			san=san.replace(/_?(front|back|rear|head|tail|torso|wings)$/g,"");
+			san=san.replace(/(front|back|rear|head|tail|torso|wings)_/g,"");
 			if ((match=san.match(/(melee|range)(\d+)/))) {
 				id=parseInt(match[2]);
 			}
@@ -279,13 +411,13 @@ class Stock {
 				"speed_mid","exp_speed_mid",
 				"melee_shortdesc","melee_longdesc","melee_name",
 				"melee_rate", // animation speed
-				"melee_number", // animation type
+				"melee_number", // animation type?
 				"range_shortdesc","range_longdesc","range_name","range_min","exp_range_min",
 				"range_rate","exp_range_rate", // animation speed
-				"range_number", // animation type
-				"front_foot_type","rear_foot_type","vocal_type","Hide_type","actbeselect",
+				"range_number", // animation type?
+				"vocal_type","Hide_type","actbeselect",
 				"selection_sloppyness","boneblobshadow","simvis_occludee","singleselectonly",
-				"isvisible","fadeAndDeleteWhenDead","stayInPathfindingAfterDead",
+				"foot_type","isvisible","fadeAndDeleteWhenDead","stayInPathfindingAfterDead",
 				"min_triangle_count","simterrain","simcollides","simfogged","combinervisible",
 				"minimap_enable","minimap_teamcolour","ghost_enable","tag_desc","lefthalf_name",
 				"righthalf_name","disable_cheap_skinning","tailflashdisplay","bobcost","tiny",
@@ -318,26 +450,13 @@ class Stock {
 		if (type!==Stock.BIRD && type!==Stock.INSECT) {
 			limbarr[7]=null;
 		}
-		// Fish and snakes don't have legs.
-		if (type===Stock.FISH || type===Stock.SNAKE) {
-			limbarr[2]=null;
-			limbarr[3]=null;
+		// Flag which limbs are selectable, including mod overrides.
+		let mask=[0x1f8,0x1fc,0x1fc,0x1f0,0x1fc,0x1f0][type];
+		mask=mod.SelectableOverride[name]??mask;
+		for (let i=2;i<9;i++) {
+			let l=limbarr[i];
+			if (l) {l.selectable=(mask>>>i)&1;}
 		}
-		// Bird's don't have front legs
-		if (type===Stock.BIRD) {
-			limbarr[2]=null;
-		}
-		/*
-		if (limbarr[7] && limbarr[7].airspeed_max<=0) {
-			limbarr[7]=null;
-		}
-		if (limbarr[2] && limbarr[2].speed_max<=0) {
-			limbarr[2]=null;
-		}
-		if (limbarr[3] && limbarr[3].speed_max<=0) {
-			limbarr[3]=null;
-		}
-		*/
 	}
 
 }
@@ -351,39 +470,23 @@ class Creature {
 		if (choice.length!==undefined) {
 			if (choice.length!==7) {throw "too many choices";}
 			let flag=0;
-			for (let i=0;i<7;i++) {flag|=(choice[i]?1:0)<<i;}
+			for (let i=0;i<7;i++) {flag|=(choice[i]?4:0)<<i;}
 			choice=flag;
 		}
-		// Select limbs.
+		// Select limbs. Filter out impossible combinations.
 		let valid=true;
+		if ((choice&3) || (choice && Object.is(stock0,stock1))) {valid=false;}
+		let torso=(choice>>>6)&1;
 		let limb0=stock0.limbarr,limb1=stock1.limbarr;
 		let limbarr=new Array(9);
-		for (let i=0;i<9;i++) {
+		for (let i=0;i<9 && valid;i++) {
 			let side=(choice>>>i)&1;
-			let l0=limb0[i],l1=limb1[i];
-			limbarr[i]=side?l1:l0;
-			// Prevent duplicates if limbs are copies (usually null's).
-			if (side && Object.is(l0,l1)) {valid=false;}
-		}
-		// Filter out impossible limb combinations.
-		let torso=limbarr[6].stock.limbarr[1].stocktype;
-		if (torso===Stock.BIRD) {
-			// Flying torso must have wings.
-			if (!limbarr[Limb.WINGS]) {valid=false;}
-		} else if (torso===Stock.QUADRUPED) {
-			// Quad torso must have front and back limbs.
-			if (!limbarr[Limb.FRONT] || !limbarr[Limb.BACK]) {
-				valid=false;
+			let l0=limb0[i],l1=limb1[i],l=side?l1:l0;
+			limbarr[i]=l;
+			if (side!==torso) {
+				// If the opposite limb can't be selected, go with the torso's.
+				if (!l || !l.selectable) {valid=false;}
 			}
-		} else if (torso===Stock.ARACHNID) {
-			// Clawed arachnids must have claws.
-			if (!limbarr[Limb.CLAWS] && limbarr[6].stock.limbarr[Limb.CLAWS]) {
-				valid=false;
-			}
-		} else if (torso===Stock.SNAKE) {
-		} else if (torso===Stock.INSECT) {
-			if (!limbarr[Limb.WINGS]) {valid=false;}
-		} else if (torso===Stock.FISH) {
 		}
 		this.valid=valid;
 		if (!valid) {return;}
@@ -419,21 +522,21 @@ class Creature {
 		this.melee_dmgtype=0;
 		this.melee_damage=0;
 		// Range
-		//this.range_dmgtype=0;
+		this.range_dmgtype=0;
 		this.ranged_piercing=0;
-		//this.range_special=0;
+		this.range_special=0;
 		this.range_damage=0;
-		//this.range_max=0;
+		// this.range_max=0;
 		this.rangearr=[];
 		// Group
 		this.pack_hunter=0;
 		this.herding=0;
 		this.loner=0;
 		// Triggered Abilities
-		//this.trigger_number=0;
-		//this.trigger_type=0;
-		//this.trigger_rate=0;
-		//this.trigger_contact=0;
+		// this.trigger_number=0;
+		// this.trigger_type=0;
+		// this.trigger_rate=0;
+		// this.trigger_contact=0;
 		// Autonomous Abilities
 		this.AutoDefense=0;
 		this.poison_bite=0;
@@ -481,7 +584,7 @@ class Creature {
 			if (l===0) {limb=limb0[0];}
 			if (l===1) {limb=limb1[0];}
 			if (!limb) {continue;}
-			//console.log(limb.name,limb.stock.name);
+			// console.log(limb.name,limb.stock.name);
 			let body=limb.stock.limbarr[1];
 			ratio=size/body.size;
 			// Sight
@@ -509,13 +612,15 @@ class Creature {
 			}
 			// Range
 			if (limb.range_damage>0) {
-				let damage=calcexpf(limb.range_damage,limb.exp_range_damage);
+				let damage=calcexp(limb.range_damage,limb.exp_range_damage);
 				this.rangearr.push({
 					damage:damage,
 					dmgtype:limb.range_dmgtype,
 					max:calcexp(limb.range_max,limb.exp_range_max),
 					special:limb.range_special
 				});
+				this.range_dmgtype|=limb.range_dmgtype;
+				this.range_special|=limb.range_special;
 				this.range_damage+=damage;
 				this.range_piercing|=limb.range_piercing;
 			}
@@ -524,17 +629,17 @@ class Creature {
 			this.herding|=limb.herding;
 			this.loner|=limb.loner;
 			// Triggered Abilities
-			//this.trigger_number=0;
-			//this.trigger_type=0;
-			//this.trigger_rate=0;
-			//this.trigger_contact=0;
+			// this.trigger_number=0;
+			// this.trigger_type=0;
+			// this.trigger_rate=0;
+			// this.trigger_contact=0;
 			// Autonomous Abilities
 			this.AutoDefense|=limb.AutoDefense;
 			this.poison_bite|=limb.poison_bite;
 			this.poison_touch|=limb.poison_touch;
 			this.poison_sting|=limb.poison_sting;
 			this.poison_pincers|=limb.poison_pincers;
-			this.leap_attack|=limb.lead_attack;
+			this.leap_attack|=limb.leap_attack;
 			this.charge_attack|=limb.charge_attack;
 			this.is_stealthy|=limb.is_stealthy;
 			this.is_immune|=limb.is_immune;
@@ -568,13 +673,27 @@ class Creature {
 			this.landspeed=0;
 			this.waterspeed=0;
 		}
+		// If we're a water stock, check if we have enough limbs for land speed.
+		if (limbarr[3].speed_max<=0 || (limbarr[2].speed_max<=0 && !limbarr[3].bipedal)) {
+			this.landspeed=0;
+		}
 	}
 
 
 	calcefficiency() {
-		let hp=this.hitpoints,armour=this.armour;
-		let dps=this.melee_damage;
+		// Nandid efficiency rating
+		let damage=0;
+		for (let r of this.rangearr) {damage=Math.max(damage,r.damage);}
+		if (damage<=0) {damage=this.melee_damage;}
+		return this.ehp*damage/(this.coal+this.electricity);
+	}
+
+
+	calcefficiency2() {
+		let dps=0;
 		for (let range of this.rangearr) {dps=Math.max(dps,range.damage);}
+		if (dps<=0) {dps=this.melee_damage;}
+		let hp=this.hitpoints,armour=this.armour;
 		if (this.pack_hunter) {dps*=1.3;}
 		if (this.herding) {armour*=1.3;}
 		if (this.frenzy_attack) {dps*=1.5;hp/=1.3;}
@@ -598,23 +717,19 @@ class ICDex {
 		// Queue loading the stock lua files. This needs to be asynchronous due
 		// to JS API standards. Loading is finished when this.loading=0.
 		this.loading=stocks;
-		for (let i=0;i<stocks;i++) {
-			let desc=mod.StockFiles[i];
-			let path=mod.StockPath+desc[0];
-			fetch(path)
-			.then(res=>{
-				if (!res.ok) {throw "Could not open "+res.url;}
-				return res.text();
-			})
-			.then(text=>{
-				let name=desc[1];
-				let stock=new Stock(text,name);
-				state.stockarr[i]=stock;
+		OpenTarGZ(mod.DataPath,(files,filemap)=>{
+			let id=0;
+			for (let [path,name] of mod.StockFiles) {
+				let data=filemap[path];
+				if (!data) {throw `${path} not found`;}
+				let text=(new TextDecoder()).decode(data);
+				let stock=new Stock(text,name,mod);
+				state.stockarr[id++]=stock;
 				state.stockmap[name]=stock;
-				//console.log(stock);
+				// console.log(stock);
 				state.loading--;
-			});
-		}
+			}
+		});
 	}
 
 
@@ -643,7 +758,7 @@ class ICDex {
 					}
 				}
 			}
-			//console.log("combos:",fill);
+			// console.log("combos:",fill);
 			cache=cache.slice(0,fill);
 			this.creaturecache=cache;
 		}
@@ -679,10 +794,48 @@ class UI {
 			this.uiside[i]=[l,r];
 		}
 		this.uioutput=document.getElementById("uioutput");
+		this.maxdisplay=100;
 		this.sortcol=3;
 		this.sortord=0;
-		this.results=[];
-		this.maxdisplay=100;
+		this.uiclear=document.getElementById("uiclear");
+		this.uiclear.onclick=function() {state.clearfilter();};
+		let sortab=Abilities.toSorted((l,r)=>{return l.name<r.name?-1:1;});
+		let meleearr=[],rangearr=[],abilityarr=[];
+		for (let a of sortab) {
+			let list=abilityarr;
+			if (a.attr.match(/^melee_/)) {list=meleearr;}
+			else if (a.attr.match(/^range_/)) {list=rangearr;}
+			list.push(a);
+		}
+		this.filters=[
+			{name:"Level"       ,type:"range",min:1,max:5   ,func:function(c){return c.creature_rank;}},
+			{name:"Power"       ,type:"range",min:0,max:1500,func:function(c){return c.power;}},
+			{name:"Stock"       ,type:"list" ,arr:[]},
+			{name:"Hitpoints"   ,type:"range",min:0,max:2000,func:function(c){return c.hitpoints;}},
+			{name:"Effective HP",type:"range",min:0,max:3000,func:function(c){return c.ehp;}},
+			{name:"Armour"      ,type:"range",min:0,max:0.6 ,func:function(c){return c.armour;}},
+			{name:"Efficiency"  ,type:"range",min:0,max:160 ,func:function(c){return c.calcefficiency();}},
+			{name:"Melee Damage",type:"range",min:0,max:100 ,func:function(c){return c.melee_damage;}},
+			{name:"Melee Type"  ,type:"list" ,arr:meleearr},
+			{name:"Range Damage",type:"range",min:0,max:100,func:function(c){let m=0;for (let l of c.rangearr) {m=Math.max(m,l.damage);};return m;}},
+			{name:"Range Type"  ,type:"list" ,arr:rangearr},
+			{name:"Range Dist"  ,type:"range",min:0,max:80 ,func:function(c){let m=0;for (let l of c.rangearr) {m=Math.max(m,l.max);};return m;}},
+			{name:"Build Time"  ,type:"range",min:0,max:600,func:function(c){return c.constructionticks;}},
+			{name:"Land Speed"  ,type:"range",min:0,max:50 ,func:function(c){return c.landspeed;}},
+			{name:"Water Speed" ,type:"range",min:0,max:50 ,func:function(c){return c.waterspeed;}},
+			{name:"Air Speed"   ,type:"range",min:0,max:50 ,func:function(c){return c.airspeed;}},
+			{name:"Abilities"   ,type:"list" ,arr:abilityarr}
+		];
+		this.uifiltable=document.getElementById("uifiltertable");
+		this.uifillist=document.getElementById("uifilterlist");
+		for (let i=0;i<this.filters.length;i++) {
+			let f=this.filters[i];
+			f.id=i;
+			f.row=null;
+			let opt=new Option(f.name,f.id);
+			this.uifillist.add(opt);
+		}
+		this.uifillist.onchange=function() {state.addfilter();};
 		this.icd=null;
 		this.setmod("ICP");
 	}
@@ -697,17 +850,124 @@ class UI {
 			this.moddesc.innerHTML="Mod Description: "+mod.Description;
 			this.modselect.value=name;
 			this.uicount.innerText=`Waiting for initial run`;
+			this.selrow=null;
 			this.results=[];
+			this.clearfilter();
+			// Stock filter is configured here, after loading the mod.
+			let stockarr=[];
+			for (let s of mod.StockFiles) {stockarr.push({name:s[1],attr:"name"});}
+			for (let f of this.filters) {if (f.name==="Stock") {f.arr=stockarr.sort();}}
 			this.displayresults();
 		}
 	}
 
 
+	clearfilter(id=-1) {
+		// Remove a filter from the table and add to the dropdown.
+		let filters=this.filters;
+		let idmin=id,idmax=id+1;
+		if (id<0) {idmin=0;idmax=filters.length;}
+		for (id=idmin;id<idmax;id++) {
+			let f=this.filters[id];
+			// Remove from table.
+			if (f.row) {
+				f.row.remove();
+				f.row=null;
+			}
+			// Add to dropdown.
+			if (f.opt) {
+				f.opt.hidden=false;
+				f.opt=null;
+			}
+		}
+	}
+
+
+	addfilter() {
+		let list=this.uifillist;
+		let opt=list.selectedOptions[0];
+		let val=parseInt(opt.value);
+		if (val===-1) {return;}
+		let state=this;
+		// Remove the option and reset the default.
+		opt.hidden=true;
+		list.value="-1";
+		// Add to the table.
+		let f=this.filters[val];
+		let tr=this.uifiltable.insertRow(1);
+		f.row=tr;
+		f.opt=opt;
+		// Remove button.
+		let td=tr.insertCell();
+		let rem=document.createElement("button");
+		rem.innerText="Remove";
+		rem.onclick=function() {state.clearfilter(f.id);};
+		td.appendChild(rem);
+		// Filter settings.
+		td=tr.insertCell();
+		td.innerText=f.name;
+		if (f.type==="range") {
+			// Filters with a range, ex: level betwen 1 and 2.
+			for (let i=0;i<2;i++) {
+				td.insertAdjacentText("beforeend",[" between "," and "][i]);
+				let inp=document.createElement("input");
+				inp.type="text";
+				inp.value=[f.min,f.max][i];
+				inp.classList.add("uiinput");
+				td.appendChild(inp);
+				if (i) {f.maxelem=inp;} else {f.minelem=inp;}
+			}
+		} else {
+			// Filters with a list, ex: stocks.
+			f.mode=0;
+			f.sel={};
+			td.insertAdjacentText("beforeend"," has ");
+			let inp=document.createElement("a");
+			inp.innerText="all";
+			inp.href="#";
+			inp.onclick=function() {f.mode^=1;this.innerText=f.mode?"any":"all";};
+			td.appendChild(inp);
+			td.insertAdjacentText("beforeend"," of ");
+			list=document.createElement("select");
+			let id=0;
+			for (let v of f.arr) {
+				opt=new Option(v.name,id++);
+				list.add(opt);
+			}
+			list.value=null;
+			list.onchange=function() {state.addlist(this,f);};
+			td.appendChild(list);
+		}
+	}
+
+
+	addlist(list,fil) {
+		// When an item is selected from stocks, abilities, or damage types.
+		let opt=list.selectedOptions[0];
+		let id=parseInt(opt.value);
+		let val=fil.arr[id];
+		fil.sel[id]=val;
+		opt.hidden=true;
+		list.value=null;
+		let but=document.createElement("a");
+		but.innerText="[x] "+val.name+" ";
+		but.href="#";
+		but.onclick=function() {
+			// Remove a selected item from a filter.
+			delete fil.sel[id];
+			opt.hidden=false;
+			but.remove();
+		};
+		list.parentNode.appendChild(but);
+	}
+
+
 	setrow(row,creature) {
 		// Update creature attributes in the upper-right of the UI.
-		let oldrow=document.getElementById("uiselrow");
-		if (oldrow) {oldrow.id="";}
+		if (this.selrow) {this.selrow.id="";}
+		this.selrow=row;
 		row.id="uiselrow";
+		//console.log("selected:",creature);
 		this.uistock0.innerText=creature.stock0.name;
 		this.uistock1.innerText=creature.stock1.name;
 		for (let i=2;i<9;i++) {
@@ -729,110 +989,58 @@ class UI {
 
 
 	displayresults() {
-		// Create a new table and replace the old one.
-		let colname=[
-			"Left Stock",
-			"Right Stock",
-			"Level",
-			"Power",
-			"Coal",
-			"Elec",
-			"Eff",
-			"Size",
-			"HP",
-			"E.HP",
-			"Armour",
-			"Build",
-			"Sight",
-			"Land Speed",
-			"Water Speed",
-			"Air Speed",
-			"Melee Dmg",
-			"Range 1 Dmg",
-			"Range 1 Dist",
-			"Range 2 Dmg",
-			"Range 2 Dist",
-			"Abilities"
-		];
-		let columns=colname.length;
-		// Map the column to a creature attribute.
-		function colattr(c,col) {
-			let v=null,a=null;
-			switch (col) {
-				case 0:v=c.stock0.name;break;
-				case 1:v=c.stock1.name;break;
-				case 2:v=c.creature_rank;break;
-				case 3:v=c.power;break;
-				case 4:v=c.coal;break;
-				case 5:v=c.electricity;break;
-				case 6:v=c.calcefficiency();break;
-				case 7:v=c.size;break;
-				case 8:v=c.hitpoints;break;
-				case 9:v=c.ehp;break;
-				case 10:v=c.armour;break;
-				case 11:v=c.constructionticks;break;
-				case 12:v=c.sight_radius;break;
-				case 13:v=c.landspeed;break;
-				case 14:v=c.waterspeed;break;
-				case 15:v=c.airspeed;break;
-				case 16:v=c.melee_damage;break;
-				case 17:a=c.rangearr[0];v=a?a.damage:0;break;
-				case 18:a=c.rangearr[0];v=a?a.max   :0;break;
-				case 19:a=c.rangearr[1];v=a?a.damage:0;break;
-				case 20:a=c.rangearr[1];v=a?a.max   :0;break;
-				case 21:
-					a=[];
-					if (c.pack_hunter) {a.push("pack");}
-					if (c.herding) {a.push("herd");}
-					if (c.loner) {a.push("loner");}
-					if (c.AutoDefense) {a.push("quill spray");}
-					if (c.poison_bite || c.poison_sting || c.poison_pincers || c.poison_sting) {a.push("poison melee");}
-					if (c.poison_touch) {a.push("poison touch");}
-					if (c.leap_attack) {a.push("leap");}
-					if (c.charge_attack) {a.push("charge");}
-					if (c.is_stealthy) {a.push("camo");}
-					if (c.is_immune) {a.push("immunity");}
-					if (c.regeneration) {a.push("regen");}
-					if (c.deflection_armour) {a.push("deflect");}
-					if (c.keen_sense) {a.push("keen sense");}
-					if (c.stink_attack || c.stink) {a.push("stink");}
-					if (c.electric_burst) {a.push("electric burst");}
-					if (c.frenzy_attack) {a.push("frenzy");}
-					if (c.plague_attack) {a.push("plague");}
-					if (c.quill_burst) {a.push("quill burst");}
-					if (c.web_throw) {a.push("web throw");}
-					if (c.assassinate) {a.push("assassinate");}
-					if (c.flash ||c.headflashdisplay) {a.push("flash");}
-					if (c.infestation) {a.push("infest");}
-					if (c.can_dig) {a.push("dig");}
-					if (c.can_SRF) {a.push("hover");}
-					if (c.soiled_land) {a.push("soil land");}
-					if (c.sonar_pulse) {a.push("sonar");}
-					v=a.sort().join(", ");
-					break;
-				default:
-					v=NaN;
+		// Map each column to a creature attribute.
+		function abilitystr(c) {
+			let r=new Set();
+			for (let a of Abilities) {
+				if (c[a.attr]&a.mask) {r.add(a.name);}
 			}
-			return v;
+			return Array.from(r.keys()).sort().join(", ");
 		}
+		let colattr=[
+			{name:"Left Stock"  ,func:function(c){return c.stock0.name;}},
+			{name:"Right Stock" ,func:function(c){return c.stock1.name;}},
+			{name:"Level"       ,func:function(c){return c.creature_rank;}},
+			{name:"Power"       ,func:function(c){return c.power;}},
+			{name:"Coal"        ,func:function(c){return c.coal;}},
+			{name:"Elec"        ,func:function(c){return c.electricity;}},
+			{name:"Eff"         ,func:function(c){return c.calcefficiency();}},
+			{name:"Size"        ,func:function(c){return c.size;}},
+			{name:"HP"          ,func:function(c){return c.hitpoints;}},
+			{name:"E.HP"        ,func:function(c){return c.ehp;}},
+			{name:"Armour"      ,func:function(c){return c.armour;}},
+			{name:"Build"       ,func:function(c){return c.constructionticks;}},
+			{name:"Sight"       ,func:function(c){return c.sight_radius;}},
+			{name:"Land Speed"  ,func:function(c){return c.landspeed;}},
+			{name:"Water Speed" ,func:function(c){return c.waterspeed;}},
+			{name:"Air Speed"   ,func:function(c){return c.airspeed;}},
+			{name:"Melee Dmg"   ,func:function(c){return c.melee_damage;}},
+			{name:"Range 1 Dmg" ,func:function(c){let a=c.rangearr[0];return a?a.damage:0;}},
+			{name:"Range 1 Dist",func:function(c){let a=c.rangearr[0];return a?a.max:0;}},
+			{name:"Range 2 Dmg" ,func:function(c){let a=c.rangearr[1];return a?a.damage:0;}},
+			{name:"Range 2 Dist",func:function(c){let a=c.rangearr[1];return a?a.max:0;}},
+			{name:"Abilities"   ,func:abilitystr}
+		];
+		let columns=colattr.length;
+		// Create a new table and replace the old one.
 		let tbl=document.createElement("table");
 		let state=this;
-		// Create header row and make them clickable.
+		// Create header columns and make them clickable.
 		let sortcol=this.sortcol;
-		let arrow="&nbsp;"+(this.sortord?"&#8593;":"&#8595;");
+		let arrow="&nbsp;"+(this.sortord?"&#9650;":"&#9660;");
 		let tr=tbl.insertRow();
 		for (let i=0;i<columns;i++) {
 			let td=tr.insertCell();
-			let name=colname[i];
+			let name=colattr[i].name;
 			if (i===sortcol) {name+=arrow;}
 			td.innerHTML=name;
 			td.onclick=function() {state.togglesort(i);};
-			if (i<2) {td.style.minWidth="13em";}
 		}
 		// Find the sorting element.
 		// Store the attribute in creature.sort for faster sorting.
 		let results=this.results;
-		for (let c of results) {c.sort=colattr(c,sortcol);}
+		let func=colattr[sortcol].func;
+		for (let c of results) {c.sort=func(c);}
 		let sortasc=function (l,r) {return l.sort<r.sort?-1:1;};
 		let sortdes=function (l,r) {return l.sort>r.sort?-1:1;};
 		results.sort(this.sortord?sortasc:sortdes);
@@ -843,7 +1051,7 @@ class UI {
 			tr=tbl.insertRow();
 			tr.onclick=function() {state.setrow(this,c);};
 			for (let j=0;j<columns;j++) {
-				let v=colattr(c,j);
+				let v=colattr[j].func(c);
 				if (v.length!==undefined) {v=v.replace(/ /g,"&nbsp;");}
 				else {v=v.toFixed(2).replace(/\.00$/,'');}
 				tr.insertCell().innerHTML=v;
@@ -864,6 +1072,65 @@ class UI {
 		for (let creature of icd.itercreatures()) {
 			results.push(creature);
 		}
+		// Get the current active filters and estimate how many creatures they reject.
+		let active=[];
+		for (let f of this.filters) {
+			if (!f.row) {continue;}
+			let prob=1;
+			if (f.type==="range") {
+				// Extract user values and estimate how much we're filtering results.
+				let min=parseFloat(f.minelem.value);
+				min=isNaN(min)?-Infinity:min;
+				f.minval=min;
+				let max=parseFloat(f.maxelem.value);
+				max=isNaN(max)?Infinity:max;
+				f.maxval=max;
+				prob=(Math.min(max,f.max)-Math.max(min,f.min))/(f.max-f.min);
+			} else {
+				let p=1/f.arr.length,n=Object.values(f.sel).length;
+				if (f.mode) {prob=p*n;} else {prob=Math.pow(p,n);}
+			}
+			f.sort=prob>0?prob:0;
+			active.push(f);
+		}
+		// Apply filters from most rejections to least.
+		active.sort((l,r)=>{return l.sort-r.sort;});
+		let rlen=results.length;
+		for (let f of active) {
+			let func=f.func;
+			let nlen=0;
+			if (func) {
+				// Filter attributes with ranges.
+				let min=f.minval,max=f.maxval;
+				for (let i=0;i<rlen;i++) {
+					let c=results[i];
+					let v=func(c);
+					if (min<=v && v<=max) {results[nlen++]=c;}
+				}
+			} else if (f.name==="Stock") {
+				// Filter stock names.
+				let stockmap={},arr=f.arr,sel=Object.values(f.sel);
+				for (let a of arr) {stockmap[a.name]=0;}
+				for (let a of sel) {stockmap[a.name]=1;}
+				let min=f.mode?1:sel.length;
+				for (let i=0;i<rlen;i++) {
+					let c=results[i];
+					let v=stockmap[c.stock0.name]+stockmap[c.stock1.name];
+					if (v>=min) {results[nlen++]=c;}
+				}
+			} else {
+				// Filter abilities with flags
+				let sel=Object.values(f.sel);
+				let min=f.mode?1:sel.length;
+				for (let i=0;i<rlen;i++) {
+					let c=results[i],v=0;
+					for (let a of sel) {v+=(c[a.attr]&a.mask)?1:0;}
+					if (v>=min) {results[nlen++]=c;}
+				}
+			}
+			rlen=nlen;
+		}
+		if (rlen<results.length) {results=results.slice(0,rlen);}
 		this.results=results;
 		this.displayresults();
 		time=(performance.now()-time)/1000;

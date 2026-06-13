@@ -125,6 +125,8 @@ i {
 	padding-right:1pt;
 	background-color:#252525;
 	font-style:normal;
+	font-family:Consolas,monospace,monospace;
+	white-space:pre;
 	color:#dcdcdc;
 }
 p {
@@ -169,13 +171,39 @@ button:hover, select:hover {
 	border:#000000 2px solid;
 	background-color:#303030;
 }
+.uiinput {
+	width:5em;
+	padding-left:0.2rem;
+	padding-right:0.2rem;
+	border:#101010 2px solid;
+	background-color:#303030;
+	color:#e6e6e6;
+}
 #uicount {
 	margin-left:1rem;
 }
+#uifiltertable {
+	width:100%;
+}
+#uifiltertable td {
+	padding:0.5rem;
+	padding-right:1rem;
+	padding-left:0;
+}
+#uifiltertable > tbody > tr > td:nth-child(1) {
+	text-align:right;
+	width:5em;
+}
+/*#uifilter > tbody > tr > td:nth-child(2) {
+	text-align:right;
+}*/
 #uistock0, #uistock1 {
 	padding:1rem;
 	font-weight:bold;
 	min-width:13em;
+}
+#uicreature {
+	margin-left:3rem;
 }
 #uicreature td {
 	text-align:center;
@@ -200,6 +228,13 @@ button:hover, select:hover {
 }
 #uioutput > table > tbody > tr:hover > td {
 	background-color:#37261a;
+}
+/* Padding for stock names */
+#uioutput > table > tbody > tr > td:nth-child(1) {
+	min-width:13em;
+}
+#uioutput > table > tbody > tr > td:nth-child(2) {
+	min-width:13em;
 }
 #uioutput > table > tbody > tr:first-child {
 	top:0;
