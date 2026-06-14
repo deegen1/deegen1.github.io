@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-icindex.js - v1.04
+icindex.js - v1.05
 
 Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -44,6 +44,8 @@ SRF = short range flying = hovering
 
 melee_rate and damage_rate only affect animation speed.
 
+Coal and melee_damage are rounded down - nothing else is.
+
 
 --------------------------------------------------------------------------------
 History
@@ -65,12 +67,16 @@ History
      Rejected multiple impossible stock combinations.
 1.03
      Added ability filtering.
-     Fixed a bug with removing comments from lua files.
-     Lua files are now bundled in a tar.gz file, and added a tar.gz parser.
+     Fixed a bug when removing comments from lua files.
+     Added tar.gz parser. Lua files are now bundled in a tar.gz file.
      Ranged damage is no longer rounded down, unlike melee. Confirmed in IC.
      Limbs are flagged if they're selectable. This can be overridden.
 1.04
-     Merged melee and range damage types with abilities.
+     Merged melee type, range type, and ability filters.
+1.05
+     Coal gets rounded down after attrcombiner. Electricity is not rounded down
+     in game.
+     Created SVG icons for limbs - based off of bmp icons from Will.
 
 
 --------------------------------------------------------------------------------
@@ -108,7 +114,7 @@ import * as MOD_ICP from "./mod_icp.js";
 // import * as MOD_IC  from "./mod_ic.js";
 
 // Damage types
-//const DT_REGULAR =0
+// const DT_REGULAR =0
 const DT_POISON  =1;
 const DT_HORN    =2;
 const DT_BARRIER =4;
@@ -128,7 +134,7 @@ const Abilities=[
 	{name:"piercing",attr:"range_dmgtype",mask:DT_HORN},
 	{name:"electric",attr:"range_dmgtype",mask:DT_ELECTRIC},
 	{name:"sonic",attr:"range_dmgtype",mask:DT_SONIC},
-	//{name:"piercing",attr:"ranged_piercing",mask:1},
+	// {name:"piercing",attr:"ranged_piercing",mask:1},
 	{name:"artillery",attr:"range_special",mask:0xffffffff},
 	// Group
 	{name:"pack hunter",attr:"pack_hunter",mask:1},
@@ -145,7 +151,7 @@ const Abilities=[
 	{name:"keen sense",attr:"keen_sense",mask:1},
 	// Activated Abilities
 	{name:"stink attack",attr:"stink_attack",mask:1},
-	//{name:"stink attack",attr:"stink",mask:1},
+	// {name:"stink attack",attr:"stink",mask:1},
 	{name:"electric burst",attr:"electric_burst",mask:1},
 	{name:"frenzy",attr:"frenzy_attack",mask:1},
 	{name:"plague",attr:"plague_attack",mask:1},
@@ -754,6 +760,8 @@ class ICDex {
 						if (creature.valid) {
 							mod.AttrCombiner(creature);
 							if (creature.valid) {
+								// Only coal get's rounded down.
+								creature.coal=Math.floor(creature.coal);
 								cache[fill++]=creature;
 							}
 						}
@@ -804,20 +812,22 @@ class UI {
 		let sortability=Abilities.toSorted((l,r)=>{return l.name<r.name?-1:1;});
 		this.filters=[
 			{name:"Abilities"   ,type:"list" ,arr:sortability},
-			{name:"Air Speed"   ,type:"range",min:0,max:50 ,func:function(c){return c.airspeed;}},
-			{name:"Armour"      ,type:"range",min:0,max:0.6 ,func:function(c){return c.armour;}},
-			{name:"Build Time"  ,type:"range",min:0,max:600,func:function(c){return c.constructionticks;}},
-			{name:"Efficiency"  ,type:"range",min:0,max:160 ,func:function(c){return c.calcefficiency();}},
+			{name:"Air Speed"   ,type:"range",min:0,max:  50,func:function(c){return c.airspeed;}},
+			{name:"Armour"      ,type:"range",min:0,max: 0.6,func:function(c){return c.armour;}},
+			{name:"Build Time"  ,type:"range",min:0,max: 600,func:function(c){return c.constructionticks;}},
+			{name:"Coal"        ,type:"range",min:0,max:1500,func:function(c){return c.coal;}},
+			{name:"Efficiency"  ,type:"range",min:0,max: 160,func:function(c){return c.calcefficiency();}},
 			{name:"Effective HP",type:"range",min:0,max:3000,func:function(c){return c.ehp;}},
+			{name:"Electricity" ,type:"range",min:0,max:1500,func:function(c){return c.electricity;}},
 			{name:"Hitpoints"   ,type:"range",min:0,max:2000,func:function(c){return c.hitpoints;}},
-			{name:"Land Speed"  ,type:"range",min:0,max:50 ,func:function(c){return c.landspeed;}},
-			{name:"Level"       ,type:"range",min:1,max:5   ,func:function(c){return c.creature_rank;}},
-			{name:"Melee Damage",type:"range",min:0,max:100 ,func:function(c){return c.melee_damage;}},
+			{name:"Land Speed"  ,type:"range",min:0,max:  50,func:function(c){return c.landspeed;}},
+			{name:"Level"       ,type:"range",min:1,max:   5,func:function(c){return c.creature_rank;}},
+			{name:"Melee Damage",type:"range",min:0,max: 100,func:function(c){return c.melee_damage;}},
 			{name:"Power"       ,type:"range",min:0,max:1500,func:function(c){return c.power;}},
-			{name:"Range Damage",type:"range",min:0,max:100,func:function(c){let m=0;for (let l of c.rangearr) {m=Math.max(m,l.damage);};return m;}},
-			{name:"Range Dist"  ,type:"range",min:0,max:80 ,func:function(c){let m=0;for (let l of c.rangearr) {m=Math.max(m,l.max);};return m;}},
+			{name:"Range Damage",type:"range",min:0,max: 100,func:function(c){let m=0;for (let l of c.rangearr) {m=Math.max(m,l.damage);};return m;}},
+			{name:"Range Dist"  ,type:"range",min:0,max:  80,func:function(c){let m=0;for (let l of c.rangearr) {m=Math.max(m,l.max);};return m;}},
 			{name:"Stock"       ,type:"list" ,arr:[]},
-			{name:"Water Speed" ,type:"range",min:0,max:50 ,func:function(c){return c.waterspeed;}}
+			{name:"Water Speed" ,type:"range",min:0,max:  50,func:function(c){return c.waterspeed;}}
 		];
 		this.uifiltable=document.getElementById("uifiltertable");
 		this.uifillist=document.getElementById("uifilterlist");
@@ -849,7 +859,8 @@ class UI {
 			// Stock filter is configured here, after loading the mod.
 			let stockarr=[];
 			for (let s of mod.StockFiles) {stockarr.push({name:s[1],attr:"name"});}
-			for (let f of this.filters) {if (f.name==="Stock") {f.arr=stockarr.sort();}}
+			stockarr.sort((l,r)=>{return l.name<r.name?-1:1;});
+			for (let f of this.filters) {if (f.name==="Stock") {f.arr=stockarr;}}
 			this.displayresults();
 		}
 	}
@@ -960,15 +971,15 @@ class UI {
 		if (this.selrow) {this.selrow.id="";}
 		this.selrow=row;
 		row.id="uiselrow";
-		//console.log("selected:",creature);
+		// console.log("selected:",creature);
 		this.uistock0.innerText=creature.stock0.name;
 		this.uistock1.innerText=creature.stock1.name;
 		for (let i=2;i<9;i++) {
 			let pick=(creature.choice>>>i)&1;
 			if (!creature.limbarr[i]) {pick=2;}
 			let pair=this.uiside[i];
-			pair[0].style.backgroundColor=pick===0?"#ffa500":"#303030";
-			pair[1].style.backgroundColor=pick===1?"#ffa500":"#303030";
+			pair[0].classList=pick===0?"uiboxsel":"uibox";
+			pair[1].classList=pick===1?"uiboxsel":"uibox";
 		}
 	}
 

@@ -27,24 +27,16 @@ Write the articles as if there are no images. Add images later to help.
 	vertical-align:baseline;
 }
 body {
+	padding:3rem;
+	padding-top:0rem;
+	margin-top:-4.5rem;
 	/* Prevent the screen from oscillating around resizing javascript because of
 	the scrollbar. */
 	overflow-y:scroll;
-	/* Repeat the background twice horizontally. The right side of the left copy, and
-	the left side of the right copy, will be covered by the content. */
-	/*background-image:url("./background.png");*/
-	background-size:50% auto;
-	background-repeat:repeat;
-	background-attachment:fixed;
-	background-color:#000000;
-	/*background-color:#efefef;*/
+	background-color:#1a1a1a;
 	color:#e6e6e6;
-	/*font-family:Montserrat,sans-serif,sans-serif;*/
 	font-family:Arial,"Lucida Grande","Lucida Sans Unicode","GNU Unifont",Verdana,Helvetica,sans-serif;
-	/*font-size:calc(0.45*( 1.5vh + 1.1vw ));*/
-	/*font-size:calc(1.00*( 0.5em + 1.0vh ));*/
 	font-size:clamp( 0.9rem , 0.25vw + 0.85rem , 1.15rem );
-	/*line-height:140%;*/
 	/* Prevent weird font resizing on mobile. */
 	-webkit-text-size-adjust:none;
 	-moz-text-size-adjust:none;
@@ -75,16 +67,6 @@ svg text {dominant-baseline:inherit;}
 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Main Content ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 
-#content {
-	padding:3rem;
-	padding-top:0rem;
-	padding-bottom:2.8rem;
-	/*border:1px solid #808080;*/
-	background-color:#1a1a1a;
-	margin:auto;
-	margin-bottom:3rem;
-	margin-top:-4.5rem;
-}
 canvas, img {
 	display:block;
 	margin:auto;
@@ -162,15 +144,6 @@ button:hover, select:hover {
 	table-layout:fixed;
 	width:100%;
 }
-.uibox {
-	margin:0.3rem;
-	margin-left:auto;
-	margin-right:auto;
-	width:2.2rem;
-	height:2.2rem;
-	border:#000000 2px solid;
-	background-color:#303030;
-}
 .uiinput {
 	width:5em;
 	padding-left:0.2rem;
@@ -201,17 +174,6 @@ button:hover, select:hover {
 	padding:1rem;
 	font-weight:bold;
 	min-width:13em;
-}
-#uicreature {
-	margin-left:3rem;
-}
-#uicreature td {
-	text-align:center;
-	vertical-align:middle;
-}
-#uicreature td:first-child {
-	text-align:right;
-	vertical-align:middle;
 }
 #uioutput {
 	width:100%;
@@ -260,26 +222,66 @@ button:hover, select:hover {
 }
 
 
+/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Limb Table ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+
+#uicreature {
+	margin-left:3rem;
+}
+#uicreature td {
+	text-align:center;
+	vertical-align:middle;
+}
+#uicreature td:first-child {
+	text-align:right;
+	vertical-align:middle;
+}
+.uibox, .uiboxsel {
+	margin-left:auto;
+	margin-right:auto;
+	height:3rem;
+	border:#000000 1px solid;
+	background-color:rgb(48,48,48);
+}
+.uibox > .uilimbmain {
+	/*
+	48*.9+255*.1 = 69
+	48*.8+255*.2 = 89
+	*/
+	fill:rgb(69,69,69);
+	stroke-width:0.5px;
+	stroke:rgb(32,32,32);
+}
+.uibox > .uilimbfill {
+	/*fill:rgb(89,89,89);
+	stroke-width:0.5px;
+	stroke:rgb(32,32,32);*/
+	display:none;
+}
+.uiboxsel {
+	/* 255,165,0 *.6 */
+	/*background-color:rgb(169,115,16);*/
+	background-color:rgb(134,96,16);
+}
+.uiboxsel > .uilimbmain {
+	/* x/3+32 */
+	/*fill:rgb(117,87,32);*/
+	fill:rgb(76,64,37);
+	stroke-width:0.5px;
+	stroke:rgb(0,0,0);
+}
+.uiboxsel > .uilimbfill {
+	fill:rgb(255,187,64);
+	stroke-width:0.5px;
+	stroke:rgb(0,0,0);
+}
+
+
 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header/Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 
-#header, #footer {
-	padding-top:0;
-	padding-bottom:0;
-	text-align:center;
-	color:#ffffff;
-}
-#header a, #footer a {
-	color:#ffa500;
-}
-#header {
-	padding-top:1rem;
-	padding-bottom:1rem;
-}
 #footer {
-	margin-top:-1.9rem;
-	margin-bottom:3.1rem;
-	border:none;
+	text-align:center;
 }
 #footer b {
 	display:none;

@@ -222,7 +222,7 @@ export const StockFiles=[
 export const SelectableOverride={
 	// Name, Select Mask
 	"Carnotaurus": 0x078,
-	//"Dodo"       : 0x078,
+	// "Dodo"       : 0x078,
 	"Ostrich"    : 0x07c,
 	"Man O' War" : 0x170,
 	"Tyrannosaurus Rex": 0x078,
@@ -280,7 +280,8 @@ function ShapeValueCurve(c, x_domain, y_domain, x0y0, x1y0, x0y1, x1y1) {
 	if (x_val===undefined || y_val===undefined) {
 		throw "unknown attr: "+x_name+", "+y_name;
 	}
-	// Shape factor is the amount by which the result is increased or decreased due to synergy between the x and y values.
+	// Shape factor is the amount by which the result is increased or decreased due to
+	// synergy between the x and y values.
 	let shape_factor = (x_val * y_val * (x1y1 - x1y0 - x0y1)) / (x_max * y_max);
 
 	return (
@@ -766,7 +767,7 @@ export function AttrCombiner(creature) {
 		else if (name==="hardened_back") {name="hardened";id=3;}
 		else if (name==="hardened_tail") {name="hardened";id=5;}
 		if (id>=0) {let l=c.limbarr[id]; return l?l[name]:0;}
-		//if (id>=0) {return c.limbarr[id][name];}
+		// if (id>=0) {return c.limbarr[id][name];}
 		if (c[name]===undefined) {throw "attr: "+name;}
 		return c[name];
 	}
@@ -789,7 +790,7 @@ export function AttrCombiner(creature) {
 	// Also note that a special 10th column is added to the table if an ability is
 	// found; this will carry the ability's calculated cost for later.
 	let AbilityRefPoints = [PAD,
-		//[  ability_type, ability_id  , minimum_level, x_domain         , y_domain,            x0y0,x1y0,y1x0,x1y1]
+		// [ability_type,ability_id,minimum_level,x_domain,y_domain,x0y0,x1y0,y1x0,x1y1]
 		[PAD, ABT_Ability, "flash",                  1, rank_domain      , null_domain         ,  15,  55,  15,  55],
 		[PAD, ABT_Ability, "headflashdisplay",       1, rank_domain      , null_domain         ,  15,  55,  15,  55],
 		[PAD, ABT_Ability, "stink_attack",           1, rank_domain      , null_domain         ,   0,  50,   0,  50],

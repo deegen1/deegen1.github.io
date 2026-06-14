@@ -4,9 +4,73 @@
 	<meta charset="utf-8">
 	<title>IC Index</title>
 	<link rel="stylesheet" href="./style.css" type="text/css">
+	<script src="./icindex.js" type="module"></script>
 </head>
 <body>
-<div id="content">
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~ Limb SVG Definitions ~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<svg version="1.1" style="display:none;">
+<defs>
+	<symbol id="quad_main" viewBox="0 0 117 59">
+		<path d="M15 29c0 1-1 1-2 1 0-2 2-2 2-1Zm50 6-5 5-2 1-4-7c4 0 7 0 10-1ZM10 36h1
+		c1 0 2-5 4-2 0 2 0 2-3 4l2 1 8-6 7-3 3 3L21 43c-2 1-3 0-5 0s-4 1-3 3H26c5-4 11-4
+		17-10l12 6c-2 1-3 1-5 1-2-1-4 2-3 3H60c5-4 13-3 17-9 2-1 5-1 5 2 4 1 7 0 11 0 3
+		0 3 2 1 4-3 0-4-1-7-1s-3 3-2 4h15l1-7c1-6-1-9-11-7-3 1-6-2-4-5 6 2 15 3 19 2 6-2
+		8-9 4-13s-12-5-17 0c-3 3 1 6 3 4 7-6 16 2 7 5-4 1-11-1-16-3s-10-4-15-4c-7 1-12 1
+		-18 1-6-2-13-5-18-4s-11 4-16 8H15L8 31Z"/>
+	</symbol>
+	<symbol id="quad_head" viewBox="0 0 117 59">
+		<path d="M15 23h4c2-2 4-3 6-4l4 11-7 3-8 6-2-1c3-2 3-2 3-4-2-3-3 2-4 2H10L8 31Z
+		m0 6c0-1-2-1-2 1 1 0 2 0 2-1Z"/>
+	</symbol>
+	<symbol id="quad_front" viewBox="0 0 117 59">
+		<path d="M29 30V17c8-4 14-2 21 1V31l4 3 4 7c3 0 2 3 2 5H47c-1-1 1-4 3-3 2 0 3 0
+		5-1L43 36c-6 6-12 6-17 10H13c-1-2 1-3 3-3s3 1 5 0L32 33Z"/>
+	</symbol>
+	<symbol id="quad_torso" viewBox="0 0 117 59">
+		<path d="M35 15c5-1 12 2 18 4 6 0 11 0 18-1 4 0 8 1 12 3L64 33c-3 1-6 1-10 1Z"/>
+	</symbol>
+	<symbol id="quad_back" viewBox="0 0 117 59">
+		<path d="M65 35l-5 5-2 1-3 1c-2 1-3 1-5 1-2-1-4 2-3 3H60c5-4 13-3 17-9 2-1 5-1 5
+		2 4 1 7 0 11 0 3 0 3 2 1 4-3 0-4-1-7-1s-3 3-2 4h15l1-7c1-6-1-9-11-7-3 1-6-2-4-6
+		1-2 1-3 0-4-5-2-10-4-15-4-3 0-4 2-4 5Z"/>
+	</symbol>
+	<symbol id="quad_tail" viewBox="0 0 117 59">
+		<path d="M81 20c7 3 16 6 21 5 9-3 0-11-7-5-2 2-6-1-3-4 5-5 13-4 17 0s2 11-4 13
+		c-4 1-13 0-19-2Z"/>
+	</symbol>
+	<symbol id="bird_main" viewBox="0 0 117 59">
+		<path d="M53 15c2-1 3 0 3 1-1 1-3 0-3-1Zm12 0c0 1-2 2-3 1 0-1 1-2 3-1Zm-5 4-1 3
+		-1-3 1-1Zm-1-8c-2 1-4 2-8 2-1 1-1 4 0 7-11 1-23-3-32-7H7l8 5H6l8 4-8 2h9l-4 6 7
+		-2-3 6 5-3 3 4 2-3 1 3 4-2-1 3 6-1v3l4-3 2 3 2-3 4 1V33l4 1-3 5H44l-3 3h4l1 3 3
+		-4 2 4 1-1 2-4 1 4-5 4h4l2 2 2-2 1 2 1-2 2 2 2-2h4l-5-4 1-4 2 4 1 1 2-4 3 4 1-3
+		h4l-3-3H70l-3-5 4-1v3l4-1 2 3 2-3 4 3V35l6 1-1-3 4 2 1-3 2 3 3-4 5 3-3-6 7 2-4-6
+		h9l-8-2 8-4h-9l8-5H99c-9 4-21 8-32 7 1-3 1-6 0-7-4 0-6-1-8-2Z"/>
+	</symbol>
+	<symbol id="bird_wings" viewBox="0 0 117 59">
+		<path d="M51 20c-11 1-23-3-32-7H7l8 5H6l8 4-8 2h9l-4 6 7-2-3 6 5-3 3 4 2-3 1 3 4
+		-2-1 3 6-1v3l4-3 2 3 2-3 4 1V33l4 1ZM67 34l4-1v3l4-1 2 3 2-3 4 3V35l6 1-1-3 4 2
+		1-3 2 3 3-4 5 3-3-6 7 2-4-6h9l-8-2 8-4h-9l8-5H99c-9 4-21 8-32 7Z"/>
+	</symbol>
+	<symbol id="arac_main" viewBox="0 0 117 59">
+		<path d="M24 31l3-2-1-2H22l4-3 5 1c-2-4 3-5 6-6-3 0-3-1-3-3-5 4-15 4-22-2 4 0 9
+		-1 13-3-6-1-11 0-16 5C6 7 28 3 35 11c3 0 8 4 8 7s-1 5-4 5c2 1 1 2 1 3 2-3 3-4 6
+		-5l2-2-2-3-3-2h3l5 4-3 4h3 2l3-1 2-2-3-3-4-2-4-4 7 3 4 2 3 3v2l-4 3 1 1 5-1 4-2
+		1-2-5-4-6-3-2-3 7 2 5 3 5 5-1 3-5 2-3 1 2 1c4-1 8 0 12 2 3-2 8-2 12 0 0-2 5-4 8
+		-2-1-2 0-6 4-8-3-2-4-3-3-7-2 0-4-1-7-4-2 3-5 5-8 4s-4-4-8 0c0-6 8-11 16-8 4 0 8
+		1 10 5 3 0 7 5 5 10 2 5-1 9-5 10-1 6-7 6-11 5-4 3-9 3-13 0-3 2-7 3-12 1l-2 2 3 1
+		5 2 1 3-5 5-5 3-7 2 2-3 6-3 5-4-1-2-4-2-5-1-1 1 4 3v2l-3 3-4 2-7 3 4-4 4-2 3-3-2
+		-2-3-1H51 48l3 4-5 4H43l3-2 2-3-2-2c-3-1-4-2-6-5 0 1 1 2-1 3 3 0 4 2 4 5s-5 7-8
+		7c-7 8-29 4-26-5 5 5 10 6 16 5-3-2-9-3-13-3 7-6 17-6 22-2 0-2 0-3 3-3-3-1-8-2-6
+		-6l-5 1-4-3h4l1-2Z"/>
+	</symbol>
+	<symbol id="arac_claws" viewBox="0 0 117 59">
+		<path d="M31 25c2 2 6 2 9 1 0-1 1-2-1-3 3 0 4-2 4-5s-5-7-8-7C28 3 6 7 9 16c5-5
+		10-6 16-5-4 2-9 3-13 3 7 6 17 6 22 2 0 2 0 3 3 3-3 1-8 2-6 6Zm0 11c2-2 6-2 9-1 0
+		1 1 2-1 3 3 0 4 2 4 5s-5 7-8 7c-7 8-29 4-26-5 5 5 10 6 16 5-3-2-9-3-13-3 7-6 17
+		-6 22-2 0-2 0-3 3-3-3-1-8-2-6-6Z"/>
+	</symbol>
+</defs>
+</svg>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Index ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
@@ -57,14 +121,71 @@ run</span><br>
 </td>
 <td>
 <table id="uicreature">
-<tr><td></td><td id="uistock0">Left</td><td id="uistock1">Right</td></tr>
-<tr><td>Head</td> <td><div id="uihead0"  class="uibox"></div></td><td><div id="uihead1"  class="uibox"></div></td></tr>
-<tr><td>Front</td><td><div id="uifront0" class="uibox"></div></td><td><div id="uifront1" class="uibox"></div></td></tr>
-<tr><td>Torso</td><td><div id="uitorso0" class="uibox"></div></td><td><div id="uitorso1" class="uibox"></div></td></tr>
-<tr><td>Back</td> <td><div id="uiback0"  class="uibox"></div></td><td><div id="uiback1"  class="uibox"></div></td></tr>
-<tr><td>Tail</td> <td><div id="uitail0"  class="uibox"></div></td><td><div id="uitail1"  class="uibox"></div></td></tr>
-<tr><td>Wings</td><td><div id="uiwings0" class="uibox"></div></td><td><div id="uiwings1" class="uibox"></div></td></tr>
-<tr><td>Claws</td><td><div id="uiclaws0" class="uibox"></div></td><td><div id="uiclaws1" class="uibox"></div></td></tr>
+<tr><td></td><td id="uistock0">Left</td><td id="uistock1">Right</td>
+</tr><tr><td>Head</td>
+<td><svg id="uihead0" class="uibox" version="1.1" viewBox="0 0 117 59">
+<use href="#quad_main"  class="uilimbmain"></use>
+<use href="#quad_head"  class="uilimbfill"></use>
+</svg></td>
+<td><svg id="uihead1" class="uibox" version="1.1" viewBox="0 0 117 59">
+<use href="#quad_main"  class="uilimbmain"></use>
+<use href="#quad_head"  class="uilimbfill"></use>
+</svg></td>
+</tr><tr><td>Front</td>
+<td><svg id="uifront0" class="uibox" version="1.1" viewBox="0 0 117 59">
+<use href="#quad_main"  class="uilimbmain"></use>
+<use href="#quad_front" class="uilimbfill"></use>
+</svg></td>
+<td><svg id="uifront1" class="uibox" version="1.1" viewBox="0 0 117 59">
+<use href="#quad_main"  class="uilimbmain"></use>
+<use href="#quad_front" class="uilimbfill"></use>
+</svg></td>
+</tr><tr><td>Torso</td>
+<td><svg id="uitorso0" class="uibox" version="1.1" viewBox="0 0 117 59">
+<use href="#quad_main"  class="uilimbmain"></use>
+<use href="#quad_torso" class="uilimbfill"></use>
+</svg></td>
+<td><svg id="uitorso1" class="uibox" version="1.1" viewBox="0 0 117 59">
+<use href="#quad_main"  class="uilimbmain"></use>
+<use href="#quad_torso" class="uilimbfill"></use>
+</svg></td>
+</tr><tr><td>Back</td>
+<td><svg id="uiback0" class="uibox" version="1.1" viewBox="0 0 117 59">
+<use href="#quad_main"  class="uilimbmain"></use>
+<use href="#quad_back"  class="uilimbfill"></use>
+</svg></td>
+<td><svg id="uiback1" class="uibox" version="1.1" viewBox="0 0 117 59">
+<use href="#quad_main"  class="uilimbmain"></use>
+<use href="#quad_back"  class="uilimbfill"></use>
+</svg></td>
+</tr><tr><td>Tail</td>
+<td><svg id="uitail0" class="uibox" version="1.1" viewBox="0 0 117 59">
+<use href="#quad_main"  class="uilimbmain"></use>
+<use href="#quad_tail"  class="uilimbfill"></use>
+</svg></td>
+<td><svg id="uitail1" class="uibox" version="1.1" viewBox="0 0 117 59">
+<use href="#quad_main"  class="uilimbmain"></use>
+<use href="#quad_tail"  class="uilimbfill"></use>
+</svg></td>
+</tr><tr><td>Wings</td>
+<td><svg id="uiwings0" class="uibox" version="1.1" viewBox="0 0 117 59">
+<use href="#bird_main"  class="uilimbmain"></use>
+<use href="#bird_wings" class="uilimbfill"></use>
+</svg></td>
+<td><svg id="uiwings1" class="uibox" version="1.1" viewBox="0 0 117 59">
+<use href="#bird_main"  class="uilimbmain"></use>
+<use href="#bird_wings" class="uilimbfill"></use>
+</svg></td>
+</tr><tr><td>Claws</td>
+<td><svg id="uiclaws0" class="uibox" version="1.1" viewBox="0 0 117 59">
+<use href="#arac_main"  class="uilimbmain"></use>
+<use href="#arac_claws" class="uilimbfill"></use>
+</svg></td>
+<td><svg id="uiclaws1" class="uibox" version="1.1" viewBox="0 0 117 59">
+<use href="#arac_main"  class="uilimbmain"></use>
+<use href="#arac_claws" class="uilimbfill"></use>
+</svg></td>
+</tr>
 </table>
 </td>
 </tr>
@@ -97,10 +218,9 @@ Combiner.</p>
 
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
-</div><div id="footer">Created on 23 May 2026 - Modified on 13 Jun 2026<br>
+<div id="footer">Created on 23 May 2026 - Modified on 14 Jun 2026<br>
 Questions and comments: akdee144@gmail.com<br>
 <a href="https://2dee.net">Alec Dee's General Site</a></div>
-<script src="./icindex.js" type="module"></script>
 </body>
 </html>
 
