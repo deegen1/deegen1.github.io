@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v17.65
+library.js - v17.68
 
 Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -13,19 +13,20 @@ Versions
 
 Env     - v1.02
 Random  - v1.11
-Vector  - v3.06
+Data    - v1.00
+Vector  - v3.14
 Input   - v1.19
-Drawing - v4.03
-UI      - v1.02
-Audio   - v3.09
-Physics - v3.13
+Drawing - v5.04
+UI      - v1.03
+Audio   - v3.12
+Physics - v1.03
 
 
 --------------------------------------------------------------------------------
 Notes
 
 
-import {Env,Random,Vector,Matrix,Transform,
+import {Env,Random,Data,Vector,Matrix,Transform,
 Input,UI,Draw,Audio,Phy} from "./library.js";
 
 
@@ -177,7 +178,404 @@ export class Random {
 
 
 //---------------------------------------------------------------------------------
-// Vector - v3.06
+// Data - v1.00
+
+
+class TreeNode {
+
+	constructor(value) {
+		this.weight=1;
+		this.parent=null;
+		this.left=null;
+		this.right=null;
+		this.value=value;
+	}
+
+
+	next() {
+		// Given a node N, find the next ordered node. Ex: next(3)=4.
+		//
+		//            4
+		//           / \
+		//          /   \
+		//         2     6
+		//        / \   / \
+		//       1   3 5   7
+		//
+		// If N has a right child, R, the left-most child of R is the next node.
+		// Otherwise, the nearest parent of N with N on the left is the next node.
+		let node=this,child=this.right;
+		if (child) {
+			while (child) {node=child;child=child.left;}
+		} else {
+			while (node && Object.is(node.right,child)) {
+				child=node;node=node.parent;
+			}
+		}
+		return node;
+	}
+
+
+	prev() {
+		// Given a node N, find the previous ordered node. Ex: prev(5)=4.
+		//
+		//            4
+		//           / \
+		//          /   \
+		//         2     6
+		//        / \   / \
+		//       1   3 5   7
+		//
+		// If N has a left child, L, the right-most child of L is the next node.
+		// Otherwise, the nearest parent of N with N on the right is the next node.
+		let node=this,child=this.left;
+		if (child) {
+			while (child) {node=child;child=child.right;}
+		} else {
+			while (node && Object.is(node.left,child)) {
+				child=node;node=node.parent;
+			}
+		}
+		return node;
+	}
+
+
+	rotleft() {
+		// Raise z, lower x, and maintain the sorted order of the nodes.
+		//
+		//        A                B
+		//       / \              / \
+		//      x   B     ->     A   z
+		//         / \          / \
+		//        y   z        x   y
+		//
+		let a=this;
+		let b=a.right;
+		let r=b.left;
+		b.parent=a.parent;
+		b.left=a;
+		a.parent=b;
+		a.right=r;
+		if (r) {r.parent=a;}
+		a.calcweight();
+		b.calcweight();
+		return b;
+	}
+
+
+	rotright() {
+		// Raise x, lower z, and maintain the sorted order of the nodes.
+		//
+		//          A            B
+		//         / \          / \
+		//        B   z   ->   x   A
+		//       / \              / \
+		//      x   y            y   z
+		//
+		let a=this;
+		let b=a.left;
+		let l=b.right;
+		b.parent=a.parent;
+		b.right=a;
+		a.parent=b;
+		a.left=l;
+		if (l) {l.parent=a;}
+		a.calcweight();
+		b.calcweight();
+		return b;
+	}
+
+
+	calcweight() {
+		let l=this.left,r=this.right,weight=1;
+		if (l) {weight+=l.weight;}
+		if (r) {weight+=r.weight;}
+		this.weight=weight;
+	}
+
+
+	index() {
+		// Returns the node's index within the tree. Ex: tree[node.index()]=node
+		let idx=-1;
+		let node=this,prev=this.right;
+		while (node) {
+			if (Object.is(node.right,prev)) {
+				idx+=node.left?node.left.weight+1:1;
+			}
+			prev=node;
+			node=node.parent;
+		}
+		return idx;
+	}
+
+}
+
+
+class Tree {
+
+	static Node=TreeNode;
+
+	// Searching constants.
+	static EQ=0;
+	static EQG=1;
+	static LT=2;
+	static LE=3;
+	static GT=4;
+	static GE=5;
+
+	// Duplicate behavior.
+	static ADD    =0;
+	static REPLACE=1;
+	static DISCARD=2;
+
+
+	static defcmp(l,r) {
+		if (l<r) {return -1;}
+		if (l>r) {return  1;}
+		return 0;
+	}
+
+
+	constructor(cmp=Tree.defcmp,duplicate=Tree.ADD) {
+		// cmp(l,r) is expected to be a function where
+		//
+		//      cmp(l,r)<0 if l<r
+		//      cmp(l,r)=0 if l=r
+		//      cmp(l,r)>0 if l>r
+		//
+		this.cmp=cmp;
+		this.duplicate=duplicate;
+		this.root=null;
+	}
+
+
+	clear() {this.root=null;}
+
+
+	length() {
+		// Return the number of nodes in the tree.
+		return this.root?this.root.weight:0;
+	}
+
+
+	get(i) {
+		// Index nodes like an array.
+		let node=this.root;
+		let weight=node?node.weight:0;
+		if (i<0) {i+=weight;}
+		if (i<0 || i>=weight) {return null;}
+		while (true) {
+			let left=node.left;
+			let lw=left?left.weight:0;
+			if (i>lw) {
+				i-=lw+1;
+				node=node.right;
+			} else if (i===lw) {
+				break;
+			} else {
+				node=left;
+			}
+		}
+		return node;
+	}
+
+
+	*iter() {
+		// Iterate over all nodes in ascending order.
+		let node=this.first();
+		while (node) {
+			yield node;
+			node=node.next();
+		}
+	}
+
+
+	first() {
+		// Return the smallest node in the tree.
+		let node=this.root,ret=null;
+		while (node) {ret=node;node=node.left;}
+		return ret;
+	}
+
+
+	last() {
+		// Return the greatest node in the tree.
+		let node=this.root,ret=null;
+		while (node) {ret=node;node=node.right;}
+		return ret;
+	}
+
+
+	find(value,mode=Tree.EQ) {
+		// Search for a specific value or inequality.
+		//
+		//      EQ : Return the least    node=value.
+		//      EQG: Return the greatest node=value.
+		//      LT : Return the greatest node<value.
+		//      LE : Return the greatest node<=value.
+		//      GT : Return the least    node>value.
+		//      GE : Return the least    node>=value.
+		//
+		let node=this.root,ret=null;
+		let cmp=this.cmp;
+		let dup=this.duplicate;
+		let lset  =[false,false,true ,true ,false,false][mode];
+		let rset  =[false,false,false,false,true ,true ][mode];
+		let eset  =[true ,true ,false,true ,false,true ][mode];
+		let eright=[false,true ,false,true ,true ,false][mode];
+		while (node) {
+			let c=cmp(node.value,value);
+			if (c<0) {
+				if (lset) {ret=node;}
+				node=node.right;
+			} else if (c>0) {
+				if (rset) {ret=node;}
+				node=node.left;
+			} else {
+				if (eset) {
+					ret=node;
+					if (dup) {break;}
+				}
+				node=eright?node.right:node.left;
+			}
+		}
+		return ret;
+	}
+
+
+	addnode(orig) {
+		// Find a leaf node to add the new value to. Then rebalance from the new node on
+		// up. By traversing right when cmp<=0, this algorithm is stable.
+		let value=orig.value;
+		let node=this.root,prev=null;
+		let cmp=this.cmp;
+		let dup=this.duplicate,c=0;
+		while (node) {
+			c=cmp(node.value,value);
+			if (c===0 && dup) {
+				if (dup===Tree.DISCARD) {return null;}
+				node.value=value;
+				return node;
+			}
+			prev=node;
+			node=c>0?node.left:node.right;
+		}
+		orig.weight=1;
+		orig.left=null;
+		orig.right=null;
+		orig.parent=prev;
+		if (prev===null) {
+			this.root=orig;
+		} else {
+			if (c>0) {prev.left=orig;}
+			else     {prev.right=orig;}
+			this.rebalance(prev);
+		}
+		return orig;
+	}
+
+
+	add(value) {
+		return this.addnode(new TreeNode(value));
+	}
+
+
+	removenode(node) {
+		// Remove a specific node. We can remove a node by swapping it with its successor
+		// to maintain order and stability sorting-wise. Then, rebalance from the successor
+		// on up.
+		//
+		//           Case 1          |          Case 2           |          Case 3
+		//                           |                           |
+		//   N is the right-most     |  X is a distant child of  |  X is the right child of
+		//   child in the tree.      |  N. Balance from C up.    |  N. Balance from X up.
+		//   Balance from D up.      |                           |
+		//                           |                           |
+		//     B              B      |    N              X       |     N              X
+		//    / \            / \     |   / \            / \      |    / \            / \
+		//   A   D     ->   A   D    |  A   C          A   C     |   A   X     ->   A   B
+		//      / \            / \   |     / \    ->      / \    |      / \
+		//     C   N          C   X  |    X   D          B   D   |     *   B
+		//        / \                |   / \                     |
+		//       X   *               |  *   B                    |
+		//
+		let p=node.parent;
+		let l=node.left,r=node.right;
+		let next=null,bal=null;
+		if (r===null) {
+			// Case 1
+			bal=p;next=l;l=null;
+		} else if (r.left) {
+			// Case 2
+			next=r;
+			while (next.left) {bal=next;next=next.left;}
+			let c=next.right;
+			bal.left=c;
+			if (c) {c.parent=bal;}
+		} else {
+			// Case 3
+			bal=r;next=r;r=null;
+		}
+		// Replace node with next.
+		if (p===null) {this.root=next;}
+		else if (Object.is(p.left,node)) {p.left=next;}
+		else {p.right=next;}
+		if (next) {
+			next.parent=p;
+			if (l) {next.left=l;l.parent=next;}
+			if (r) {next.right=r;r.parent=next;}
+		}
+		this.rebalance(bal);
+	}
+
+
+	remove(value) {
+		// Remove a node given a value.
+		let node=this.find(value);
+		if (node) {this.removenode(node);}
+		return node;
+	}
+
+
+	rebalance(next) {
+		// Rebalance from next upward. If 2 children differ in weight by a ratio of 2.5 or
+		// more, we can rotate to rebalance.
+		function Weight(n) {return n?n.weight:0;}
+		while (next) {
+			let node=next,orig=next;
+			next=node.parent;
+			let l=node.left,r=node.right;
+			let lw=Weight(l),rw=Weight(r);
+			if (rw*5+2<lw*2) {
+				// Leaning to the left.
+				if (Weight(l.left)*5<lw*2) {node.left=l.rotleft();}
+				node=node.rotright();
+			} else if (lw*5+2<rw*2) {
+				// Leaning to the right.
+				if (Weight(r.right)*5<rw*2) {node.right=r.rotright();}
+				node=node.rotleft();
+			} else {
+				// Balanced.
+				node.weight=lw+rw+1;
+				continue;
+			}
+			if (next===null) {this.root=node;}
+			else if (Object.is(next.left,orig)) {next.left=node;}
+			else {next.right=node;}
+		}
+	}
+
+}
+
+
+const Data={
+	Tree:Tree,
+};
+export {Data};
+
+
+//---------------------------------------------------------------------------------
+// Vector - v3.14
 
 
 export class Vector extends Array {
@@ -185,10 +583,10 @@ export class Vector extends Array {
 	static rnd=new Random();
 
 
-	constructor(elem) {
-		let arr=elem.length!==undefined;
-		super(arr?elem.length:elem);
-		this.set(arr?elem:0);
+	constructor(elem,init=true) {
+		let len=elem.length;
+		super(len??elem);
+		if (init) {this.set(len?elem:0);}
 	}
 
 
@@ -196,24 +594,11 @@ export class Vector extends Array {
 	toString() {return this.tostring();}
 
 
-	sanitize(v) {
-		// Converts v to a vector or throws an error.
-		let len=this.length,vlen=v.length;
-		if (vlen!==undefined) {
-			if (vlen!==len) {throw `Incompatible lengths: ${len}, ${vlen}`;}
-			return v;
-		} else if (!isNaN(v)) {
-			return (new Vector(len)).set(v);
-		}
-		throw `Unrecognized vector type: ${typeof v}`;
-	}
-
-
 	set(v=0) {
 		let len=this.length,vlen=v.length;
 		if (vlen!==undefined) {
-			len=len<vlen?len:vlen;
-			for (let i=0;i<len;i++) {this[i]=v[i];}
+			if (len!==vlen) {this.length=vlen;}
+			for (let i=0;i<vlen;i++) {this[i]=v[i];}
 		} else if (!isNaN(v)) {
 			for (let i=0;i<len;i++) {this[i]=v;}
 		} else {
@@ -230,43 +615,80 @@ export class Vector extends Array {
 	// Comparison
 
 
-	static cmp(u,v) {
+	cmp(v) {
 		// return -1, 0, 1
-		let ulen=u.length,vlen=v.length;
-		let len=ulen<vlen?ulen:vlen;
-		for (let i=0;i<len;i++) {
-			let x=u[i],y=v[i];
-			if (x!==y) {return x<y?-1:1;}
+		let ulen=this.length,vlen=v.length;
+		let u=this;
+		if (vlen!==undefined) {
+			if (ulen!==vlen) {throw `Incompatible lengths ${ulen}!=${vlen}`;}
+			for (let i=0;i<ulen;i++) {
+				let x=u[i],y=v[i];
+				if (x!==y) {return x<y?-1:1;}
+			}
+		} else {
+			for (let i=0;i<ulen;i++) {
+				let x=u[i];
+				if (x!==v) {return x<v?-1:1;}
+			}
 		}
-		if (ulen===vlen) {return 0;}
-		return ulen<vlen?-1:1;
+		return 0;
 	}
 
 
-	static lt(u,v) {return u.cmp(v)<0;}
-	static le(u,v) {return u.cmp(v)<=0;}
+	lt(u,v) {return u.cmp(v)<0;}
+	le(u,v) {return u.cmp(v)<=0;}
 
 
 	imin(v) {
-		v=this.sanitize(v);
-		let u=this,len=this.length;
-		for (let i=0;i<len;i++) {let x=u[i],y=v[i];u[i]=x<y?x:y;}
+		let ulen=this.length,vlen=v.length;
+		let u=this;
+		if (vlen!==undefined) {
+			if (ulen!==vlen) {throw `Incompatible lengths ${ulen}!=${vlen}`;}
+			for (let i=0;i<ulen;i++) {let x=u[i],y=v[i];u[i]=x<y?x:y;}
+		} else {
+			for (let i=0;i<ulen;i++) {let x=u[i];u[i]=x<v?x:v;}
+		}
 		return this;
 	}
 
 
-	min(v) {return this.copy().imin(v);}
+	min(v) {
+		let ulen=this.length,vlen=v.length;
+		let u=this,r=new Vector(ulen,false);
+		if (vlen!==undefined) {
+			if (ulen!==vlen) {throw `Incompatible lengths ${ulen}!=${vlen}`;}
+			for (let i=0;i<ulen;i++) {let x=u[i],y=v[i];r[i]=x<y?x:y;}
+		} else {
+			for (let i=0;i<ulen;i++) {let x=u[i];r[i]=x<v?x:v;}
+		}
+		return r;
+	}
 
 
 	imax(v) {
-		v=this.sanitize(v);
-		let u=this,len=this.length;
-		for (let i=0;i<len;i++) {let x=u[i],y=v[i];u[i]=x>y?x:y;}
+		let ulen=this.length,vlen=v.length;
+		let u=this;
+		if (vlen!==undefined) {
+			if (ulen!==vlen) {throw `Incompatible lengths ${ulen}!=${vlen}`;}
+			for (let i=0;i<ulen;i++) {let x=u[i],y=v[i];u[i]=x>y?x:y;}
+		} else {
+			for (let i=0;i<ulen;i++) {let x=u[i];u[i]=x>v?x:v;}
+		}
 		return this;
 	}
 
 
-	max(v) {return this.copy().imax(v);}
+	max(v) {
+		let ulen=this.length,vlen=v.length;
+		let u=this,r=new Vector(ulen,false);
+		if (vlen!==undefined) {
+			if (ulen!==vlen) {throw `Incompatible lengths ${ulen}!=${vlen}`;}
+			for (let i=0;i<ulen;i++) {let x=u[i],y=v[i];r[i]=x>y?x:y;}
+		} else {
+			for (let i=0;i<ulen;i++) {let x=u[i];r[i]=x>v?x:v;}
+		}
+		return r;
+	}
 
 
 	// ----------------------------------------
@@ -280,31 +702,50 @@ export class Vector extends Array {
 	}
 
 
-	neg() {return this.copy().ineg();}
+	neg() {
+		let len=this.length;
+		let u=this,r=new Vector(len,false);
+		for (let i=0;i<len;i++) {r[i]=-u[i];}
+		return r;
+	}
 
 
 	iadd(v) {
 		// u+=v
-		v=this.sanitize(v);
-		let u=this,len=this.length;
-		for (let i=0;i<len;i++) {u[i]+=v[i];}
+		let ulen=this.length,vlen=v.length;
+		if (ulen!==vlen) {throw `Incompatible lengths: ${ulen}!=${vlen}`;}
+		let u=this;
+		for (let i=0;i<ulen;i++) {u[i]+=v[i];}
 		return this;
 	}
 
 
-	add(v) {return this.copy().iadd(v);}
+	add(v) {
+		let ulen=this.length,vlen=v.length;
+		if (ulen!==vlen) {throw `Incompatible lengths: ${ulen}!=${vlen}`;}
+		let u=this,r=new Vector(ulen,false);
+		for (let i=0;i<ulen;i++) {r[i]=u[i]+v[i];}
+		return r;
+	}
 
 
 	isub(v) {
 		// u-=v
-		v=this.sanitize(v);
-		let u=this,len=this.length;
-		for (let i=0;i<len;i++) {u[i]-=v[i];}
+		let ulen=this.length,vlen=v.length;
+		if (ulen!==vlen) {throw `Incompatible lengths: ${ulen}!=${vlen}`;}
+		let u=this;
+		for (let i=0;i<ulen;i++) {u[i]-=v[i];}
 		return this;
 	}
 
 
-	sub(v) {return this.copy().isub(v);}
+	sub(v) {
+		let ulen=this.length,vlen=v.length;
+		if (ulen!==vlen) {throw `Incompatible lengths: ${ulen}!=${vlen}`;}
+		let u=this,r=new Vector(ulen,false);
+		for (let i=0;i<ulen;i++) {r[i]=u[i]-v[i];}
+		return r;
+	}
 
 
 	imul(s) {
@@ -317,15 +758,16 @@ export class Vector extends Array {
 
 	mul(v) {
 		// dot or scalar product
-		let u=this,len=this.length,vlen=v.length;
+		let u=this;
+		let ulen=this.length,vlen=v.length;
 		if (vlen!==undefined) {
-			if (vlen!==len) {throw `Incompatible lengths: ${len}, ${vlen}`;}
+			if (ulen!==vlen) {throw `Incompatible lengths: ${ulen}!=${vlen}`;}
 			let sum=0;
-			for (let i=0;i<len;i++) {sum+=u[i]*v[i];}
+			for (let i=0;i<ulen;i++) {sum+=u[i]*v[i];}
 			return sum;
 		}
-		let r=new Vector(len);
-		for (let i=0;i<len;i++) {r[i]=u[i]*v;}
+		let r=new Vector(ulen,false);
+		for (let i=0;i<ulen;i++) {r[i]=u[i]*v;}
 		return r;
 	}
 
@@ -336,9 +778,11 @@ export class Vector extends Array {
 
 	dist2(v) {
 		// (u-v)^2
-		v=this.sanitize(v);
-		let u=this,len=this.length,sum=0;
-		for (let i=0;i<len;i++) {let x=u[i]-v[i];sum+=x*x;}
+		let u=this;
+		let ulen=this.length,vlen=v.length;
+		if (ulen!==vlen) {throw `Incompatible lengths: ${ulen}!=${vlen}`;}
+		let sum=0;
+		for (let i=0;i<ulen;i++) {let x=u[i]-v[i];sum+=x*x;}
 		return sum;
 	}
 
@@ -358,6 +802,7 @@ export class Vector extends Array {
 
 
 	normalize() {
+		// Normalize the vector.
 		let u=this,len=this.length,mag=0;
 		for (let i=0;i<len;i++) {
 			let x=u[i];
@@ -373,7 +818,22 @@ export class Vector extends Array {
 	}
 
 
-	norm() {return this.copy().normalize();}
+	norm() {
+		// Return a new normal vector.
+		let len=this.length,mag=0;
+		let u=this,r=new Vector(len,false);
+		for (let i=0;i<len;i++) {
+			let x=u[i];
+			mag+=x*x;
+		}
+		if (mag>1e-10) {
+			mag=1/Math.sqrt(mag);
+			for (let i=0;i<len;i++) {r[i]=u[i]*mag;}
+		} else {
+			r.randomize();
+		}
+		return r;
+	}
 
 
 	randomize() {
@@ -394,44 +854,50 @@ export class Vector extends Array {
 	}
 
 
-	static random(dim) {return (new Vector(dim)).randomize();}
+	static random(dim) {return (new Vector(dim,false)).randomize();}
 
 }
 
 
 export class Matrix extends Array {
 
-	constructor(rows,cols) {
+	static _perm=[];
+
+
+	constructor(rows,cols,init=true) {
 		// Expected: (dim), (rows,cols), (Matrix), or (array,[rows,cols])
 		let val=0;
 		if (rows instanceof Matrix) {val=rows;rows=val.rows;cols=val.cols;}
 		else if (rows.length!==undefined) {val=rows;rows=cols[0];cols=cols[1];}
-		else if (cols===undefined) {cols=rows;}
+		else {cols=cols??rows;}
 		super(rows*cols);
 		this.rows=rows;
 		this.cols=cols;
-		this.set(val);
+		if (init) {this.set(val);}
 	}
 
 
 	one() {
-		this.set(0);
 		let elem=this;
-		let cols=this.cols,rows=this.rows;
-		rows=rows<cols?rows:cols;
-		for (let i=0;i<rows;i++) {elem[i*cols+i]=1;}
+		let elems=this.length,cols=this.cols+1,c=0;
+		for (let i=0;i<elems;i++) {
+			let x=0;if (i===c) {x=1;c+=cols;}
+			elem[i]=x;
+		}
 		return this;
 	}
 
 
 	set(val=0) {
 		let elem=this;
-		let elems=elem.length,vlen=val.length;
+		let elems=this.rows*this.cols,vlen=val.length;
 		if (vlen===undefined) {
 			for (let i=0;i<elems;i++) {elem[i]=val;}
 		} else {
-			if (vlen!==elems) {throw `set length: ${elems}!=${vlen}`;}
-			for (let i=0;i<elems;i++) {elem[i]=val[i];}
+			if (vlen!==elems) {elem.length=vlen;}
+			this.rows=val.rows;
+			this.cols=val.cols;
+			for (let i=0;i<vlen;i++) {elem[i]=val[i];}
 		}
 		return this;
 	}
@@ -441,16 +907,16 @@ export class Matrix extends Array {
 		let aelem=this;
 		let arows=this.rows,acols=this.cols;
 		let aelems=this.length,belems=b.length;
-		if (b.length===undefined) {
+		if (belems===undefined) {
 			// scalar
-			let m=new Matrix(this);
-			for (let i=0;i<aelems;i++) {m[i]*=b;}
+			let m=new Matrix(arows,acols,false);
+			for (let i=0;i<aelems;i++) {m[i]=aelem[i]*b;}
 			return m;
 		} else if (!(b instanceof Matrix)) {
 			// vector
 			if (belems!==acols) {throw `mat*vec dimensions: ${acols}!=${belems}`;}
-			let v=new Vector(arows),i=0;
-			for (let r=0;r<arows;r++) {
+			let v=new Vector(arows,false);
+			for (let r=0,i=0;r<arows;r++) {
 				let sum=0;
 				for (let c=0;c<acols;c++) {sum+=aelem[i++]*b[c];}
 				v[r]=sum;
@@ -458,127 +924,140 @@ export class Matrix extends Array {
 			return v;
 		}
 		// matrix
-		let brows=b.rows,bcols=b.cols,melems=arows*bcols;belems--;
-		if (acols!==brows) {throw `A*B needs cols(A)=rows(B): ${acols}, ${brows}`;}
-		let m=new Matrix(arows,bcols);
+		let bcols=b.cols,melems=arows*bcols;belems--;
+		if (acols!==b.rows) {throw `A*B needs cols(A)=rows(B): ${acols}, ${b.rows}`;}
+		let m=new Matrix(arows,bcols,false);
 		let belem=b,melem=m;
-		let aval=0,bval=0;
+		let aidx=0,bidx=0;
 		for (let i=0;i<melems;i++) {
 			// Multiply row r of A with column c of B.
-			let sum=melem[i];
-			while (bval<=belems) {
-				sum+=aelem[aval]*belem[bval];
-				aval++;
-				bval+=bcols;
+			let sum=0;
+			while (bidx<=belems) {
+				sum+=aelem[aidx++]*belem[bidx];
+				bidx+=bcols;
 			}
 			melem[i]=sum;
-			bval-=belems;
-			if (bval===bcols) {bval=0;}
-			else {aval-=brows;}
+			bidx-=belems;
+			if (bidx===bcols) {bidx=0;}
+			else {aidx-=acols;}
 		}
 		return m;
 	}
 
 
-	det() {
-		let rows=this.rows,cols=this.cols;
-		if (rows!==cols) {return 0;}
-		if (rows===0) {return 1;}
-		// Copy the matrix. Use the upper triangular form to compute the determinant.
-		let elem=new Matrix(this);
-		let sign=0;
-		for (let i=0;i<cols-1;i++) {
-			// Find a row with an invertible element in column i.
-			let dval=i*cols,sval=dval,j=i;
-			let inv=NaN;
-			for (;j<rows;j++) {
-				inv=1/elem[sval+i];
-				if (inv>-Infinity && inv<Infinity) {break;}
-				sval+=cols;
-			}
-			if (j===rows) {return 0;}
-			if (sval!==dval) {
-				sign^=1;
-				for (let c=i;c<cols;c++) {
-					let tmp=elem[sval+c];
-					elem[sval+c]=elem[dval+c];
-					elem[dval+c]=tmp;
-				}
-			}
-			for (let c=i+1;c<cols;c++) {
-				elem[dval+c]*=inv;
-			}
-			for (let r=i+1;r<cols;r++) {
-				sval=r*cols;
-				let mul=elem[sval+i];
-				for (let c=i+1;c<cols;c++) {
-					elem[sval+c]-=elem[dval+c]*mul;
-				}
-			}
+	imul(b) {
+		if (b.length===undefined) {
+			let elem=this;
+			let elems=this.length;
+			for (let i=0;i<elems;i++) {elem[i]*=b;}
+		} else {
+			this.set(this.mul(b));
 		}
-		// We have the matrix in upper triangular form. Multiply the diagonals to get the
-		// determinant.
-		let det=elem[0];
-		for (let i=1;i<cols;i++) {
-			det=det*elem[i*cols+i];
-		}
-		return sign?-det:det;
+		return this;
 	}
 
 
-	inv() {
-		// Returns the multiplicative inverse of A.
-		let rows=this.rows,cols=this.cols;
-		if (rows!==cols) {throw `Can only invert square matrices: ${rows}, ${cols}`;}
-		let ret=new Matrix(this);
-		let elem=ret;
-		let perm=new Array(cols);
-		for (let i=0;i<cols;i++) {perm[i]=i;}
-		for (let i=0;i<rows;i++) {
-			// Find a row with an invertible element in column i.
-			let dval=i*cols,sval=dval,j=i;
-			let inv=NaN;
-			for (;j<rows;j++) {
-				inv=1/elem[sval+i];
-				if (inv>-Infinity && inv<Infinity) {break;}
-				sval+=cols;
-			}
-			if (j===rows) {throw `Unable to find an invertible element.`;}
-			// Swap the desired row with row i. Then put row i in reduced echelon form.
-			if (sval!==dval) {
-				for (let c=0;c<cols;c++) {
-					let tmp=elem[sval+c];
-					elem[sval+c]=elem[dval+c];
-					elem[dval+c]=tmp;
+	det() {
+		let dim=this.rows,cols=this.cols,elems=dim*dim;
+		if (dim!==cols) {return 0;}
+		// Copy the matrix. Use the upper triangular form to compute the determinant.
+		let elem=new Matrix(this);
+		let det=1;
+		for (let i=0;i<dim;i++) {
+			// Find a column with an invertible element on row i.
+			let j=i+1,row=i*dim,stop=row+dim,swap=-1;
+			let max=0,inv=0;
+			for (let c=i;c<dim;c++) {
+				let x=elem[row+c],a=x<0?-x:x;
+				if (max<a) {
+					max=a;
+					inv=x;
+					swap=c;
 				}
 			}
-			let tmp=perm[i];perm[i]=perm[j];perm[j]=tmp;
-			// Put the row into reduced echelon form. Since entry (i,i)=1 and (i,i')=1*inv,
-			// set (i,i)=inv.
-			for (let c=0;c<cols;c++) {
-				if (c!==i) {elem[dval+c]*=inv;}
+			det*=swap===i?inv:-inv;
+			// We couldn't find an element, so det=0.
+			if (swap<0) {break;}
+			// Normalize the row.
+			elem[row+swap]=elem[row+i];
+			for (let c=row+j;c<stop;c++) {elem[c]/=inv;}
+			// Row reduce the lower triangle.
+			for (let e=j*dim;e<elems;e+=dim) {
+				let mul=elem[e+swap];
+				elem[e+swap]=elem[e+i];
+				let dst=e+j,src=row+j;
+				while (src<stop) {
+					elem[dst++]-=elem[src++]*mul;
+				}
 			}
-			elem[dval+i]=inv;
+		}
+		return det;
+	}
+
+
+	inv() {return (new Matrix(this)).invert();}
+
+
+	invert() {
+		// Returns the multiplicative inverse of A.
+		let dim=this.rows,cols=this.cols;
+		if (dim!==cols) {throw `Can only invert square matrices: ${dim}, ${cols}`;}
+		let elem=this;
+		let perm=Matrix._perm;
+		if (perm.length<dim) {Matrix._perm=perm=new Array(dim);}
+		// let perm=new Array(dim);
+		for (let i=0;i<dim;i++) {
+			// Find a column with an invertible element on row i.
+			let row=i*dim,stop=row+dim,swap=-1;
+			let max=1e-10,inv=0;
+			for (let c=i;c<dim;c++) {
+				let x=elem[row+c],a=x<0?-x:x;
+				if (max<a) {
+					max=a;
+					inv=x;
+					swap=c;
+				}
+			}
+			if (swap<0) {throw `Unable to find an invertible element.`;}
+			// Swap the desired column with i and put the row in reduced echelon form.
+			// Since entry (i,i)=1 and (i,i')=1*inv, set (i,i)=inv.
+			perm[i]=swap;
+			elem[row+swap]=elem[row+i];
+			elem[row+i]=1;
+			for (let c=row;c<stop;c++) {elem[c]/=inv;}
 			// Perform row operations with row i to clear column i for all other rows in A.
 			// Entry (j,i') will be 0 in the augmented matrix, and (i,i') will be inv, hence
 			// (j,i')=(j,i')-(j,i)*(i,i')=-(j,i)*inv.
-			for (let r=0;r<rows;r++) {
+			for (let r=0;r<dim;r++) {
 				if (r===i) {continue;}
-				sval=r*cols;
-				let mul=elem[sval+i];
-				for (let c=0;c<cols;c++) {
-					if (c!==i) {elem[sval+c]-=elem[dval+c]*mul;}
+				let dst=r*dim,src=row;
+				let mul=elem[dst+swap];
+				elem[dst+swap]=elem[dst+i];
+				elem[dst+i]=0;
+				while (src<stop) {
+					elem[dst++]-=elem[src++]*mul;
 				}
-				elem[sval+i]=-elem[dval+i]*mul;
 			}
 		}
-		// Re-order columns due to swapped rows.
-		let tmp=new Array(cols);
-		for (let r=0;r<rows;r++) {
-			let dval=r*cols;
-			for (let i=0;i<cols;i++) {tmp[i]=elem[dval+i];}
-			for (let i=0;i<cols;i++) {elem[dval+perm[i]]=tmp[i];}
+		// Correct the row order to account for swapping columns.
+		for (let r=dim-1;r>=0;r--) {
+			let i=r*dim,j=perm[r]*dim,stop=i+dim;
+			if (i===j) {continue;}
+			while (i<stop) {
+				let tmp=elem[i];
+				elem[i++]=elem[j];
+				elem[j++]=tmp;
+			}
 		}
+		return this;
+	}
+
+
+	trans() {
+		// Transpose.
+		let rows=this.rows,cols=this.cols,elems=rows*cols;
+		let ret=new Matrix(cols,rows,false);
+		for (let i=0;i<elems;i++) {ret[i]=this[(i%rows)*cols+(~~(i/rows))];}
 		return ret;
 	}
 
@@ -586,7 +1065,7 @@ export class Matrix extends Array {
 	static fromangles(angs) {
 		let dim=0,ang2=(angs.length??1)*2;
 		while (dim*(dim-1)<ang2) {dim++;}
-		return (new Matrix(dim,dim)).one().rotate(angs);
+		return (new Matrix(dim,dim,false)).one().rotate(angs);
 	}
 
 
@@ -607,8 +1086,9 @@ export class Matrix extends Array {
 				// We have
 				// (i,i)=cos   (i,j)=-sin
 				// (j,i)=sin   (j,j)=cos
-				let cs=Math.cos(angs[--a]);
-				let sn=Math.sin(angs[  a]);
+				let ang=angs[--a];
+				let cs=Math.cos(ang);
+				let sn=Math.sin(ang);
 				// For each row r:
 				// (r,i)=(r,i)*cos+(r,j)*sin
 				// (r,j)=(r,j)*cos-(r,i)*sin
@@ -634,38 +1114,41 @@ export class Transform {
 	// mat*point+vec
 
 
-	constructor(params) {
-		// Accepts: transform, mat, vec, dim, {mat,vec,dim,scale,ang}
-		// Aliases: vec=pos, ang=angle
+	constructor(params,init=true) {
+		// Accepts: Vector, Matrix, Transform, dim, {ang,dim,mat,scale,vec}
 		// Parse what we're given.
 		let mat=null,vec=null,dim=NaN;
 		let scale=null,ang=null;
 		if (params instanceof Transform) {
-			mat=new Matrix(params.mat);
-			vec=new Vector(params.vec);
+			mat=params.mat;
+			vec=params.vec;
 		} else if (params instanceof Matrix) {
-			mat=new Matrix(params);
+			mat=params;
 		} else if ((params instanceof Vector) || params.length!==undefined) {
-			vec=new Vector(params);
+			vec=params;
 		} else if (!isNaN(params)) {
 			dim=params;
 		} else {
+			// Pull attributes from a dict.
 			mat=params.mat??null;
-			vec=(params.vec??params.pos)??null;
+			vec=params.vec??null;
 			dim=params.dim??NaN;
 			scale=params.scale??null;
-			ang=(params.ang??params.angle)??null;
+			ang=params.ang??null;
 		}
 		// Reconstruct what we're missing.
 		if (isNaN(dim)) {
-			if (vec!==null) {dim=vec.length;}
-			else if (mat!==null) {dim=mat.rows;}
+			if (vec) {dim=vec.length;}
+			else if (mat) {dim=mat.rows;}
+			else if (scale && scale.length) {dim=scale.length;}
+			if (isNaN(dim)) {throw "no dimension";}
 		}
-		if (isNaN(dim)) {throw "no dimension";}
-		if (vec===null) {vec=new Vector(dim);}
-		if (mat===null) {mat=(new Matrix(dim)).one();}
-		if (vec.length!==dim) {throw `vec dimension: ${vec.length}, ${dim}`;}
-		if (mat.rows!==dim || mat.cols!==dim) {throw `mat dimensions: (${mat.rows},${mat.cols}), ${dim}`;}
+		if (!vec)      {vec=new Vector(dim);}
+		else if (init) {vec=new Vector(vec);}
+		if (!mat)      {mat=(new Matrix(dim)).one();}
+		else if (init) {mat=new Matrix(mat);}
+		if (vec.length!==dim) {throw `vec dimension: ${vec.length}!=${dim}`;}
+		if (mat.rows!==dim || mat.cols!==dim) {throw `mat dimensions: (${mat.rows},${mat.cols})!=${dim}`;}
 		this.mat=mat;
 		this.vec=vec;
 		if (scale!==null) {this.scalemat(scale);}
@@ -683,15 +1166,16 @@ export class Transform {
 
 	apply(point) {
 		// (A.apply(B)).apply(P) = A.apply(B.apply(P))
-		let mat=this.mat,vec=this.vec;
-		if (!(point instanceof Transform)) {return mat.mul(point).iadd(vec);}
-		return new Transform({mat:mat.mul(point.mat),vec:mat.mul(point.vec).iadd(vec)});
+		let amat=this.mat,avec=this.vec;
+		let bmat=point.mat,bvec=point.vec;
+		if (!bmat || !bvec) {return amat.mul(point).iadd(avec);}
+		return new Transform({mat:amat.mul(bmat),vec:amat.mul(bvec).iadd(avec)},false);
 	}
 
 
 	inv() {
 		let inv=this.mat.inv();
-		return new Transform({mat:inv,vec:inv.mul(this.vec).ineg()});
+		return new Transform({mat:inv,vec:inv.mul(this.vec).ineg()},false);
 	}
 
 
@@ -718,11 +1202,22 @@ export class Transform {
 	}
 
 
-	scalemat(muls) {
-		let mat=this.mat,dim=this.vec.length,dim2=dim*dim;
-		if (muls.length===undefined) {muls=(new Array(dim)).fill(muls);}
-		if (muls.length!==dim) {throw `Invalid dimensions: ${muls.length}, ${dim}`;}
-		for (let i=0;i<dim2;i++) {mat[i]*=muls[(i/dim)|0];}
+	scalemat(mul) {
+		// Accepts a scalar or dim sized array.
+		let mat=this.mat;
+		let dim=mul.length,vlen=this.vec.length;
+		if (dim===undefined) {
+			mat.imul(mul);
+		} else if (dim!==vlen) {
+			throw `Invalid dimensions: ${dim}, ${vlen}`;
+		} else {
+			let i=0,s=dim;
+			for (let r=0;r<dim;r++) {
+				let m=mul[r];
+				while (i<s) {mat[i++]*=m;}
+				s+=dim;
+			}
+		}
 		return this;
 	}
 
@@ -748,12 +1243,6 @@ export class Transform {
 
 	rotate(angs) {
 		return this.rotatevec(angs).rotatemat(angs);
-	}
-
-
-	lookat() {
-		// https://math.stackexchange.com/questions/180418
-		throw "not implemented";
 	}
 
 }
@@ -1144,7 +1633,7 @@ export class Input {
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v4.03
+// Drawing - v5.04
 
 
 class DrawPath {
@@ -1153,6 +1642,8 @@ class DrawPath {
 	static CLOSE=1;
 	static LINE =2;
 	static CURVE=3;
+	static _traceline =new Float64Array(2);
+	static _tracecurve=new Float64Array(6);
 
 
 	constructor(str,trans) {
@@ -1168,28 +1659,26 @@ class DrawPath {
 
 	begin() {
 		this.vertidx=0;
+		this.area=0;
+		this.area0=0;
+		this.curve=3;
 		this.move=null;
-		this.minx=Infinity;
+		this.minx= Infinity;
 		this.maxx=-Infinity;
-		this.miny=Infinity;
+		this.miny= Infinity;
 		this.maxy=-Infinity;
 		return this;
 	}
 
 
-	aabbupdate() {
+	update() {
 		// Recompute the bounding box.
-		let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
 		let varr=this.vertarr,vidx=this.vertidx;
+		this.begin();
 		for (let i=0;i<vidx;i++) {
-			let v=varr[i],x=v.x,y=v.y;
-			minx=minx<x?minx:x;
-			maxx=maxx>x?maxx:x;
-			miny=miny<y?miny:y;
-			maxy=maxy>y?maxy:y;
+			let v=varr[i];
+			this.addvert(v.type,v.x,v.y);
 		}
-		this.minx=minx;this.maxx=maxx;
-		this.miny=miny;this.maxy=maxy;
 	}
 
 
@@ -1197,38 +1686,63 @@ class DrawPath {
 		if (!trans) {return;}
 		trans=new Transform(trans);
 		let varr=this.vertarr,vidx=this.vertidx;
+		this.begin();
 		for (let i=0;i<vidx;i++) {
 			let v=varr[i];
-			let t=trans.apply([v.x,v.y]);
-			v.x=t[0];v.y=t[1];
+			let w=trans.apply([v.x,v.y]);
+			this.addvert(v.type,w);
 		}
-		this.aabbupdate();
 	}
 
 
 	addvert(type,x,y) {
+		let m=this.move;
+		if (!m && type) {throw "first vert not move: "+type;}
+		if (type===1) {x=m.x;y=m.y;this.move=null;}
+		else if (y===undefined) {y=x[1];x=x[0];}
+		// Add to array.
 		let idx=this.vertidx++;
 		let arr=this.vertarr;
 		if (idx>=arr.length) {
-			let len=16;
-			while (len<=idx) {len+=len;}
-			while (arr.length<len) {arr.push({type:-1,x:0,y:0});}
+			arr.push({type:0,x:0,y:0});
 		}
 		let v=arr[idx];
 		v.type=type;
 		v.x=x;
 		v.y=y;
+		// Update AABB.
 		if (this.minx>x) {this.minx=x;}
 		if (this.maxx<x) {this.maxx=x;}
 		if (this.miny>y) {this.miny=y;}
 		if (this.maxy<y) {this.maxy=y;}
+		// Update area.
+		let w=null;
+		let area=this.area0;
+		if (type<1) {
+			area=this.area;
+			this.move=v;
+		} else if (type<3) {
+			w=arr[idx-1];
+		} else if (!--this.curve) {
+			this.curve=3;
+			w=arr[idx-1];let p2x=w.x-x,p2y=w.y-y;
+			w=arr[idx-2];let p1x=w.x-x,p1y=w.y-y;
+			w=arr[idx-3];let p0x=w.x-x,p0y=w.y-y;
+			area+=(p0x*(2*p1y+p2y)+p1x*(p2y-2*p0y)-p2x*(p1y+p0y))*0.3;
+		}
+		if (w!==null) {
+			area+=w.x*y-w.y*x;
+			// Pretend to close the subpath.
+			this.area=x*m.y-y*m.x+area;
+		}
+		this.area0=area;
 		return v;
 	}
 
 
 	moveto(x,y) {
 		// Move the pen to [x,y].
-		this.move=this.addvert(DrawPath.MOVE,x,y);
+		this.addvert(DrawPath.MOVE,x,y);
 		return this;
 	}
 
@@ -1236,8 +1750,7 @@ class DrawPath {
 	lineto(x,y) {
 		// Draw a line from the last vertex to [x,y].
 		// If no moveto() was ever called, behave as moveto().
-		if (!this.move) {return this.moveto(x,y);}
-		this.addvert(DrawPath.LINE,x,y);
+		this.addvert(this.move?DrawPath.LINE:DrawPath.MOVE,x,y);
 		return this;
 	}
 
@@ -1252,36 +1765,9 @@ class DrawPath {
 	}
 
 
-	arcto(x,y,ang0,ang1,xrad,yrad,lineto=false) {
-		// Circular arc approximation.
-		yrad=yrad??xrad;
-		let turn=ang1-ang0;
-		turn=turn>-Math.PI*2?turn:-Math.PI*2;
-		turn=turn< Math.PI*2?turn: Math.PI*2;
-		// Control point length.
-		let c =0.087840004*turn;
-		let cx=c*xrad,cy=c*yrad;
-		let c1=Math.cos(ang0),x1=c1*xrad+x;c1*=cy;
-		let s1=Math.sin(ang0),y1=s1*yrad+y;s1*=cx;
-		if (lineto) {this.lineto(x1,y1);}
-		for (let i=1;i<5;i++) {
-			let ang=ang0+i*(turn/4);
-			let c0=c1;c1=Math.cos(ang);
-			let s0=s1;s1=Math.sin(ang);
-			let x0=x1;x1=c1*xrad+x;c1*=cy;
-			let y0=y1;y1=s1*yrad+y;s1*=cx;
-			this.curveto(x0-s0,y0+c0,x1+s1,y1-c1,x1,y1);
-		}
-		return this;
-	}
-
-
 	close() {
 		// Draw a line from the current vertex to our last moveto() call.
-		let mx=0,my=0;
-		let m=this.move;
-		if (m) {mx=m.x;my=m.y;this.move=null;}
-		this.addvert(DrawPath.CLOSE,mx,my);
+		if (this.move) {this.addvert(DrawPath.CLOSE);}
 		return this;
 	}
 
@@ -1301,16 +1787,17 @@ class DrawPath {
 		}
 		let name=["M ","Z","L ","C "];
 		let ret="";
+		let varr=this.vertarr;
 		for (let i=0;i<this.vertidx;i++) {
-			let v=this.vertarr[i],t=v.type;
+			let v=varr[i],t=v.type;
 			ret+=(i?" ":"")+name[t];
 			if (t!==DrawPath.CLOSE) {
 				ret+=tostring(v.x)+" "+tostring(v.y);
 			}
 			if (t===DrawPath.CURVE) {
-				v=this.vertarr[++i];
+				v=varr[++i];
 				ret+=" "+tostring(v.x)+" "+tostring(v.y);
-				v=this.vertarr[++i];
+				v=varr[++i];
 				ret+=" "+tostring(v.x)+" "+tostring(v.y);
 			}
 		}
@@ -1368,11 +1855,9 @@ class DrawPath {
 		trans=new Transform(trans?trans:{dim:2});
 		let varr=path.vertarr,vidx=path.vertidx;
 		for (let i=0;i<vidx;i++) {
-			let v=varr[i],x=v.x,y=v.y,t=v.type;
-			[x,y]=trans.apply([x,y]);
-			if (t===DrawPath.MOVE) {this.moveto(x,y);}
-			else if (t===DrawPath.CLOSE) {this.close();}
-			else {this.addvert(t,x,y);}
+			let v=varr[i];
+			let w=trans.apply([v.x,v.y]);
+			this.addvert(v.type,w);
 		}
 		return this;
 	}
@@ -1383,41 +1868,294 @@ class DrawPath {
 	}
 
 
+	addarc(x,y,ang0,ang1,xrad,yrad,lineto=false) {
+		// Circular arc approximation.
+		yrad=yrad??xrad;
+		let turn=ang1-ang0;
+		turn=turn<0?-turn:turn;
+		turn=turn<Math.PI*2?turn:Math.PI*2;
+		// Control point length.
+		let segs=~~(turn/(Math.PI/2));
+		segs=segs<3?segs+1:4;
+		turn=(ang1<ang0?-turn:turn)/segs;
+		let ang2=turn*turn;
+		let proj=turn*(0.333338514+ang2*(0.006927896+ang2*0.000152242));
+		let px=proj*xrad,py=proj*yrad;
+		let c1=Math.cos(ang0),x1=c1*xrad+x;c1*=py;
+		let s1=Math.sin(ang0),y1=s1*yrad+y;s1*=px;
+		if (lineto) {this.lineto(x1,y1);}
+		for (let s=0;s<segs;s++) {
+			ang0+=turn;
+			let c0=c1;c1=Math.cos(ang0);
+			let s0=s1;s1=Math.sin(ang0);
+			let x0=x1;x1=c1*xrad+x;c1*=py;
+			let y0=y1;y1=s1*yrad+y;s1*=px;
+			this.curveto(x0-s0,y0+c0,x1+s1,y1-c1,x1,y1);
+		}
+		return this;
+	}
+
+
 	addoval(x,y,xrad,yrad) {
-		return this.arcto(x,y,0,Math.PI*2,xrad,yrad,true).close();
+		return this.addarc(x,y,0,Math.PI*2,xrad,yrad,true).close();
+	}
+
+
+	tracerect(x,y,w,h,outrad,inrad) {
+		let or=outrad??1;
+		let ir=inrad??-outrad;
+		this.addrect(x-or,y-or,w+or*2,h+or*2);
+		return this.addrect(x+w+ir,y-ir,-w-ir*2,h+ir*2);
+	}
+
+
+	traceoval(x,y,xrad,yrad,outrad,inrad) {
+		let or=outrad??1;
+		let ir=inrad??-outrad;
+		this.addoval(x,y,xrad+or,yrad+or);
+		return this.addoval(x,y,-xrad-ir,yrad+ir);
 	}
 
 
 	addline(x0,y0,x1,y1,rad) {
-		// Line with circular ends.
+		// Line with round ends.
 		let dx=x1-x0,dy=y1-y0;
 		let dist=dx*dx+dy*dy;
-		if (dist<1e-20) {
+		if (dist<1e-10) {
 			x1=x0;
 			y1=y0;
 			dx=rad;
-			dy=0.0;
+			dy=0;
 		} else {
-			dist=rad/Math.sqrt(dist);
-			dx*=dist;
-			dy*=dist;
+			rad/=Math.sqrt(dist);
+			dx*=rad;
+			dy*=rad;
 		}
-		const c=0.551915024;
-		let cx=c*dx,c0=cx-dy,c3=cx+dy;
-		let cy=c*dy,c1=dx+cy,c2=dx-cy;
+		let c=1.315739738,cx=c*dx,cy=c*dy;
 		this.moveto(x1+dy,y1-dx);
-		this.curveto(x1+c3,y1-c2,x1+c1,y1-c0,x1+dx,y1+dy);
-		this.curveto(x1+c2,y1+c3,x1+c0,y1+c1,x1-dy,y1+dx);
+		this.curveto(x1+dy+cx,y1-dx+cy,x1-dy+cx,y1+dx+cy,x1-dy,y1+dx);
 		this.lineto(x0-dy,y0+dx);
-		this.curveto(x0-c3,y0+c2,x0-c1,y0+c0,x0-dx,y0-dy);
-		this.curveto(x0-c2,y0-c3,x0-c0,y0-c1,x0+dy,y0-dx);
+		this.curveto(x0-dy-cx,y0+dx-cy,x0+dy-cx,y0-dx-cy,x0+dy,y0-dx);
 		return this.close();
 	}
 
 
-	trace(rad) {
-		throw "not implemented "+rad;
-		// Curve offseting. Project out based on tangent.
+	trace(outrad,inrad) {
+		// Path tracing.
+		outrad=outrad??0.5;
+		inrad=inrad??-outrad;
+		let out=new Draw.Path();
+		let scale=(this.maxx-this.minx+this.maxy-this.miny)/1000;
+		if (!(scale>1e-10)) {return out;}
+		let curvemaxdist2=0.03*scale*scale;
+		let maxext=Math.abs(outrad-inrad)+1e-10;
+		let lv=DrawPath._traceline,cv=DrawPath._tracecurve;
+		let li=0;
+		function AddSeg(x,y) {
+			if (li>=lv.length) {
+				let nv=new Float64Array(li*2);
+				nv.set(lv);
+				lv=nv;
+				DrawPath._traceline=lv;
+			}
+			lv[li++]=x;
+			lv[li++]=y;
+		}
+		let varr=this.vertarr;
+		let vidx=this.vertidx;
+		let area=this.area;
+		inrad=-inrad;
+		let p3x=0,p3y=0,closed=0;
+		for (let i=0;i<=vidx;i++) {
+			let v=varr[i<vidx?i:0];
+			let type=v.type;
+			if (type===DrawPath.CURVE) {v=varr[i+2];}
+			let p0x=p3x;p3x=v.x;
+			let p0y=p3y;p3y=v.y;
+			if (type===DrawPath.MOVE) {
+				// Remove overlapping points.
+				if (li>2) {
+					let x0=lv[0],y0=lv[1];
+					let ni=2;
+					for (let j=2;j<li;j+=2) {
+						let x1=lv[j  ],dx=x1-x0;
+						let y1=lv[j+1],dy=y1-y0;
+						if (dx*dx+dy*dy>1e-10) {
+							lv[ni++]=x1;x0=x1;
+							lv[ni++]=y1;y0=y1;
+						}
+					}
+					li=ni;
+					if (closed) {
+						x0=lv[0];y0=lv[1];
+						while (li>2) {
+							let dx=lv[li-2]-x0;
+							let dy=lv[li-1]-y0;
+							if (dx*dx+dy*dy>1e-10) {break;}
+							li-=2;
+						}
+					}
+				}
+				if (li===2) {
+					// Single point.
+					out.addoval(lv[0],lv[1],outrad,area<0?-outrad:outrad);
+				} else if (li>2) {
+					// Trace around line segments.
+					for (let side=0;side<2;side++) {
+						let rad=(side>0)===(area<0)?inrad:outrad;
+						let i0=2,i1=0;
+						if (side!==closed) {i1=li-2;i0=i1-2;}
+						let x0=lv[i0],y0=lv[i0+1];
+						let x1=lv[i1],y1=lv[i1+1];
+						let dx1=x1-x0,dy1=y1-y0;
+						let mag=Math.sqrt(dx1*dx1+dy1*dy1);
+						dx1/=mag;dy1/=mag;
+						for (let j=closed?0:2;j<li;j+=2) {
+							let k=side?li-2-j:j;
+							let dx0=dx1,dy0=dy1;
+							x0=x1;x1=lv[k  ];dx1=x1-x0;
+							y0=y1;y1=lv[k+1];dy1=y1-y0;
+							mag=Math.sqrt(dx1*dx1+dy1*dy1);
+							dx1/=mag;dy1/=mag;
+							// Calculate projection.
+							let dot=dx0*dx1+dy0*dy1;
+							let den=dx0*dy1-dy0*dx1;
+							let u=dot>0?0:maxext;
+							if (den<-1e-5 || den>1e-5) {u=(dot-1)*rad/den;}
+							// Miter if we need to.
+							if (u<=-maxext || u>=maxext) {
+								u=u<0?-maxext:maxext;
+								out.lineto(x0-dy0*rad+dx0*u,y0+dx0*rad+dy0*u);
+							}
+							out.lineto(x0-dy1*rad-dx1*u,y0+dx1*rad-dy1*u);
+						}
+						if (side || closed) {out.close();}
+					}
+				}
+				closed=0;
+				li=0;
+			} else if (type===DrawPath.CURVE) {
+				// Segment the curve.
+				v=varr[i++];let p1x=v.x,p1y=v.y;
+				v=varr[i++];let p2x=v.x,p2y=v.y;
+				let ci=0;
+				while (true) {
+					// Test if both control points are close to the line p0->p3.
+					// Clamp to ends and filter degenerates.
+					let dx=p3x-p0x,dy=p3y-p0y,den=dx*dx+dy*dy;
+					let lx=p1x-p0x,ly=p1y-p0y;
+					let u=dx*lx+dy*ly;
+					u=u>0?(u<den?u/den:1):0;
+					lx-=dx*u;ly-=dy*u;
+					let d1=lx*lx+ly*ly;
+					lx=p2x-p0x;ly=p2y-p0y;
+					u=dx*lx+dy*ly;
+					u=u>0?(u<den?u/den:1):0;
+					lx-=dx*u;ly-=dy*u;
+					let d2=lx*lx+ly*ly;
+					d1=(d1>d2 || !(d1===d1))?d1:d2;
+					if (!(d1>curvemaxdist2 && d1<Infinity)) {
+						// Commit the current segment.
+						if (!ci) {break;}
+						AddSeg(p3x,p3y);
+						p0x=p3x;p1x=cv[--ci];p2x=cv[--ci];p3x=cv[--ci];
+						p0y=p3y;p1y=cv[--ci];p2y=cv[--ci];p3y=cv[--ci];
+						continue;
+					}
+					// Split the curve in half. [p0,p1,p2,p3] = [p0,l1,l2,ph] + [ph,r1,r2,p3]
+					let t1x=(p1x+p2x)*0.5,t1y=(p1y+p2y)*0.5;
+					let r2x=(p2x+p3x)*0.5,r2y=(p2y+p3y)*0.5;
+					let r1x=(t1x+r2x)*0.5,r1y=(t1y+r2y)*0.5;
+					if (ci>=cv.length) {
+						let nv=new Float64Array(ci*2);
+						nv.set(cv);
+						cv=nv;
+						DrawPath._tracecurve=cv;
+					}
+					cv[ci++]=p3y;cv[ci++]=r2y;cv[ci++]=r1y;
+					cv[ci++]=p3x;cv[ci++]=r2x;cv[ci++]=r1x;
+					p1x=(p0x+p1x)*0.5;p1y=(p0y+p1y)*0.5;
+					p2x=(p1x+t1x)*0.5;p2y=(p1y+t1y)*0.5;
+					p3x=(p2x+r1x)*0.5;p3y=(p2y+r1y)*0.5;
+				}
+			} else if (type===DrawPath.CLOSE) {
+				closed=1;
+			}
+			AddSeg(p3x,p3y);
+		}
+		return out;
+	}
+
+
+	pointinside(point,trans) {
+		// Test if a point is in a path.
+		let vidx=this.vertidx;
+		if (!vidx) {return false;}
+		// Put the point in path-space.
+		let px=point[0],py=point[1];
+		if (trans) {
+			if (!(trans instanceof Transform)) {trans=new Transform(trans);}
+			let mat=trans.mat,vec=trans.vec;
+			let det=mat[0]*mat[3]-mat[1]*mat[2];
+			if (!(det<-1e-10 || det>1e-10)) {return false;}
+			let tx=px-vec[0],ty=py-vec[1];
+			px=(tx*mat[3]-ty*mat[1])/det;
+			py=(ty*mat[0]-tx*mat[2])/det;
+		}
+		if (px<this.minx || px>this.maxx || py<this.miny || py>this.maxy) {return false;}
+		let p3x=0,p3y=0,movex=0,movey=0;
+		let parity=0;
+		let varr=this.vertarr;
+		let intr=[0,0,0];
+		for (let i=0;i<=vidx;i++) {
+			let v=varr[i<vidx?i:0];
+			let p0x=p3x,p0y=p3y;
+			p3x=v.x-px;
+			p3y=v.y-py;
+			let p1x=p3x,p1y=p3y;
+			if (v.type!==DrawPath.CURVE) {
+				if (v.type===DrawPath.MOVE) {
+					// Close any unclosed subpaths.
+					p1x=movex;movex=p3x;
+					p1y=movey;movey=p3y;
+				}
+				// Line test.
+				if ((p0y<0)!==(p1y<0)) {parity+=(p0y>p1y)-(p0x*p1y<p1x*p0y);}
+				continue;
+			}
+			// Find all u where y(u)=py.
+			v=varr[++i];let p2x=v.x-px,p2y=v.y-py;
+			v=varr[++i];p3x=v.x-px;p3y=v.y-py;
+			if (!(((p0y<0)+(p1y<0)+(p2y<0)+(p3y<0))&3)) {continue;}
+			let q1x=3*(p1x-p0x),q2x=3*(p0x+p2x-2*p1x),q3x=p3x-p0x+3*(p1x-p2x);
+			let q1y=3*(p1y-p0y),q2y=3*(p0y+p2y-2*p1y),q3y=p3y-p0y+3*(p1y-p2y);
+			// 3 possible solutions between [0,1] and dy(u)=0.
+			let r=1;
+			let u0=1,y0=p3y,tmp=0;
+			let disc=q2y*q2y-3*q3y*q1y;
+			if (disc>=0) {
+				disc=Math.sqrt(disc);
+				let a=(-q2y-disc)/(3*q3y);
+				let b=(-q2y+disc)/(3*q3y);
+				if (a>b) {tmp=a;a=b;b=tmp;}
+				if (a>0 && a<1) {intr[r++]=a;}
+				if (b>0 && b<1) {intr[r++]=b;}
+			}
+			// Binary search for y(u)=py.
+			while (r>0) {
+				let h=u0,l=u0=intr[--r];
+				let y1=y0;y0=p0y+u0*(q1y+u0*(q2y+u0*q3y));
+				if ((y0<0)===(y1<0)) {continue;}
+				if (y0>y1) {l=h;h=u0;}
+				for (let j=0;j<32;j++) {
+					let u=(l+h)*0.5,y=p0y+u*(q1y+u*(q2y+u*q3y));
+					if (y<0) {l=u;} else {h=u;}
+				}
+				let x=p0x+l*(q1x+l*(q2x+l*q3x));
+				if (x<0) {parity+=y0>y1?1:-1;}
+			}
+		}
+		return parity && ((parity>0)===(this.area>0));
 	}
 
 }
@@ -1528,7 +2266,7 @@ class DrawImage {
 			for (let x=0;x<w;x++) {
 				dst[didx++]=src[sidx+2];
 				dst[didx++]=src[sidx+1];
-				dst[didx++]=src[sidx+0];
+				dst[didx++]=src[sidx  ];
 				dst[didx++]=src[sidx+3];
 				sidx+=4;
 			}
@@ -1575,101 +2313,101 @@ class DrawFont {
 		none
 		1000
 		SPC 553
-		█ 553 M0 0H553V1000H0Z
-		! 553 M340 692c0-86-130-86-130 0 0 86 130 86 130 0ZM238 560h76L327 54H224Z
-		" 553 M332 284h80L426 54H318Zm-191 0h80L235 54H127Z
-		# 553 M173 106h71L228 268H354l17-162h72L426 268H532v64H420L403 504H506v64H396L378 748H306l18-180H198L180 748H108l18-180H21V504H132l18-172H46V268H156Zm49 226-17 172H331l17-172Z
-		$ 553 M291 14h71l-13 95c35 4 72 9 99 16v75c-29-7-72-16-108-18L312 392c96 37 181 80 181 177 0 122-107 171-229 178L248 864H177l16-117c-44-4-90-9-138-21V645c47 15 97 25 149 26l28-221C150 420 59 378 59 277c0-87 80-164 220-170ZM269 181c-81 6-118 39-118 89 0 49 37 72 93 95Zm6 490c83-4 126-39 126-95 0-63-59-80-101-99Z
-		% 553 M462 54h81L90 748H10ZM404 755c-80 0-133-47-133-149 0-74 51-145 133-145 87 0 132 57 132 145 0 80-52 149-132 149Zm-1-62c34 0 60-31 60-87 0-47-17-83-59-83-39 0-60 37-60 83 0 65 26 87 59 87ZM150 341C70 341 18 294 18 192 18 118 68 47 150 47c87 0 132 57 132 145 0 80-52 149-132 149Zm-1-62c34 0 60-31 60-87 0-47-17-83-59-83-38 0-60 39-60 83 0 65 26 87 59 87Z
-		& 553 M396 553c11-32 23-81 21-140h86c0 68-8 135-49 211l99 124H440l-43-54c-43 35-95 61-171 61-125 0-198-72-198-181 0-94 53-150 121-190-35-46-65-88-65-153C84 117 165 68 256 68c91 0 160 52 160 143 0 85-58 134-146 183ZM227 341c40-25 102-54 102-123 0-49-29-78-76-78-54 0-81 37-81 83 0 54 32 89 55 118Zm-34 98c-34 23-76 59-76 126 0 72 49 117 119 117 45 0 80-16 113-48Z
+		! 553 M339 692c0-86-128-86-128 1 0 84 128 86 128-1ZM238 560h76L327 54H224Z
+		" 553 M332 284h81L426 54H318Zm-191 0h81L235 54H127Z
+		# 553 M173 106h72L228 268H354l17-162h73L426 268H532v64H420L403 504H506v64H397L378 748H305l19-180H199L180 748H107l19-180H21V504H132l18-172H46V268H156Zm49 226-17 172H330l18-172Z
+		$ 553 M291 14h71l-13 95c41 4 70 9 100 16l-1 76c-33-9-57-13-108-20L312 395c281 74 217 350-47 351L248 864H177l16-117c-44-3-98-11-139-21l1-82c46 17 92 23 148 28l30-225C-44 375 37 107 278 109ZM268 184c-130-6-173 133-24 180Zm7 486c153 1 177-155 24-190Z
+		% 553 M461 55l83-2L91 747l-81 1ZM18 198C18-2 282-5 282 189c0 199-264 207-264 9Zm72-2c0 112 119 112 119-2C209 76 90 82 90 196ZM271 614c0-203 265-205 265-12 0 202-265 205-265 12Zm72-4c-1 116 122 109 121-4-1-113-120-112-121 4Z
+		& 553 M396 553c11-24 23-83 20-140h87c0 59-8 138-49 211l99 124H440l-44-54C309 786 28 796 28 573c0-121 90-168 122-190C35 263 69 68 257 68c194 0 226 240 12 325ZM227 340c149-64 116-200 29-200-103 0-110 122-29 200Zm-34 99C23 548 162 784 349 634Z
 		' 553 M234 284h85L333 54H221Z
-		( 553 M376 17C266 117 147 277 147 484c0 208 107 357 226 470l52-53C310 788 235 648 235 484c0-167 78-308 191-416Z
-		) 553 M180 17C294 124 406 276 406 481c0 194-94 349-229 472l-49-50C236 794 318 667 318 481c0-162-83-309-190-411Z
-		* 553 M241 54h71L299 222l140-94 34 60-152 75 151 73-33 58-139-92 12 169H241l12-169-141 92-31-57 151-75L81 186l33-57 140 93Z
-		+ 553 M234 244h85V443H512v75H319V718H234V518H41V443H234Z
-		, 553 M117 849c39 1 129-13 129-84 0-53-46-59-46-112 0-32 25-63 66-63 45 0 88 35 88 117 0 117-87 209-237 209Z
+		( 553 M376 17C71 293 70 682 374 953l52-52C167 652 174 308 426 68Z
+		) 553 M127 903c253-239 257-586 1-833l50-53c305 272 304 661-1 937Z
+		* 553 M242 54h70L299 222l140-94 33 61-150 74 150 73-33 58-138-91 11 168H242l10-168-141 91-30-58 151-74L81 187l33-58 139 92Z
+		+ 553 M235 244h84V443H512v75H319V718H234l1-200H41V443H234Z
+		, 553 M117 916c286 1 284-326 151-326-51 0-68 40-68 65 0 50 46 57 46 110 0 68-85 86-129 84Z
 		- 553 M130 441H423v80H130Z
-		. 553 M273 757c-45 0-82-37-82-82 0-45 37-82 82-82 45 0 82 37 82 82 0 45-37 82-82 82Z
-		/ 553 M393 54h82L138 854H56Z
-		0 553 M420 363c18 193-36 321-143 321-54 0-105-31-129-117ZM132 484c-14-188 35-314 145-314 74 0 114 63 126 113ZM281 97C122 97 43 235 43 418c0 229 83 339 228 339 143 0 239-105 239-339 0-206-83-321-229-321Z
+		. 553 M354 677c0 103-162 109-162-1 0-110 162-109 162 1Z
+		/ 553 M393 54h82L138 854H57Z
+		0 553 M420 364c37 412-245 365-271 202ZM132 484C101 73 379 132 402 284ZM281 97C72 97 6 334 62 586c52 234 380 230 430-16 50-246-6-473-211-473Z
 		1 553 M66 210l32 73 154-84V668H86v80H490V668H346V103H271Z
-		2 553 M75 181c44-40 90-84 195-84 121 0 191 81 191 185 0 131-85 195-278 385H495v81H72V672C307 432 368 401 368 290c0-137-147-155-246-53Z
-		3 553 M98 197c200-62 264-5 264 71 0 85-71 114-117 114H159v70h91c55 0 144 25 144 109 0 86-70 122-186 122-51 0-88-6-127-11v77c35 4 74 8 120 8 172 0 282-77 282-203 0-91-82-138-137-146 72-34 106-81 106-154C452 136 351 97 243 97c-49 0-96 9-145 25Z
-		4 553 M106 531 330 188V531Zm-85 0v75H330V748h88V606H527V531H418V106H295Z
-		5 553 M99 434H224c93 0 163 30 163 114 0 60-39 135-172 135-45 0-85-3-128-12v77c42 5 79 9 123 9 145 0 269-83 269-214 0-107-72-182-235-182H179V180H444V106H99Z
-		6 553 M149 465c54-30 99-43 143-43 84 0 122 51 122 126 0 87-53 139-129 139-88 0-136-54-136-223ZM453 106H380C176 106 60 225 60 470c0 200 79 287 217 287 155 0 226-111 226-215 0-111-69-189-199-189-40 0-98 8-155 40 5-149 99-212 232-212h72Z
-		7 553 M57 106H491v80L222 748H125L404 185H57Z
-		8 553 M281 97c137 0 200 62 200 154 0 87-62 129-120 161 89 46 134 94 134 175 0 108-94 170-222 170-116 0-215-49-215-160 0-93 62-139 135-178C90 365 72 306 72 257c0-86 72-160 209-160Zm3 278c70-34 109-67 109-121 0-58-42-86-115-86-69 0-118 24-118 83 0 66 64 94 124 124Zm-14 81c-77 37-119 74-119 133 0 58 46 95 126 95 82 0 125-37 125-92 0-64-57-103-132-136Z
-		9 553 M89 748V673h57c175 0 250-71 257-212-42 21-86 40-161 40-113 0-193-69-193-192C49 184 146 97 272 97c167 0 220 136 220 293 0 280-153 358-351 358ZM403 389c0-120-23-222-135-222-89 0-129 63-129 137 0 92 52 128 119 128 59 0 110-20 145-43Z
-		: 553 M277 757c-42 0-75-33-75-75 0-42 33-75 75-75 42 0 75 33 75 75 0 42-33 75-75 75Zm0-361c-42 0-75-33-75-75 0-42 33-75 75-75 42 0 75 33 75 75 0 42-33 75-75 75Z
-		; 553 M277 396c-42 0-75-33-75-75 0-42 33-75 75-75 42 0 75 33 75 75 0 42-33 75-75 75ZM123 849c39 1 129-13 129-84 0-53-46-59-46-112 0-32 25-63 66-63 45 0 88 35 88 117 0 117-87 209-237 209Z
-		< 553 M398 205l53 54L184 480l267 221-53 54L68 480Z
+		2 553 M122 238c90-99 246-89 246 50 0 111-59 144-296 384v76H495V667H186L352 501c83-83 158-210 72-333-86-123-290-66-349 14Z
+		3 553 M98 198C444 80 406 382 248 382H159v70h96c201 0 224 302-175 217v78c473 83 486-312 263-339C525 345 506 4 98 121Z
+		4 553 M106 531 330 189V531Zm-85 0v75H330V748h88V606H527V531H418V106H295Z
+		5 553 M99 106H445v75H179V361h77c357 0 282 479-169 387V670c364 90 373-236 163-236H99Z
+		6 553 M151 464c97-58 263-78 263 89 0 178-290 214-263-89ZM453 106H388C173 106 60 225 60 471c0 211 89 286 218 286 337 0 300-552-128-367 5-158 111-209 230-209h73Z
+		7 553 M57 106H491v80L223 748H125L404 185H57Z
+		8 553 M280 97c272 0 239 257 77 315 203 77 191 345-86 345C-6 757 5 489 198 419 9 349 30 97 280 97Zm5 276c145-55 151-205-9-205-153 0-163 147 9 205Zm-15 85c-161 60-161 226 8 226 161 0 176-160-8-226Z
+		9 553 M89 673h64c146 0 245-57 249-209C-30 648-58 97 272 97c155 0 220 120 220 292 0 258-128 359-350 359H88ZM400 392c31-300-261-273-261-91 0 174 174 141 261 91Z
+		: 553 M351 322c0 99-150 99-150-1 0-97 150-101 150 1Zm0 360c0 100-150 99-149-1 1-100 149-98 149 1Z
+		; 553 M351 321c0-98-149-100-149 1 0 98 149 100 149-1ZM123 916c286 1 283-326 152-326-55 0-69 43-69 65 0 51 46 56 46 112 0 69-97 86-129 81Z
+		< 553 M398 205l53 55L183 479 451 702l-54 54L67 480Z
 		= 553 M65 359H488v72H65Zm0 171H488v72H65Z
-		> 553 M103 260 370 481 103 702l53 54L485 480 156 204Z
-		? 553 M149 54c191-5 304 104 304 220 0 84-42 158-173 165l-3 121H203l-6-188h58c34 0 105-4 105-92 0-109-106-152-211-149Zm90 703c-36 0-65-29-65-65 0-36 29-65 65-65 36 0 65 29 65 65 0 36-29 65-65 65Z
-		@ 553 M423 292 384 544c-13 84-4 109 22 109 46 0 71-97 71-248 0-190-49-297-160-297C182 108 74 320 74 580c0 249 99 311 175 311 73 0 108-13 167-39v63c-53 22-91 37-167 37C55 952 5 771 5 579 5 258 145 48 321 48c121 0 225 80 225 357 0 182-43 312-147 312-42 0-76-18-76-73-29 57-57 73-92 73-67 0-93-51-93-145 0-139 52-278 161-278 31 0 43 5 60 13Zm-90 81c-13-13-22-16-35-16-60 0-82 132-82 202 0 62 4 94 28 94 19 0 32-16 47-46l10-20Z
-		A 553 M275 186 383 530H166Zm-57-80L5 748H95l46-141H408l45 141h95L338 106Z
-		B 553 M261 106c108 0 215 28 215 156 0 71-32 121-106 145 87 18 129 76 129 149 0 127-107 192-246 192H78V106ZM165 380h94c71 0 126-35 126-105 0-76-58-95-128-95H165Zm0 294h97c93 0 144-36 144-112 0-74-67-109-144-109H165Z
-		C 553 M489 214c-51-25-96-39-152-39-144 0-199 125-199 248 0 183 80 255 198 255 68 0 97-13 153-36v83c-45 16-88 31-161 31C122 756 45 622 45 423 45 251 136 98 337 98c64 0 108 13 152 30Z
-		D 553 M141 672V180h75c148 0 209 75 209 237 0 185-81 255-217 255ZM54 106V748H197c166 0 320-72 320-331 0-140-42-311-294-311Z
+		> 553 M103 260 370 481 103 702l53 54L486 480 155 205Z
+		? 553 M303 692c0-87-128-84-128 0 0 85 128 87 128 0ZM149 131c265-8 246 241 133 241H197l6 188h73l5-122C544 438 513 41 149 55Z
+		@ 553 M421 291 379 585c-15 105 98 129 98-173 0-194-45-304-161-304C175 108 74 334 74 577c0 289 124 376 343 275v66C117 1025 5 871 5 574 5 271 140 48 318 48c141 0 228 103 228 353 0 445-243 310-227 248-28 86-181 119-181-67 0-207 89-330 223-275Zm-88 82C197 250 171 845 300 592Z
+		A 553 M275 186 383 530H166Zm-57-80L5 748H96l45-141H408l45 141h95L338 106Z
+		B 553 M165 453h94c210 0 178 221 27 221H165Zm0-273H277c152 0 144 200-12 200H165ZM78 106V748H250c321 0 302-321 117-341 135-19 189-301-90-301Z
+		C 553 M489 128C288 47 45 118 45 438c0 260 162 374 443 291l1-82C167 760 138 534 138 426c0-117 52-335 351-216Z
+		D 553 M141 672V180h79c171 0 205 107 205 249 0 161-73 243-217 243ZM54 106V748H192c153 0 325-57 325-327 0-152-46-315-298-315Z
 		E 553 M464 106v74H186V378H453v74H186V673H464v75H99V106Z
 		F 553 M463 106v75H190V389H449v73H190V748H101V106Z
-		G 553 M494 128c-41-18-92-31-156-31C152 97 32 229 32 426c0 199 89 331 285 331 72 0 132-17 180-39V390H279v72H411V666c-28 10-54 13-85 13-145 0-202-99-202-253 0-147 77-251 214-251 71 0 118 21 156 40Z
+		G 553 M494 215C248 103 124 246 124 424c0 73 5 311 287 243V462H280V390H497V719C178 836 31 664 31 433 31 247 159 12 494 128Z
 		H 553 M412 106h87V748H412V453H142V748H55V106h87V377H412Z
 		I 553 M84 106H469v74H321V673H469v75H84V673H232V180H84Z
-		J 553 M98 182H342V552c0 76-36 127-113 127-58 0-116-30-139-48v88c22 15 76 36 142 36 119 0 199-77 199-209V106H98Z
-		K 553 M77 106h87V404L399 106H503L249 411 514 748H404L164 433V748H77Z
+		J 553 M98 182H342V552c0 164-159 144-252 80v88c120 67 341 53 341-174V106H98Z
+		K 553 M77 106h87V405L399 106H503L250 411 514 748H404L164 433V748H77Z
 		L 553 M114 106h89V673H484v75H114Z
-		M 553 M24 748h83l11-395 2-157 29 95 91 248h61l95-258 29-85 19 552h85L498 106H392L301 346l-27 83L159 106H55Z
-		N 553 M58 106H171L346 479l68 154V106h81V748H381L193 345 140 218V748H58Z
-		O 553 M277 174c109 0 158 95 158 256 0 139-48 251-161 251-97 0-155-82-155-261 0-143 54-246 158-246Zm4-77C107 97 28 250 28 423c0 169 48 334 244 334 149 0 254-114 254-337 0-192-75-323-245-323Z
-		P 553 M165 443V179h92c81 0 151 35 151 126 0 93-56 138-164 138ZM78 106V748h87V518h84c156 0 250-95 250-219 0-125-96-193-240-193Z
-		Q 553 M553 876c-37 28-75 49-138 49-116 0-180-73-185-171C83 732 28 601 28 432 28 251 107 97 281 97c202 0 245 180 245 321 0 152-52 307-215 336 11 64 51 96 109 96 41 0 63-12 94-34ZM275 680c115 0 160-115 160-253 0-153-46-253-159-253-98 0-157 95-157 246 0 189 65 260 156 260Z
-		R 553 M171 392V180h85c81 0 120 39 120 102 0 69-49 110-133 110ZM83 106V748h88V462h41c64 0 86 31 110 82l96 204h98L420 548c-24-50-51-94-90-106 74-18 138-73 138-168 0-95-58-168-211-168Z
-		S 553 M448 115c-48-8-83-18-149-18C174 97 62 158 62 273c0 96 74 137 150 169l95 40c57 24 91 54 91 96 0 65-41 102-162 102-72 0-136-13-182-30v85c61 14 119 22 178 22 157 0 258-63 258-182 0-72-40-126-148-171l-96-40c-60-25-92-56-92-101 0-77 87-90 141-90 63 0 111 10 153 21Z
+		M 553 M24 748h83l14-534L240 539h61L426 200l18 548h85L498 106H391L273 424 159 106H56Z
+		N 553 M58 106H171L414 624V106h81V748H381L140 230V748H58Z
+		O 553 M277 174c165 0 179 233 141 385-39 156-238 164-278 16-50-185-13-401 137-401Zm9-77C52 97-2 349 42 569c50 250 408 260 470-19C548 388 530 97 286 97Z
+		P 553 M165 443V179H268c193 0 186 264-2 264ZM78 106V748h87V518h89c311 0 340-412 17-412Z
+		Q 553 M553 876c-89 82-314 75-323-123C32 734-9 465 57 259c66-206 383-234 449 8 54 198 7 457-194 486 19 136 172 101 201 61ZM276 680c159 0 180-232 145-379-40-168-251-178-290 17-24 120-24 362 145 362Z
+		R 553 M171 392V180h97c148 0 150 212-18 212ZM83 106V748h88V462h34c106 0 97 51 213 286h98C399 506 389 464 328 441c179-24 217-335-61-335Z
+		S 553 M448 117C182 51 62 160 62 273c0 204 336 165 336 309 0 146-274 93-344 68v86c330 69 436-44 436-161 0-206-336-171-336-309 0-104 147-110 294-72Z
 		T 553 M42 106H511v75H321V748H232V181H42Z
-		U 553 M54 106V532c0 173 92 225 221 225 142 0 225-92 225-225V106H413V532c0 89-40 152-136 152-91 0-136-44-136-152V106Z
-		V 553 M101 106 278 666 458 106h93L333 748H215L2 106Z
-		W 553 M105 106l32 556 35-115 73-224h61L425 662l3-98 25-458h78L488 748H374l-79-227-22-74-24 79-73 222H66L22 106Z
-		X 553 M130 106 277 348 424 106H524L328 416 541 748H431L275 488 118 748H9L223 420 26 106Z
-		Y 553 M106 106 231 337l50 99 41-83L453 106H553L321 518V748H232V517L0 106Z
-		Z 553 M64 106H492v69L164 667H498v81H55V682L385 185H64Z
+		U 553 M54 106V561c0 275 446 259 446-16V106H413V542c0 199-272 176-272 24V106Z
+		V 553 M101 106 279 663 458 106h93L333 748H215L2 106Z
+		W 553 M104 106l33 554L245 323h61L423 657l30-551h78L488 748H374L273 454 176 748H66L22 106Z
+		X 553 M130 106 276 347 425 106H525L328 416 541 748H430L275 488 118 748H9L222 420 26 106Z
+		Y 553 M0 106 232 516V748h89V519L553 106H453L281 431 106 106Z
+		Z 553 M64 106H492v68L164 667H498v81H55V682L384 185H64Z
 		[ 553 M169 37H412v69H251V880H412v69H169Z
-		\\ 553 M79 54h81L497 854H416Z
+		\\ 553 M79 54h81L497 854H415Z
 		] 553 M141 106H301V880H141v69H384V37H141Z
-		^ 553 M60 420h77L271 174 412 420h86L309 106H239Z
+		^ 553 M60 420h77L271 173 412 420h86L309 106H239Z
 		_ 553 M0 878H553v71H0Z
-		\` 553 M242 173h86L209 54H86Z
-		a 553 M386 524v87c-44 42-103 75-150 75-50 0-80-27-80-73 0-65 53-89 118-89ZM107 355c69-29 121-36 167-36 84 0 112 48 112 93v47H271C146 459 65 517 65 616c0 85 54 141 159 141 88 0 139-47 170-75l1 66h77V406c0-99-63-160-193-160-67 0-123 14-172 31Z
-		b 553 M164 423c54-64 90-102 150-102 77 0 99 93 99 174 0 95-33 190-148 190-40 0-70-11-101-21ZM79 719c47 19 105 35 177 35 133 0 244-75 244-266 0-146-60-242-170-242-73 0-128 32-170 91l4-91V54H79Z
-		c 553 M462 353c-37-19-77-33-132-33-84 0-163 61-163 186 0 123 69 176 164 176 62 0 100-17 131-31v79c-42 16-88 25-143 25-127 0-241-60-241-247 0-158 99-260 250-260 62 0 96 9 134 23Z
-		d 553 M386 569c-43 59-91 115-146 115-64 0-99-62-99-176 0-140 61-188 152-188 41 0 65 9 93 20Zm0-308c-26-6-48-12-91-12C108 249 53 395 53 508c0 138 52 249 170 249 85 0 134-53 170-103l2 94h77V54H386Z
-		e 553 M147 529c0 93 48 157 165 157 56 0 107-9 157-21v70c-54 13-98 22-174 22-164 0-238-98-238-253 0-183 122-258 224-258 214 0 223 198 212 283Zm259-66c3-61-22-149-128-149-72 0-124 56-131 149Z
-		f 553 M516 60C268 12 198 113 198 243v84H39v71H198V748h87V398H501V327H285V236c0-111 77-137 231-103Z
-		g 553 M513 255v70H434c69 91 16 261-160 261-46 0-74-7-105-23-58 79 12 97 41 98l145 5c87 3 156 49 156 123 0 101-91 165-243 165-120 0-222-33-222-128 0-58 35-90 68-114-50-24-80-101 2-188-97-106-16-324 217-269ZM269 522c143 0 143-212 0-212-141 0-141 212 0 212ZM191 735c-23 16-54 39-54 82 0 51 53 69 139 69 104 0 143-40 143-87 0-45-46-57-98-59Z
-		h 553 M79 748h85V420c31-28 73-100 142-100 63 0 84 50 84 112V748h85V420c0-106-52-174-154-174-80 0-124 45-160 87l3-79V54H79Z
-		i 553 M276 183c-37 0-67-30-67-67 0-37 30-67 67-67 37 0 67 30 67 67 0 37-30 67-67 67ZM101 255H333V677H480v71H85V677H247V326H101Z
-		j 553 M361 183c-37 0-67-30-67-67 0-37 30-67 67-67 37 0 67 30 67 67 0 37-30 67-67 67ZM85 255H413V737c0 221-200 249-348 192V848c172 74 261 19 261-99V326H85Z
-		k 553 M89 54h86V480L397 255H509L278 482 522 748H405L175 484V748H89Z
+		\` 553 M243 173h85L209 54H85Z
+		a 553 M386 524v88C151 820 66 524 268 524ZM107 354c202-75 279-21 279 60v45H267C-78 459 51 930 394 691l1 57h77V408c0-190-216-182-365-131Z
+		b 553 M164 425c286-382 382 410 0 236ZM78 720c252 91 422-3 422-229 0-320-264-276-338-156l3-281H78Z
+		c 553 M462 353C78 166 53 835 462 651v79C-73 912-37 95 462 272Z
+		d 553 M386 568C112 974 2 172 386 342Zm0-309C134 207 53 369 53 509c0 317 258 290 339 144l4 95h76V54H386Z
+		e 553 M147 529c2 222 257 147 322 137v69C126 817 57 661 57 500c0-350 494-341 433 29Zm259-66c13-191-249-208-258 0Z
+		f 553 M516 60C271 13 198 110 198 244v83H39v71H198V748h87V398H501V327H285V242c0-125 83-141 231-108Z
+		g 553 M513 255v70H437c90 166-70 318-271 240C49 764 511 552 511 798c0 52-43 156-244 156-303 0-233-204-151-241-45-18-88-97 1-189-94-97-29-325 225-269ZM269 522c142 0 144-212 1-212-142 0-143 212-1 212ZM191 735c-42 20-134 151 87 151 175 0 187-141 50-146Z
+		h 553 M79 748h85V424c109-157 226-123 226 3V748h85V417c0-217-232-208-311-85V54H79Z
+		i 553 M344 116c0 89-135 89-135 1 0-91 135-91 135-1ZM101 255H333V677H480v71H85V677H247V326H101Z
+		j 553 M85 326H326V745c0 119-81 178-261 104v81c137 50 348 39 348-196V255H85ZM428 116c0-90-134-90-134 0 0 89 134 89 134 0Z
+		k 553 M89 54h86V480L397 255H510L278 482 522 748H405L175 484V748H89Z
 		l 553 M101 54H333V677H480v71H85V677H247V124H101Z
-		m 553 M110 255l3 94c25-54 51-103 110-103 58 0 80 40 81 107 39-90 71-107 113-107 54 0 92 41 92 136V748H430V391c0-30 2-74-31-74-28 0-48 43-84 115V748H237V393c0-50-6-76-31-76-20 0-40 20-83 114V748H44V255Z
-		n 553 M155 255l3 80c47-53 86-89 162-89 108 0 155 71 155 170V748H390V429c0-65-25-109-86-109-37 0-68 12-140 101V748H79V255Z
-		o 553 M277 319c107 0 143 88 143 182 0 106-47 184-143 184-75 0-144-46-144-184 0-141 78-182 144-182Zm4-73C128 246 45 359 45 503c0 142 67 254 227 254 138 0 236-98 236-260 0-109-44-251-227-251Z
-		p 553 M154 255l6 83c32-43 79-92 170-92 90 0 170 68 170 249 0 172-105 259-242 259-32 0-64-4-94-11V949H79V255Zm10 409c31 12 66 21 97 21 106 0 152-75 152-188 0-108-33-176-101-176-46 0-89 27-148 103Z
-		q 553 M472 246V949H386V763l4-105c-35 49-87 99-167 99-104 0-170-88-170-246 0-131 66-262 242-262 31 0 59 3 101 16Zm-86 93c-27-10-55-20-97-20-109 0-148 81-148 187 0 136 49 178 99 178 47 0 86-34 146-116Z
-		r 553 M99 255V748h86V431c69-84 107-111 154-111 74 0 79 75 79 123h86c3-95-26-197-152-197-58 0-121 34-173 100l-2-91Z
-		s 553 M437 337c-155-38-254-20-254 43 0 35 14 52 129 87 115 35 157 72 157 144 0 134-172 175-380 127v-78c182 46 292 27 292-40 0-34-13-51-128-86-115-35-157-77-157-148 0-81 82-178 341-126Z
-		t 553 M254 97V255H476v72H254V579c0 107 94 121 222 89v74c-220 41-307-16-307-162V327H31V255H169V119Z
-		u 553 M390 255h85V748H398l-2-80c-39 42-80 89-165 89-102 0-152-63-152-176V255h85V581c0 62 30 103 85 103 62 0 99-54 141-102Z
-		v 553 M423 255h94L324 748H225L32 255h98L249 576l28 84 25-77Z
-		w 553 M451 255h85L464 748H360l-71-205-14-52-17 56-68 201H90L18 255h84l50 410 92-287h62l78 221 21 63Z
-		x 553 M153 255 282 444 410 255H515L330 503 523 748H410L277 559 145 748H34L226 500 43 255Z
-		y 553 M130 255 253 577l27 81L423 255h94L349 696C253 948 149 957 29 950V872c99 15 147-10 200-124L33 255Z
+		m 553 M109 255l5 97c50-157 202-130 189 6 50-160 206-147 206 16V748H430V371c0-56-41-113-115 64V748H237V375c0-62-42-116-114 58V748H44V255Z
+		n 553 M79 255V748h85V424c105-159 226-120 226-1V748h85V415c0-214-230-209-317-78l-3-82Z
+		o 553 M275 319c157 0 165 188 127 283-46 115-211 107-252 1-41-106-18-284 125-284Zm8-73C40 246 6 515 77 652c71 137 309 146 393-1 72-126 61-405-187-405Z
+		p 553 M155 255l5 85c70-126 340-170 340 149 0 277-234 284-336 253V949H78V255Zm9 406c382 174 286-618 0-236Z
+		q 553 M386 568C111 975 4 170 386 341Zm11-303C244 218 53 265 53 521c0 283 241 290 335 138l-3 290h87V246Z
+		r 553 M99 255V748h86V433c127-178 246-126 231 10h87c17-238-218-250-324-94l-2-94Z
+		s 553 M437 261C175 206 96 309 96 386c0 176 285 128 285 233 0 75-125 82-292 41v78c214 49 380 5 380-128 0-170-286-122-286-229 0-61 88-83 254-44Z
+		t 553 M254 97V255H476v72H254V574c0 114 89 125 222 94v75c-218 39-307-16-307-160V327H31V255H169V119Z
+		u 553 M390 255h85V748H399l-4-83C318 792 79 808 79 590V255h85V581c0 118 119 158 226-2Z
+		v 553 M423 255h94L324 748H226L32 255h98L277 653Z
+		w 553 M451 255h84L464 748H360L274 498 190 748H90L18 255h84l50 410 92-287h62l99 281Z
+		x 553 M153 255 282 445 410 255H516L330 502 523 748H410L276 560 145 748H34L226 501 43 255Z
+		y 553 M32 255 230 749C174 861 131 888 29 872v79c121 5 224-3 320-255L517 255H424L281 653 130 255Z
 		z 553 M87 255H462v66L188 676H478v72H81V686L359 327H87Z
-		{ 553 M441 37H404c-94 0-187 32-187 174V336c0 69-34 95-109 95H80v68h28c75 0 109 35 109 95V772c0 91 39 177 180 177h44V880H406c-64 0-107-35-107-108V595c0-62-26-124-105-130 81-11 104-75 104-126V211c0-81 57-105 106-105h37Z
+		{ 553 M441 37H411C58 37 339 430 131 430H79v70h42c233 0-74 449 285 449h35V880H407c-234 0 16-394-215-415 224-34-16-359 220-359h29Z
 		| 553 M236 0h81V949H236Z
-		} 553 M112 37h37c94 0 187 33 187 174V337c0 56 34 94 109 94h29v68H445c-75 0-109 26-109 95V772c0 91-39 177-180 177H112V880h35c61 0 108-31 108-108V594c0-53 19-118 104-129-85-8-104-75-104-126V212c0-78-55-106-106-106H112Z
-		~ 553 M521 406v11c0 97-53 162-139 162-40 0-80-19-117-56l-28-28c-17-17-42-40-69-40-42 0-57 45-57 82v14H32V537c0-83 45-159 140-159 49 0 89 29 116 56l28 28c29 29 49 40 68 40 39 0 58-28 58-85V406Z
+		} 553 M112 37h29c357 0 66 393 292 393h41v70H422c-216 0 81 449-273 449H112V880h33c239 0-15-381 214-415-221-29 16-359-218-359H112Z
+		~ 553 M442 406c5 98-55 139-145 37C192 324 26 372 33 551h79c-6-106 63-131 144-38 108 124 274 66 264-107Z
+		█ 553 M0 0H553V1000H0Z
 	`;
 	// `
 
@@ -1703,21 +2441,16 @@ class DrawFont {
 		token(10); idx++; // info
 		let scale=parseFloat(token(10));
 		let special={"SPC":32};
+		let trans=new Transform({dim:2,scale:1/scale});
 		while (idx<len) {
 			idx++;
 			let chr=token(32);
 			if (chr.length<=0) {continue;}
 			chr=special[chr]??chr.charCodeAt(0);
-			let g={};
-			g.width=parseInt(token(32))/scale;
-			g.path=new DrawPath(token(10));
-			let varr=g.path.vertarr,vidx=g.path.vertidx;
-			for (let i=0;i<vidx;i++) {
-				let v=varr[i];
-				v.x/=scale;
-				v.y/=scale;
-			}
-			g.path.aabbupdate();
+			let g={
+				width:parseFloat(token(32))/scale,
+				path :new DrawPath(token(10),trans)
+			};
 			this.glyphs[chr]=g;
 			if (this.unknown===undefined || chr===63) {
 				this.unknown=g;
@@ -1808,7 +2541,6 @@ export class Draw {
 		// Rendering variables
 		this.linewidth=1.0;
 		this.tmptrans =new Transform(2);
-		this.tmppath  =new DrawPath();
 		this.tmpline  =[];
 	}
 
@@ -2008,7 +2740,8 @@ export class Draw {
 		let pixminy=(invyx<0?invyx:0)+(invyy<0?invyy:0);
 		let pixmaxy=(invyx>0?invyx:0)+(invyy>0?invyy:0);
 		// Iterate over dst rows.
-		let [rshift,gshift,bshift,ashift]=this.rgbashift;
+		let shift=this.rgbashift;
+		let rshift=shift[0],gshift=shift[1],bshift=shift[2],ashift=shift[3];
 		let dstdata=dstimg.data32;
 		let srcdata=srcimg.data32;
 		for (let dsty=dstminy;dsty<dstmaxy;dsty++) {
@@ -2114,42 +2847,44 @@ export class Draw {
 
 
 	// ----------------------------------------
-	// Paths
-
-
-	beginpath() {return this.defpath.begin(...arguments);}
-	closepath() {return this.defpath.close(...arguments);}
-	moveto() {return this.defpath.moveto(...arguments);}
-	lineto() {return this.defpath.lineto(...arguments);}
-	curveto() {return this.defpath.curveto(...arguments);}
-
-
-	// ----------------------------------------
 	// Primitives
 
 
-	drawline(x0,y0,x1,y1) {
-		let w=this.linewidth;
-		let path=this.tmppath.begin().addline(x0,y0,x1,y1,w*0.5);
-		this.fillpath(path);
+	begin() {return this.defpath.begin();}
+
+
+	drawline(x0,y0,x1,y1,rad) {
+		let w=rad??this.linewidth*0.5;
+		this.begin().addline(x0,y0,x1,y1,w);
+		this.fillpath();
 	}
 
 
 	fillrect(x,y,w,h) {
-		let path=this.tmppath.begin().addrect(x,y,w,h);
-		this.fillpath(path);
-	}
-
-
-	fillcircle(x,y,rad) {
-		this.filloval(x,y,rad,rad);
+		this.begin().addrect(x,y,w,h);
+		this.fillpath();
 	}
 
 
 	filloval(x,y,xrad,yrad) {
 		yrad=yrad??xrad;
-		let path=this.tmppath.begin().addoval(x,y,xrad,yrad);
-		this.fillpath(path);
+		this.begin().addoval(x,y,xrad,yrad);
+		this.fillpath();
+	}
+
+
+	tracerect(x,y,w,h,outrad,inrad) {
+		outrad=outrad??this.linewidth*0.5;
+		this.begin().tracerect(x,y,w,h,outrad,inrad);
+		this.fillpath();
+	}
+
+
+	traceoval(x,y,xrad,yrad,outrad,inrad) {
+		outrad=outrad??this.linewidth*0.5;
+		yrad=yrad??xrad;
+		this.begin().traceoval(x,y,xrad,yrad,outrad,inrad);
+		this.fillpath();
 	}
 
 
@@ -2218,21 +2953,14 @@ export class Draw {
 	// Path Filling
 
 
-	fillresize(size) {
+	fillextend() {
 		// Declaring line objects this way allows engines to optimize their structs.
-		let len=this.tmpline.length;
-		while (len<size) {len+=len+1;}
-		while (this.tmpline.length<len) {
-			this.tmpline.push({
-				sort:0,
-				end:0,
-				x0:0,y0:0,
-				x1:0,y1:0,
-				x2:0,y2:0,
-				x3:0,y3:0
-			});
-		}
-		return this.tmpline;
+		this.tmpline.push({
+			sort:0,
+			x0:0,y0:0,
+			x1:0,y1:0,
+			x2:0,y2:0
+		});
 	}
 
 
@@ -2245,142 +2973,138 @@ export class Draw {
 		if (path===undefined) {path=this.defpath;}
 		if (trans===undefined) {trans=this.deftrans;}
 		else if (!(trans instanceof Transform)) {trans=new Transform(trans);}
-		const curvemaxdist2=0.02;
-		let iw=this.img.width,ih=this.img.height;
-		let alpha=this.rgba[3]/255.0;
-		if (path.vertidx<3 || iw<1 || ih<1 || alpha<1e-4) {return;}
 		// Screenspace transformation.
 		let matxx=trans.mat[0],matxy=trans.mat[1],matx=trans.vec[0];
 		let matyx=trans.mat[2],matyy=trans.mat[3],maty=trans.vec[1];
-		// Perform an AABB-OBB overlap test.
-		// Define the transformed bounding box.
-		let bx=path.minx,by=path.miny;
-		let bndx=bx*matxx+by*matxy+matx;
-		let bndy=bx*matyx+by*matyy+maty;
-		bx=path.maxx-bx;by=path.maxy-by;
-		let bndxx=bx*matxx,bndxy=bx*matyx;
-		let bndyx=by*matxy,bndyy=by*matyy;
-		// Test if the image AABB has a separating axis.
-		let minx=bndx-iw,maxx=bndx;
-		if (bndxx<0) {minx+=bndxx;} else {maxx+=bndxx;}
-		if (bndyx<0) {minx+=bndyx;} else {maxx+=bndyx;}
-		if (!(minx<0 && 0<maxx)) {return;}
-		let miny=bndy-ih,maxy=bndy;
-		if (bndxy<0) {miny+=bndxy;} else {maxy+=bndxy;}
-		if (bndyy<0) {miny+=bndyy;} else {maxy+=bndyy;}
-		if (!(miny<0 && 0<maxy)) {return;}
-		// Test if the path OBB has a separating axis.
-		let cross=bndxx*bndyy-bndxy*bndyx;
-		minx=bndy*bndxx-bndx*bndxy;maxx=minx;
-		bndxx*=ih;bndxy*=iw;
-		if (cross<0) {minx+=cross;} else {maxx+=cross;}
-		if (bndxx<0) {maxx-=bndxx;} else {minx-=bndxx;}
-		if (bndxy<0) {minx+=bndxy;} else {maxx+=bndxy;}
-		if (!(minx<0 && 0<maxx)) {return;}
-		miny=bndy*bndyx-bndx*bndyy;maxy=miny;
-		bndyx*=ih;bndyy*=iw;
-		if (cross<0) {maxy-=cross;} else {miny-=cross;}
-		if (bndyx<0) {maxy-=bndyx;} else {miny-=bndyx;}
-		if (bndyy<0) {miny+=bndyy;} else {maxy+=bndyy;}
-		if (!(miny<0 && 0<maxy)) {return;}
+		let det=(matxx*matyy-matxy*matyx)*path.area;
+		const curvemaxdist2=0.02;
+		let iw=this.img.width,ih=this.img.height;
+		let alpha=this.rgba[3]/255.0;
+		let amul=det<0?-alpha:alpha;
+		if (path.vertidx<3 || iw<1 || ih<1 || det*amul<1e-6) {return;}
+		// Check if trans(path) and image AABB overlap. Calculate y intercepts.
+		let min=Infinity,max=-Infinity;
+		let vx=0,vy=0;
+		for (let i=0;i<5;i++) {
+			let w=((i+1)&2)?path.maxx:path.minx;
+			let h=((i  )&2)?path.maxy:path.miny;
+			let x0=vx,y0=vy;
+			vx=w*matxx+h*matxy+matx;
+			vy=w*matyx+h*matyy+maty;
+			let x1=vx,y1=vy;
+			if (x0>x1) {x1=x0;x0=vx;y1=y0;y0=vy;}
+			let dx=x1-x0,dy=y1-y0;
+			if (!(dx>=0 && dy===dy)) {return;}
+			if (!i || x0>=iw || x1<0) {continue;}
+			y0+=x0<0?-(x0/dx)*dy:0;
+			y1+=x1>iw?((iw-x1)/dx)*dy:0;
+			if (y0>y1) {x0=y0;y0=y1;y1=x0;}
+			min=min<y0?min:y0;
+			max=max>y1?max:y1;
+		}
+		if (!(min<ih && max>0)) {return;}
+		let pminy=min>0?~~min:0;
+		let pmaxy=max<ih?Math.ceil(max):ih;
 		// Loop through the path nodes.
 		let lr=this.tmpline,lrcnt=lr.length,lcnt=0;
-		let movex=0,movey=0,area=0;
-		let p0x=0,p0y=0,p1x=0,p1y=0;
+		let movex=0,movey=0;
+		let p2x=0,p2y=0,p3x=0,p3y=0;
 		let varr=path.vertarr;
 		let vidx=path.vertidx;
 		for (let i=0;i<=vidx;i++) {
 			let v=varr[i<vidx?i:0];
-			if (v.type===DrawPath.CURVE) {v=varr[i+2];}
-			p0x=p1x;p1x=v.x*matxx+v.y*matxy+matx;
-			p0y=p1y;p1y=v.x*matyx+v.y*matyy+maty;
+			let type=v.type;
+			let p0x=p3x,p0y=p3y;
+			p3x=v.x*matxx+v.y*matxy+matx;
+			p3y=v.x*matyx+v.y*matyy+maty;
+			let p1x=p3x,p1y=p3y;
 			// Add a basic line.
-			let m1x=p1x,m1y=p1y;
-			if (v.type===DrawPath.MOVE) {
-				// Close any unclosed subpaths.
-				m1x=movex;movex=p1x;
-				m1y=movey;movey=p1y;
-				if (!i || (m1x===p0x && m1y===p0y)) {continue;}
-			}
 			if (lrcnt<=lcnt) {
-				lr=this.fillresize(lcnt+1);
+				this.fillextend();
 				lrcnt=lr.length;
 			}
 			let l=lr[lcnt++];
-			l.sort=0;l.end=-1;
-			area+=p0x*m1y-m1x*p0y;
-			l.x0=p0x;
-			l.y0=p0y;
-			l.x1=m1x;
-			l.y1=m1y;
-			if (v.type!==DrawPath.CURVE) {continue;}
+			if (type!==DrawPath.CURVE) {
+				if (type===DrawPath.MOVE) {
+					// Close any unclosed subpaths.
+					p1x=movex;movex=p3x;
+					p1y=movey;movey=p3y;
+				}
+				l.sort=0;
+				l.x0=p0x;l.y0=p0y;
+				l.x1=p1x;l.y1=p1y;
+				if (p1y===p0y) {lcnt--;}
+				continue;
+			}
 			// Linear decomposition of curves.
-			v=varr[i++];let n1x=v.x*matxx+v.y*matxy+matx,n1y=v.x*matyx+v.y*matyy+maty;
-			v=varr[i++];let n2x=v.x*matxx+v.y*matxy+matx,n2y=v.x*matyx+v.y*matyy+maty;
-			l.x2=n1x;l.x3=n2x;
-			l.y2=n1y;l.y3=n2y;
-			area-=((n1x-p0x)*(2*p0y-n2y-p1y)+(n2x-p0x)*(p0y+n1y-2*p1y)
-				 +(p1x-p0x)*(2*n2y+n1y-3*p0y))*0.3;
-			for (let j=lcnt-1;j<lcnt;j++) {
-				// The curve will stay inside the bounding box of [c0,c1,c2,c3].
+			v=varr[++i];p2x=v.x*matxx+v.y*matxy+matx;p2y=v.x*matyx+v.y*matyy+maty;
+			v=varr[++i];p3x=v.x*matxx+v.y*matxy+matx;p3y=v.x*matyx+v.y*matyy+maty;
+			let next=-1,next0=0;
+			while (true) {
+				// The curve will stay inside the bounding box of [p0,p1,p2,p3].
 				// If the subcurve is outside the image, stop subdividing.
-				l=lr[j];
-				let c3x=l.x1,c2x=l.x3,c1x=l.x2,c0x=l.x0;
-				let c3y=l.y1,c2y=l.y3,c1y=l.y2,c0y=l.y0;
-				if ((c0x<=0 && c1x<=0 && c2x<=0 && c3x<=0) || (c0x>=iw && c1x>=iw && c2x>=iw && c3x>=iw) ||
-				    (c0y<=0 && c1y<=0 && c2y<=0 && c3y<=0) || (c0y>=ih && c1y>=ih && c2y>=ih && c3y>=ih)) {
+				if (next===next0) {
+					l.sort=0;
+					l.x0=p0x;l.y0=p0y;
+					l.x1=p3x;l.y1=p3y;
+					if (next<0) {break;}
+					l=lr[next];
+					next=l.sort;
+					p0x=p3x;p1x=l.x0;p2x=l.x1;p3x=l.x2;
+					p0y=p3y;p1y=l.y0;p2y=l.y1;p3y=l.y2;
+				}
+				next0=next;
+				if ((p0x<=0 && p1x<=0 && p2x<=0 && p3x<=0) || (p0x>=iw && p1x>=iw && p2x>=iw && p3x>=iw) ||
+				    (p0y<=0 && p1y<=0 && p2y<=0 && p3y<=0) || (p0y>=ih && p1y>=ih && p2y>=ih && p3y>=ih)) {
 					continue;
 				}
-				let dx=c3x-c0x,dy=c3y-c0y,den=dx*dx+dy*dy;
-				// Test if both control points are close to the line c0->c3.
+				// Test if both control points are close to the line p0->p3.
 				// Clamp to ends and filter degenerates.
-				let lx=c1x-c0x,ly=c1y-c0y;
+				let dx=p3x-p0x,dy=p3y-p0y,den=dx*dx+dy*dy;
+				let lx=p1x-p0x,ly=p1y-p0y;
 				let u=dx*lx+dy*ly;
 				u=u>0?(u<den?u/den:1):0;
 				lx-=dx*u;ly-=dy*u;
 				let d1=lx*lx+ly*ly;
-				lx=c2x-c0x;ly=c2y-c0y;
+				lx=p2x-p0x;ly=p2y-p0y;
 				u=dx*lx+dy*ly;
 				u=u>0?(u<den?u/den:1):0;
 				lx-=dx*u;ly-=dy*u;
 				let d2=lx*lx+ly*ly;
 				d1=(d1>d2 || !(d1===d1))?d1:d2;
 				if (!(d1>curvemaxdist2 && d1<Infinity)) {continue;}
-				// Split the curve in half. [c0,c1,c2,c3] = [c0,l1,l2,ph] + [ph,r1,r2,c3]
+				// Split the curve in half. [p0,p1,p2,p3] = [p0,l1,l2,ph] + [ph,r1,r2,p3]
 				if (lrcnt<=lcnt) {
-					lr=this.fillresize(lcnt+1);
+					this.fillextend();
 					lrcnt=lr.length;
 				}
-				let l1x=(c0x+c1x)*0.5,l1y=(c0y+c1y)*0.5;
-				let t1x=(c1x+c2x)*0.5,t1y=(c1y+c2y)*0.5;
-				let r2x=(c2x+c3x)*0.5,r2y=(c2y+c3y)*0.5;
-				let l2x=(l1x+t1x)*0.5,l2y=(l1y+t1y)*0.5;
+				let t1x=(p1x+p2x)*0.5,t1y=(p1y+p2y)*0.5;
+				let r2x=(p2x+p3x)*0.5,r2y=(p2y+p3y)*0.5;
 				let r1x=(t1x+r2x)*0.5,r1y=(t1y+r2y)*0.5;
-				let phx=(l2x+r1x)*0.5,phy=(l2y+r1y)*0.5;
-				l.x1=phx;l.x3=l2x;l.x2=l1x;
-				l.y1=phy;l.y3=l2y;l.y2=l1y;
-				l=lr[lcnt++];
-				l.sort=0;l.end=-1;
-				l.x1=c3x;l.x3=r2x;l.x2=r1x;l.x0=phx;
-				l.y1=c3y;l.y3=r2y;l.y2=r1y;l.y0=phy;
-				j--;
+				let n=lr[lcnt];
+				n.sort=next;
+				n.x0=r1x;n.x1=r2x;n.x2=p3x;
+				n.y0=r1y;n.y1=r2y;n.y2=p3y;
+				p1x=(p0x+p1x)*0.5;p1y=(p0y+p1y)*0.5;
+				p2x=(p1x+t1x)*0.5;p2y=(p1y+t1y)*0.5;
+				p3x=(p2x+r1x)*0.5;p3y=(p2y+r1y)*0.5;
+				next=lcnt++;
 			}
 		}
 		// Init blending.
-		let amul=area<0?-alpha:alpha;
 		let ashift=this.rgbashift[3],amask=(255<<ashift)>>>0;
 		let maskl=(0x00ff00ff&~amask)>>>0,maskh=(0xff00ff00&~amask)>>>0;
 		let colrgb=(this.rgba32[0]|amask)>>>0;
 		let coll=(colrgb&maskl)>>>0,colh=(colrgb&maskh)>>>0,colh8=colh>>>8;
 		// Process the lines row by row.
-		let p=0,y=0,pixels=iw*ih;
-		let pnext=0,prow=0;
-		let areadx1=0;
+		let p=0,pmax=pmaxy*iw,y=0;
+		let pnext=pminy*iw,prow=0;
+		let area=0,areadx1=0;
 		let imgdata=this.img.data32;
 		while (true) {
 			if (p>=prow) {
 				p=pnext;
-				if (p>=pixels || lcnt<1) {break;}
+				if (p>=pmax || lcnt<1) {break;}
 				y=~~(p/iw);
 				prow=y*iw+iw;
 				area=0;
@@ -2401,66 +3125,72 @@ export class Draw {
 				let x0=l.x0,y0=l.y0;
 				let x1=l.x1,y1=l.y1;
 				let sign=amul,tmp=0;
-				let end=l.end,sort=prow-iw,x=p-sort;
-				l.end=-1;
 				if (y0>y1) {
 					sign=-sign;
 					tmp=x0;x0=x1;x1=tmp;
 					tmp=y0;y0=y1;y1=tmp;
 				}
-				let fy=y0<ih?y0:ih;
-				fy=fy>y?~~fy:y;
-				let dx=x1-x0,dy=y1-y0,dxy=dx/dy;
-				// Use y0x for large coordinate stability.
-				let y0x=x0-y0*dxy+fy*dxy;
-				y0-=fy;y1-=fy;
-				let nx=y1>2?y0x+2*dxy:x1;
-				if (y1>1) {y1=1;x1=y0x+dxy;}
-				if (y0<0) {y0=0;x0=y0x;}
-				// Subtract x after normalizing to row.
-				x0-=x;x1-=x;nx-=x;
+				// Calculate row and col.
+				let sort=prow-iw,c0=p-sort,c1=c0+1;
+				let r0=y0<ih?~~y0:ih;
+				r0=y0>y?r0:y;
+				let r1=r0+1,r2=r0+2;
+				// Clamp y to row. Ensure consecutive rows use the same calculations.
+				let dx=x1-x0,dy=y1-y0,nx=x1;
+				if (dy>1) {
+					// Large numbers.
+					let dxy=dx/dy,y0x=x0-y0*dxy;
+					if (y1>r2) {nx=y0x+r2*dxy;}
+					if (y1>r1) {x1=y0x+r1*dxy;y1=r1;}
+					if (y0<r0) {x0=y0x+r0*dxy;y0=r0;}
+				} else {
+					// Small numbers.
+					if (y1>r2) {nx=x0-((y0-r2)/dy)*dx;}
+					if (y1>r1) {x1=x0-((y0-r1)/dy)*dx;y1=r1;}
+					if (y0<r0) {x0=x0-((y0-r0)/dy)*dx;y0=r0;}
+				}
 				nx=nx<x1?nx:x1;
 				if (x0>x1) {dx=-dx;tmp=x0;x0=x1;x1=tmp;}
 				dy*=sign;let dyx=dy/dx;dy*=0.5;
-				if (!(y1>0 && dyx!==0)) {
+				if (!(y1>r0 && dyx!==0)) {
 					// Above or degenerate.
-					sort=pixels;
-				} else if (x0>=1 || fy>y) {
+					sort=pmax;
+				} else if (x0>=c1 || r0>y) {
 					// Below or to the left.
 					nx=x0;
-					sort=fy*iw;
-				} else if (x1<=1) {
+					sort=r0*iw;
+				} else if (x1<=c1) {
 					// Vertical line or last pixel.
-					tmp=x1>0?-(x1*x1/dx)*dy:0;
-					if (end<p && end>=sort) {
+					let t0=x1-c0,t1=x1-c1;
+					tmp=x1>c0?-(t0*t0/dx)*dy:0;
+					if (c0>1 && x0<c0-1) {
 						areadx1+=dyx;
-						area+=((x1>0?(1-x1)*(1-x1):(1-2*x1))/dx)*dy;
+						area+=((x1>c0?t1*t1:-t0-t1)/dx)*dy;
 					} else {
 						dy=(y0-y1)*sign;
-						tmp=x0>=0?0.5*(x0+x1)*dy:tmp;
+						tmp=x0>=c0?0.5*(x0-c0+t0)*dy:tmp;
 						area+=dy-tmp;
 					}
 					areadx2+=tmp;
-					sort+=y1<1?pixels:iw;
+					sort+=y1<r1?pmax:iw;
 				} else {
 					// Spanning 2+ pixels.
-					tmp=((x0>0?(1-x0)*(1-x0):(1-2*x0))/dx)*dy;
+					let t0=x0-c0,t1=x0-c1;
+					tmp=((x0>c0?t1*t1:-t0-t1)/dx)*dy;
 					area-=tmp;
-					if (x1>=2) {
+					if (x1>=c0+2) {
 						areadx1-=dyx;
-						tmp=x0>0?(x0*x0/dx)*dy:0;
-						l.end=p;
+						tmp=x0>c0?(t0*t0/dx)*dy:0;
 					}
 					areadx2+=tmp;
 					nx=x1;
 				}
-				nx+=x;
 				nx=nx<0?0:nx;
 				sort+=nx<iw?~~nx:iw;
-				sort=sort>p?sort:pixels;
+				sort=sort>p?sort:pmax;
 				l.sort=sort;
 				// Heap sort down.
-				if (sort>=pixels) {
+				if (sort>=pmax) {
 					let t=lr[--lcnt];
 					lr[lcnt]=l;l=t;
 					sort=l.sort;
@@ -2517,15 +3247,16 @@ export class Draw {
 	}
 
 
-	tracepath(path,rad,trans) {
-		return this.fillpath(path.trace(rad),trans);
+	tracepath(path,trans,outrad,inrad) {
+		outrad=outrad??this.linewidth*0.5;
+		return this.fillpath(path.trace(outrad,inrad),trans);
 	}
 
 }
 
 
 //---------------------------------------------------------------------------------
-// UI - v1.02
+// UI - v1.03
 
 
 export class UI {
@@ -2568,7 +3299,7 @@ export class UI {
 		let input=this.input;
 		let draw=this.draw,img=draw.img;
 		let dw=img.width,dh=img.height;
-		let [mx,my]=input.getmousepos();
+		let mpos=input.getmousepos(),mx=mpos[0],my=mpos[1];
 		let grabbing=this.grabbing;
 		let focus=this.focus;
 		// If we're not grabbing something, check if we're focused on anything.
@@ -2689,7 +3420,7 @@ export class UI {
 
 
 //---------------------------------------------------------------------------------
-// Audio - v3.09
+// Audio - v3.12
 
 
 class AudioSound {
@@ -2698,6 +3429,9 @@ class AudioSound {
 		// accepts len/path and frequency
 		this.audio=Audio.initdef();
 		this.freq=freq;
+		this.loopstart=Infinity;
+		this.loopend=0;
+		this.looptime=Infinity;
 		this.queue=null;
 		let type=typeof len;
 		if (type==="number") {
@@ -2716,7 +3450,7 @@ class AudioSound {
 		if (len<2) {return len?data[0]:0;}
 		if (i<0) {i=(i%len)+len;}
 		else if (i>=len) {i%=len;}
-		let j0=Math.floor(i);
+		let j0=~~i;
 		i-=j0;
 		let j1=j0+1<len?j0+1:0;
 		return data[j0]*(1-i)+data[j1]*i;
@@ -2748,28 +3482,6 @@ class AudioSound {
 	copy() {return this.slicelen();}
 
 
-	trim(eps=1e-4) {
-		return this.trimend(eps).trimstart(eps);
-	}
-
-
-	trimstart(eps=1e-4) {
-		let data=this.data;
-		let len=this.len,pos=0;
-		while (pos<len && Math.abs(data[pos])<=eps) {pos++;}
-		for (let i=pos;i<len;i++) {data[i-pos]=data[i];}
-		return this.resizelen(len-pos);
-	}
-
-
-	trimend(eps=1e-4) {
-		let data=this.data;
-		let len=this.len;
-		while (len>0 && Math.abs(data[len-1])<=eps) {len--;}
-		return this.resizelen(len);
-	}
-
-
 	resizelen(len) {
 		// Over-allocate in case we keep modifying the sound.
 		len=isNaN(len) || len<0?0:(len|0);
@@ -2794,6 +3506,7 @@ class AudioSound {
 		for (let i=len;i<clearlen;i++) {data[i]=0;}
 		this.len=len;
 		this.time=len/this.freq;
+		this.looptime=this.loopstart<this.time?Infinity:this.time;
 		return this;
 	}
 
@@ -3007,6 +3720,27 @@ class AudioSound {
 	}
 
 
+	setloop(start=0,end) {
+		this.loopstart=start;
+		this.loopend=end??this.time;
+		this.looptime=start<this.time?Infinity:this.time;
+	}
+
+
+	/*calctime(time) {
+		// Returns the corrected time if the sound is looped.
+		let start=this.loopstart;
+		if (time>start) {
+			let end=this.loopend;
+			time=(time-start)%(end-start);
+			time+=time<0?end:start;
+			time=time>start?time:start;
+			time=time<end?time:end;
+		}
+		return time;
+	}*/
+
+
 	getvol() {
 		let data=this.data,len=data.length;
 		let v=0;
@@ -3029,6 +3763,12 @@ class AudioSound {
 	}
 
 }
+
+
+const CON=0,VAR=1,OP=2;
+const EXPR=0,ENV=1,TBL=2,TRI=3,PLS=4,SAW=5,SIN=6,SQR=7,NOI=8,DEL=9,OSC0=2,OSC1=7;
+const LPF=10,HPF=11,BPF=12,NPF=13,APF=14,PKF=15,LSF=16,HSF=17,FIL0=10,FIL1=17;
+const VBITS=24,VMASK=(1<<VBITS)-1,PBITS=8,PMASK=(1<<PBITS)-1;
 
 
 class AudioSFX {
@@ -3072,40 +3812,31 @@ class AudioSFX {
 
 	tosound(time=10,silence=0.1,freq=44100) {
 		// Plays the effect until a max time or span of silence.
-		if (isNaN(time) || time<0) {time=Infinity;}
-		if (isNaN(silence) || silence<0) {silence=Infinity;}
-		let snd=null;
-		let maxlen=Math.floor(freq*time);
-		if (silence>=Infinity) {
-			// Fill the whole time.
-			if (time>=Infinity) {throw "infinite sound";}
-			snd=new AudioSound(freq,maxlen);
-			this.fill(snd);
-		} else {
-			// Fill until max time or silence.
-			const thres=1e-5;
-			let sillen=Math.floor(freq*silence);
-			let genlen=Math.floor(freq*0.2)+1;
-			snd=new AudioSound(freq,0);
-			let len=snd.len,silpos=0;
+		time*=freq;
+		silence*=freq;
+		if (!(time>=0)) {throw `invalid time: ${time}`;}
+		if (!(silence>=0)) {silence=time;}
+		if (time>=Infinity && silence>=Infinity) {throw `infinite sfx`;}
+		let snd=new AudioSound(freq,0);
+		let genlen=Math.floor(0.1*freq)+1;
+		let maxlen=time<0x3fffffff?Math.round(time):0x3fffffff;
+		let sillen=silence<maxlen?Math.round(silence):maxlen;
+		// Fill until max time or silence.
+		const thres=1e-5;
+		let sndlen=0,silpos=0;
+		while (sndlen<maxlen && sndlen<silpos+sillen) {
+			let pos=sndlen;
+			sndlen+=genlen;
+			if (sndlen>maxlen) {sndlen=maxlen;}
+			snd.resizelen(sndlen);
+			this.fill(snd,pos,sndlen-pos);
 			let data=snd.data;
-			for (let dst=0;dst<maxlen && dst-silpos<sillen;) {
-				let newlen=dst+genlen;
-				if (newlen>len) {
-					if (newlen>maxlen) {newlen=maxlen;}
-					len=newlen;
-					snd.resizelen(len);
-					data=snd.data;
-				}
-				this.fill(snd,dst,newlen-dst);
-				while (dst<newlen) {
-					if (Math.abs(data[dst++])>thres) {silpos=dst;}
-				}
+			while (pos<sndlen) {
+				let x=data[pos++];
+				if (x<-thres || x>thres) {silpos=pos;}
 			}
-			while (len>silpos) {data[--len]=0;}
-			snd.len=len;
-			snd.time=len/freq;
 		}
+		snd.resizelen(silpos);
 		this.reset();
 		return snd;
 	}
@@ -3132,8 +3863,6 @@ class AudioSFX {
 	parse(seqstr) {
 		// Last node is used as output. Node names must start with #.
 		// Translating addresses: (node_num+1)<<8+param_num
-		const EXPR=0,ENV=1,TBL=2,NOI=8,DEL=9,OSC0=2,OSC1=7,FIL0=10,FIL1=17;
-		const CON=0,VAR=1,OP=2,VBITS=24,VMASK=(1<<VBITS)-1,PBITS=8,PMASK=(1<<PBITS)-1;
 		this.namemap={};
 		let nodetypes=[
 			{str:"expr" ,type: 0,params:" "},
@@ -3167,6 +3896,12 @@ class AudioSFX {
 		let dpos=0;
 		let di32=new Int32Array(0);
 		let df32=new Float32Array(di32.buffer);
+		let hash=1;
+		function addhash(val) {
+			hash+=val;
+			hash=Math.imul(hash^(hash>>>17),0x7eccc553)>>>0;
+			return hash;
+		}
 		function error(msg,s0,s1) {
 			let line=1,start=0;
 			for (let i=0;i<s0;i++) {if (seqstr.charCodeAt(i)===10) {start=i+1;line++;}}
@@ -3179,6 +3914,8 @@ class AudioSFX {
 			let i=str.length;while (--i>=0 && str.charCodeAt(i)!==c) {}
 			return i;
 		}
+		// Hash the string to vary our noise.
+		for (let i=0;i<seqlen;i++) {addhash(seqstr.charCodeAt(i));}
 		while (s<seqlen || node) {
 			// Read through whitespace and comments.
 			let c=0;
@@ -3331,8 +4068,7 @@ class AudioSFX {
 					}
 				} else if (type===NOI) {
 					// noise
-					let rand=dpos+params;
-					def=[1,-1,Math.imul(rand,0x7eccc553),Math.imul(rand,0x49e15d71)|1];
+					def=[1,-1,addhash(3),addhash(5)|1];
 					negp=1;
 				} else if (type===DEL) {
 					// delay
@@ -3485,7 +4221,6 @@ class AudioSFX {
 
 
 	biquadcoefs(n,type,rate,bw,gain) {
-		const LPF=10,HPF=11,BPF=12,NPF=13,APF=14,PKF=15,LSF=16,HSF=17;
 		let b0=1,b1=0,b2=0;
 		let a0=1,a1=0,a2=0;
 		let v  =gain;
@@ -3584,9 +4319,10 @@ class AudioSFX {
 		if (flen===undefined) {flen=sndlen;}
 		if (fstart+flen<sndlen) {sndlen=fstart+flen;}
 		let sndrate=1/sndfreq;
-		const EXPR=0,ENV=1,TBL=2,TRI=3,PLS=4,SAW=5,SIN=6,SQR=7,NOI=8,DEL=9;
-		const OSC0=2,OSC1=7,FIL0=10,FIL1=17;
-		const VBITS=24,VMASK=(1<<VBITS)-1;
+		function fmod(x,mod) {
+			x=(x<0 || x>=mod)?x%mod:x;
+			return x<0?x+mod:x;
+		}
 		for (let sndpos=fstart;sndpos<sndlen;sndpos++) {
 			let di32=this.di32,df32=this.df32;
 			let stack=this.stack;
@@ -3655,13 +4391,12 @@ class AudioSFX {
 					let lo   =df32[n+4];
 					let acc  =df32[n+5];
 					let mod  =type!==TBL?1:df32[next-2];
-					let u=(acc+phase)%mod;
-					if (u<0) {u+=mod;}
-					df32[n+5]=(acc+freq*sndrate)%mod;
+					let u=fmod(acc+phase,mod);
+					df32[n+5]=fmod(acc+freq*sndrate,mod);
 					if      (type===TRI) {out=(u<0.5?u:1-u)*2;}
 					else if (type===PLS) {out=u<df32[n+6]?0:1;}
 					else if (type===SAW) {out=u;}
-					else if (type===SIN) {out=Math.sin(u*(Math.PI*2))*0.5+0.5;}
+					else if (type===SIN) {out=Math.sin(u*6.283185307)*0.5+0.5;}
 					else if (type===SQR) {out=u<0.5?0:1;}
 					else if (type===TBL) {
 						// Binary search to find what points we're between.
@@ -3679,9 +4414,11 @@ class AudioSFX {
 					let inc=di32[n+4];
 					let val=di32[n+3]+inc;
 					di32[n+3]=val;
-					val=Math.imul(val^(val>>>16),0xf8b7629f);
-					val=Math.imul(val^(val>>> 8),0xcbc5c2b5);
-					val=Math.imul(val^(val>>>24),0xf5a5bda5);
+					val+=val<<16;val^=val>>>12;
+					val+=val<< 2;val^=val>>>11;
+					val+=val<< 3;val^=val>>>10;
+					val+=val<< 5;val^=val>>> 8;
+					val+=val<<14;val^=val>>>11;
 					out=((val>>>0)/4294967295)*(hi-lo)+lo;
 				} else if (type===DEL) {
 					// Delay.
@@ -3691,9 +4428,9 @@ class AudioSFX {
 					let pos=di32[n+4];
 					let len=next-n-5;
 					if (++pos>=len) {pos=0;}
-					// Allpass the delayed output.
 					del=del<max?del:max;
 					del=del>0?del*sndfreq:0;
+					// Allpass the delayed output.
 					/*let i=del>>>0;
 					let f=del-i;
 					let ap=(1-f)/(1+f);
@@ -3735,20 +4472,31 @@ class AudioSFX {
 
 
 	static deflib={
-		"uiinc":"#vol: .05 #freq: 1500 #time: 0.1 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 S #time .01 - .5 * R #time .01 - .5 * I #bpf #vol *",
-		"uidec":"#vol: .05 #freq: 1000 #time: 0.1 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 S #time .01 - .5 * R #time .01 - .5 * I #bpf #vol *",
-		"uiconf":"#vol: .05 #freq: 4000 #time: 1.0 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 R #time .01 - I #bpf #vol *",
-		"uierr":"#vol: .1 #freq: 400 #time: 0.5 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 R #time .01 - I #bpf #vol *",
-		"uiclick":"#vol: .1 #freq: 180 #time: 0.1 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 R #time .01 - I #bpf #vol *",
 		"explosion1":"#vol: 5 #freq: 300 #time: 2 #u: #freq #freq 1000 + / #noi: NOISE #lpf: LPF F #freq B 1 G 1 #u - I #noi #bpf: BPF F #freq B 2 G #u I #noi #del: DEL T 0.15 #u * 0.75 + M 0.9 I 0.5 #u * 0.9 - #sig * #sig: #del #lpf #bpf #out: ENV A 0.01 R #time 0.01 - I #sig #vol *",
 		"explosion2":"#vol: 9 #freq: 100 #time: 2 #u: #freq #freq 1000 + / #noi: NOISE #lpf: LPF F #freq B 1 G 1 #u - I #noi #bpf: BPF F #freq B 2 G #u I #noi #del: DEL T 0.15 #u * 0.75 + M 0.9 I 0.5 #u * 0.9 - #sig * #sig: #del #lpf #bpf #out: ENV A 0.01 R #time 0.01 - I #sig #vol *",
 		"gunshot1":"#vol: 5 #freq: 500 #time: .25 #u: #freq #freq 1000 + / #noi: NOISE #lpf: LPF F #freq B 1 G 1 #u - I #noi #bpf: BPF F #freq B 2 G #u I #noi #del: DEL T 0.15 #u * 0.75 + M 0.9 I 0.5 #u * 0.9 - #sig * #sig: #del #lpf #bpf #out: ENV A 0.01 R #time 0.01 - I #sig #vol *",
 		"gunshot2":"#vol: 1 #freq: 1000 #time: .25 #u: #freq #freq 1000 + / #noi: NOISE #lpf: LPF F #freq B 1 G 1 #u - I #noi #bpf: BPF F #freq B 2 G #u I #noi #del: DEL T 0.15 #u * 0.75 + M 0.9 I 0.5 #u * 0.9 - #sig * #sig: #del #lpf #bpf #out: ENV A 0.01 R #time 0.01 - I #sig #vol *",
 		"missile1":"#noi1: NOISE H 1000 #noi2: #noi1 1 < -1 > #freq: TRI F 20 H 1000 L 100 #sigl: LPF F #freq I #noi2 B 1 #sigb: BPF F #freq I #noi2 B 2 #out: ENV A .015 R .985 I #sigl #sigb",
-		"electricity":"#freq: 159 #saw0: SAW F #freq #saw1: SAW F #freq 1.002 * #sig: LPF F 3000 I #saw0 #saw1 + 0.5 < -0.5 > #out : ENV S 2 I #sig",
+		"electricity":"#freq: 159 #saw0: SAW F #freq #saw1: SAW F #freq 1.002 * #sig: LPF F 3000 I #saw0 #saw1 + 0.5 < -0.5 > #out: ENV S 2 I #sig",
 		"laser":"#vol: 1 #freq: 10000 #time: .25 #t: SAW F 1 #time / L 0 H #time #del1: DEL T #t .01 * M .5 I #sig -.35 * #del2: DEL T #t .10 * M .5 I #sig -.28 * #del3: DEL T #t .20 * M .5 I #sig -.21 * #del4: DEL T #t .60 * M .5 I #sig -.13 * #osc: SIN F #freq H 0.7 #sig: #osc #del1 #del2 #del3 #del4 #out: ENV A 0.01 R #time .01 - I #sig #vol *",
 		"thud":"#vol: 10 #freq: 80 #time: .2 #noi: NOISE #bpf1: BPF F #freq B 2 I #noi #bpf2: BPF F #freq B 2 I #bpf1 #sig: #bpf2 #del #del: DEL T 0.003 I #bpf2 0.9 * #out: ENV R #time I #sig #vol *",
-		"marble":"#vol: .05 #freq: 7000 #time: .02 #noi: NOISE #bpf1: BPF F #freq B 2 I #noi #bpf2: BPF F #freq B 2 I #bpf1 #sig: #bpf2 #del #del: DEL T 0.003 I #bpf2 0.9 * #out: ENV R #time I #sig #vol *"
+		"marble":"#vol: .05 #freq: 7000 #time: .02 #noi: NOISE #bpf1: BPF F #freq B 2 I #noi #bpf2: BPF F #freq B 2 I #bpf1 #sig: #bpf2 #del #del: DEL T 0.003 I #bpf2 0.9 * #out: ENV R #time I #sig #vol *",
+		// UI
+		"uiinc":"#vol: .05 #freq: 1500 #time: 0.1 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 S #time .01 - .5 * R #time .01 - .5 * I #bpf #vol *",
+		"uidec":"#vol: .05 #freq: 1000 #time: 0.1 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 S #time .01 - .5 * R #time .01 - .5 * I #bpf #vol *",
+		"uiconf":"#vol: .05 #freq: 4000 #time: 1.0 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 R #time .01 - I #bpf #vol *",
+		"uierr":"#vol: .1 #freq: 400 #time: 0.5 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 R #time .01 - I #bpf #vol *",
+		"uiclick":"#vol: .1 #freq: 180 #time: 0.1 #osc1: NOISE H .4 #osc2: TRI F #freq #bpf: BPF F #freq B .0012 #freq * I #osc1 #osc2 #out: ENV A .01 R #time .01 - I #bpf #vol *",
+		// String
+		"string":"#vol: 1 #freq: 82 #time: 3 #slide: 0.5 #rate: 1 #freq / #dec: 0.01 #rate #time / ^ #sig1: NOISE 3 #sig: ENV A 0 S #rate R 0 I #sig1 #val: #sig #del + #val - #slide * #val + #del: DEL M 0.1 T #rate I #val #dec * #out: ENV A 0.01 S #time 0.11 - R 0.1 I #val -1 > 1 < #vol *",
+		"bell":"#vol: 1 #freq: 120 #time: 3 #sin1: SIN F #freq 1.00 * H 0.500 #env1: ENV R #time 1 / I #sin1 #sin2: SIN F #freq 2.25 * H 0.250 #env2: ENV R #time 2 / I #sin2 #sin3: SIN F #freq 3.93 * H 0.125 #env3: ENV R #time 3 / I #sin3 #sin4: SIN F #freq 8.89 * H 0.125 #env4: ENV R #time 4 / I #sin4 #out: #env1 #env2 + #env3 + #env4 + #vol *",
+		// Percussion
+		"hihat":"#vol: 0.2 #freq: 7000 #time: 0.1 #sig: NOISE H 0.7 #vol * #hpf: HPF F #freq I #sig #bpf: BPF F #freq 1.4 * I #sig #out: ENV A 0.005 R #time 0.005 - I #hpf #bpf",
+		"kick" :"#vol: 0.3 #freq: 80 #time: 0.2 #f: SAW F 1 #time / L #freq H #freq .25 * #sig1: NOISE H 8 #sig2: TRI F #f H 1.8 #lpf: LPF F #f B 1.75 I #sig1 #sig2 #out: ENV A 0.005 R #time 0.005 - I #lpf #vol *",
+		"snare":"#vol: 0.1 #freq: 200 #time: 0.2 #f: SAW F 1 #time / L #freq H #freq .5 * #sig1: NOISE H 1 #sig2: TRI F #f .5 * H 1 #hpf: HPF F #f I #sig1 #sig2 #lpf: LPF F 10000 I #hpf #out: ENV A 0.005 R #time 0.005 - I #lpf #vol *",
+		// Wind
+		"flute":"#vol: 1 #freq: 200 #time: 2.0 #noi: NOISE #nenv: ENV S #time .5 * I #noi #lpf: LPF F #freq B 2 I #nenv #sig: #del -.95 * #lpf #del: DEL T .5 #freq / M .2 I #sig #out: #sig",
+		"tuba" :"#vol: 1 #freq: 300 #time: 2.0 #noi: NOISE #nenv: ENV R #time I #noi #lpf: LPF F #freq I #nenv #sig: #del .95 * #lpf #del: DEL T .02 M .2 I #sig #out: #sig"
 	};
 
 
@@ -3765,8 +4513,7 @@ class AudioSFX {
 
 	static defsnd(name,vol,freq,time) {
 		let sfx=AudioSFX.defload(name,vol,freq,time);
-		let silence=Infinity;
-		if (isNaN(time) || time<0) {time=NaN;silence=0.1;}
+		let silence=time??Infinity;
 		return sfx.tosound(time,silence);
 	}
 
@@ -3785,7 +4532,7 @@ class AudioInstance {
 	// src -> gain -> pan -> output
 
 
-	constructor(snd,vol=1.0,pan=0.0,time=0,freq) {
+	constructor(snd,vol=1,pan=0,time=0) {
 		let audio=snd.audio;
 		// Audio player link
 		this.audio  =audio;
@@ -3805,7 +4552,6 @@ class AudioInstance {
 		this.time   =time;
 		this.volume =vol;
 		this.pan    =pan;
-		this.rate   =(freq??audio.freq)/audio.freq;
 		this.playing=false;
 		this.done   =false;
 		this.muted  =audio.muted;
@@ -3873,7 +4619,9 @@ class AudioInstance {
 		// Audio nodes can't restart, so recreate the node.
 		if (this.done || this.playing) {return;}
 		this.muted=this.audio.muted;
-		let rem=this.snd.time-this.time;
+		let snd=this.snd;
+		let time=this.time;
+		let rem=snd.looptime-time;
 		if (rem<=0) {
 			this.remove();
 			return;
@@ -3885,17 +4633,35 @@ class AudioInstance {
 			this.ctxpan.connect(ctx.destination);
 			this.ctxgain=ctx.createGain();
 			this.ctxgain.connect(this.ctxpan);
-			this.setpan();
 			this.setvolume();
+			this.setpan();
 			let src=ctx.createBufferSource();
 			let st=this;
 			src.onended=function(){st.remove();};
-			src.buffer=this.snd.ctxbuf;
+			src.buffer=snd.ctxbuf;
 			src.connect(this.ctxgain);
-			src.start(0,this.time,rem);
+			if (rem<Infinity) {
+				src.start(0,time,rem);
+			} else {
+				// loop the sound
+				src.loopStart=snd.loopstart;
+				src.loopEnd=snd.loopend;
+				src.loop=true;
+				src.start(0,time);
+			}
 			this.ctxsrc=src;
 		}
 		this.time-=performance.now()*0.001;
+	}
+
+
+	setvolume(vol) {
+		vol=isNaN(vol)?this.volume:vol;
+		this.volume=vol;
+		if (this.ctxgain) {
+			vol*=this.audio.volume;
+			this.ctxgain.gain.value=vol;
+		}
 	}
 
 
@@ -3909,16 +4675,6 @@ class AudioInstance {
 		this.pan=pan;
 		if (this.ctxpan) {
 			this.ctxpan.pan.value=pan;
-		}
-	}
-
-
-	setvolume(vol) {
-		vol=isNaN(vol)?this.volume:vol;
-		this.volume=vol;
-		if (this.ctxgain) {
-			vol*=this.audio.volume;
-			this.ctxgain.gain.value=vol;
 		}
 	}
 
@@ -3948,13 +4704,14 @@ export class Audio {
 		// 2 = Audio mute, 1 = browser mute
 		this.muted=mute?2:0;
 		this.mutefunc=function(){ctx.resume();};
-		this.updatetime=NaN;
 		if (!Audio.def) {Audio.initdef(this);}
+		let state=this;
 		if (autoupdate) {
-			let st=this;
-			function update() {if (st.update()) {requestAnimationFrame(update);}}
+			function update() {if (state.update()) {requestAnimationFrame(update);}}
 			update();
 		}
+		// Some browsers continue playing on refresh.
+		window.addEventListener("beforeunload",()=>{state.release();});
 	}
 
 
@@ -3963,6 +4720,13 @@ export class Audio {
 		if (!def) {def=new Audio();}
 		Audio.def=def;
 		return def;
+	}
+
+
+	release() {
+		// Stop and release all audio.
+		this.mute(true);
+		while (this.queue) {this.queue.remove();}
 	}
 
 
@@ -3978,8 +4742,8 @@ export class Audio {
 	}
 
 
-	play(snd,volume,pan,time,freq) {
-		return new AudioInstance(snd,volume,pan,time,freq);
+	play(snd,volume,pan,time) {
+		return new AudioInstance(snd,volume,pan,time);
 	}
 
 
@@ -4013,7 +4777,7 @@ export class Audio {
 					inst.playing=true;
 				}
 				time+=performance.now()*0.001;
-				if (time>inst.snd.time || !muted) {
+				if (time>inst.snd.looptime || !muted) {
 					inst.playing=false;
 					inst.time=time;
 					inst.start();
@@ -4024,344 +4788,11 @@ export class Audio {
 		return true;
 	}
 
-
-	// ----------------------------------------
-	// Sequencer
-
-
-	static sequencer(seq) {
-		// Converts a shorthand script into music.
-		// The last sequence is returned as the sound.
-		// Note format: [CDEFGAB][#b][octave]. Ex: A4  B#12  C-1.2
-		//
-		//  Symbol |             Description             |         Parameters
-		// --------+-------------------------------------+-----------------------------
-		//   ,     | Separate and advance time by 1 BPM. |
-		//   , X   | Separate and advance time by X BPM. |
-		//   '     | Line Comment.                       |
-		//   "     | Block comment. Terminate with "     |
-		//   bass: | Define a sequence named bass.       |
-		//   bass  | Reference a sequence named bass.    | [vol=1]
-		//   BPM   | Beats per minute.                   | [240]
-		//   VOL   | Sets volume. Resets every sequence. | [1.0]
-		//   CUT   | Cuts off sequence at time+delta.    | [delta=0]
-		//   AG    | Acoustic Guitar                     | [note=A3] [vol=1] [len=5.0]
-		//   XY    | Xylophone                           | [note=C4] [vol=1] [len=2.2]
-		//   MR    | Marimba                             | [note=C4] [vol=1] [len=2.2]
-		//   GS    | Glockenspiel                        | [note=A6] [vol=1] [len=5.3]
-		//   MB    | Music Box                           | [note=A5] [vol=1] [len=3.0]
-		//   HH    | Hi-hat                              | [note=A8] [vol=1] [len=0.1]
-		//   KD    | Kick Drum                           | [note=B2] [vol=1] [len=0.2]
-		//   SD    | Snare Drum                          | [note=G3] [vol=1] [len=0.2]
-		//
-		let seqpos=0,seqlen=seq.length,sndfreq=44100;
-		let bpm=240,time=0,subvol=1,sepdelta=0;
-		let argmax=7,args=0;
-		let argstr=new Array(argmax);
-		for (let i=0;i<argmax;i++) {argstr[i]="";}
-		let subsnd=null,nextsnd=new Audio.Sound(sndfreq);
-		// ,:'"
-		let stoptoken={44:true,58:true,39:true,34:true};
-		let sequences={
-			"BPM": 1,"VOL": 2,"CUT": 3,
-			"AG": 10,
-			"XY": 11,"MR": 12,"GS": 13,"MB": 14,
-			"HH": 15,"KD": 16,"SD": 17,
-			"":nextsnd
-		};
-		function error(msg) {
-			let line=1;
-			for (let i=0;i<seqpos;i++) {line+=seq.charCodeAt(i)===10;}
-			let argsum=argstr.slice(0,args).join(" ");
-			throw "Sequencer error:\n\tError: "+msg+"\n\tLine : "+line+"\n\targs : "+argsum;
-		}
-		function parsenum(str,def=NaN,name="") {
-			// Parse numbers in format: [+-]\d*(\.\d*)?
-			if (!str && !isNaN(def)) {return def;}
-			let len=str.length,i=0,d=0;
-			let c=i<len?str.charCodeAt(i):0;
-			let neg=c===45;
-			if (c===45 || c===43) {i++;}
-			let num=0,den=1;
-			while (i<len && (c=str.charCodeAt(i)-48)>=0 && c<=9) {d=1;i++;num=num*10+c;}
-			if (c===-2) {i++;}
-			while (i<len && (c=str.charCodeAt(i)-48)>=0 && c<=9) {d=1;i++;den*=0.1;num+=c*den;}
-			if (i===len && d) {return neg?-num:num;}
-			if (name) {error("invalid "+name);}
-			return NaN;
-		}
-		function parsenote(str,def,name) {
-			// Convert a piano note to a frequency. Ex: A4 = 440hz
-			// Format: sign + BAGFEDC + #b + octave.
-			if (!str) {str=def;}
-			let val=parsenum(str);
-			if (!isNaN(val)) {return val;}
-			let slen=str.length,i=0;
-			let c=i<slen?str.charCodeAt(i):0;
-			let mag=c===45?-440:440;
-			if (c===45 || c===43) {i++;}
-			c=(i<slen?str.charCodeAt(i++):0)-65;
-			if (c<0 || c>6) {error("invalid "+name);}
-			let n=[48,46,57,55,53,52,50][c];
-			c=i<slen?str.charCodeAt(i):0;
-			if (c===35 || c===98) {n+=c===98?1:-1;i++;}
-			let oct=parsenum(str.substring(i),NaN,name);
-			return mag*Math.pow(2,-n/12+oct);
-		}
-		while (seqpos<seqlen || args>0) {
-			// We've changed sequences.
-			if (!Object.is(subsnd,nextsnd)) {
-				subsnd=nextsnd;
-				subvol=1;
-				time=0;
-				sepdelta=0;
-			}
-			// Read through whitespace and comments.
-			let c=0;
-			while (seqpos<seqlen && (c=seq.charCodeAt(seqpos))<33) {seqpos++;}
-			if (c===39 || c===34) {
-				// If " stop at ". If ' stop at \n.
-				let eoc=c===34?34:10;
-				while (seqpos<seqlen && seq.charCodeAt(++seqpos)!==eoc) {}
-				seqpos++;
-				continue;
-			}
-			c=seqpos<seqlen?seq[seqpos]:"";
-			if (c===",") {
-				seqpos++;
-			} else if (c===":") {
-				// Sequence definition.
-				seqpos++;
-				if (!args) {error("Invalid label");}
-				let name=argstr[--args];
-				argstr[args]="";
-				if (!name || sequences[name]) {error("'"+name+"' already defined");}
-				nextsnd=new AudioSound(sndfreq);
-				sequences[name]=nextsnd;
-			} else if (seqpos<seqlen) {
-				// Read the next token.
-				if (args>=argmax) {error("Too many arguments");}
-				let start=seqpos;
-				while (seqpos<seqlen && (c=seq.charCodeAt(seqpos))>32 && !stoptoken[c]) {seqpos++;}
-				argstr[args++]=seq.substring(start,seqpos);
-				continue;
-			}
-			// Parse current tokens. Check for a time delta.
-			let a=0;
-			let delta=parsenum(argstr[a++]);
-			if (isNaN(delta)) {delta=sepdelta;a--;}
-			if (bpm) {sepdelta=1;time+=delta*60/bpm;}
-			else {sepdelta=0;time+=delta;}
-			time=time>0?time:0;
-			if (a>=args) {continue;}
-			// Find the instrument or sequence to play.
-			let inst=sequences[argstr[a++]];
-			if (inst===undefined) {error("Unrecognized instrument");}
-			let type=isNaN(inst)?0:inst;
-			let snd=null,vol=1;
-			if (type===0) {
-				vol=parsenum(argstr[a],1,"volume");
-				snd=inst;
-			} else if (type===1) {
-				bpm=parsenum(argstr[a],240,"BPM");
-			} else if (type===2) {
-				subvol=parsenum(argstr[a],1,"volume");
-			} else if (type===3) {
-				time+=parsenum(argstr[a],0,"delta");
-				time=time>0?time:0;
-				subsnd.resizetime(time);
-			} else {
-				// Instruments
-				type-=10;
-				let note =["A3","C4","C4","A6","A5","A8","B2","G3"][type];
-				let ntime=[3.0,2.2,2.2,5.3,3.0,0.1,0.2,0.2][type];
-				let freq =parsenote(argstr[a++],note,"note or frequency");
-				vol=parsenum(argstr[a++],1,"volume");
-				ntime=parsenum(argstr[a],ntime,"length");
-				if      (type===0) {snd=Audio.createguitar(1,freq,0.2,ntime);}
-				else if (type===1) {snd=Audio.createxylophone(1,freq,0.5,ntime);}
-				else if (type===2) {snd=Audio.createmarimba(1,freq,0.5,ntime);}
-				else if (type===3) {snd=Audio.createglockenspiel(1,freq,0.5,ntime);}
-				else if (type===4) {snd=Audio.createmusicbox(1,freq,ntime);}
-				else if (type===5) {snd=Audio.createdrumhihat(1,freq,ntime);}
-				else if (type===6) {snd=Audio.createdrumkick(1,freq,ntime);}
-				else if (type===7) {snd=Audio.createdrumsnare(1,freq,ntime);}
-			}
-			// Add the new sound to the sub sequence.
-			if (!snd) {sepdelta=0;}
-			else {subsnd.add(snd,time,subvol*vol);}
-			while (args>0) {argstr[--args]="";}
-		}
-		return nextsnd;
-	}
-
-
-	// ----------------------------------------
-	// String Instruments
-
-
-	static generatestring(volume=1.0,freq=200,pos=0.5,inharm=0.00006,time=3,sndfreq=44100) {
-		// Jason Pelc
-		// http://large.stanford.edu/courses/2007/ph210/pelc2/
-		// Stop when e^(-decay*time/sndfreq)<=cutoff
-		const cutoff=1e-3;
-		freq/=sndfreq;
-		let harmonics=Math.ceil(0.5/freq);
-		let sndlen=Math.ceil(sndfreq*time);
-		let snd=new AudioSound(sndfreq,sndlen);
-		let data=snd.data;
-		// Generate coefficients.
-		if (pos<0.0001) {pos=0.0001;}
-		if (pos>0.9999) {pos=0.9999;}
-		let listen=pos; // 0.16;
-		let c0=listen*Math.PI;
-		let c1=(2*volume)/(Math.PI*Math.PI*pos*(1-pos));
-		let c2=freq*Math.PI*2;
-		let decay=Math.log(0.01)/sndlen;
-		let rnd=new Random();
-		// Process highest to lowest for floating point accuracy.
-		for (let n=harmonics;n>0;n--) {
-			// Calculate coefficients for the n'th harmonic.
-			let n2=n*n;
-			let harmvol=Math.sin(n*c0)*c1/n2;
-			if (Math.abs(harmvol)<=cutoff) {continue;}
-			// Correct n2 by -1 so the fundamental = freq.
-			let ihscale=n*Math.sqrt(1+(n2-1)*inharm);
-			let harmdecay=decay*ihscale;
-			let harmmul=Math.exp(harmdecay);
-			let harmlen=Math.ceil(Math.log(cutoff/Math.abs(harmvol))/harmdecay);
-			if (harmlen>sndlen) {harmlen=sndlen;}
-			// Randomize the phase to prevent aliasing.
-			let harmfreq=c2*ihscale;
-			let harmphase=rnd.gets()*3.141592654;
-			// Generate the waveform.
-			for (let i=0;i<harmlen;i++) {
-				data[i]+=harmvol*Math.sin(harmphase);
-				harmvol*=harmmul;
-				harmphase+=harmfreq;
-			}
-		}
-		// Taper the ends.
-		let end=Math.ceil(0.01*sndfreq);
-		end=end<sndlen?end:sndlen;
-		for (let i=0;i<end;i++) {let u=i/end;data[i]*=u;}
-		end=Math.ceil(0.5*sndfreq);
-		end=end<sndlen?end:sndlen;
-		for (let i=0;i<end;i++) {let u=i/end;data[sndlen-1-i]*=u;}
-		return snd;
-	}
-
-
-	static createguitar(volume=1.0,freq=200,pluck=0.5,time=3,sndfreq=44100) {
-		return Audio.generatestring(volume,freq,pluck,0.000050,time,sndfreq);
-	}
-
-
-	static createxylophone(volume=1.0,freq=250,pos=0.5,time=2.2,sndfreq=44100) {
-		// freq = constant / length^2
-		return Audio.generatestring(volume,freq,pos,0.374520,time,sndfreq);
-	}
-
-
-	static createmarimba(volume=1.0,freq=250,pos=0.5,time=2.2,sndfreq=44100) {
-		return Audio.generatestring(volume,freq,pos,0.947200,time,sndfreq);
-	}
-
-
-	static createglockenspiel(volume=0.2,freq=1867,pos=0.5,time=5.3,sndfreq=44100) {
-		return Audio.generatestring(volume,freq,pos,0.090000,time,sndfreq);
-	}
-
-
-	static createmusicbox(volume=0.1,freq=877,time=3.0,sndfreq=44100) {
-		return Audio.generatestring(volume,freq,0.40,0.050000,time,sndfreq);
-	}
-
-
-	// ----------------------------------------
-	// Percussion Instruments
-
-
-	static createdrumhihat(volume=0.2,freq=7000,time=0.1) {
-		return (new AudioSFX(`
-			#vol : ${volume}
-			#freq: ${freq}
-			#time: ${time}
-			#sig : NOISE H 0.7 #vol *
-			#hpf : HPF F #freq I #sig
-			#bpf : BPF F #freq 1.4 * I #sig
-			#out : ENV A 0.005 R #time 0.005 - I #hpf #bpf`
-		)).tosound(time);
-	}
-
-
-	static createdrumkick(volume=0.3,freq=80,time=0.2) {
-		return (new AudioSFX(`
-			#vol : ${volume}
-			#freq: ${freq}
-			#time: ${time}
-			#f   : SAW F 1 #time / L #freq H #freq .25 *
-			#sig1: NOISE H 8
-			#sig2: TRI F #f H 1.8
-			#lpf : LPF F #f B 1.75 I #sig1 #sig2
-			#out : ENV A 0.005 R #time 0.005 - I #lpf #vol *`
-		)).tosound(time);
-	}
-
-
-	static createdrumsnare(volume=0.1,freq=200,time=0.2) {
-		return (new AudioSFX(`
-			#vol : ${volume}
-			#freq: ${freq}
-			#time: ${time}
-			#f   : SAW F 1 #time / L #freq H #freq .5 *
-			#sig1: NOISE H 1
-			#sig2: TRI F #f .5 * H 1
-			#hpf : HPF F #f I #sig1 #sig2
-			#lpf : LPF F 10000 I #hpf
-			#out : ENV A 0.005 R #time 0.005 - I #lpf #vol *`
-		)).tosound(time);
-	}
-
-
-	// ----------------------------------------
-	// Wind Instruments
-
-
-	static createflute(volume=1.0,freq=200,time=2.0) {
-		return (new AudioSFX(`
-			#vol : ${volume}
-			#freq: ${freq}
-			#time: ${time}
-			#noi : NOISE
-			#nenv: ENV S #time .5 * I #noi
-			#lpf : LPF F #freq B 2 I #nenv
-			#sig : #del -.95 * #lpf
-			#del : DEL T .5 #freq / M .2 I #sig
-			#out : #sig`
-		)).tosound(time);
-	}
-
-
-	static createtuba(volume=1.0,freq=300,time=2.0) {
-		return (new AudioSFX(`
-			#vol : ${volume}
-			#freq: ${freq}
-			#time: ${time}
-			#noi : NOISE
-			#nenv: ENV R #time I #noi
-			#lpf : LPF F #freq I #nenv
-			#sig : #del .95 * #lpf
-			#del : DEL T .02 M .2 I #sig
-			#out : #sig`
-		)).tosound(time);
-	}
-
 }
 
 
 //---------------------------------------------------------------------------------
-// Physics - v3.13
+// Physics - v1.03
 
 
 class PhyLink {
@@ -4370,7 +4801,7 @@ class PhyLink {
 		this.prev=null;
 		this.next=null;
 		this.list=null;
-		this.obj=obj||null;
+		this.obj=obj??null;
 		this.idx=null;
 	}
 
@@ -4502,7 +4933,7 @@ class PhyList {
 }
 
 
-class PhyAtomInteraction {
+class PhyInteraction {
 
 	constructor(a,b) {
 		this.world=a.world;
@@ -4513,10 +4944,10 @@ class PhyAtomInteraction {
 		this.pmul=0;
 		this.vmul=0;
 		this.vpmul=0;
-		this.dt=NaN;
-		this.push0=0;
 		this.statictension=0;
 		this.staticdist=0;
+		this.dt=NaN;
+		this.push0=0;
 		this.updateconstants();
 	}
 
@@ -4548,22 +4979,21 @@ class PhyAtomInteraction {
 }
 
 
-class PhyAtomType {
+class PhyBodyType {
 
-	constructor(world,id,damp,density,elasticity=1,push=1,statictension=50) {
+	constructor(world,id,damp,density,elasticity,push,statictension,staticdist) {
 		this.world=world;
 		this.worldlink=new PhyLink(this);
-		this.atomlist=new PhyList();
+		this.bodylist=new PhyList();
 		this.id=id;
 		this.intarr=[];
 		this.damp=damp;
 		this.density=density;
 		this.pmul=push;
 		this.vmul=elasticity;
-		this.vpmul=1.0;
+		this.vpmul=0.95;
 		this.statictension=statictension;
-		this.staticdist=1.0;
-		this.bound=true;
+		this.staticdist=staticdist;
 		this.dt =NaN;
 		this.dt0=0;
 		this.dt1=0;
@@ -4580,7 +5010,7 @@ class PhyAtomType {
 			link.obj.intarr[id]=null;
 			link=link.next;
 		}
-		this.atomlist.clear();
+		this.bodylist.release(true);
 		this.worldlink.remove();
 	}
 
@@ -4645,25 +5075,25 @@ class PhyAtomType {
 		//      dt3=(dt1-dt)/ln(1-damp)
 		//
 		this.dt=dt;
-		let damp=this.damp,idamp=1.0-damp;
+		let damp=this.damp,idamp=1-damp;
 		let dt0=0,dt1=0,dt2=0;
 		if (damp<=1e-10) {
 			// Special case damping=0: just integrate.
-			dt0=1.0;
+			dt0=1;
 			dt1=dt;
 			dt2=dt*dt*0.5;
 		} else if (idamp<=1e-10) {
 			// Special case damping=1: all velocity=0.
 			// If dt=0 then time isn't passing, so maintain velocity.
-			dt0=(dt>=-1e-20 && dt<=1e-20)?1.0:0.0;
-			dt1=0.0;
-			dt2=0.0;
+			dt0=(dt>=-1e-20 && dt<=1e-20)?1:0;
+			dt1=0;
+			dt2=0;
 		} else {
 			// Normal case.
 			let lnd=Math.log(idamp);
 			dt0=Math.exp(dt*lnd);
-			dt1=(dt0-1.0)/lnd;
-			dt2=(dt1-dt )/lnd;
+			dt1=(dt0-1 )/lnd;
+			dt2=(dt1-dt)/lnd;
 		}
 		this.dt0=dt0;
 		this.dt1=dt1;
@@ -4680,7 +5110,7 @@ class PhyAtomType {
 
 
 	static initinteraction(a,b) {
-		let inter=new PhyAtomInteraction(a,b);
+		let inter=new PhyInteraction(a,b);
 		while (a.intarr.length<=b.id) {a.intarr.push(null);}
 		while (b.intarr.length<=a.id) {b.intarr.push(null);}
 		a.intarr[b.id]=inter;
@@ -4690,23 +5120,40 @@ class PhyAtomType {
 }
 
 
-class PhyAtom {
+class PhyBody {
 
-	constructor(pos,rad,type) {
+	constructor(world,verts,pos,angle,type) {
+		type=type??world.deftype;
+		this.world=world;
 		this.worldlink=new PhyLink(this);
-		this.world=type.world;
-		this.world.atomlist.addbefore(this.worldlink);
+		this.world.bodylist.addbefore(this.worldlink);
 		this.deleted=false;
 		this.sleeping=false;
-		pos=new Vector(pos);
-		this.pos=pos;
-		this.vel=new Vector(pos.length);
-		this.rad=rad;
 		this.bondlist=new PhyList();
 		this.typelink=new PhyLink(this);
 		this.type=type;
-		type.atomlist.add(this.typelink);
+		type.bodylist.add(this.typelink);
 		this.data={};
+		let vertarr=[];
+		this.volume=0;
+		if (verts instanceof PhyBody) {
+			let body=verts;
+			verts=body.vertarr;
+			this.volume=body.volume;
+			type=type??body.type;
+		}
+		let dim=world.dim,dim2=(dim*(dim-1))>>>1;
+		for (let v of verts) {vertarr.push(new Vector(v));}
+		this.vertarr=vertarr;
+		this.facearr=[];
+		this.type=type;
+		this.pos=new Vector(pos);
+		this.vel=new Vector(dim);
+		this.spin=(new Float64Array(dim2)).fill(0);
+		this.angle=(new Float64Array(dim2)).fill(0);
+		if (angle) {for (let i=0;i<dim2;i++) {this.angle[i]=angle[i];}}
+		this.mat=(new Matrix(dim)).one().rotate(this.angle);
+		this.inv=this.mat.inv();
 		this.updateconstants();
 	}
 
@@ -4723,132 +5170,275 @@ class PhyAtom {
 	}
 
 
+	relpos(v) {return this.mat.mul(v).iadd(this.pos);}
+
+
+	invpos(v) {
+		let w=(new Vector(v)).isub(this.pos);
+		return this.mat.inv().mul(w);
+	}
+
+
+	relvel(p) {
+		let vel=this.vel,spin=this.spin[0];
+		let x=vel[0]-p[1]*spin;
+		let y=vel[1]+p[0]*spin;
+		return new Vector([x,y]);
+	}
+
+
 	bonditer() {return this.bondlist.iter();}
 
 
 	updateconstants() {
-		// Calculate the mass of the atom, where mass=volume*density.
-		let dim=this.pos.length;
-		let mass=this.type.density;
-		if (dim>0) {
-			let vol0=mass,rad=this.rad;
-			let volmul=rad*rad*6.283185307;
-			mass*=2.0*rad;
-			for (let i=2;i<=dim;i++) {
-				let vol1=vol0*volmul/i;
-				vol0=mass;
-				mass=vol1;
-			}
+		// Calculate mass and inertia.
+		let dim=this.world.dim,dim2=(dim*(dim-1))>>>1;
+		let dist=0;
+		for (let v of this.vertarr) {
+			dist+=v.sqr();
 		}
-		this.mass=mass;
+		this.inertia=new Matrix(dim2,dim2);
+		if (this.vertarr.length===0) {
+			this.volume=0;
+		} else if (dim!==2) {
+			this.volume=1;
+			for (let i=0;i<dim2;i++) {
+				this.inertia[i*dim2+i]=dist;
+			}
+		} else {
+			let vertarr=this.vertarr;
+			let verts=vertarr.length;
+			// Find the left-most vertex.
+			let minv=vertarr[0];
+			let mini=0;
+			for (let i=1;i<verts;i++) {
+				let u=vertarr[i];
+				for (let d=0;d<dim;d++) {
+					let vx=minv[d],ux=u[d];
+					if (vx!==ux) {
+						if (vx>ux) {minv=u;mini=i;}
+						break;
+					}
+				}
+			}
+			// Wrap around to find the hull.
+			vertarr[mini]=vertarr[0];
+			vertarr[0]=minv;
+			let hverts=1;
+			while (hverts<verts) {
+				mini=hverts;
+				minv=vertarr[mini];
+				let v0=vertarr[mini-1];
+				for (let i=0;i<verts;i++) {
+					let u=vertarr[i];
+					let dx0=minv[0]-v0[0],dy0=minv[1]-v0[1];
+					let dx1=u[0]-v0[0],dy1=u[1]-v0[1];
+					if (dx0*dy1-dy0*dx1<0) {
+						minv=u;
+						mini=i;
+					}
+				}
+				if (mini===0) {break;}
+				// if (mini<hverts) {throw "loop";}
+				vertarr[mini]=vertarr[hverts];
+				vertarr[hverts++]=minv;
+			}
+			vertarr=vertarr.slice(0,hverts);
+			this.vertarr=vertarr;
+			// Calculate geometry.
+			let facearr=[];
+			let volume=0;
+			let v0=null,v1=vertarr[hverts-1],cen=new Vector(dim);
+			for (let i=0;i<hverts;i++) {
+				v0=v1;
+				v1=vertarr[i];
+				facearr.push([(i?i:hverts)-1,i]);
+				let cross=v0[0]*v1[1]-v1[0]*v0[1];
+				volume+=cross;
+				cen.iadd(v0.add(v1).imul(cross));
+			}
+			this.facearr=facearr;
+			volume*=0.5;
+			// Zero on center of mass.
+			cen.imul(1/(volume*6));
+			for (let v of vertarr) {
+				v.isub(cen);
+			}
+			this.pos.iadd(cen);
+			// Inertia.
+			let inertia=0;
+			for (let face of facearr) {
+				v0=vertarr[face[0]];
+				v1=vertarr[face[1]];
+				inertia+=v0.mul(v0)+v0.mul(v1)+v1.mul(v1);
+			}
+			inertia/=6;
+			this.inertia[0]=inertia;
+			this.volume=volume;
+		}
+		this.mass=this.type.density*this.volume;
+		try {this.inertiainv=this.inertia.inv();}
+		catch {this.inertiainv=new Matrix(dim2,dim2);}
+	}
+
+
+	closestpoint(point) {
+		// Returns [overlapping, point] with a point on the border.
+		let world=this.world;
+		point=new Vector(point);
+		let dim=world.dim;
+		let cen=new Vector(dim),mat=(new Matrix(dim,dim)).one();
+		let col=world.closestpoint(this.vertarr,this.pos,this.mat,[point],cen,mat);
+		return [col[0],col[1]];
 	}
 
 
 	update() {
-		// Move the particle and apply damping to the velocity.
+		// Move the body and apply damping to the velocity.
 		// acc+=gravity
 		// pos+=vel*dt1+acc*dt2
 		// vel =vel*dt0+acc*dt1
 		let world=this.world;
-		let bndmin=world.bndmin;
-		let bndmax=world.bndmax;
 		let pe=this.pos,ve=this.vel;
-		let dim=pe.length,type=this.type;
-		let bound=type.bound;
+		let dim=world.dim,type=this.type;
 		let ge=type.gravity;
-		ge=(ge===null?this.world.gravity:ge);
+		ge=(ge===null?world.gravity:ge);
 		let dt0=type.dt0,dt1=type.dt1,dt2=type.dt2;
-		let rad=this.rad,energy=0;
 		for (let i=0;i<dim;i++) {
 			let vel=ve[i],acc=ge[i];
-			let pos=vel*dt1+acc*dt2+pe[i];
-			vel=vel*dt0+acc*dt1;
-			let b=bound?bndmin[i]+rad:-Infinity;
-			if (pos<b) {pos=b;vel=vel<0?-vel:vel;}
-			b=bound?bndmax[i]-rad:Infinity;
-			if (pos>b) {pos=b;vel=vel>0?-vel:vel;}
-			pe[i]=pos;
-			ve[i]=vel;
-			energy+=vel*vel;
+			pe[i]+=vel*dt1+acc*dt2;
+			ve[i] =vel*dt0+acc*dt1;
 		}
-		this.sleeping=energy<1e-10;
+		// Spin.
+		const PI2=Math.PI*2;
+		let se=this.spin,ae=this.angle;
+		let dim2=(dim*(dim-1))>>>1;
+		for (let i=0;i<dim2;i++) {
+			let spin=se[i];
+			let ang=ae[i]+spin*dt1;
+			if (ang<0 || ang>PI2) {ang=(ang%PI2)+(ang<0?PI2:0);}
+			se[i]=spin*dt0;
+			ae[i]=ang;
+		}
+		this.mat.one().rotate(ae);
+		this.inv.set(this.mat).invert();
 	}
 
 
 	static collide(a,b) {
-		// Collides two atoms. Vector operations are unrolled to use constant memory.
 		if (a===b || a.deleted || b.deleted) {return;}
-		// Determine if the atoms are overlapping.
-		let apos=a.pos,bpos=b.pos;
-		let dim=apos.length;
-		let dist=0.0,norm=a.world.tmpvec;
-		for (let i=0;i<dim;i++) {
-			let dif=bpos[i]-apos[i];
-			norm[i]=dif;
-			dist+=dif*dif;
-		}
-		let rad=a.rad+b.rad;
-		if (dist>=rad*rad) {return;}
-		// Bonds can limit the distance between the atoms.
-		let b0=a,b1=b;
-		if (a.bondlist.count>b.bondlist.count) {b0=b;b1=a;}
-		let link=b0.bondlist.head;
-		let bonded=null;
-		while (link!==null) {
-			let bond=link.obj;
-			link=link.next;
-			if (bond.a===b1 || bond.b===b1) {
-				rad=rad<bond.dist?rad:bond.dist;
-				bonded=bond;
-			}
-		}
-		if (dist>=rad*rad) {return;}
-		let amass=a.mass,bmass=b.mass;
+		let world=a.world;
+		let dim=world.dim;
+		let amass=b.mass,bmass=a.mass;
 		let mass=amass+bmass;
 		if ((amass>=Infinity && bmass>=Infinity) || mass<=1e-10 || dim===0) {
 			return;
 		}
-		amass=amass>=Infinity? 1.0: amass/mass;
-		bmass=bmass>=Infinity?-1.0:-bmass/mass;
-		// If the atoms are too close together, randomize the direction.
-		let den=1;
-		if (dist>1e-10) {
-			dist=Math.sqrt(dist);
-			den=1.0/dist;
-		} else {
-			norm.randomize();
-		}
-		// Check the relative velocity. We can have situations where two atoms increase
-		// eachother's velocity because they've been pushed past eachother.
-		let avel=a.vel,bvel=b.vel;
-		let veldif=0.0;
+		amass=amass>=Infinity?1.0:amass/mass;
+		bmass=bmass>=Infinity?1.0:bmass/mass;
+		// Get the collision normal and contact points.
+		let apos=a.pos,bpos=b.pos;
+		let col=world.closestpoint(a.vertarr,apos,a.mat,b.vertarr,bpos,b.mat);
+		if (!col[0]) {return;}
+		let acon=col[1],bcon=col[2];
+		let norm=world.tmpvec[0];
+		let push=0;
 		for (let i=0;i<dim;i++) {
-			norm[i]*=den;
-			veldif+=(avel[i]-bvel[i])*norm[i];
+			let x=acon[i]-bcon[i];
+			norm[i]=x;
+			push+=x*x;
 		}
-		let posdif=rad-dist;
-		// If we have a callback, allow it to handle the collision.
+		if (push<1e-10) {return;}
+		push=Math.sqrt(push);
+		// norm=|norm|, acon-=apos, bcon-=bpos
+		for (let i=0;i<dim;i++) {
+			norm[i]/=push;
+			acon[i]-=apos[i];
+			bcon[i]-=bpos[i];
+		}
+		// Calculate normal and perpendicular collision forces.
+		// If they're moving away, don't apply any force.
 		let intr=a.type.intarr[b.type.id];
-		let callback=a.world.collcallback;
-		if (callback!==null && !callback(intr,a,b,norm,veldif,posdif,bonded)) {return;}
-		posdif*=intr.push0;
-		veldif=veldif>0?veldif:0;
-		veldif=veldif*intr.vmul+posdif*intr.vpmul;
-		// Create an electrostatic bond between the atoms.
-		if (bonded===null && intr.statictension>0) {
-			let bond=a.world.createbond(a,b,rad,intr.statictension);
-			bond.breakdist=rad+(a.rad<b.rad?a.rad:b.rad)*intr.staticdist;
-		}
-		// Push the atoms apart.
-		let aposmul=posdif*bmass,avelmul=veldif*bmass;
-		let bposmul=posdif*amass,bvelmul=veldif*amass;
+		let vel=world.tmpvec[1];
+		let avel=a.vel,bvel=b.vel;
+		vel[0] =avel[0]-acon[1]*a.spin[0];
+		vel[1] =avel[1]+acon[0]*a.spin[0];
+		vel[0]-=bvel[0]-bcon[1]*b.spin[0];
+		vel[1]-=bvel[1]+bcon[0]*b.spin[0];
+		let ndot=0;
 		for (let i=0;i<dim;i++) {
-			let dif=norm[i];
-			apos[i]+=dif*aposmul;
-			avel[i]+=dif*avelmul;
-			bpos[i]+=dif*bposmul;
-			bvel[i]+=dif*bvelmul;
+			ndot+=vel[i]*norm[i];
 		}
+		let nmag=ndot>0?ndot:0;
+		nmag=nmag*intr.vmul+push*intr.vpmul;
+		push*=intr.push0;
+		// Add static friction bonds.
+		let staticdist=intr.staticdist;
+		let bonded=null,staticbond=false;
+		// Get inverse contact points.
+		let ainv=world.tmpvec[2],binv=world.tmpvec[3];
+		let amat=a.inv,bmat=b.inv;
+		let ai=0,bi=0;
+		for (let d=0;d<dim;d++) {
+			let ax=0,bx=0;
+			for (let i=0;i<dim;i++) {
+				ax+=amat[ai++]*acon[i];
+				bx+=bmat[bi++]*bcon[i];
+			}
+			ainv[d]=ax;
+			binv[d]=bx;
+		}
+		if (staticdist>0 && intr.statictension>0) {
+			// Find any bonds close to the contact points.
+			let dist2=staticdist*staticdist;
+			let al=a.bondlist,bl=b.bondlist;
+			let link=(al.count<bl.count?al:bl).head;
+			while (link!==null) {
+				let bond=link.obj;
+				link=link.next;
+				let u=bond.a,v=bond.b;
+				let ucon=bond.apos,vcon=bond.bpos;
+				if (v===a) {
+					v=u;u=bond.b;
+					vcon=ucon;ucon=bond.bpos;
+				}
+				if (u===a && v===b) {
+					bonded=bond;
+					// if (bond.breakdist<Infinity) {
+					let d0=0,d1=0;
+					for (let i=0;i<dim;i++) {
+						let x=ucon[i]-ainv[i];d0+=x*x;
+						let y=vcon[i]-binv[i];d1+=y*y;
+					}
+					if (d0<dist2 || d1<dist2) {
+						staticbond=true;
+						break;
+					}
+				}
+			}
+		}
+		// If we have a callback, allow it to handle the collision.
+		let callback=world.collcallback;
+		if (callback!==null && !callback(intr,a,acon,b,bcon,norm,nmag,push,bonded)) {return;}
+		if (!staticbond && intr.statictension>0 && intr.staticdist>0) {
+			let bond=world.createbond(a,ainv,b,binv,0,intr.statictension);
+			bond.breakdist=intr.staticdist;
+		}
+		// Apply forces and separate.
+		let ainertia=amass*a.inertiainv[0],binertia=bmass*b.inertiainv[0];
+		let ancross=acon[0]*norm[1]-acon[1]*norm[0];
+		let bncross=bcon[0]*norm[1]-bcon[1]*norm[0];
+		let nden=amass+bmass+ainertia*ancross*ancross+binertia*bncross*bncross;
+		nmag/=nden;
+		for (let i=0;i<dim;i++) {
+			let n=norm[i];
+			apos[i]-=amass*n*push;
+			avel[i]-=amass*n*nmag;
+			bpos[i]+=bmass*n*push;
+			bvel[i]+=bmass*n*nmag;
+		}
+		a.spin[0]-=ainertia*ancross*nmag;
+		b.spin[0]+=binertia*bncross*nmag;
 	}
 
 }
@@ -4856,13 +5446,16 @@ class PhyAtom {
 
 class PhyBond {
 
-	constructor(world,a,b,dist,tension) {
+	constructor(world,a,apos,b,bpos,dist,tension) {
 		this.world=world;
 		this.worldlink=new PhyLink(this);
 		this.world.bondlist.add(this.worldlink);
 		this.deleted=false;
 		this.a=a;
+		this.apos=new Vector(apos);
 		this.b=b;
+		this.bpos=new Vector(bpos);
+		if (!(dist>=0)) {dist=this.relapos().dist(this.relbpos());}
 		this.dist=dist;
 		this.breakdist=Infinity;
 		this.tension=tension;
@@ -4883,54 +5476,90 @@ class PhyBond {
 	}
 
 
+	relapos() {return this.a.relpos(this.apos);}
+	relbpos() {return this.b.relpos(this.bpos);}
+
+
 	update() {
-		// Pull two atoms toward eachother based on the distance and bond strength.
+		// Pull two bodies toward eachother based on the distance and bond strength.
 		// Vector operations are unrolled to use constant memory.
 		let a=this.a,b=this.b;
 		if (this.deleted || (a.sleeping && b.sleeping)) {return;}
-		let amass=a.mass,bmass=b.mass;
+		let amass=b.mass,bmass=a.mass;
 		let mass=amass+bmass;
-		if ((amass>=Infinity && bmass>=Infinity) || mass<=1e-10) {
+		let world=a.world;
+		let dim=world.dim;
+		if ((amass>=Infinity && bmass>=Infinity) || mass<=1e-10 || dim===0) {
 			return;
 		}
-		amass=amass>=Infinity? 1.0: amass/mass;
-		bmass=bmass>=Infinity?-1.0:-bmass/mass;
-		// Get the distance and direction between the atoms.
+		amass=amass>=Infinity?1.0:amass/mass;
+		bmass=bmass>=Infinity?1.0:bmass/mass;
+		// Get the distance and direction between the bodies.
+		let tmpvec=world.tmpvec;
+		let aloc=this.apos,bloc=this.bpos;
 		let apos=a.pos,bpos=b.pos;
-		let dim=apos.length;
-		let norm=a.world.tmpvec;
-		let dist=0.0;
+		let amat=a.mat,bmat=b.mat;
+		let acon=tmpvec[1],bcon=tmpvec[2];
+		let norm=tmpvec[0];
+		let dist=0;
+		let midx=0;
 		for (let i=0;i<dim;i++) {
-			let dif=bpos[i]-apos[i];
-			norm[i]=dif;
-			dist+=dif*dif;
+			// relative contact points
+			let ac=0,bc=0;
+			for (let j=0;j<dim;j++) {
+				ac+=amat[midx  ]*aloc[j];
+				bc+=bmat[midx++]*bloc[j];
+			}
+			acon[i]=ac;
+			bcon[i]=bc;
+			// norm
+			let d=bc-ac+bpos[i]-apos[i];
+			norm[i]=d;
+			dist+=d*d;
 		}
-		// If the atoms are too close together, randomize the direction.
-		let tension=this.tension;
-		if (dist>1e-10) {
-			dist=Math.sqrt(dist);
-			tension/=dist;
-		} else {
-			norm.randomize();
-		}
-		if (dist>this.breakdist) {
+		dist=Math.sqrt(dist);
+		// If the points are too far, break the bond.
+		if (!(dist<this.breakdist)) {
 			this.release();
 			return;
 		}
+		// If the points are too close together, randomize the direction.
+		let tension=this.tension;
+		if (dist>1e-10) {
+			// tension/=dist;
+			for (let i=0;i<dim;i++) {norm[i]/=dist;}
+		} else {
+			norm.randomize();
+		}
+		// let ainertia=0,binertia=0;
+		let ainertia=amass*a.inertiainv[0],binertia=bmass*b.inertiainv[0];
+		let ancross=acon[0]*norm[1]-acon[1]*norm[0];
+		let bncross=bcon[0]*norm[1]-bcon[1]*norm[0];
+		let nden=amass+bmass+ainertia*ancross*ancross+binertia*bncross*bncross;
+		tension/=nden;
 		// Apply equal and opposite acceleration. Updating pos and vel in this
-		// function, instead of waiting for atom.update(), increases stability.
+		// function, instead of waiting for body.update(), increases stability.
 		let at=a.type,bt=b.type;
 		let acc=(this.dist-dist)*tension;
-		let aacc=acc*bmass,aposmul=aacc*at.dt2,avelmul=aacc*at.dt1;
-		let bacc=acc*amass,bposmul=bacc*bt.dt2,bvelmul=bacc*bt.dt1;
+		let aacc=acc*amass,aposmul=aacc*at.dt2,avelmul=aacc*at.dt1;
+		let bacc=acc*bmass,bposmul=bacc*bt.dt2,bvelmul=bacc*bt.dt1;
 		let avel=a.vel,bvel=b.vel;
 		for (let i=0;i<dim;i++) {
 			let dif=norm[i];
-			apos[i]+=dif*aposmul;
-			avel[i]+=dif*avelmul;
+			apos[i]-=dif*aposmul;
+			avel[i]-=dif*avelmul;
 			bpos[i]+=dif*bposmul;
 			bvel[i]+=dif*bvelmul;
 		}
+		// Apply rotation.
+		ainertia*=ancross*acc;
+		a.angle[0]-=ainertia*at.dt2;
+		a.spin[0] -=ainertia*at.dt1;
+		a.mat.one().rotate(a.angle);
+		binertia*=bncross*acc;
+		b.angle[0]+=binertia*bt.dt2;
+		b.spin[0] +=binertia*bt.dt1;
+		b.mat.one().rotate(b.angle);
 	}
 
 }
@@ -4955,7 +5584,7 @@ class PhyBroadphase {
 	//      5 y min
 	//        ...
 	//
-	// If flags&1: atom_id=right
+	// If flags&1: body_id=right
 	// If flags&2: sleeping
 	//
 	// Center splitting.
@@ -4965,67 +5594,85 @@ class PhyBroadphase {
 	constructor(world) {
 		this.world=world;
 		this.slack=0.05;
-		this.atomcnt=0;
-		this.atomarr=null;
+		this.bodycnt=0;
+		this.bodyarr=null;
 		this.memi32=[];
 		this.memf32=null;
 	}
 
 
 	release() {
-		this.atomarr=null;
-		this.atomcnt=0;
+		this.bodyarr=null;
+		this.bodycnt=0;
 		this.memi32=[];
 		this.memf32=null;
 	}
 
 
 	build() {
-		// Build a bounding volume hierarchy for the atoms.
+		// Build a bounding volume hierarchy for the bodies.
 		//
 		// During each step, find the axis with the largest range (x_max-x_min).
-		// Sort the atoms by whether they're above or below the center of this range.
+		// Sort the bodies by whether they're above or below the center of this range.
 		let world=this.world;
 		let dim=world.dim;
-		let atomcnt=world.atomlist.count;
-		this.atomcnt=atomcnt;
-		if (atomcnt===0) {return;}
+		let bodycnt=world.bodylist.count;
+		this.bodycnt=bodycnt;
+		if (bodycnt===0) {return;}
 		// Allocate working arrays.
 		let dim2=2*dim,nodesize=3+dim2;
-		let sortstart=nodesize*(atomcnt*2-1);
+		let sortstart=nodesize*(bodycnt*2-1);
 		let treesize=sortstart*2;
 		let memi=this.memi32;
 		if (memi.length<treesize) {
 			memi=new Int32Array(treesize*2);
 			this.memi32=memi;
 			this.memf32=new Float32Array(memi.buffer);
-			this.atomarr=new Array(atomcnt*2);
+			this.bodyarr=new Array(bodycnt*2);
 		}
 		let memf=this.memf32;
-		// Store atoms and their bounds. atom_id*2+sleeping.
-		let leafstart=sortstart+atomcnt;
-		let slack=1+this.slack;
+		// Store bodies and their bounds. body_id*2+sleeping.
+		let leafstart=sortstart+bodycnt;
+		let slack=(1+this.slack)*0.5;
 		let leafidx=leafstart;
-		let atomarr=this.atomarr;
-		let atomlink=world.atomlist.head;
-		for (let i=0;i<atomcnt;i++) {
-			let atom=atomlink.obj;
-			atomlink=atomlink.next;
-			atomarr[i]=atom;
-			memi[leafidx++]=(i<<1)|(atom.sleeping?1:0);
+		let bodyarr=this.bodyarr;
+		let bodylink=world.bodylist.head;
+		let tmpbnd=new Float32Array(dim*2);
+		for (let i=0;i<bodycnt;i++) {
+			let body=bodylink.obj;
+			bodylink=bodylink.next;
+			bodyarr[i]=body;
+			memi[leafidx++]=(i<<1)|(body.sleeping?1:0);
 			memi[sortstart+i]=leafidx;
-			let pos=atom.pos,rad=atom.rad*slack;
-			rad=rad>0?rad:-rad;
-			for (let axis=0;axis<dim;axis++) {
-				let x=pos[axis],x0=x-rad,x1=x+rad;
-				x0=x0>-Infinity?x0:-Infinity;
-				x1=x1>=x0?x1:x0;
-				memf[leafidx++]=x0;
-				memf[leafidx++]=x1;
+			// Find the bounding box of the transformed body.
+			let pos=body.pos,mat=body.mat;
+			for (let d=0;d<dim;d++) {
+				tmpbnd[d*2  ]= Infinity;
+				tmpbnd[d*2+1]=-Infinity;
+			}
+			for (let v of body.vertarr) {
+				let midx=0;
+				for (let d=0;d<dim;d++) {
+					let d2=d+d;
+					let x=pos[d];
+					for (let j=0;j<dim;j++) {
+						x+=mat[midx++]*v[j];
+					}
+					let y=tmpbnd[d2];
+					tmpbnd[d2]=x<y?x:y;
+					y=tmpbnd[++d2];
+					tmpbnd[d2]=x>y?x:y;
+				}
+			}
+			for (let d=0;d<dim2;d+=2) {
+				let min=tmpbnd[d],max=tmpbnd[d+1];
+				let cen=(max+min)*0.5,dev=(max-min)*slack;
+				memf[leafidx++]=cen-dev;
+				memf[leafidx++]=cen+dev;
 			}
 		}
 		memi[1]=-1;
-		memi[2]=sortstart+atomcnt;
+		memi[2]=sortstart+bodycnt;
 		let worklo=sortstart;
 		for (let work=0;work<sortstart;work+=nodesize) {
 			// Pop the top working range off the stack.
@@ -5097,14 +5744,14 @@ class PhyBroadphase {
 	collide() {
 		// Check for collisions among leaves. Randomly reorder the tree to randomize
 		// collision order.
-		let atomcnt=this.atomcnt;
-		if (atomcnt<=1) {return;}
+		let bodycnt=this.bodycnt;
+		if (bodycnt<=1) {return;}
 		let nodesize=3+this.world.dim*2;
-		let treeend=nodesize*(atomcnt*2-1);
+		let treeend=nodesize*(bodycnt*2-1);
 		let memi=this.memi32;
 		let memf=this.memf32;
-		let atomarr=this.atomarr;
-		let collide=PhyAtom.collide;
+		let bodyarr=this.bodyarr;
+		let collide=PhyBody.collide;
 		// Randomly flip the left and right children and repack them.
 		// Also find the next node to skip AABB's we've already checked.
 		let randstart=treeend;
@@ -5145,7 +5792,7 @@ class PhyBroadphase {
 			let node=memi[n+1];
 			if (!(node&1)) {continue;}
 			let sleeping=node&2;
-			let atom=atomarr[memi[n+2]];
+			let body=bodyarr[memi[n+2]];
 			let nbnd=n+3,ndim=n+nodesize;
 			node>>>=2;
 			while (node<randend) {
@@ -5156,7 +5803,7 @@ class PhyBroadphase {
 					while (u<ndim && memf[u]<=memf[v+1] && memf[v]<=memf[u+1]) {u+=2;v+=2;}
 					if (u===ndim) {
 						if (!(next&1)) {node+=nodesize;continue;}
-						else {collide(atom,atomarr[memi[node+2]]);}
+						else {collide(body,bodyarr[memi[node+2]]);}
 					}
 				}
 				node=next>>>2;
@@ -5169,52 +5816,45 @@ class PhyBroadphase {
 
 class PhyWorld {
 
-	constructor(dim) {
+	constructor(dim,gravity=0.2,statictension=50.0,staticdist=0.005) {
 		this.dim=dim;
 		this.maxsteptime=1/180;
 		this.rnd=new Random();
+		this.tmpvec=[];
+		for (let i=0;i<4;i++) {this.tmpvec.push(new Vector(dim));}
 		this.gravity=new Vector(dim);
-		this.gravity[dim-1]=0.2;
-		this.bndmin=(new Vector(dim)).set(-Infinity);
-		this.bndmax=(new Vector(dim)).set( Infinity);
+		this.gravity[dim-1]=gravity;
 		this.typelist=new PhyList();
 		this.intrlist=new PhyList();
-		this.atomlist=new PhyList();
+		this.bodylist=new PhyList();
 		this.bondlist=new PhyList();
-		this.tmpmem=[];
-		this.tmpvec=new Vector(dim);
+		this.bondarr =[];
 		this.broad=new PhyBroadphase(this);
 		this.stepcallback=null;
 		this.collcallback=null;
 		this.data={};
+		this.epainit();
+		// Default type
+		this.deftension=statictension;
+		this.defdist=staticdist;
+		this.deftype=this.createbodytype();
 	}
 
 
 	release() {
-		this.atomlist.release();
+		this.bodylist.release();
 		this.typelist.release();
 		this.intrlist.release();
-		this.bondlist.release();
+		this.bodylist.release();
 		this.broad.release();
 	}
 
 
-	gettmpmem(size) {
-		// Use a common pool of temporary memory to avoid constant allocations.
-		let tmp=this.tmpmem;
-		while (tmp.length<size) {
-			tmp=tmp.concat(Array(tmp.length+1));
-			this.tmpmem=tmp;
-		}
-		return tmp;
-	}
-
-
-	atomiter() {return this.atomlist.iter();}
+	bodyiter() {return this.bodylist.iter();}
 	bonditer() {return this.bondlist.iter();}
 
 
-	createatomtype(damp,density,elasticity=1,push=1,statictension=50) {
+	createbodytype(damp=0.02,density=1,elasticity=0.95,push=1,statictension,staticdist) {
 		// Assume types are sorted from smallest to largest.
 		// Find if there's any missing ID or add to the end.
 		let link=this.typelist.head;
@@ -5225,19 +5865,45 @@ class PhyWorld {
 			id=nextid+1;
 			link=link.next;
 		}
-		let type=new PhyAtomType(this,id,damp,density,elasticity,push,statictension);
+		statictension=statictension??this.deftension;
+		staticdist=staticdist??this.defdist;
+		let type=new PhyBodyType(this,id,damp,density,elasticity,push,statictension,staticdist);
 		this.typelist.addbefore(type.worldlink,link);
 		link=this.typelist.head;
 		while (link!==null) {
-			PhyAtomType.initinteraction(link.obj,type);
+			PhyBodyType.initinteraction(link.obj,type);
 			link=link.next;
 		}
 		return type;
 	}
 
 
-	createatom(pos,rad,type) {
-		return new PhyAtom(pos,rad,type);
+	createbody(verts,pos,angle,type) {
+		return new PhyBody(this,verts,pos,angle,type);
+	}
+
+
+	createbox(sides,pos,angle,type) {
+		let vertarr=[];
+		let dim=this.dim,verts=1<<dim;
+		for (let i=0;i<verts;i++) {
+			let v=new Vector(dim);
+			for (let j=0;j<dim;j++) {v[j]=(((i>>>j)&1)*2-1)*sides[j];}
+			vertarr.push(v);
+		}
+		return this.createbody(vertarr,pos,angle,type);
+	}
+
+
+	createsphere(sides,detail,pos,angle,type) {
+		if (isNaN(detail) || detail<3) {throw "no detail";}
+		let vertarr=[];
+		for (let i=0;i<detail;i++) {
+			let ang=Math.PI*2*i/detail;
+			let v=new Vector([Math.cos(ang)*sides[0],Math.sin(ang)*sides[1]]);
+			vertarr.push(v);
+		}
+		return this.createbody(vertarr,pos,angle,type);
 	}
 
 
@@ -5261,218 +5927,10 @@ class PhyWorld {
 	}
 
 
-	createbond(a,b,dist,tension) {
-		// Create a bond. If dist<0, use the current distance between the atoms.
-		if (dist<0.0) {dist=a.pos.dist(b.pos);}
-		let bond=new PhyBond(this,a,b,dist,tension);
+	createbond(a,apos,b,bpos,dist,tension) {
+		// Create a bond. If dist<0, use the current distance between the bodies.
+		let bond=new PhyBond(this,a,apos,b,bpos,dist,tension);
 		return bond;
-	}
-
-
-	autobond(atomarr,tension) {
-		// Balance distance, mass, # of bonds, direction.
-		let count=atomarr.length;
-		if (count===0 || isNaN(tension)) {return;}
-		let infoarr=new Array(count);
-		for (let i=0;i<count;i++) {
-			let info={
-				atom:atomarr[i]
-			};
-			infoarr[i]=info;
-		}
-		for (let i=0;i<count;i++) {
-			let mainatom=infoarr[i].atom;
-			let rad=mainatom.rad*4.1;
-			for (let j=0;j<i;j++) {
-				let atom=infoarr[j].atom;
-				if (Object.is(atom,mainatom)) {continue;}
-				let dist=atom.pos.dist(mainatom.pos);
-				if (dist<rad) {
-					this.createbond(atom,mainatom,-1.0,tension);
-				}
-			}
-		}
-	}
-
-
-	createbox(cen,side,rad,dist,type,tension=NaN) {
-		// O O O O
-		//  O O O
-		// O O O O
-		let pos=new Vector(cen);
-		let atomcombos=1;
-		let dim=this.dim;
-		if (side.length===undefined) {side=(new Array(dim)).fill(side);}
-		for (let i=0;i<dim;i++) {atomcombos*=side[i];}
-		let atomarr=new Array(atomcombos);
-		for (let atomcombo=0;atomcombo<atomcombos;atomcombo++) {
-			// Find the coordinates of the atom.
-			let atomtmp=atomcombo;
-			for (let i=0;i<dim;i++) {
-				let s=side[i],x=atomtmp%s;
-				atomtmp=Math.floor(atomtmp/s);
-				pos[i]=cen[i]+(x*2-s+1)*dist;
-			}
-			atomarr[atomcombo]=this.createatom(pos,rad,type);
-		}
-		this.autobond(atomarr,tension);
-		return atomarr;
-	}
-
-
-	createshape(fill,mat,minrad,spacing,vertarr,facearr,transform=null,bonddist=NaN,bondtension=NaN,bondbreak=Infinity) {
-		// Fill types: 0 Outline, 1 Uniform, 2 Greedy.
-		//
-		// Atoms and bonds are placed *before* applying transform.
-		// Radii and bond lengths will be rescaled if needed.
-		// Unrolled ops are 5x as fast.
-		let dim=this.dim;
-		if (dim!==2) {throw `Only implemented for 2 dimensions: ${dim}`;}
-		if (!(spacing>1e-10 && minrad>1e-10)) {throw `Invalid spacing: ${spacing}, ${minrad}`;}
-		let iter=spacing*0.25;
-		let subspace=spacing*0.5;
-		// Find the bounds of our shape.
-		let bndmin=(new Vector(dim)).set(Infinity);
-		let bndmax=(new Vector(dim)).set(-Infinity);
-		for (let vert of vertarr) {
-			bndmin.imin(vert);
-			bndmax.imax(vert);
-		}
-		bndmin.isub(spacing);
-		bndmax.iadd(spacing);
-		let newface=[];
-		for (let face of facearr) {
-			if (face.length!==dim) {throw `invalid face: ${face}`;}
-			let vert=new Array(dim);
-			for (let i=0;i<dim;i++) {vert[i]=new Vector(vertarr[face[i]]);}
-			newface.push(vert);
-		}
-		// Loop through each cell.
-		let cellarr=[];
-		let cellpos=new Vector(bndmin);
-		let minpos=new Vector(dim),minbary=new Vector(dim);
-		let dif=new Vector(dim);
-		while (true) {
-			// Get the distance to the nearest edge and determine if we're inside.
-			let mindist=Infinity;
-			let parity=0;
-			for (let face of newface) {
-				// dif=b-a, u=(pos-a)*dif/dif^2
-				let a=face[0],b=face[1];
-				let u=0,den=0,dist=0;
-				for (let i=0;i<dim;i++) {
-					let x=a[i],d=b[i]-x;
-					dif[i]=d;
-					den+=d*d;
-					u+=(cellpos[i]-x)*d;
-				}
-				u=u>0?u:0;
-				u=u<den?u/den:1;
-				let eps=1e-10;
-				let cy=cellpos[1]-a[1];
-				if ((cy>=eps && cy<=dif[1]-eps) || (cy<=-eps && cy>=dif[1]+eps)) {
-					let x=a[0]+cy*dif[0]/dif[1];
-					parity^=x<cellpos[0]?1:0;
-				}
-				// dif=dif*u+a, dist=(dif-cellpos)^2
-				for (let i=0;i<dim;i++) {
-					let d=dif[i];
-					dif[i]=d=d*u+a[i];
-					d-=cellpos[i];
-					dist+=d*d;
-				}
-				if (mindist>dist) {
-					mindist=dist;
-					let tmp=minpos;
-					minpos=dif;
-					dif=tmp;
-					minbary[0]=u;
-					minbary[1]=1-u;
-				}
-			}
-			// If we're outside, clamp to the edge. Sort edges based on
-			// barycenter to give vertices and edges better definition.
-			mindist=Math.sqrt(mindist)*(parity && fill?-1:1);
-			if (mindist<spacing) {
-				if (mindist<0) {minpos.set(cellpos);}
-				else {mindist=Math.max(1-minbary.sqr(),0);}
-				cellarr.push({dist:mindist,pos:minpos.copy()});
-			}
-			// Advance to next cell. Skip gaps if we're far from a face.
-			let skip=(fill===2 && mindist<0?-mindist:mindist)-spacing*2-iter;
-			if (skip>0) {cellpos[0]+=(skip/iter|0)*iter;}
-			let i=0;
-			for (;i<dim;i++) {
-				cellpos[i]+=iter;
-				if (cellpos[i]<bndmax[i]) {break;}
-				cellpos[i]=bndmin[i];
-			}
-			if (i>=dim) {break;}
-		}
-		// Prep bonds.
-		if (!(bondtension>0 && bondbreak>0 && bonddist>0)) {bonddist=NaN;}
-		bonddist-=minrad*2;
-		let bondarr=[];
-		// Fill from the center outward.
-		cellarr.sort((l,r)=>l.dist-r.dist);
-		let cells=cellarr.length,atoms=0;
-		let mincheck=-1;
-		let atomarr=[];
-		for (let c=0;c<cells;c++) {
-			let cell=cellarr[c];
-			cellpos=cell.pos;
-			let celldist=cell.dist<0?cell.dist:0;
-			let cellrad=fill===2 && celldist<0?spacing-celldist:minrad;
-			// Find the largest radius we can fill.
-			let atom=null;
-			if (mincheck<0 && celldist>=0) {mincheck=atoms;fill=0;}
-			let i=mincheck>0?mincheck:0,i0=i;
-			for (;i<atoms;i++) {
-				atom=atomarr[i];
-				let rad=0,a=atom.pos;
-				for (let j=0;j<dim;j++) {
-					let d=cellpos[j]-a[j];
-					rad+=d*d;
-				}
-				rad=Math.sqrt(rad);
-				let cutoff=fill===2?subspace+atom.rad:spacing;
-				if (rad<minrad || rad<cutoff) {break;}
-				cellrad=cellrad<rad?cellrad:rad;
-			}
-			if (i>=atoms) {
-				atom=this.createatom(cellpos,cellrad,mat);
-				atom.data._filldist=celldist;
-				// Bond before transforming.
-				if (bonddist>0) {
-					let bondmin=cellrad+bonddist;
-					for (let b of atomarr) {
-						let dist=b.pos.dist(cellpos);
-						if (dist<bondmin+b.rad) {
-							bondarr.push(this.createbond(atom,b,dist,bondtension));
-						}
-					}
-				}
-				atomarr.push(atom);
-				atoms++;
-			}
-			// Move the rejection atom nearer to the front.
-			i0+=(i-i0)>>1;
-			atomarr[i ]=atomarr[i0];
-			atomarr[i0]=atom;
-		}
-		// Transform and rescale everything.
-		transform=new Transform(transform??{dim:dim});
-		let scale=Math.pow(transform.mat.det(),1/dim);
-		for (let atom of atomarr) {
-			atom.pos=transform.apply(atom.pos);
-			atom.rad*=scale;
-			atom.updateconstants();
-		}
-		for (let bond of bondarr) {
-			bond.dist=bond.a.pos.dist(bond.b.pos);
-			bond.breakdist=bondbreak*scale;
-		}
-		return atomarr;
 	}
 
 
@@ -5486,51 +5944,387 @@ class PhyWorld {
 		for (let step=0;step<steps;step++) {
 			if (this.stepcallback!==null) {this.stepcallback(dt);}
 			// Update types and interactions.
-			let link=this.typelist.head;
-			while (link!==null) {
-				link.obj.updateconstants(dt);
-				link=link.next;
+			let typelink=this.typelist.head;
+			while (typelink!==null) {
+				typelink.obj.updateconstants(dt);
+				typelink=typelink.next;
 			}
-			link=this.intrlist.head;
-			while (link!==null) {
-				link.obj.calcdt(dt);
-				link=link.next;
+			let intrlink=this.intrlist.head;
+			while (intrlink!==null) {
+				intrlink.obj.calcdt(dt);
+				intrlink=intrlink.next;
 			}
-			// Integrate atoms.
-			let next=this.atomlist.head;
-			while ((link=next)!==null) {
-				next=next.next;
-				link.obj.update();
+			// Integrate bodies.
+			let bodylink=this.bodylist.head;
+			while (bodylink!==null) {
+				bodylink.obj.update();
+				bodylink=bodylink.next;
 			}
-			// Integrate bonds after atoms or vel will be counted twice.
+			// Integrate bonds after bodies or vel will be counted twice.
 			// Randomize the evaluation order to reduce oscillations.
-			let bondcount=this.bondlist.count;
-			let bondarr=this.gettmpmem(bondcount);
-			link=this.bondlist.head;
-			for (let i=0;i<bondcount;i++) {
+			let bondcnt=this.bondlist.count;
+			let bondarr=this.bondarr;
+			if (bondarr.length<bondcnt) {
+				bondarr=new Array(bondcnt*2);
+				this.bondarr=bondarr;
+			}
+			let bondlink=this.bondlist.head;
+			for (let i=0;i<bondcnt;i++) {
 				let j=rnd.getu32()%(i+1);
 				bondarr[i]=bondarr[j];
-				bondarr[j]=link;
-				link=link.next;
+				bondarr[j]=bondlink.obj;
+				bondlink=bondlink.next;
 			}
-			for (let i=0;i<bondcount;i++) {
-				bondarr[i].obj.update();
+			for (let i=0;i<bondcnt;i++) {
+				bondarr[i].update();
 			}
-			// Collide atoms.
+			// Collide bodies.
 			this.broad.build();
 			this.broad.collide();
 		}
+	}
+
+
+	// ----------------------------------------
+	// Collisions
+
+
+	epainit() {
+		let dim=this.dim,dim1=(dim+1)*dim;
+		this.colepaarr=[];
+		this.coltmpvertarr=[new Float64Array(0),new Float64Array(0)];
+		this.coldif=new Float64Array(dim1);
+		this.colmat=new Float64Array(dim1);
+		this.colvertarr=new Float64Array(dim1);
+		this.colvertid=new Int32Array(dim+1);
+		this.colprevid=new Int32Array(dim+1);
+		this.colweight=new Float64Array(dim);
+		this.colepacmp=function epacmp(a,b) {
+			// If distances are the same, sort by vertices to detect duplicates.
+			let ad=a.dist,bd=b.dist;
+			// if (d<-1e-10 || d>1e-10) {return d<0?-1:1;}
+			if (ad!==bd) {return ad<bd?-1:1;}
+			let as=a.vertid,bs=b.vertid;
+			for (let i=0;i<dim;i++) {
+				let av=as[i],bv=bs[i];
+				if (av!==bv) {return av<bv?-1:1;}
+			}
+			return 0;
+		};
+		this.epaalloc(dim+1);
+	}
+
+
+	epaalloc(len) {
+		let epaarr=this.colepaarr;
+		if (len>epaarr.length) {
+			let dim=this.dim;
+			while (len&(len+1)) {len|=len>>>1;}
+			while (epaarr.length<=len) {
+				epaarr.push({
+					vertid:new Int32Array(dim),
+					weight:new Float64Array(dim),
+					norm:new Float64Array(dim),
+					dist:0
+				});
+			}
+			this.colepaarr=epaarr;
+		}
+		return epaarr;
+	}
+
+
+	closestpoint(_avertarr,_apos,_amat,_bvertarr,_bpos,_bmat) {
+		// GJK
+		// Determines if bodies are colliding.
+		// Doesn't use constant memory.
+		// Finds minimum separating vector.
+		// Inline everything for performance.
+		// EPA
+		//      vert IDs [D]
+		//      weights  [D]
+		//      normal   [D]
+		//      dist
+		let dim=this.dim;
+		let averts=_avertarr.length,bverts=_bvertarr.length;
+		if (!dim) {return [(averts>0 && bverts>0),new Vector(0),new Vector(0)];}
+		// Pick an initial direction. Any will work, but B.pos-A.pos works best.
+		let dif=this.coldif;
+		let normsum=0;
+		for (let i=0;i<dim;i++) {
+			let x=_bpos[i]-_apos[i];
+			dif[i]=x;
+			normsum+=x*x;
+		}
+		// Pretransform the vertices. Flatten arrays to [x0,y0,z0,x1,y1,z1,...].
+		for (let side=0;side<2;side++) {
+			let srcarr=side?_bvertarr:_avertarr;
+			let dstarr=this.coltmpvertarr[side];
+			let verts=srcarr.length,vertlen=verts*dim;
+			if (dstarr.length<vertlen) {
+				dstarr=new Float64Array(vertlen*2);
+				this.coltmpvertarr[side]=dstarr;
+			}
+			let mat=side?_bmat:_amat;
+			// mat*v+vec
+			for (let s=0,d=0;s<verts;s++) {
+				let v=srcarr[s];
+				for (let i=0,m=0;i<dim;i++) {
+					let x=side?dif[i]:0;
+					for (let j=0;j<dim;j++) {x+=mat[m++]*v[j];}
+					dstarr[d++]=x;
+				}
+			}
+		}
+		let avertlen=averts*dim,bvertlen=bverts*dim;
+		let avertarr=this.coltmpvertarr[0],bvertarr=this.coltmpvertarr[1];
+		if (normsum<1e-10) {dif[0]=1;}
+		let mat=this.colmat;
+		let vertarr=this.colvertarr;
+		let vertid=this.colvertid;
+		let previd=this.colprevid;
+		let weight=this.colweight;
+		previd.fill(-1);
+		// Setup EPA memory.
+		let epaarr=this.colepaarr;
+		let epaalloc=epaarr.length;
+		let epacmp=this.colepacmp;
+		let epalen=-1,epachild=0;
+		let epaprev=null;
+		// Stop searching for a separating vector at (a.verts+b.verts+1)^2.
+		let verts=1,reject=-1;
+		let test=0,tests=(averts+bverts+1)*(averts+bverts+1);
+		for (test=0;test<tests || epalen>=0;test++) {
+			let norm=dif;
+			let mask=1<<verts;
+			let dist=0;
+			if (epalen>=0) {
+				// If we've added child EPA faces, sort them.
+				if (epachild) {
+					for (let child=0;child<verts;child++) {
+						let i=epalen++;
+						let epa=epaarr[i];
+						while (i>0) {
+							let j=(i-1)>>>1;
+							let p=epaarr[j];
+							if (epacmp(p,epa)<0) {break;}
+							epaarr[i]=p;
+							i=j;
+						}
+						epaarr[i]=epa;
+					}
+					epachild=0;
+				}
+				// Find the next closest simplex.
+				let epa=epaarr[0];
+				let last=epaarr[--epalen];
+				let idx=0;
+				while (true) {
+					let i0=idx*2+1,i1=i0+1;
+					if (i0>=epalen) {break;}
+					if (i1>=epalen) {i1=i0;}
+					let e0=epaarr[i0],e1=epaarr[i1];
+					if (epacmp(e0,e1)>0) {i0=i1;e0=e1;}
+					if (epacmp(e0,last)>=0) {break;}
+					epaarr[idx]=e0;
+					idx=i0;
+				}
+				epaarr[idx]=last;
+				epaarr[epalen]=epa;
+				// Prevent backtracking and duplicates.
+				if (epaprev!==null && epacmp(epaprev,epa)>=0) {continue;}
+				if (epalen+verts+1>epaalloc) {
+					epaarr=this.epaalloc(epalen+verts+1);
+					epaalloc=epaarr.length;
+				}
+				// Move the current EPA to the end so it isn't overwritten.
+				epaprev=epa;
+				epaarr[epalen]=epaarr[epaalloc-1];
+				epaarr[epaalloc-1]=epaprev;
+				for (let i=0;i<dim;i++) {vertid[i]=epa.vertid[i];}
+				norm=epa.norm;
+				dist=epa.dist;
+				mask--;
+			}
+			// Find new supports. Direction is stored in dif[0...dim].
+			if (reject<0) {
+				let max=-Infinity,min=Infinity;
+				let a=0,b=0;
+				// Find max(A.verts*norm);
+				for (let i=0;i<avertlen;i+=dim) {
+					let p=0;
+					for (let j=0;j<dim;j++) {p+=avertarr[i+j]*norm[j];}
+					if (max<p) {max=p;a=i;}
+				}
+				// Find min(B.verts*bnorm)
+				for (let i=0;i<bvertlen;i+=dim) {
+					let p=0;
+					for (let j=0;j<dim;j++) {p+=bvertarr[i+j]*norm[j];}
+					if (min>p) {min=p;b=i;}
+				}
+				// If we have a separating vector or can't expand the EPA.
+				if (max-min-dist<1e-10) {break;}
+				let id=a*bvertlen+b,i=verts-1;
+				while (i>0 && vertid[i-1]>id) {
+					vertid[i]=vertid[i-1];
+					i--;
+				}
+				vertid[i]=id;
+			}
+			// Calculate the current set of minkowski vertices A.vert(i)-B.vert(j).
+			for (let i=0;i<verts;i++) {
+				let id=vertid[i];
+				if (previd[i]!==id) {
+					previd[i]=id;
+					let a=~~(id/bvertlen),b=id%bvertlen,d=i*dim;
+					for (let j=0;j<dim;j++) {vertarr[d+j]=avertarr[a+j]-bvertarr[b+j];}
+				}
+			}
+			// Find the closest point in a set of vertices to another point.
+			// Use linear algebra to compute the barycenter coordinates of the set.
+			while (--mask>0) {
+				// di = vi - v0
+				// dP =  P - v0, put in row 0
+				let vidx=dim,cols=0,v0=0;
+				for (let i=0;i<verts;i++) {
+					if (!(mask&(1<<i))) {continue;}
+					let r=i*dim;
+					if (!cols++) {v0=r;continue;}
+					for (let j=0;j<dim;j++) {dif[vidx++]=vertarr[r+j]-vertarr[v0+j];}
+				}
+				for (let j=0;j<dim;j++) {dif[j]=-vertarr[v0+j];}
+				// Create matrix. Note the solution column is on the left for efficiency.
+				// [ d1*dP | d1*d1 d1*d2 d1*d3 ... ]
+				// [ d2*dP | d2*d1 d2*d2 d2*d3 ... ]
+				let rows=cols-1,elems=rows*cols;
+				for (let i=1;i<cols;i++) {
+					let rvec=i*dim;vidx=0;
+					for (let j=0;j<=i;j++) {
+						let dot=0;
+						for (let k=0;k<dim;k++) {
+							dot-=dif[rvec+k]*dif[vidx++];
+						}
+						mat[(i-1)*cols+j]=dot;
+						if (j) {mat[(j-1)*cols+i]=dot;}
+					}
+				}
+				// Row reduce the matrix.
+				// [ u3 | 0 0 1 ]
+				// [ u2 | 0 1 0 ]
+				// [ u1 | 1 0 0 ]
+				for (let i=0;i<rows;i++) {
+					// Find the largest element in column i.
+					let row=i*cols,off=rows-i,last=row+off;
+					let src=0,dst=last;
+					let max=0;
+					for (let r=last;r<elems;r+=cols) {
+						let x=mat[r],a=x>0?x:-x;
+						if (max<a) {max=a;src=r;}
+					}
+					// Normalize and move picked row.
+					max=max>1e-10?1/mat[src]:0;
+					while (dst>=row) {
+						let a=mat[dst],b=mat[src];
+						mat[src--]=a;
+						mat[dst--]=b*max;
+					}
+					// Reduce other rows.
+					for (let r=off;r<elems;r+=cols) {
+						if (r===last) {continue;}
+						dst=r;src=last;
+						let mul=mat[dst];
+						while (src>row) {
+							mat[--dst]-=mul*mat[--src];
+						}
+					}
+				}
+				// The first column of mat holds the barycenter coordinates.
+				// Find a new direction. Store in dif[0...dim].
+				reject=-1;
+				vidx=dim;
+				let u0=1,min=0;
+				for (let i=1;i<=rows;i++) {
+					let u=mat[elems-i*cols];
+					for (let j=0;j<dim;j++) {
+						dif[j]-=u*dif[vidx++];
+					}
+					if (min>u) {min=u;reject=i;}
+					weight[i]=u;
+					u0-=u;
+				}
+				if (min>u0) {min=u0;reject=0;}
+				weight[0]=u0;
+				if (epalen>=0) {
+					// Check all combinations for the closest point.
+					if (reject>=0) {continue;}
+					dist=0;
+					for (let i=0;i<dim;i++) {
+						let x=dif[i];
+						dist+=x*x;
+					}
+					for (let child=0;child<verts;child++) {
+						// Record the new EPA face. NaN distances can occur.
+						let bit=1<<child;
+						let epa=epaarr[epalen+child];
+						let edist=(epachild&bit)?epa.dist:Infinity;
+						if (edist>dist && !(mask&bit)) {
+							epa.dist=dist;
+							epachild|=bit;
+							let wpos=0;
+							let enorm=epa.norm,eweight=epa.weight,evertid=epa.vertid;
+							for (let i=0;i<dim;i++) {
+								let j=i+(i>=child);
+								enorm[i]=-dif[i];
+								eweight[i]=((mask>>>j)&1)?weight[wpos++]:0;
+								evertid[i]=vertid[j];
+							}
+						}
+					}
+				} else if (verts<=dim) {
+					verts++;
+					reject=-1;
+					break;
+				} else if (reject>=0) {
+					verts--;
+					for (let i=reject;i<verts;i++) {vertid[i]=vertid[i+1];}
+					break;
+				} else {
+					// The polygons are colliding so build the EPA.
+					epalen=0;
+				}
+			}
+		}
+		if (epaprev!==null) {
+			// Calculate contact points based on weights.
+			let apos=_apos;
+			let ap=new Vector(apos),bp=new Vector(apos);
+			for (let i=0;i<dim;i++) {
+				let w =epaprev.weight[i];
+				let id=epaprev.vertid[i];
+				let av=~~(id/bvertlen);
+				let bv=id%bvertlen;
+				for (let j=0;j<dim;j++) {
+					ap[j]+=w*avertarr[av+j];
+					bp[j]+=w*bvertarr[bv+j];
+				}
+			}
+			// Recalculate norm and magnitude based on contacts.
+			// let norm=bp.sub(ap);
+			// let mag=norm.mag();
+			// norm.imul(1/mag);
+			return [true,ap,bp];
+		}
+		// If we're rejecting.
+		return [false,null,null];
 	}
 
 }
 
 
 const Phy={
-	Intr:PhyAtomInteraction,
-	AtomType:PhyAtomType,
-	Atom:PhyAtom,
-	Bond:PhyBond,
-	Broadphase:PhyBroadphase,
+	Intr:PhyInteraction,
+	BodyType:PhyBodyType,
+	Body:PhyBody,
 	World:PhyWorld
 };
 export {Phy};

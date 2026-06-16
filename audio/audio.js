@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-audio.js - v3.11
+audio.js - v3.12
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -66,6 +66,9 @@ History
      Simplified tosound().
      Removed trimming functions.
      Added sound looping.
+3.12
+     Moved SFX consts to global.
+     Audio is stopped when the page unloads.
 
 
 --------------------------------------------------------------------------------
@@ -76,13 +79,9 @@ Keep under 50kb, minus header.
 
 Better explanation of compiled form in article.
 
-MacOS keeps playing song even after hitting back button.
-
 Sound effects
-	Move constants to global constants.
 	Remove tbl
 	Optimize %mod lines in sfx.fill().
-	Speed up input processing. Move constants to different section?
 	Simplify attribute naming in namemap[].
 	Configure delay filter to cache at a static frequency. If rate is too
 	small accumulate till we have enough. If too large, split up and fill
@@ -96,7 +95,7 @@ Sound effects
 
 
 //---------------------------------------------------------------------------------
-// Audio - v3.11
+// Audio - v3.12
 
 
 class AudioSound {
@@ -441,6 +440,12 @@ class AudioSound {
 }
 
 
+const CON=0,VAR=1,OP=2;
+const EXPR=0,ENV=1,TBL=2,TRI=3,PLS=4,SAW=5,SIN=6,SQR=7,NOI=8,DEL=9,OSC0=2,OSC1=7;
+const LPF=10,HPF=11,BPF=12,NPF=13,APF=14,PKF=15,LSF=16,HSF=17,FIL0=10,FIL1=17;
+const VBITS=24,VMASK=(1<<VBITS)-1,PBITS=8,PMASK=(1<<PBITS)-1;
+
+
 class AudioSFX {
 
 	// Array Format
@@ -533,8 +538,6 @@ class AudioSFX {
 	parse(seqstr) {
 		// Last node is used as output. Node names must start with #.
 		// Translating addresses: (node_num+1)<<8+param_num
-		const EXPR=0,ENV=1,TBL=2,NOI=8,DEL=9,OSC0=2,OSC1=7,FIL0=10,FIL1=17;
-		const CON=0,VAR=1,OP=2,VBITS=24,VMASK=(1<<VBITS)-1,PBITS=8,PMASK=(1<<PBITS)-1;
 		this.namemap={};
 		let nodetypes=[
 			{str:"expr" ,type: 0,params:" "},
@@ -893,7 +896,6 @@ class AudioSFX {
 
 
 	biquadcoefs(n,type,rate,bw,gain) {
-		const LPF=10,HPF=11,BPF=12,NPF=13,APF=14,PKF=15,LSF=16,HSF=17;
 		let b0=1,b1=0,b2=0;
 		let a0=1,a1=0,a2=0;
 		let v  =gain;
@@ -992,9 +994,6 @@ class AudioSFX {
 		if (flen===undefined) {flen=sndlen;}
 		if (fstart+flen<sndlen) {sndlen=fstart+flen;}
 		let sndrate=1/sndfreq;
-		const EXPR=0,ENV=1,TBL=2,TRI=3,PLS=4,SAW=5,SIN=6,SQR=7,NOI=8,DEL=9;
-		const OSC0=2,OSC1=7,FIL0=10,FIL1=17;
-		const VBITS=24,VMASK=(1<<VBITS)-1;
 		function fmod(x,mod) {
 			x=(x<0 || x>=mod)?x%mod:x;
 			return x<0?x+mod:x;
@@ -1380,15 +1379,14 @@ export class Audio {
 		// 2 = Audio mute, 1 = browser mute
 		this.muted=mute?2:0;
 		this.mutefunc=function(){ctx.resume();};
-		this.updatetime=NaN;
 		if (!Audio.def) {Audio.initdef(this);}
 		let state=this;
 		if (autoupdate) {
 			function update() {if (state.update()) {requestAnimationFrame(update);}}
 			update();
 		}
-		// Stop all sounds when exiting the page.
-		// window.addEventListener("beforeUnload",()=>{state.release();});
+		// Some browsers continue playing on refresh.
+		window.addEventListener("beforeunload",()=>{state.release();});
 	}
 
 
