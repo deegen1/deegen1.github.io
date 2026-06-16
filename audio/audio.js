@@ -68,7 +68,6 @@ History
      Added sound looping.
 3.12
      Moved SFX consts to global.
-     Audio is stopped when the page unloads.
 
 
 --------------------------------------------------------------------------------
@@ -88,6 +87,20 @@ Sound effects
 	multiple values. fill=delay_freq/play_freq
 	Go through sound design book. Thunder, crickets, etc.
 	Dial up sound scratching. Use for electric guitar type sound.
+
+
+Audio keeps playing
+	// Some browsers continue playing on refresh or back.
+	window.addEventListener("beforeunload",()=>{state.release();});
+	window.addEventListener("popstate",()=>{state.release();});
+	release() {
+		// Stop and release all audio.
+		if (this.mute<0) {return;}
+		console.log("releasing");
+		while (this.queue) {this.queue.remove();}
+		this.mute=-1;
+		if (Audio.def===def) {Audio.def=null;}
+	}
 
 
 */
@@ -1385,8 +1398,6 @@ export class Audio {
 			function update() {if (state.update()) {requestAnimationFrame(update);}}
 			update();
 		}
-		// Some browsers continue playing on refresh.
-		window.addEventListener("beforeunload",()=>{state.release();});
 	}
 
 
@@ -1395,14 +1406,6 @@ export class Audio {
 		if (!def) {def=new Audio();}
 		Audio.def=def;
 		return def;
-	}
-
-
-	release() {
-		// Stop and release all audio.
-		console.log("releasing");
-		this.mute(true);
-		while (this.queue) {this.queue.remove();}
 	}
 
 

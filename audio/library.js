@@ -4710,8 +4710,6 @@ export class Audio {
 			function update() {if (state.update()) {requestAnimationFrame(update);}}
 			update();
 		}
-		// Some browsers continue playing on refresh.
-		window.addEventListener("beforeunload",()=>{state.release();});
 	}
 
 
@@ -4720,13 +4718,6 @@ export class Audio {
 		if (!def) {def=new Audio();}
 		Audio.def=def;
 		return def;
-	}
-
-
-	release() {
-		// Stop and release all audio.
-		this.mute(true);
-		while (this.queue) {this.queue.remove();}
 	}
 
 
