@@ -1400,6 +1400,7 @@ export class Audio {
 
 	release() {
 		// Stop and release all audio.
+		console.log("releasing");
 		this.mute(true);
 		while (this.queue) {this.queue.remove();}
 	}
