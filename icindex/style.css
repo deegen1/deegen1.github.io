@@ -221,6 +221,13 @@ button:hover, select:hover {
 	background-color:#37261a;
 }
 
+.uihistory {
+	margin-top:0.5rem;
+}
+.uihistory > tbody > tr > td:first-child {
+	min-width:1em;
+}
+
 
 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Limb Table ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 

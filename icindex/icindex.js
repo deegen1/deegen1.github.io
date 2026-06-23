@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-icindex.js - v1.05
+icindex.js - v1.06
 
 Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -26,10 +26,10 @@ Limb IDs
 dmgtype flags
 	 0: regular
 	 1: poison
-	 2: horn (perforate)
+	 2: horn
 	 4: barrier destroy
-	 8: electric (eel, cuttlefish)
-	16: sonic (glue)
+	 8: electric
+	16: sonic
 
 
 Basic Equations:
@@ -77,26 +77,18 @@ History
      Coal gets rounded down after attrcombiner. Electricity is not rounded down
      in game.
      Created SVG icons for limbs - based off of bmp icons from Will.
+1.06
+     Filtered out deflection_armour_head from dunkleosteus.
 
 
 --------------------------------------------------------------------------------
 TODO
 
 
-efficiency
-	To win we need to deal damage.
-	The longer we live, the more damage we can deal.
-	The more damage we deal per cost, the more efficient.
-	If poison: dps+=level
-	if regen:
-		[5,15,20,25,45]
-		lifetime=hp/(level*5+5)
-		hp+=level*lifetime
-	sonic: dps*=2
-	if immune: hp*=1.05
-	eff=lifetime*damage/(coal+elec+build*0.1)
+add history
+release
 
-Calculate weighted stats based on top 10% NER.
+Calculate weighted stats based on top 10% NER. Weight by 1/(coal+elec).
 See what stocks rate as most efficient.
 
 
@@ -429,14 +421,15 @@ class Stock {
 				"min_triangle_count","simterrain","simcollides","simfogged","combinervisible",
 				"minimap_enable","minimap_teamcolour","ghost_enable","tag_desc","lefthalf_name",
 				"righthalf_name","disable_cheap_skinning","tailflashdisplay","bobcost","tiny",
-				"fml","imaginary_hovering","is_lioness"
+				"fml","imaginary_hovering","is_lioness",
+				"deflection_armour_head"
 			];
 			let limb=limbarr[id];
 			if (!limb) {
 				limb=new Limb(id,this);
 				limbarr[id]=limb;
 			}
-			if (ignore.includes(san)) {
+			if (ignore.includes(san) || ignore.includes(attr)) {
 				// do nothing
 			} else if (limb[san]!==undefined) {
 				limb[san]=val;
@@ -688,7 +681,7 @@ class Creature {
 	}
 
 
-	calcefficiency() {
+	calcefficiency1() {
 		// Nandid efficiency rating
 		let damage=0;
 		for (let r of this.rangearr) {damage=Math.max(damage,r.damage);}
@@ -697,17 +690,36 @@ class Creature {
 	}
 
 
-	calcefficiency2() {
-		let dps=0;
-		for (let range of this.rangearr) {dps=Math.max(dps,range.damage);}
-		if (dps<=0) {dps=this.melee_damage;}
+	calcefficiency() {
+		// To win we need to deal damage.
+		// The longer we live, the more damage we can deal.
+		// The more damage we deal per cost, the more efficient.
+		// horn bonus, assuming armour=~0.3: (1-0.3*(1-0.35))/(1-0.3) = 1.15
+		let dps=0,poison=0;
+		for (let range of this.rangearr) {
+			let tmp=range.damage;
+			if (range.dmgtype&DT_HORN) {tmp*=1.15;}
+			if (range.dmgtype&DT_SONIC) {tmp*=1.1;}
+			// if (range.special) {tmp*=2;}
+			if (dps<tmp) {
+				dps=tmp;
+				poison=range.dmgtype&DT_POISON;
+			}
+		}
+		if (dps<=0) {
+			dps=this.melee_damage;
+			poison=this.melee_dmgtype&DT_POISON;
+			if (this.melee_dmgtype&DT_HORN) {dps*=1.15;}
+		}
 		let hp=this.hitpoints,armour=this.armour;
 		if (this.pack_hunter) {dps*=1.3;}
-		if (this.herding) {armour*=1.3;}
-		if (this.frenzy_attack) {dps*=1.5;hp/=1.3;}
-		if (this.regeneration) {hp*=1.2;}
-		armour=Math.min(armour,0.6);
-		return (hp/(1-armour))*dps/(this.coal+this.electricity);
+		if (this.herding) {armour=Math.min(armour*1.3,0.6);}
+		//if (this.frenzy_attack) {dps*=1.5;hp/=1.3;}
+		if (this.regeneration) {hp*=1.1;}
+		if (this.is_immune) {hp*=1.05;}
+		if (this.deflection_armour) {armour*=1.1;dps*=1.02;}
+		if (poison) {dps+=[5,10,20,25,50][this.creature_rank-1]/10;}
+		return (hp/(1-armour))*dps/(this.coal+this.electricity);// +0.1*this.constructionticks);
 	}
 
 }
@@ -775,6 +787,10 @@ class ICDex {
 		for (let creature of cache) {
 			yield creature;
 		}
+	}
+
+
+	calcstats() {
 	}
 
 }
