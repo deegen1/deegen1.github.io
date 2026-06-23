@@ -182,7 +182,7 @@ button:hover, select:hover {
 	overflow-x:scroll;
 	overflow-y:scroll;
 }
-#uioutput > table {
+#uioutput > table, #uistats {
 	background-color:#202020;
 	border:1px solid #4e2c14;
 	border-collapse:separate;
@@ -202,7 +202,7 @@ button:hover, select:hover {
 	top:0;
 	position:sticky;
 }
-#uioutput > table > tbody > tr:first-child > td {
+#uioutput > table > tbody > tr:first-child > td, #uistats > tbody > tr:first-child > td {
 	background-color:#6e4c34;
 	color:#eea360;
 	text-align:center;
@@ -210,7 +210,7 @@ button:hover, select:hover {
 #uioutput > table > tbody > tr:first-child > td:hover {
 	background-color:#8e6c54;
 }
-#uioutput > table > tbody > tr > td {
+#uioutput > table > tbody > tr > td, #uistats > tbody > tr > td {
 	border:1px solid #4e2c14;
 	padding:0.4rem;
 	padding-left:0.75rem;

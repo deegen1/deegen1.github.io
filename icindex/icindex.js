@@ -79,6 +79,7 @@ History
      Created SVG icons for limbs - based off of bmp icons from Will.
 1.06
      Filtered out deflection_armour_head from dunkleosteus.
+     Added calcstats() to find top 10% for each level.
 
 
 --------------------------------------------------------------------------------
@@ -681,7 +682,7 @@ class Creature {
 	}
 
 
-	calcefficiency1() {
+	calcefficiency() {
 		// Nandid efficiency rating
 		let damage=0;
 		for (let r of this.rangearr) {damage=Math.max(damage,r.damage);}
@@ -690,10 +691,8 @@ class Creature {
 	}
 
 
-	calcefficiency() {
-		// To win we need to deal damage.
-		// The longer we live, the more damage we can deal.
-		// The more damage we deal per cost, the more efficient.
+	calcefficiency2() {
+		// Better efficiency calculation.
 		// horn bonus, assuming armour=~0.3: (1-0.3*(1-0.35))/(1-0.3) = 1.15
 		let dps=0,poison=0;
 		for (let range of this.rangearr) {
@@ -783,6 +782,7 @@ class ICDex {
 			// console.log("combos:",fill);
 			cache=cache.slice(0,fill);
 			this.creaturecache=cache;
+			// this.calcstats();
 		}
 		for (let creature of cache) {
 			yield creature;
@@ -791,6 +791,61 @@ class ICDex {
 
 
 	calcstats() {
+		// Calculate stats of the "average" best creature at each rank.
+		// Sort creatures by the power and take the top 10%.
+		// More expensive creatures are less likely to be built, so weigh
+		// each creature by weight=1/(coal+elec).
+		// Sum attributes and divide by sum of weights.
+		let cache=this.creaturecache;
+		function cmp(l,r) {return r.power-l.power;}
+		for (let level=1;level<6;level++) {
+			let levelcache=[];
+			for (let c of cache) {if (c.creature_rank===level) {levelcache.push(c);}}
+			levelcache.sort(cmp);
+			// Reject duplicates (ex: creatures with no limbs selected).
+			let rem=0,len=levelcache.length,prev=-1;
+			for (let i=0;i<len;i++) {
+				let c=levelcache[i];
+				if (Math.abs(c.power-prev)>1e-20) {
+					prev=c.power;
+					levelcache[rem++]=c;
+				}
+			}
+			let den=0;
+			let power=0,hitpoints=0,armour=0,coal=0,elec=0;
+			let melee=0,meleeden=0,range=0,rangeden=0;
+			rem=~~(rem/10);
+			for (let i=0;i<rem;i++) {
+				let c=levelcache[i];
+				let w=1/(c.coal+c.electricity);
+				power+=c.power*w;
+				hitpoints+=c.hitpoints*w;
+				armour+=c.armour*w;
+				coal+=c.coal*w;
+				elec+=c.electricity*w;
+				if (c.rangearr.length) {
+					range+=c.rangearr[0].damage*w;
+					rangeden+=w;
+				} else {
+					melee+=c.melee_damage*w;
+					meleeden+=w;
+				}
+				den+=w;
+			}
+			power/=den;
+			hitpoints/=den;
+			armour/=den;
+			coal/=den;
+			elec/=den;
+			melee/=meleeden;
+			range/=rangeden;
+			let out=
+				`<tr><td>${level}</td><td>${power.toFixed(0)}`+
+				`</td><td>${coal.toFixed(0)}</td><td>${elec.toFixed(0)}`+
+				`</td><td>${hitpoints.toFixed(0)}</td><td>${armour.toFixed(2)}`+
+				`</td><td>${melee.toFixed(2)}</td><td>${range.toFixed(2)}</td></tr>`;
+			console.log(out);
+		}
 	}
 
 }
