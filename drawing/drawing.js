@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v5.03
+drawing.js - v5.04
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -151,6 +151,8 @@ History
 5.03
      Reduced font size to 9,285 bytes. Realigned all neighboring curves to be
      continuous. Reduced maximum error from 1.8% to 0.4%.
+5.04
+     Removed array destructuring since it's slow. Ex: let [x,y]=point.
 
 
 --------------------------------------------------------------------------------
@@ -186,7 +188,7 @@ fillpath
 DrawImage
 	Make sure drawimagei() and drawimage() are 1-to-1.
 	See if narrow dx/dy causes problems.
-	Create page describing algorithm. Transforming an image (the hard way).
+	Create page describing algorithm: Transforming an image (the hard way).
 	Faster pixel blending.
 
 
@@ -198,7 +200,7 @@ import {Transform} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v5.03
+// Drawing - v5.04
 
 
 class DrawPath {
@@ -657,7 +659,7 @@ class DrawPath {
 		let vidx=this.vertidx;
 		if (!vidx) {return false;}
 		// Put the point in path-space.
-		let [px,py]=point;
+		let px=point[0],py=point[1];
 		if (trans) {
 			if (!(trans instanceof Transform)) {trans=new Transform(trans);}
 			let mat=trans.mat,vec=trans.vec;
@@ -1305,7 +1307,8 @@ export class Draw {
 		let pixminy=(invyx<0?invyx:0)+(invyy<0?invyy:0);
 		let pixmaxy=(invyx>0?invyx:0)+(invyy>0?invyy:0);
 		// Iterate over dst rows.
-		let [rshift,gshift,bshift,ashift]=this.rgbashift;
+		let shift=this.rgbashift;
+		let rshift=shift[0],gshift=shift[1],bshift=shift[2],ashift=shift[3];
 		let dstdata=dstimg.data32;
 		let srcdata=srcimg.data32;
 		for (let dsty=dstminy;dsty<dstmaxy;dsty++) {

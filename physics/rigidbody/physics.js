@@ -34,21 +34,15 @@ History
 TODO
 
 
-Simplify bond normal calc.
-Allow body.trans.vec = body.pos. Sync if different.
-
-Minkowski wrapping.
+63.5ms - orig
+48.0ms - removed body.trans
+48.0ms - optimized bond contact calculation
+45.4ms - New broadphase traversal. Faster AABB calculation.
 
 Inertia shouldn't change if more verts are added on a face.
 o-----------o vs o---o---o---o
 
 Allow creating body from template.
-
-BVH
-	Omit if disabled or verts=0.
-	See what sorting method works best for long polygons.
-	Instead of just using min bounds, average (min+max)/2 and split min<mid.
-	Fix inf's.
 
 Hull Calc
 	pick D closest points
@@ -58,6 +52,7 @@ Hull Calc
 	1. Calc norm from [x,0,0,0] and find max.
 	2. Calc norm from [x,y,0,0] and find max.
 	3. Calc norm from [x,y,z,0] and find max.
+	If point is on N-dim hull, then it'll be on N+1 dim hull.
 	Once seed face is found, use edge to make other faces.
 	Remove points too close.
 	Remove points colinear.
@@ -78,157 +73,18 @@ Collision
 /* npx eslint physics.js -c ../../../standards/eslint.js */
 
 
-import {Random,Vector,Matrix,Transform} from "./library.js";
+import {Random,Vector,Matrix,List} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
 // Physics - v1.03
 
 
-class PhyLink {
-
-	constructor(obj) {
-		this.prev=null;
-		this.next=null;
-		this.list=null;
-		this.obj=obj??null;
-		this.idx=null;
-	}
-
-
-	release() {
-		this.remove();
-	}
-
-
-	add(list) {
-		if (this.list!==list) {list.add(this);}
-	}
-
-
-	remove(clear) {
-		if (this.list!==null) {this.list.remove(this,clear);}
-	}
-
-}
-
-
-class PhyList {
-
-	constructor(ptr=null) {
-		this.head=null;
-		this.tail=null;
-		this.ptr=ptr;
-		this.count=0;
-	}
-
-
-	release(clear) {
-		let link=this.head;
-		while (link!==null) {
-			let next=link.next;
-			link.prev=null;
-			link.next=null;
-			link.list=null;
-			if (clear) {link.obj=null;}
-			link=next;
-		}
-		this.count=0;
-	}
-
-
-	*iter() {
-		let link=null,next=this.head;
-		while ((link=next)!==null) {
-			next=link.next;
-			yield link.obj;
-		}
-	}
-
-
-	add(link) {
-		this.addafter(link);
-	}
-
-
-	addafter(link,prev=null) {
-		// Inserts the link after prev.
-		link.remove();
-		let next=null;
-		if (prev!==null) {
-			next=prev.next;
-			prev.next=link;
-		} else {
-			next=this.head;
-			this.head=link;
-		}
-		link.prev=prev;
-		link.next=next;
-		link.list=this;
-		if (next!==null) {
-			next.prev=link;
-		} else {
-			this.tail=link;
-		}
-		this.count++;
-	}
-
-
-	addbefore(link,next=null) {
-		// Inserts the link before next.
-		link.remove();
-		let prev=null;
-		if (next!==null) {
-			prev=next.prev;
-			next.prev=link;
-		} else {
-			prev=this.tail;
-			this.tail=link;
-		}
-		link.prev=prev;
-		link.next=next;
-		link.list=this;
-		if (prev!==null) {
-			prev.next=link;
-		} else {
-			this.head=link;
-		}
-		this.count++;
-	}
-
-
-	remove(link,clear) {
-		if (link===null) {
-			return;
-		}
-		let prev=link.prev;
-		let next=link.next;
-		if (prev!==null) {
-			prev.next=next;
-		} else {
-			this.head=next;
-		}
-		if (next!==null) {
-			next.prev=prev;
-		} else {
-			this.tail=prev;
-		}
-		this.count--;
-		link.prev=null;
-		link.next=null;
-		link.list=null;
-		if (clear) {link.obj=null;}
-	}
-
-}
-
-
 class PhyInteraction {
 
 	constructor(a,b) {
 		this.world=a.world;
-		this.worldlink=new PhyLink(this);
-		this.world.intrlist.add(this.worldlink);
+		this.worldlink=this.world.intrlist.add(this);
 		this.a=a;
 		this.b=b;
 		this.pmul=0;
@@ -273,8 +129,8 @@ class PhyBodyType {
 
 	constructor(world,id,damp,density,elasticity,push,statictension,staticdist) {
 		this.world=world;
-		this.worldlink=new PhyLink(this);
-		this.bodylist=new PhyList();
+		this.worldlink=new List.Link(this);
+		this.bodylist=new List();
 		this.id=id;
 		this.intarr=[];
 		this.damp=damp;
@@ -415,16 +271,13 @@ class PhyBody {
 	constructor(world,verts,pos,angle,type) {
 		type=type??world.deftype;
 		this.world=world;
-		this.worldlink=new PhyLink(this);
-		this.world.bodylist.addbefore(this.worldlink);
+		this.worldlink=this.world.bodylist.add(this);
 		this.deleted=false;
 		this.sleeping=false;
-		this.bondlist=new PhyList();
-		this.typelink=new PhyLink(this);
+		this.bondlist=new List();
+		this.typelink=type.bodylist.add(this);
 		this.type=type;
-		type.bodylist.add(this.typelink);
 		this.data={};
-		//
 		let vertarr=[];
 		this.volume=0;
 		if (verts instanceof PhyBody) {
@@ -432,19 +285,19 @@ class PhyBody {
 			verts=body.vertarr;
 			this.volume=body.volume;
 			type=type??body.type;
-			// trans=trans??body.trans;
 		}
 		let dim=world.dim,dim2=(dim*(dim-1))>>>1;
 		for (let v of verts) {vertarr.push(new Vector(v));}
 		this.vertarr=vertarr;
 		this.facearr=[];
 		this.type=type;
+		this.pos=new Vector(pos);
 		this.vel=new Vector(dim);
 		this.spin=(new Float64Array(dim2)).fill(0);
 		this.angle=(new Float64Array(dim2)).fill(0);
 		if (angle) {for (let i=0;i<dim2;i++) {this.angle[i]=angle[i];}}
-		this.trans=new Transform({vec:pos,ang:this.angle});
-		this.inv=this.trans.mat.inv();
+		this.mat=(new Matrix(dim)).one().rotate(this.angle);
+		this.inv=this.mat.inv();
 		this.updateconstants();
 	}
 
@@ -461,10 +314,13 @@ class PhyBody {
 	}
 
 
-	relpos(v) {return this.trans.apply(v);}
+	relpos(v) {return this.mat.mul(v).iadd(this.pos);}
 
 
-	invpos(v) {return this.trans.inv().apply(v);}
+	invpos(v) {
+		let w=(new Vector(v)).isub(this.pos);
+		return this.mat.inv().mul(w);
+	}
 
 
 	relvel(p) {
@@ -496,7 +352,7 @@ class PhyBody {
 		} else {
 			let vertarr=this.vertarr;
 			let verts=vertarr.length;
-			// Find the left-most vertex.
+			// Find the left-most, bottom-most vertex.
 			let minv=vertarr[0];
 			let mini=0;
 			for (let i=1;i<verts;i++) {
@@ -552,7 +408,7 @@ class PhyBody {
 			for (let v of vertarr) {
 				v.isub(cen);
 			}
-			this.trans.vec.iadd(cen);
+			this.pos.iadd(cen);
 			// Inertia.
 			let inertia=0;
 			for (let face of facearr) {
@@ -573,9 +429,10 @@ class PhyBody {
 	closestpoint(point) {
 		// Returns [overlapping, point] with a point on the border.
 		let world=this.world;
-		let trans=new Transform({dim:world.dim});
 		point=new Vector(point);
-		let col=world.closestpoint(this.vertarr,this.trans,[point],trans);
+		let dim=world.dim;
+		let cen=new Vector(dim),mat=(new Matrix(dim,dim)).one();
+		let col=world.closestpoint(this.vertarr,this.pos,this.mat,[point],cen,mat);
 		return [col[0],col[1]];
 	}
 
@@ -586,8 +443,7 @@ class PhyBody {
 		// pos+=vel*dt1+acc*dt2
 		// vel =vel*dt0+acc*dt1
 		let world=this.world;
-		let trans=this.trans;
-		let pe=trans.vec,ve=this.vel;
+		let pe=this.pos,ve=this.vel;
 		let dim=world.dim,type=this.type;
 		let ge=type.gravity;
 		ge=(ge===null?world.gravity:ge);
@@ -608,8 +464,8 @@ class PhyBody {
 			se[i]=spin*dt0;
 			ae[i]=ang;
 		}
-		trans.mat.one().rotate(ae);
-		this.inv=trans.mat.inv();
+		this.mat.one().rotate(ae);
+		this.inv.set(this.mat).invert();
 	}
 
 
@@ -625,7 +481,8 @@ class PhyBody {
 		amass=amass>=Infinity?1.0:amass/mass;
 		bmass=bmass>=Infinity?1.0:bmass/mass;
 		// Get the collision normal and contact points.
-		let col=world.closestpoint(a.vertarr,a.trans,b.vertarr,b.trans);
+		let apos=a.pos,bpos=b.pos;
+		let col=world.closestpoint(a.vertarr,apos,a.mat,b.vertarr,bpos,b.mat);
 		if (!col[0]) {return;}
 		let acon=col[1],bcon=col[2];
 		let norm=world.tmpvec[0];
@@ -637,7 +494,6 @@ class PhyBody {
 		}
 		if (push<1e-10) {return;}
 		push=Math.sqrt(push);
-		let apos=a.trans.vec,bpos=b.trans.vec;
 		// norm=|norm|, acon-=apos, bcon-=bpos
 		for (let i=0;i<dim;i++) {
 			norm[i]/=push;
@@ -695,8 +551,8 @@ class PhyBody {
 					// if (bond.breakdist<Infinity) {
 					let d0=0,d1=0;
 					for (let i=0;i<dim;i++) {
-						let a=ucon[i]-ainv[i];d0+=a*a;
-						let b=vcon[i]-binv[i];d1+=b*b;
+						let x=ucon[i]-ainv[i];d0+=x*x;
+						let y=vcon[i]-binv[i];d1+=y*y;
 					}
 					if (d0<dist2 || d1<dist2) {
 						staticbond=true;
@@ -736,8 +592,7 @@ class PhyBond {
 
 	constructor(world,a,apos,b,bpos,dist,tension) {
 		this.world=world;
-		this.worldlink=new PhyLink(this);
-		this.world.bondlist.add(this.worldlink);
+		this.worldlink=this.world.bondlist.add(this);
 		this.deleted=false;
 		this.a=a;
 		this.apos=new Vector(apos);
@@ -747,10 +602,8 @@ class PhyBond {
 		this.dist=dist;
 		this.breakdist=Infinity;
 		this.tension=tension;
-		this.alink=new PhyLink(this);
-		this.blink=new PhyLink(this);
-		this.a.bondlist.add(this.alink);
-		this.b.bondlist.add(this.blink);
+		this.alink=this.a.bondlist.add(this);
+		this.blink=this.b.bondlist.add(this);
 		this.data={};
 	}
 
@@ -764,8 +617,8 @@ class PhyBond {
 	}
 
 
-	relapos() {return this.a.trans.apply(this.apos);}
-	relbpos() {return this.b.trans.apply(this.bpos);}
+	relapos() {return this.a.relpos(this.apos);}
+	relbpos() {return this.b.relpos(this.bpos);}
 
 
 	update() {
@@ -784,27 +637,26 @@ class PhyBond {
 		bmass=bmass>=Infinity?1.0:bmass/mass;
 		// Get the distance and direction between the bodies.
 		let tmpvec=world.tmpvec;
-		let apos=a.trans.vec,bpos=b.trans.vec;
+		let aloc=this.apos,bloc=this.bpos;
+		let apos=a.pos,bpos=b.pos;
+		let amat=a.mat,bmat=b.mat;
 		let acon=tmpvec[1],bcon=tmpvec[2];
-		for (let side=0;side<2;side++) {
-			let mat=(side?b:a).trans.mat;
-			let scon=side?this.bpos:this.apos;
-			let dcon=side?bcon:acon;
-			let midx=0;
-			for (let i=0;i<dim;i++) {
-				let x=0;
-				for (let j=0;j<dim;j++) {
-					x+=mat[midx++]*scon[j];
-				}
-				dcon[i]=x;
-			}
-		}
 		let norm=tmpvec[0];
-		let dist=0.0;
+		let dist=0;
+		let midx=0;
 		for (let i=0;i<dim;i++) {
-			let x=bcon[i]-acon[i]+bpos[i]-apos[i];
-			norm[i]=x;
-			dist+=x*x;
+			// relative contact points
+			let ac=0,bc=0;
+			for (let j=0;j<dim;j++) {
+				ac+=amat[midx  ]*aloc[j];
+				bc+=bmat[midx++]*bloc[j];
+			}
+			acon[i]=ac;
+			bcon[i]=bc;
+			// norm
+			let d=bc-ac+bpos[i]-apos[i];
+			norm[i]=d;
+			dist+=d*d;
 		}
 		dist=Math.sqrt(dist);
 		// If the points are too far, break the bond.
@@ -844,11 +696,11 @@ class PhyBond {
 		ainertia*=ancross*acc;
 		a.angle[0]-=ainertia*at.dt2;
 		a.spin[0] -=ainertia*at.dt1;
-		a.trans.mat.one().rotate(a.angle);
+		a.mat.one().rotate(a.angle);
 		binertia*=bncross*acc;
 		b.angle[0]+=binertia*bt.dt2;
 		b.spin[0] +=binertia*bt.dt1;
-		b.trans.mat.one().rotate(b.angle);
+		b.mat.one().rotate(b.angle);
 	}
 
 }
@@ -906,12 +758,15 @@ class PhyBroadphase {
 		let world=this.world;
 		let dim=world.dim;
 		let bodycnt=world.bodylist.count;
-		this.bodycnt=bodycnt;
-		if (bodycnt===0) {return;}
+		if (!bodycnt) {
+			this.bodycnt=0;
+			return;
+		}
 		// Allocate working arrays.
 		let dim2=2*dim,nodesize=3+dim2;
 		let sortstart=nodesize*(bodycnt*2-1);
-		let treesize=sortstart*2;
+		let leafstart=sortstart+bodycnt;
+		let treesize=leafstart+bodycnt*nodesize;
 		let memi=this.memi32;
 		if (memi.length<treesize) {
 			memi=new Int32Array(treesize*2);
@@ -921,50 +776,52 @@ class PhyBroadphase {
 		}
 		let memf=this.memf32;
 		// Store bodies and their bounds. body_id*2+sleeping.
-		let leafstart=sortstart+bodycnt;
 		let slack=(1+this.slack)*0.5;
-		let leafidx=leafstart;
 		let bodyarr=this.bodyarr;
 		let bodylink=world.bodylist.head;
-		let tmpbnd=new Float32Array(dim*2);
-		for (let i=0;i<bodycnt;i++) {
+		bodycnt=0;
+		while (bodylink) {
 			let body=bodylink.obj;
 			bodylink=bodylink.next;
-			bodyarr[i]=body;
-			memi[leafidx++]=(i<<1)|(body.sleeping?1:0);
-			memi[sortstart+i]=leafidx;
+			// Reject empty bodies.
+			let varr=body.vertarr;
+			let vlen=varr.length;
+			if (!vlen) {continue;}
+			let leafidx=leafstart+(1+dim2)*bodycnt;
+			memi[leafidx++]=(bodycnt<<1)|(body.sleeping?1:0);
+			memi[sortstart+bodycnt]=leafidx;
+			bodyarr[bodycnt++]=body;
 			// Find the bounding box of the transformed body.
-			let trans=body.trans;
-			let pos=trans.vec,mat=trans.mat;
+			let pos=body.pos,mat=body.mat;
 			for (let d=0;d<dim;d++) {
-				tmpbnd[d*2  ]= Infinity;
-				tmpbnd[d*2+1]=-Infinity;
-			}
-			for (let v of body.vertarr) {
-				let midx=0;
-				for (let d=0;d<dim;d++) {
-					let d2=d+d;
-					let x=pos[d];
-					for (let j=0;j<dim;j++) {
-						x+=mat[midx++]*v[j];
-					}
-					let y=tmpbnd[d2];
-					tmpbnd[d2]=x<y?x:y;
-					y=tmpbnd[++d2];
-					tmpbnd[d2]=x>y?x:y;
+				let min=Infinity,max=-Infinity;
+				let midx=d*dim;
+				for (let i=0;i<vlen;i++) {
+					let v=varr[i],x=0;
+					for (let j=0;j<dim;j++) {x+=mat[midx+j]*v[j];}
+					min=min<x?min:x;
+					max=max>x?max:x;
 				}
-			}
-			for (let d=0;d<dim2;d+=2) {
-				let min=tmpbnd[d],max=tmpbnd[d+1];
-				let cen=(max+min)*0.5,dev=(max-min)*slack;
-				memf[leafidx++]=cen-dev;
-				memf[leafidx++]=cen+dev;
+				let dev=(max-min)*slack;
+				let cen=(max+min)*0.5+pos[d];
+				min=cen-dev;
+				max=cen+dev;
+				// Reject bodies with degenerate coordinates.
+				if (!(min<Infinity && max>-Infinity)) {
+					bodycnt--;
+					break;
+				}
+				memf[leafidx++]=min;
+				memf[leafidx++]=max;
 			}
 		}
+		this.bodycnt=bodycnt;
+		if (!bodycnt) {return;}
 		memi[1]=-1;
 		memi[2]=sortstart+bodycnt;
+		let workstop=nodesize*(bodycnt*2-1);
 		let worklo=sortstart;
-		for (let work=0;work<sortstart;work+=nodesize) {
+		for (let work=0;work<workstop;work+=nodesize) {
 			// Pop the top working range off the stack.
 			let workhi=memi[work+2],workcnt=workhi-worklo;
 			if (workcnt===1) {worklo++;continue;}
@@ -1009,15 +866,17 @@ class PhyBroadphase {
 			memi[work+2]=r;
 		}
 		// Set parents and bounding boxes.
-		for (let n=sortstart-nodesize;n>=0;n-=nodesize) {
+		for (let n=workstop-nodesize;n>=0;n-=nodesize) {
 			let l=n+nodesize,r=memi[n+2],ndim=n+nodesize;
 			if (r>=sortstart) {
+				// Leaf
 				l=memi[r-1];r=l;
 				let a=memi[l-1];
-				memi[n+2]=a>>>1;
-				memi[n  ]=((a&1)<<1)|1;
+				memi[n+2]=a>>>1; // body_idx
+				memi[n  ]=((a&1)<<1)|1; // sleeping|is_leaf
 			} else {
-				memi[n  ]=memi[l]&memi[r]&2;
+				// Parent
+				memi[n  ]=memi[l]&memi[r]&2; // sleeping|is_parent
 				memi[l+1]=n;l+=3;
 				memi[r+1]=n;r+=3;
 			}
@@ -1036,58 +895,46 @@ class PhyBroadphase {
 		// collision order.
 		let bodycnt=this.bodycnt;
 		if (bodycnt<=1) {return;}
+		this.bodycnt=0;
 		let nodesize=3+this.world.dim*2;
-		let treeend=nodesize*(bodycnt*2-1);
 		let memi=this.memi32;
 		let memf=this.memf32;
 		let bodyarr=this.bodyarr;
 		let collide=PhyBody.collide;
-		// Randomly flip the left and right children and repack them.
-		// Also find the next node to skip AABB's we've already checked.
-		let randstart=treeend;
-		let randend=randstart+treeend;
+		// Skip traversal by setting node.parent to node.next.
+		let randstart=nodesize*(bodycnt*2-1);
+		let randend=randstart;
 		let rnd=this.world.rnd;
-		let swap=0;
-		memi[randstart  ]=0;
-		memi[randstart+1]=randend;
-		memi[randstart+2]=treeend;
-		for (let n=randstart;n<randend;n+=nodesize) {
-			let orig=memi[n  ];
+		memi[1]=randstart<<2;
+		for (let n=nodesize;n<randstart;n+=nodesize) {
+			let flag=memi[n];
+			// if root: next=end
+			// if node=parent.right: next=parent.next
+			// if node=parent.left : next=parent.right
 			let next=memi[n+1];
-			let cnt =memi[n+2]-nodesize;
-			// Copy original right child and AABB.
-			let u=n+2,v=orig+2,stop=n+nodesize;
-			while (u<stop) {memi[u++]=memi[v++];}
-			// Set the flags on .next.
-			let f=memi[orig];
-			memi[n+1]=(next<<2)|f;
-			if (f&1) {continue;}
-			// Randomly swap the children.
-			let r=memi[orig+2];
-			let l=orig+nodesize;
-			if (swap<=1) {swap=rnd.getu32()|0x80000000;}
-			if (swap&1) {let tmp=l;l=r;r=tmp;}
-			swap>>>=1;
-			let lcnt=(l<r?0:cnt)+r-l,rcnt=cnt-lcnt;
-			let lidx=n+nodesize,ridx=lidx+lcnt;
-			memi[lidx  ]=l;
-			memi[lidx+1]=ridx;
-			memi[lidx+2]=lcnt;
-			memi[ridx  ]=r;
-			memi[ridx+1]=next;
-			memi[ridx+2]=rcnt;
+			if (n===next+nodesize) {
+				next=memi[next+2];
+			} else {
+				next=memi[next+1]>>>2;
+			}
+			if (flag&1) {
+				let cnt=(++randend)-randstart;
+				let j=randstart+rnd.mod(cnt);
+				memi[randend-1]=memi[j];
+				memi[j]=(n<<2)|flag;
+			}
+			memi[n+1]=(next<<2)|flag;
 		}
 		// Process leaves left to right.
-		for (let n=randstart;n<randend;n+=nodesize) {
-			let node=memi[n+1];
-			if (!(node&1)) {continue;}
-			let sleeping=node&2;
-			let body=bodyarr[memi[n+2]];
-			let nbnd=n+3,ndim=n+nodesize;
+		for (let n=randstart;n<randend;n++) {
+			let node=memi[n],sleep=node&2;
 			node>>>=2;
-			while (node<randend) {
+			let body=bodyarr[memi[node+2]];
+			let nbnd=node+3,ndim=node+nodesize;
+			node=memi[node+1]>>>2;
+			while (node<randstart) {
 				let next=memi[node+1];
-				if (!(sleeping&next)) {
+				if (!(sleep&next)) {
 					// Down - check for overlap.
 					let u=nbnd,v=node+3;
 					while (u<ndim && memf[u]<=memf[v+1] && memf[v]<=memf[u+1]) {u+=2;v+=2;}
@@ -1114,10 +961,10 @@ class PhyWorld {
 		for (let i=0;i<4;i++) {this.tmpvec.push(new Vector(dim));}
 		this.gravity=new Vector(dim);
 		this.gravity[dim-1]=gravity;
-		this.typelist=new PhyList();
-		this.intrlist=new PhyList();
-		this.bodylist=new PhyList();
-		this.bondlist=new PhyList();
+		this.typelist=new List();
+		this.intrlist=new List();
+		this.bodylist=new List();
+		this.bondlist=new List();
 		this.bondarr =[];
 		this.broad=new PhyBroadphase(this);
 		this.stepcallback=null;
@@ -1324,7 +1171,7 @@ class PhyWorld {
 	}
 
 
-	closestpoint(_avertarr,atrans,_bvertarr,btrans) {
+	closestpoint(_avertarr,_apos,_amat,_bvertarr,_bpos,_bmat) {
 		// GJK
 		// Determines if bodies are colliding.
 		// Doesn't use constant memory.
@@ -1342,7 +1189,7 @@ class PhyWorld {
 		let dif=this.coldif;
 		let normsum=0;
 		for (let i=0;i<dim;i++) {
-			let x=btrans.vec[i]-atrans.vec[i];
+			let x=_bpos[i]-_apos[i];
 			dif[i]=x;
 			normsum+=x*x;
 		}
@@ -1355,7 +1202,7 @@ class PhyWorld {
 				dstarr=new Float64Array(vertlen*2);
 				this.coltmpvertarr[side]=dstarr;
 			}
-			let mat=(side?btrans:atrans).mat;
+			let mat=side?_bmat:_amat;
 			// mat*v+vec
 			for (let s=0,d=0;s<verts;s++) {
 				let v=srcarr[s];
@@ -1586,7 +1433,7 @@ class PhyWorld {
 		}
 		if (epaprev!==null) {
 			// Calculate contact points based on weights.
-			let apos=atrans.vec;
+			let apos=_apos;
 			let ap=new Vector(apos),bp=new Vector(apos);
 			for (let i=0;i<dim;i++) {
 				let w =epaprev.weight[i];

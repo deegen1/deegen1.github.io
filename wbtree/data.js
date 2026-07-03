@@ -1,7 +1,7 @@
 /*
 
 
-data.js - v1.00
+data.js - v2.01
 
 Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -13,56 +13,49 @@ History
 
 1.00
      Added weight balanced tree.
+2.00
+     Added linked list.
+     Improved tree balancing invariant from L*5+2<R*2 to L*17+{7,4}<R*7.
+     Simplified Tree.find() branching.
+     Node attributes are now nullified on removal.
+     Added checks for re-adding or re-removing nodes.
+     Replaced Object.is(a,b) with a===b since it's slightly faster.
+     Using explicit null comparisons if(node!==null) is 7% faster.
+     Unrolling rotations in Tree.rebalance() is 8% faster.
+     A zero-weight node is used to avoid null checks and point to the tree.
 
 
 --------------------------------------------------------------------------------
 Notes
 
 
-A weight balanced search tree implementation.
+Tree balancing is performed by keeping child weights within a ratio of 2.428.
 
-Balancing is performed by keeping the weights of children within a ratio of 2.5.
-
-Because weights are used, we can lexicographically index nodes. Ex: tree[0] will
-return the smallest node in the tree.
+Weight balancing allows indexing nodes. Ex: tree[0] returns the smallest node.
 
 Adding and removing values are stable with respect to sorting.
 
 weight(null) = 0
 
-Tree height < 2.07 * log2(nodes+1)
+Tree height <= 2.01 * log2(nodes+1)
 
 
 --------------------------------------------------------------------------------
 TODO
 
 
-Unit tests.
-Object.is() vs ===
-Performance test. Unroll rebalance()?
-Remake as AVL tree but track height and weight.
-Debug
-	Use weight=0 to mark if node is in a tree.
-	Add sanity checks when adding or removing nodes.
-	tree.clear() sets weight=0 for all nodes.
+Optimize Tree.iter(), prev(), next(), and release().
 
-let tree=new Tree((l,r)=>l[0]-r[0]);
-tree.add([5,"Friday"]);
-tree.add([5,"Friday2"]);
-tree.add([3,"Wednesday"]);
-tree.add([1,"Monday"]);
-tree.add([6,"Saturday"]);
-tree.add([2,"Tuesday"]);
-tree.add([4,"Thursday"]);
-tree.remove([6,"Saturday"]);
-console.log("iter:");
-for (let node of tree.iter()) {
-	console.log(node.value);
-}
-console.log("index:");
-for (let i=0;i<tree.length();i++) {
-	console.log(tree.get(i).value);
-}
+clear vs release? remove vs release?
+
+For duplicate tree values, allow adding before or after.
+
+For a randomly generated tree, how many rebalance operations does it take to
+make the tree balanced?
+
+Double check invariants.
+Article: Easy, Near-Optimal Weight Balanced Trees
+Try balancing by floor(log(weight)).
 
 
 */
@@ -70,17 +63,181 @@ for (let i=0;i<tree.length();i++) {
 
 
 //---------------------------------------------------------------------------------
-// Data - v1.00
+// Data - v2.01
+
+
+class ListLink {
+
+	constructor(obj) {
+		this.prev=null;
+		this.next=null;
+		this.list=null;
+		this.obj=obj??null;
+		this.idx=null;
+	}
+
+
+	release() {this.remove();}
+
+
+	add(list) {list.add(this);}
+
+
+	remove(clear=false) {
+		let list=this.list;
+		if (list!==null) {list.remove(this,clear);}
+		return list;
+	}
+
+}
+
+
+export class List {
+
+	static Link=ListLink;
+
+
+	constructor(ptr=null) {
+		this.head=null;
+		this.tail=null;
+		this.ptr=ptr;
+		this.count=0;
+	}
+
+
+	release(clear=false) {
+		let link=this.head;
+		while (link!==null) {
+			let next=link.next;
+			link.prev=null;
+			link.next=null;
+			link.list=null;
+			if (clear) {link.obj=null;}
+			link=next;
+		}
+		this.count=0;
+	}
+
+
+	first() {return this.head;}
+
+
+	last() {return this.tail;}
+
+
+	*iter() {
+		let link=null,next=this.head;
+		while ((link=next)!==null) {
+			next=link.next;
+			yield link.obj;
+		}
+	}
+
+
+	add(value) {
+		let link=new ListLink(value);
+		this.addafter(link,this.tail);
+		return link;
+	}
+
+
+	addafter(link,prev=null) {
+		// Inserts the link after prev.
+		if (link.list!==null) {throw "link already in list";}
+		let next=null;
+		if (prev!==null) {
+			next=prev.next;
+			prev.next=link;
+		} else {
+			next=this.head;
+			this.head=link;
+		}
+		link.prev=prev;
+		link.next=next;
+		link.list=this;
+		if (next!==null) {
+			next.prev=link;
+		} else {
+			this.tail=link;
+		}
+		this.count++;
+	}
+
+
+	addbefore(link,next=null) {
+		// Inserts the link before next.
+		if (link.list!==null) {throw "link already in list";}
+		let prev=null;
+		if (next!==null) {
+			prev=next.prev;
+			next.prev=link;
+		} else {
+			prev=this.tail;
+			this.tail=link;
+		}
+		link.prev=prev;
+		link.next=next;
+		link.list=this;
+		if (prev!==null) {
+			prev.next=link;
+		} else {
+			this.head=link;
+		}
+		this.count++;
+	}
+
+
+	remove(link,clear) {
+		if (link===null) {return;}
+		let list=link.list;
+		if (list===null) {return;}
+		if (list!==this) {throw "removing from wrong list";}
+		let prev=link.prev;
+		let next=link.next;
+		if (prev!==null) {
+			prev.next=next;
+		} else {
+			this.head=next;
+		}
+		if (next!==null) {
+			next.prev=prev;
+		} else {
+			this.tail=prev;
+		}
+		this.count--;
+		link.prev=null;
+		link.next=null;
+		link.list=null;
+		if (clear) {link.obj=null;}
+	}
+
+}
 
 
 class TreeNode {
 
 	constructor(value) {
-		this.weight=1;
+		this.weight=0;
 		this.parent=null;
 		this.left=null;
 		this.right=null;
 		this.value=value;
+	}
+
+
+	remove() {
+		let tree=this.tree();
+		if (tree!==null) {tree.removenode(this);}
+		return tree;
+	}
+
+
+	tree() {
+		// zero.value=tree. Searching up is ~(h-1)/2, searching down is ~1.
+		if (!this.weight) {return null;}
+		let zero=this,node=this.left;
+		while (node!==null) {zero=node;node=node.left;}
+		return zero.value;
 	}
 
 
@@ -96,15 +253,13 @@ class TreeNode {
 		//
 		// If N has a right child, R, the left-most child of R is the next node.
 		// Otherwise, the nearest parent of N with N on the left is the next node.
-		let node=this,child=this.right;
-		if (child) {
-			while (child) {node=child;child=child.left;}
+		let n0=this,n1=n0.right,n2=n1.left;
+		if (n2!==null) {
+			do {n0=n1;n1=n2;n2=n2.left;} while (n2!==null);
 		} else {
-			while (node && Object.is(node.right,child)) {
-				child=node;node=node.parent;
-			}
+			do {n1=n0;n0=n0.parent;} while (n0.right===n1);
 		}
-		return node;
+		return n0.weight?n0:null;
 	}
 
 
@@ -120,69 +275,13 @@ class TreeNode {
 		//
 		// If N has a left child, L, the right-most child of L is the next node.
 		// Otherwise, the nearest parent of N with N on the right is the next node.
-		let node=this,child=this.left;
-		if (child) {
-			while (child) {node=child;child=child.right;}
+		let n0=this,n1=n0.left,n2=n1.right;
+		if (n2!==null) {
+			do {n0=n1;n1=n2;n2=n2.right;} while (n2!==null);
 		} else {
-			while (node && Object.is(node.left,child)) {
-				child=node;node=node.parent;
-			}
+			do {n1=n0;n0=n0.parent;} while (n0.left===n1);
 		}
-		return node;
-	}
-
-
-	rotleft() {
-		// Raise z, lower x, and maintain the sorted order of the nodes.
-		//
-		//        A                B
-		//       / \              / \
-		//      x   B     ->     A   z
-		//         / \          / \
-		//        y   z        x   y
-		//
-		let a=this;
-		let b=a.right;
-		let r=b.left;
-		b.parent=a.parent;
-		b.left=a;
-		a.parent=b;
-		a.right=r;
-		if (r) {r.parent=a;}
-		a.calcweight();
-		b.calcweight();
-		return b;
-	}
-
-
-	rotright() {
-		// Raise x, lower z, and maintain the sorted order of the nodes.
-		//
-		//          A            B
-		//         / \          / \
-		//        B   z   ->   x   A
-		//       / \              / \
-		//      x   y            y   z
-		//
-		let a=this;
-		let b=a.left;
-		let l=b.right;
-		b.parent=a.parent;
-		b.right=a;
-		a.parent=b;
-		a.left=l;
-		if (l) {l.parent=a;}
-		a.calcweight();
-		b.calcweight();
-		return b;
-	}
-
-
-	calcweight() {
-		let l=this.left,r=this.right,weight=1;
-		if (l) {weight+=l.weight;}
-		if (r) {weight+=r.weight;}
-		this.weight=weight;
+		return n0.weight?n0:null;
 	}
 
 
@@ -190,20 +289,19 @@ class TreeNode {
 		// Returns the node's index within the tree. Ex: tree[node.index()]=node
 		let idx=-1;
 		let node=this,prev=this.right;
-		while (node) {
-			if (Object.is(node.right,prev)) {
-				idx+=node.left?node.left.weight+1:1;
-			}
+		while (true) {
+			let l=node.left;
+			if (node.right===prev) {idx+=l.weight+1;}
+			else if (l!==prev) {return idx;}
 			prev=node;
 			node=node.parent;
 		}
-		return idx;
 	}
 
 }
 
 
-class Tree {
+export class Tree {
 
 	static Node=TreeNode;
 
@@ -223,78 +321,78 @@ class Tree {
 
 	static defcmp(l,r) {
 		if (l<r) {return -1;}
-		if (l>r) {return  1;}
-		return 0;
+		return r<l?1:0;
 	}
 
 
-	constructor(cmp=Tree.defcmp,duplicate=Tree.ADD) {
+	constructor(cmp=null,duplicate=Tree.ADD) {
 		// cmp(l,r) is expected to be a function where
 		//
 		//      cmp(l,r)<0 if l<r
 		//      cmp(l,r)=0 if l=r
 		//      cmp(l,r)>0 if l>r
 		//
-		this.cmp=cmp;
+		this.cmp=cmp??Tree.defcmp;
 		this.duplicate=duplicate;
-		this.root=null;
+		this.zero=new TreeNode(this);
+		this.root=this.zero;
+		this.length=0;
 	}
 
 
-	clear() {this.root=null;}
-
-
-	length() {
-		// Return the number of nodes in the tree.
-		return this.root?this.root.weight:0;
-	}
-
-
-	get(i) {
-		// Index nodes like an array.
-		let node=this.root;
-		let weight=node?node.weight:0;
-		if (i<0) {i+=weight;}
-		if (i<0 || i>=weight) {return null;}
-		while (true) {
-			let left=node.left;
-			let lw=left?left.weight:0;
-			if (i>lw) {
-				i-=lw+1;
-				node=node.right;
-			} else if (i===lw) {
-				break;
-			} else {
-				node=left;
-			}
-		}
-		return node;
-	}
-
-
-	*iter() {
-		// Iterate over all nodes in ascending order.
-		let node=this.first();
-		while (node) {
-			yield node;
-			node=node.next();
+	release() {
+		let node=null;
+		while ((node=this.root)!==null) {
+			this.removenode(node);
 		}
 	}
 
 
 	first() {
 		// Return the smallest node in the tree.
-		let node=this.root,ret=null;
-		while (node) {ret=node;node=node.left;}
+		let node=this.root,ret=null,zero=this.zero;
+		while (node!==zero) {ret=node;node=node.left;}
 		return ret;
 	}
 
 
 	last() {
 		// Return the greatest node in the tree.
-		let node=this.root,ret=null;
-		while (node) {ret=node;node=node.right;}
+		let node=this.root,ret=null,zero=this.zero;
+		while (node!==zero) {ret=node;node=node.right;}
 		return ret;
+	}
+
+
+	*iter() {
+		// Iterate over all nodes in ascending order.
+		let node=this.first();
+		while (node!==null) {
+			let next=node.next();
+			yield node;
+			node=next;
+		}
+	}
+
+
+	get(i) {
+		// Index nodes like an array.
+		let node=this.root;
+		let weight=node.weight;
+		if (i<0) {i+=weight;}
+		if (i<0 || i>=weight) {return null;}
+		while (true) {
+			let l=node.left;
+			let lw=l.weight;
+			if (i>=lw) {
+				i-=lw+1;
+				if (i<0) {break;}
+				node=node.right;
+			} else {
+				node=l;
+			}
+		}
+		return node;
 	}
 
 
@@ -308,67 +406,64 @@ class Tree {
 		//      GT : Return the least    node>value.
 		//      GE : Return the least    node>=value.
 		//
-		let node=this.root,ret=null;
+		let node=this.root,ret=null,zero=this.zero;
 		let cmp=this.cmp;
-		let dup=this.duplicate;
-		let lset  =[false,false,true ,true ,false,false][mode];
-		let rset  =[false,false,false,false,true ,true ][mode];
-		let eset  =[true ,true ,false,true ,false,true ][mode];
-		let eright=[false,true ,false,true ,true ,false][mode];
-		while (node) {
+		let set=0x34652>>>(mode*3);
+		let right=1|((0x34>>>mode)&2);
+		while (node!==zero) {
 			let c=cmp(node.value,value);
-			if (c<0) {
-				if (lset) {ret=node;}
-				node=node.right;
-			} else if (c>0) {
-				if (rset) {ret=node;}
-				node=node.left;
-			} else {
-				if (eset) {
-					ret=node;
-					if (dup) {break;}
-				}
-				node=eright?node.right:node.left;
-			}
+			let bit=1<<(1+(c>0)-(c<0));
+			ret=(set&bit)?node:ret;
+			node=(right&bit)?node.right:node.left;
 		}
 		return ret;
 	}
 
 
-	addnode(orig) {
-		// Find a leaf node to add the new value to. Then rebalance from the new node on
-		// up. By traversing right when cmp<=0, this algorithm is stable.
-		let value=orig.value;
-		let node=this.root,prev=null;
-		let cmp=this.cmp;
-		let dup=this.duplicate,c=0;
-		while (node) {
-			c=cmp(node.value,value);
-			if (c===0 && dup) {
-				if (dup===Tree.DISCARD) {return null;}
-				node.value=value;
-				return node;
-			}
-			prev=node;
-			node=c>0?node.left:node.right;
-		}
-		orig.weight=1;
-		orig.left=null;
-		orig.right=null;
-		orig.parent=prev;
-		if (prev===null) {
-			this.root=orig;
-		} else {
-			if (c>0) {prev.left=orig;}
-			else     {prev.right=orig;}
-			this.rebalance(prev);
-		}
-		return orig;
+	add(value) {
+		return this.addnode(new TreeNode(value));
 	}
 
 
-	add(value) {
-		return this.addnode(new TreeNode(value));
+	remove(value) {
+		// Remove a node given a value.
+		let node=this.find(value);
+		if (node!==null) {this.removenode(node);}
+		return node;
+	}
+
+
+	addnode(node) {
+		// Find a leaf node to add the new value to. Then rebalance from the new node on
+		// up. By traversing right when cmp<=0, this algorithm is stable.
+		if (node.weight) {throw "node already in tree";}
+		let value=node.value;
+		let trav=this.root,zero=this.zero,prev=zero;
+		let cmp=this.cmp;
+		let dup=this.duplicate,c=0;
+		while (trav!==zero) {
+			c=cmp(trav.value,value);
+			if (c===0 && dup) {
+				if (dup===Tree.DISCARD) {return null;}
+				trav.value=value;
+				return trav;
+			}
+			prev=trav;
+			trav=c>0?trav.left:trav.right;
+		}
+		this.length++;
+		node.weight=1;
+		node.left=zero;
+		node.right=zero;
+		node.parent=prev;
+		if (prev===zero) {
+			this.root=node;
+		} else {
+			if (c>0) {prev.left=node;}
+			else     {prev.right=node;}
+			this.rebalance(prev);
+		}
+		return node;
 	}
 
 
@@ -391,77 +486,126 @@ class Tree {
 		//        / \                |   / \                     |
 		//       X   *               |  *   B                    |
 		//
-		let p=node.parent;
-		let l=node.left,r=node.right;
-		let next=null,bal=null;
-		if (r===null) {
+		if (!node.weight) {throw "double removal";}
+		let p=node.parent,l=node.left,r=node.right;
+		let zero=this.zero,next=r,bal=p;
+		node.weight=0;
+		node.parent=null;
+		node.left=null;
+		node.right=null;
+		if (r===zero) {
 			// Case 1
-			bal=p;next=l;l=null;
-		} else if (r.left) {
+			next=l;l=zero;
+		} else if (r.left!==zero) {
 			// Case 2
-			next=r;
-			while (next.left) {bal=next;next=next.left;}
-			let c=next.right;
+			let c=next.left;
+			do {bal=next;next=c;c=next.left;} while (c!==zero);
+			c=next.right;
 			bal.left=c;
-			if (c) {c.parent=bal;}
+			c.parent=bal;
 		} else {
 			// Case 3
-			bal=r;next=r;r=null;
+			bal=r;r=zero;
 		}
 		// Replace node with next.
-		if (p===null) {this.root=next;}
-		else if (Object.is(p.left,node)) {p.left=next;}
+		if (p===zero) {this.root=next;}
+		else if (p.left===node) {p.left=next;}
 		else {p.right=next;}
-		if (next) {
-			next.parent=p;
-			if (l) {next.left=l;l.parent=next;}
-			if (r) {next.right=r;r.parent=next;}
+		this.length--;
+		next.parent=p;
+		if (l!==zero) {
+			next.left=l;
+			l.parent=next;
+		}
+		if (r!==zero) {
+			next.right=r;
+			r.parent=next;
 		}
 		this.rebalance(bal);
 	}
 
 
-	remove(value) {
-		// Remove a node given a value.
-		let node=this.find(value);
-		if (node) {this.removenode(node);}
-		return node;
-	}
-
-
 	rebalance(next) {
-		// Rebalance from next upward. If 2 children differ in weight by a ratio of 2.5 or
-		// more, we can rotate to rebalance.
-		function Weight(n) {return n?n.weight:0;}
-		while (next) {
-			let node=next,orig=next;
-			next=node.parent;
-			let l=node.left,r=node.right;
-			let lw=Weight(l),rw=Weight(r);
-			if (rw*5+2<lw*2) {
+		// Rebalance from next upward.
+		let zero=this.zero;
+		while (next!==zero) {
+			let n=next,orig=next;
+			next=n.parent;
+			let l=n.left,r=n.right;
+			let lw=l.weight,rw=r.weight;
+			// Primary invariant: L*17+7<R*7, secondary invariant: L.L*17+4<L*7.
+			// con=4 has fewest rebalances and lowest height. 17/7>1+sqrt(2).
+			let rem=(rw+lw+7)>>>3;
+			if (rw+rw<lw-rem) {
 				// Leaning to the left.
-				if (Weight(l.left)*5<lw*2) {node.left=l.rotleft();}
-				node=node.rotright();
-			} else if (lw*5+2<rw*2) {
+				r=l.right;
+				let a=l.left;
+				let aw=a.weight;
+				if (aw+aw<lw-((aw+lw+4)>>>3)) {
+					// Left rotate L, then right rotate N.
+					//
+					//          N                N               R
+					//         / \              / \             / \
+					//        L   d            R   d           /   \
+					//       / \      ->      / \      ->     L     N
+					//      a   R            L   c           / \   / \
+					//         / \          / \             a   b c   d
+					//        b   c        a   b
+					//
+					let b=r.left;
+					l.parent=r;
+					l.right=b;
+					b.parent=l;
+					l.weight=b.weight+aw+1;
+					r.left=l;l=r;
+					r=r.right;
+				}
+				// Right rotate N.
+				//
+				//          N            L
+				//         / \          / \
+				//        L   c   ->   a   N
+				//       / \              / \
+				//      a   b            b   c
+				//
+				n.parent=l;
+				n.left=r;
+				r.parent=n;
+				n.weight=r.weight+rw+1;
+				l.parent=next;
+				l.right=n;
+				n=l;
+			} else if (lw+lw<rw-rem) {
 				// Leaning to the right.
-				if (Weight(r.right)*5<rw*2) {node.right=r.rotright();}
-				node=node.rotleft();
-			} else {
-				// Balanced.
-				node.weight=lw+rw+1;
-				continue;
+				l=r.left;
+				let d=r.right;
+				let dw=d.weight;
+				if (dw+dw<rw-((dw+rw+4)>>>3)) {
+					// Right rotate R, then left rotate N.
+					let c=l.right;
+					r.parent=l;
+					r.left=c;
+					c.parent=r;
+					r.weight=c.weight+dw+1;
+					l.right=r;r=l;
+					l=l.left;
+				}
+				// Left rotate N.
+				n.parent=r;
+				n.right=l;
+				l.parent=n;
+				n.weight=l.weight+lw+1;
+				r.parent=next;
+				r.left=n;
+				n=r;
 			}
-			if (next===null) {this.root=node;}
-			else if (Object.is(next.left,orig)) {next.left=node;}
-			else {next.right=node;}
+			n.weight=lw+rw+1;
+			if (n===orig) {continue;}
+			if (next===zero) {this.root=n;}
+			else if (next.left===orig) {next.left=n;}
+			else {next.right=n;}
 		}
 	}
 
 }
-
-
-const Data={
-	Tree:Tree,
-};
-export {Data};
 

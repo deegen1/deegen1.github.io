@@ -78,8 +78,8 @@ export class PhyScene {
 		this.scale=drawh;
 		// Move side walls to edge of screen.
 		let w=(draww/drawh)*0.5+0.495;
-		this.wallarr[2].trans.vec[0]=-w;
-		this.wallarr[3].trans.vec[0]= w;
+		this.wallarr[2].pos[0]=-w;
+		this.wallarr[3].pos[0]= w;
 	}
 
 
@@ -150,15 +150,16 @@ export class PhyScene {
 		let mouse=transinv.apply(new Vector(input.getmousepos()));
 		this.mouse=mouse;
 		let player=this.player;
-		let dir=mouse.sub(player.trans.vec);
+		let dir=mouse.sub(player.pos);
 		let mag=dir.sqr();
 		if (mag<Infinity && dt>1e-10) {
 			player.vel=dir.mul(mag>1e-6?0.2/dt:0);
 		}
 		// Draw bodies.
 		let velscale=Math.pow(0.75,dt);
+		let bodytrans=new Transform(2);
 		for (let body of world.bodyiter()) {
-			let bodytrans=trans.apply(body.trans);
+			let bodytrans=trans.apply({vec:body.pos,mat:body.mat});
 			let data=body.data;
 			let rgb=data.rgb;
 			if (rgb===null) {
@@ -188,6 +189,7 @@ export class PhyScene {
 		if (++this.frames>=60) {
 			let avg=this.framesum/this.frames;
 			this.framestr=avg.toFixed(1)+" ms";
+			// this.framestr=world.bondlist.count+"";
 			this.frames=0;
 			this.framesum=0;
 		}

@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-vector.js - v3.09
+vector.js - v3.15
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -54,26 +54,107 @@ History
      Simplified Transform constructor.
 3.09
      Added sanity checks to Transform constructor.
+3.10
+     Added Matrix.imul().
+     Matrix.set() can now resize dimensions.
+     Matrix.one() only writes to each element once.
+     Removed dictionary debug checking from Transform constructor.
+     Optimized scalemat().
+3.11
+     Slightly optimized mat*mat operations.
+     Transform.apply() is 25% faster by removing duplicate allocations.
+3.12
+     Slightly optimized Matrix.inv() and det().
+     Added Matrix.invert().
+3.13
+     Vector.set() now resizes.
+3.14
+     Removed Vector.sanitize(). Length checks are performed in each function.
+     Vectors can be created without initializing. This is 5% to 20% faster.
+     Matrices can be created without initializing.
+3.15
+     Fixed a bug when calling Matrix.set() on an array.
 
 
 --------------------------------------------------------------------------------
 TODO
 
 
-Vector
-	randomangle()
-
 Matrix
-	sanitize()
 	tostring()
 	row(i,v), col(i,v), get(x,y)
-	add, sub, neg, det.
-	Simplify permutation in matrix inv.
+	add, sub, neg.
+
+
+Transform
+	lookat: https://math.stackexchange.com/questions/180418
 
 Test suite.
-Article on division-free determinant.
 Article on random angle generation.
-Unroll determinant and inverse for small matrices.
+
+det()
+	// Unroll small matrices. This is 10x faster.
+	if (dim<4) {
+		let e=this;
+		if (dim===0) {
+			return 1;
+		} else if (dim===1) {
+			return e[0];
+		} else if (dim===2) {
+			return e[0]*e[3]-e[1]*e[2];
+		} else {
+			return e[0]*(e[4]*e[8]-e[5]*e[7])+
+				  e[1]*(e[5]*e[6]-e[3]*e[8])+
+				  e[2]*(e[3]*e[7]-e[4]*e[6]);
+		}
+	}
+
+inv()
+	// Unroll small matrices. This is 20% to 50% faster.
+	let dim=this.rows;
+	if (dim<4 && dim===this.cols) {
+		let m=new Matrix(dim,dim,false),u=this;
+		let det=0;
+		if (dim===0) {
+			det=1;
+		} else if (dim===1) {
+			det=u[0];
+			m[0]=1/det;
+		} else if (dim===2) {
+			let a=u[0],b=u[1],c=u[2],d=u[3];
+			det=a*d-b*c;
+			m[0]= d/det;m[1]=-b/det;
+			m[2]=-c/det;m[3]= a/det;
+		} else {
+			let a=u[0],b=u[1],c=u[2];
+			let d=u[3],e=u[4],f=u[5];
+			let g=u[6],h=u[7],i=u[8];
+			let m0=e*i-f*h,m1=c*h-b*i,m2=b*f-c*e;
+			let m3=f*g-d*i,m4=a*i-c*g,m5=c*d-a*f;
+			let m6=d*h-e*g,m7=b*g-a*h,m8=a*e-b*d;
+			det=a*m0+b*m3+c*m6;
+			m[0]=m0/det;m[1]=m1/det;m[2]=m2/det;
+			m[3]=m3/det;m[4]=m4/det;m[5]=m5/det;
+			m[6]=m6/det;m[7]=m7/det;m[8]=m8/det;
+		}
+		if (!(det<-1e-10 || det>1e-10)) {throw `Unable to find an invertible element.`;}
+		return m;
+	}
+
+
+apply()
+	// This is called a lot, so unroll mat*point+vec.
+	let dim=point.length;
+	if (dim!==undefined) {
+		if (dim!==avec.length) {throw `mat*vec dimensions: ${dim}!=${avec.length}`;}
+		let v=new Vector(dim,false);
+		for (let r=0,i=0;r<dim;r++) {
+			let sum=0;
+			for (let c=0;c<dim;c++) {sum+=amat[i++]*point[c];}
+			v[r]=sum+avec[r];
+		}
+		return v;
+	}
 
 
 */
@@ -84,7 +165,7 @@ import {Random} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
-// Vector - v3.09
+// Vector - v3.15
 
 
 export class Vector extends Array {
@@ -92,10 +173,10 @@ export class Vector extends Array {
 	static rnd=new Random();
 
 
-	constructor(elem) {
-		let arr=elem.length!==undefined;
-		super(arr?elem.length:elem);
-		this.set(arr?elem:0);
+	constructor(elem,init=true) {
+		let len=elem.length;
+		super(len??elem);
+		if (init) {this.set(len?elem:0);}
 	}
 
 
@@ -103,24 +184,11 @@ export class Vector extends Array {
 	toString() {return this.tostring();}
 
 
-	sanitize(v) {
-		// Converts v to a vector or throws an error.
-		let len=this.length,vlen=v.length;
-		if (vlen!==undefined) {
-			if (vlen!==len) {throw `Incompatible lengths: ${len}, ${vlen}`;}
-			return v;
-		} else if (!isNaN(v)) {
-			return (new Vector(len)).set(v);
-		}
-		throw `Unrecognized vector type: ${typeof v}`;
-	}
-
-
 	set(v=0) {
 		let len=this.length,vlen=v.length;
 		if (vlen!==undefined) {
-			len=len<vlen?len:vlen;
-			for (let i=0;i<len;i++) {this[i]=v[i];}
+			if (len!==vlen) {this.length=vlen;}
+			for (let i=0;i<vlen;i++) {this[i]=v[i];}
 		} else if (!isNaN(v)) {
 			for (let i=0;i<len;i++) {this[i]=v;}
 		} else {
@@ -137,43 +205,80 @@ export class Vector extends Array {
 	// Comparison
 
 
-	static cmp(u,v) {
+	cmp(v) {
 		// return -1, 0, 1
-		let ulen=u.length,vlen=v.length;
-		let len=ulen<vlen?ulen:vlen;
-		for (let i=0;i<len;i++) {
-			let x=u[i],y=v[i];
-			if (x!==y) {return x<y?-1:1;}
+		let ulen=this.length,vlen=v.length;
+		let u=this;
+		if (vlen!==undefined) {
+			if (ulen!==vlen) {throw `Incompatible lengths ${ulen}!=${vlen}`;}
+			for (let i=0;i<ulen;i++) {
+				let x=u[i],y=v[i];
+				if (x!==y) {return x<y?-1:1;}
+			}
+		} else {
+			for (let i=0;i<ulen;i++) {
+				let x=u[i];
+				if (x!==v) {return x<v?-1:1;}
+			}
 		}
-		if (ulen===vlen) {return 0;}
-		return ulen<vlen?-1:1;
+		return 0;
 	}
 
 
-	static lt(u,v) {return u.cmp(v)<0;}
-	static le(u,v) {return u.cmp(v)<=0;}
+	lt(u,v) {return u.cmp(v)<0;}
+	le(u,v) {return u.cmp(v)<=0;}
 
 
 	imin(v) {
-		v=this.sanitize(v);
-		let u=this,len=this.length;
-		for (let i=0;i<len;i++) {let x=u[i],y=v[i];u[i]=x<y?x:y;}
+		let ulen=this.length,vlen=v.length;
+		let u=this;
+		if (vlen!==undefined) {
+			if (ulen!==vlen) {throw `Incompatible lengths ${ulen}!=${vlen}`;}
+			for (let i=0;i<ulen;i++) {let x=u[i],y=v[i];u[i]=x<y?x:y;}
+		} else {
+			for (let i=0;i<ulen;i++) {let x=u[i];u[i]=x<v?x:v;}
+		}
 		return this;
 	}
 
 
-	min(v) {return this.copy().imin(v);}
+	min(v) {
+		let ulen=this.length,vlen=v.length;
+		let u=this,r=new Vector(ulen,false);
+		if (vlen!==undefined) {
+			if (ulen!==vlen) {throw `Incompatible lengths ${ulen}!=${vlen}`;}
+			for (let i=0;i<ulen;i++) {let x=u[i],y=v[i];r[i]=x<y?x:y;}
+		} else {
+			for (let i=0;i<ulen;i++) {let x=u[i];r[i]=x<v?x:v;}
+		}
+		return r;
+	}
 
 
 	imax(v) {
-		v=this.sanitize(v);
-		let u=this,len=this.length;
-		for (let i=0;i<len;i++) {let x=u[i],y=v[i];u[i]=x>y?x:y;}
+		let ulen=this.length,vlen=v.length;
+		let u=this;
+		if (vlen!==undefined) {
+			if (ulen!==vlen) {throw `Incompatible lengths ${ulen}!=${vlen}`;}
+			for (let i=0;i<ulen;i++) {let x=u[i],y=v[i];u[i]=x>y?x:y;}
+		} else {
+			for (let i=0;i<ulen;i++) {let x=u[i];u[i]=x>v?x:v;}
+		}
 		return this;
 	}
 
 
-	max(v) {return this.copy().imax(v);}
+	max(v) {
+		let ulen=this.length,vlen=v.length;
+		let u=this,r=new Vector(ulen,false);
+		if (vlen!==undefined) {
+			if (ulen!==vlen) {throw `Incompatible lengths ${ulen}!=${vlen}`;}
+			for (let i=0;i<ulen;i++) {let x=u[i],y=v[i];r[i]=x>y?x:y;}
+		} else {
+			for (let i=0;i<ulen;i++) {let x=u[i];r[i]=x>v?x:v;}
+		}
+		return r;
+	}
 
 
 	// ----------------------------------------
@@ -187,31 +292,50 @@ export class Vector extends Array {
 	}
 
 
-	neg() {return this.copy().ineg();}
+	neg() {
+		let len=this.length;
+		let u=this,r=new Vector(len,false);
+		for (let i=0;i<len;i++) {r[i]=-u[i];}
+		return r;
+	}
 
 
 	iadd(v) {
 		// u+=v
-		v=this.sanitize(v);
-		let u=this,len=this.length;
-		for (let i=0;i<len;i++) {u[i]+=v[i];}
+		let ulen=this.length,vlen=v.length;
+		if (ulen!==vlen) {throw `Incompatible lengths: ${ulen}!=${vlen}`;}
+		let u=this;
+		for (let i=0;i<ulen;i++) {u[i]+=v[i];}
 		return this;
 	}
 
 
-	add(v) {return this.copy().iadd(v);}
+	add(v) {
+		let ulen=this.length,vlen=v.length;
+		if (ulen!==vlen) {throw `Incompatible lengths: ${ulen}!=${vlen}`;}
+		let u=this,r=new Vector(ulen,false);
+		for (let i=0;i<ulen;i++) {r[i]=u[i]+v[i];}
+		return r;
+	}
 
 
 	isub(v) {
 		// u-=v
-		v=this.sanitize(v);
-		let u=this,len=this.length;
-		for (let i=0;i<len;i++) {u[i]-=v[i];}
+		let ulen=this.length,vlen=v.length;
+		if (ulen!==vlen) {throw `Incompatible lengths: ${ulen}!=${vlen}`;}
+		let u=this;
+		for (let i=0;i<ulen;i++) {u[i]-=v[i];}
 		return this;
 	}
 
 
-	sub(v) {return this.copy().isub(v);}
+	sub(v) {
+		let ulen=this.length,vlen=v.length;
+		if (ulen!==vlen) {throw `Incompatible lengths: ${ulen}!=${vlen}`;}
+		let u=this,r=new Vector(ulen,false);
+		for (let i=0;i<ulen;i++) {r[i]=u[i]-v[i];}
+		return r;
+	}
 
 
 	imul(s) {
@@ -224,15 +348,16 @@ export class Vector extends Array {
 
 	mul(v) {
 		// dot or scalar product
-		let u=this,len=this.length,vlen=v.length;
+		let u=this;
+		let ulen=this.length,vlen=v.length;
 		if (vlen!==undefined) {
-			if (vlen!==len) {throw `Incompatible lengths: ${len}, ${vlen}`;}
+			if (ulen!==vlen) {throw `Incompatible lengths: ${ulen}!=${vlen}`;}
 			let sum=0;
-			for (let i=0;i<len;i++) {sum+=u[i]*v[i];}
+			for (let i=0;i<ulen;i++) {sum+=u[i]*v[i];}
 			return sum;
 		}
-		let r=new Vector(len);
-		for (let i=0;i<len;i++) {r[i]=u[i]*v;}
+		let r=new Vector(ulen,false);
+		for (let i=0;i<ulen;i++) {r[i]=u[i]*v;}
 		return r;
 	}
 
@@ -243,9 +368,11 @@ export class Vector extends Array {
 
 	dist2(v) {
 		// (u-v)^2
-		v=this.sanitize(v);
-		let u=this,len=this.length,sum=0;
-		for (let i=0;i<len;i++) {let x=u[i]-v[i];sum+=x*x;}
+		let u=this;
+		let ulen=this.length,vlen=v.length;
+		if (ulen!==vlen) {throw `Incompatible lengths: ${ulen}!=${vlen}`;}
+		let sum=0;
+		for (let i=0;i<ulen;i++) {let x=u[i]-v[i];sum+=x*x;}
 		return sum;
 	}
 
@@ -265,6 +392,7 @@ export class Vector extends Array {
 
 
 	normalize() {
+		// Normalize the vector.
 		let u=this,len=this.length,mag=0;
 		for (let i=0;i<len;i++) {
 			let x=u[i];
@@ -280,7 +408,22 @@ export class Vector extends Array {
 	}
 
 
-	norm() {return this.copy().normalize();}
+	norm() {
+		// Return a new normal vector.
+		let len=this.length,mag=0;
+		let u=this,r=new Vector(len,false);
+		for (let i=0;i<len;i++) {
+			let x=u[i];
+			mag+=x*x;
+		}
+		if (mag>1e-10) {
+			mag=1/Math.sqrt(mag);
+			for (let i=0;i<len;i++) {r[i]=u[i]*mag;}
+		} else {
+			r.randomize();
+		}
+		return r;
+	}
 
 
 	randomize() {
@@ -301,44 +444,54 @@ export class Vector extends Array {
 	}
 
 
-	static random(dim) {return (new Vector(dim)).randomize();}
+	static random(dim) {return (new Vector(dim,false)).randomize();}
 
 }
 
 
 export class Matrix extends Array {
 
-	constructor(rows,cols) {
+	static _perm=[];
+
+
+	constructor(rows,cols,init=true) {
 		// Expected: (dim), (rows,cols), (Matrix), or (array,[rows,cols])
 		let val=0;
 		if (rows instanceof Matrix) {val=rows;rows=val.rows;cols=val.cols;}
 		else if (rows.length!==undefined) {val=rows;rows=cols[0];cols=cols[1];}
-		else if (cols===undefined) {cols=rows;}
+		else {cols=cols??rows;}
 		super(rows*cols);
 		this.rows=rows;
 		this.cols=cols;
-		this.set(val);
+		if (init) {this.set(val);}
 	}
 
 
 	one() {
-		this.set(0);
 		let elem=this;
-		let cols=this.cols,rows=this.rows;
-		rows=rows<cols?rows:cols;
-		for (let i=0;i<rows;i++) {elem[i*cols+i]=1;}
+		let elems=this.length,cols=this.cols+1,c=0;
+		for (let i=0;i<elems;i++) {
+			let x=0;if (i===c) {x=1;c+=cols;}
+			elem[i]=x;
+		}
 		return this;
 	}
 
 
 	set(val=0) {
 		let elem=this;
-		let elems=elem.length,vlen=val.length;
+		let rows=this.rows,cols=this.cols;
+		let elems=rows*cols,vlen=val.length;
 		if (vlen===undefined) {
 			for (let i=0;i<elems;i++) {elem[i]=val;}
+		} else if (val instanceof Matrix) {
+			if (vlen!==elems) {elem.length=vlen;}
+			this.rows=val.rows;
+			this.cols=val.cols;
+			for (let i=0;i<vlen;i++) {elem[i]=val[i];}
 		} else {
-			if (vlen!==elems) {throw `set length: ${elems}!=${vlen}`;}
-			for (let i=0;i<elems;i++) {elem[i]=val[i];}
+			if (vlen!==elems) {throw `invalid array dimensions: ${vlen}!=${elems}`;}
+			for (let i=0;i<vlen;i++) {elem[i]=val[i];}
 		}
 		return this;
 	}
@@ -348,16 +501,16 @@ export class Matrix extends Array {
 		let aelem=this;
 		let arows=this.rows,acols=this.cols;
 		let aelems=this.length,belems=b.length;
-		if (b.length===undefined) {
+		if (belems===undefined) {
 			// scalar
-			let m=new Matrix(this);
-			for (let i=0;i<aelems;i++) {m[i]*=b;}
+			let m=new Matrix(arows,acols,false);
+			for (let i=0;i<aelems;i++) {m[i]=aelem[i]*b;}
 			return m;
 		} else if (!(b instanceof Matrix)) {
 			// vector
-			if (belems!==acols) {throw `mat*vec dimensions: ${acols}!=${belems}`;}
-			let v=new Vector(arows),i=0;
-			for (let r=0;r<arows;r++) {
+			if (acols!==belems) {throw `mat*vec dimensions: ${acols}!=${belems}`;}
+			let v=new Vector(arows,false);
+			for (let r=0,i=0;r<arows;r++) {
 				let sum=0;
 				for (let c=0;c<acols;c++) {sum+=aelem[i++]*b[c];}
 				v[r]=sum;
@@ -365,134 +518,139 @@ export class Matrix extends Array {
 			return v;
 		}
 		// matrix
-		let brows=b.rows,bcols=b.cols,melems=arows*bcols;belems--;
-		if (acols!==brows) {throw `A*B needs cols(A)=rows(B): ${acols}, ${brows}`;}
-		let m=new Matrix(arows,bcols);
+		let bcols=b.cols,melems=arows*bcols;belems--;
+		if (acols!==b.rows) {throw `A*B needs cols(A)=rows(B): ${acols}, ${b.rows}`;}
+		let m=new Matrix(arows,bcols,false);
 		let belem=b,melem=m;
-		let aval=0,bval=0;
+		let aidx=0,bidx=0;
 		for (let i=0;i<melems;i++) {
 			// Multiply row r of A with column c of B.
-			let sum=melem[i];
-			while (bval<=belems) {
-				sum+=aelem[aval]*belem[bval];
-				aval++;
-				bval+=bcols;
+			let sum=0;
+			while (bidx<=belems) {
+				sum+=aelem[aidx++]*belem[bidx];
+				bidx+=bcols;
 			}
 			melem[i]=sum;
-			bval-=belems;
-			if (bval===bcols) {bval=0;}
-			else {aval-=brows;}
+			bidx-=belems;
+			if (bidx===bcols) {bidx=0;}
+			else {aidx-=acols;}
 		}
 		return m;
 	}
 
 
-	det() {
-		let rows=this.rows,cols=this.cols;
-		if (rows!==cols) {return 0;}
-		if (rows===0) {return 1;}
-		// Copy the matrix. Use the upper triangular form to compute the determinant.
-		let elem=new Matrix(this);
-		let sign=0;
-		for (let i=0;i<cols-1;i++) {
-			// Find a row with an invertible element in column i.
-			let dval=i*cols,sval=dval,j=i;
-			let inv=NaN;
-			for (;j<rows;j++) {
-				inv=1/elem[sval+i];
-				if (inv>-Infinity && inv<Infinity) {break;}
-				sval+=cols;
-			}
-			if (j===rows) {return 0;}
-			if (sval!==dval) {
-				sign^=1;
-				for (let c=i;c<cols;c++) {
-					let tmp=elem[sval+c];
-					elem[sval+c]=elem[dval+c];
-					elem[dval+c]=tmp;
-				}
-			}
-			for (let c=i+1;c<cols;c++) {
-				elem[dval+c]*=inv;
-			}
-			for (let r=i+1;r<cols;r++) {
-				sval=r*cols;
-				let mul=elem[sval+i];
-				for (let c=i+1;c<cols;c++) {
-					elem[sval+c]-=elem[dval+c]*mul;
-				}
-			}
+	imul(b) {
+		if (b.length===undefined) {
+			let elem=this;
+			let elems=this.length;
+			for (let i=0;i<elems;i++) {elem[i]*=b;}
+		} else {
+			this.set(this.mul(b));
 		}
-		// We have the matrix in upper triangular form. Multiply the diagonals to get the
-		// determinant.
-		let det=elem[0];
-		for (let i=1;i<cols;i++) {
-			det=det*elem[i*cols+i];
-		}
-		return sign?-det:det;
+		return this;
 	}
 
 
-	inv() {
-		// Returns the multiplicative inverse of A.
-		let rows=this.rows,cols=this.cols;
-		if (rows!==cols) {throw `Can only invert square matrices: ${rows}, ${cols}`;}
-		let ret=new Matrix(this);
-		let elem=ret;
-		let perm=new Array(cols);
-		for (let i=0;i<cols;i++) {perm[i]=i;}
-		for (let i=0;i<rows;i++) {
-			// Find a row with an invertible element in column i.
-			let dval=i*cols,sval=dval,j=i;
-			let inv=NaN;
-			for (;j<rows;j++) {
-				inv=1/elem[sval+i];
-				if (inv>-Infinity && inv<Infinity) {break;}
-				sval+=cols;
-			}
-			if (j===rows) {throw `Unable to find an invertible element.`;}
-			// Swap the desired row with row i. Then put row i in reduced echelon form.
-			if (sval!==dval) {
-				for (let c=0;c<cols;c++) {
-					let tmp=elem[sval+c];
-					elem[sval+c]=elem[dval+c];
-					elem[dval+c]=tmp;
+	det() {
+		let dim=this.rows,cols=this.cols,elems=dim*dim;
+		if (dim!==cols) {return 0;}
+		// Copy the matrix. Use the upper triangular form to compute the determinant.
+		let elem=new Matrix(this);
+		let det=1;
+		for (let i=0;i<dim;i++) {
+			// Find a column with an invertible element on row i.
+			let j=i+1,row=i*dim,stop=row+dim,swap=-1;
+			let max=0,inv=0;
+			for (let c=i;c<dim;c++) {
+				let x=elem[row+c],a=x<0?-x:x;
+				if (max<a) {
+					max=a;
+					inv=x;
+					swap=c;
 				}
 			}
-			let tmp=perm[i];perm[i]=perm[j];perm[j]=tmp;
-			// Put the row into reduced echelon form. Since entry (i,i)=1 and (i,i')=1*inv,
-			// set (i,i)=inv.
-			for (let c=0;c<cols;c++) {
-				if (c!==i) {elem[dval+c]*=inv;}
+			det*=swap===i?inv:-inv;
+			// We couldn't find an element, so det=0.
+			if (swap<0) {break;}
+			// Normalize the row.
+			elem[row+swap]=elem[row+i];
+			for (let c=row+j;c<stop;c++) {elem[c]/=inv;}
+			// Row reduce the lower triangle.
+			for (let e=j*dim;e<elems;e+=dim) {
+				let mul=elem[e+swap];
+				elem[e+swap]=elem[e+i];
+				let dst=e+j,src=row+j;
+				while (src<stop) {
+					elem[dst++]-=elem[src++]*mul;
+				}
 			}
-			elem[dval+i]=inv;
+		}
+		return det;
+	}
+
+
+	inv() {return (new Matrix(this)).invert();}
+
+
+	invert() {
+		// Returns the multiplicative inverse of A.
+		let dim=this.rows,cols=this.cols;
+		if (dim!==cols) {throw `Can only invert square matrices: ${dim}, ${cols}`;}
+		let elem=this;
+		let perm=Matrix._perm;
+		if (perm.length<dim) {Matrix._perm=perm=new Array(dim);}
+		// let perm=new Array(dim);
+		for (let i=0;i<dim;i++) {
+			// Find a column with an invertible element on row i.
+			let row=i*dim,stop=row+dim,swap=-1;
+			let max=1e-10,inv=0;
+			for (let c=i;c<dim;c++) {
+				let x=elem[row+c],a=x<0?-x:x;
+				if (max<a) {
+					max=a;
+					inv=x;
+					swap=c;
+				}
+			}
+			if (swap<0) {throw `Unable to find an invertible element.`;}
+			// Swap the desired column with i and put the row in reduced echelon form.
+			// Since entry (i,i)=1 and (i,i')=1*inv, set (i,i)=inv.
+			perm[i]=swap;
+			elem[row+swap]=elem[row+i];
+			elem[row+i]=1;
+			for (let c=row;c<stop;c++) {elem[c]/=inv;}
 			// Perform row operations with row i to clear column i for all other rows in A.
 			// Entry (j,i') will be 0 in the augmented matrix, and (i,i') will be inv, hence
 			// (j,i')=(j,i')-(j,i)*(i,i')=-(j,i)*inv.
-			for (let r=0;r<rows;r++) {
+			for (let r=0;r<dim;r++) {
 				if (r===i) {continue;}
-				sval=r*cols;
-				let mul=elem[sval+i];
-				for (let c=0;c<cols;c++) {
-					if (c!==i) {elem[sval+c]-=elem[dval+c]*mul;}
+				let dst=r*dim,src=row;
+				let mul=elem[dst+swap];
+				elem[dst+swap]=elem[dst+i];
+				elem[dst+i]=0;
+				while (src<stop) {
+					elem[dst++]-=elem[src++]*mul;
 				}
-				elem[sval+i]=-elem[dval+i]*mul;
 			}
 		}
-		// Re-order columns due to swapped rows.
-		let tmp=new Array(cols);
-		for (let r=0;r<rows;r++) {
-			let dval=r*cols;
-			for (let i=0;i<cols;i++) {tmp[i]=elem[dval+i];}
-			for (let i=0;i<cols;i++) {elem[dval+perm[i]]=tmp[i];}
+		// Correct the row order to account for swapping columns.
+		for (let r=dim-1;r>=0;r--) {
+			let i=r*dim,j=perm[r]*dim,stop=i+dim;
+			if (i===j) {continue;}
+			while (i<stop) {
+				let tmp=elem[i];
+				elem[i++]=elem[j];
+				elem[j++]=tmp;
+			}
 		}
-		return ret;
+		return this;
 	}
 
 
 	trans() {
+		// Transpose.
 		let rows=this.rows,cols=this.cols,elems=rows*cols;
-		let ret=new Matrix(cols,rows);
+		let ret=new Matrix(cols,rows,false);
 		for (let i=0;i<elems;i++) {ret[i]=this[(i%rows)*cols+(~~(i/rows))];}
 		return ret;
 	}
@@ -501,7 +659,7 @@ export class Matrix extends Array {
 	static fromangles(angs) {
 		let dim=0,ang2=(angs.length??1)*2;
 		while (dim*(dim-1)<ang2) {dim++;}
-		return (new Matrix(dim,dim)).one().rotate(angs);
+		return (new Matrix(dim,dim,false)).one().rotate(angs);
 	}
 
 
@@ -522,8 +680,9 @@ export class Matrix extends Array {
 				// We have
 				// (i,i)=cos   (i,j)=-sin
 				// (j,i)=sin   (j,j)=cos
-				let cs=Math.cos(angs[--a]);
-				let sn=Math.sin(angs[  a]);
+				let ang=angs[--a];
+				let cs=Math.cos(ang);
+				let sn=Math.sin(ang);
 				// For each row r:
 				// (r,i)=(r,i)*cos+(r,j)*sin
 				// (r,j)=(r,j)*cos-(r,i)*sin
@@ -549,7 +708,7 @@ export class Transform {
 	// mat*point+vec
 
 
-	constructor(params) {
+	constructor(params,init=true) {
 		// Accepts: Vector, Matrix, Transform, dim, {ang,dim,mat,scale,vec}
 		// Parse what we're given.
 		let mat=null,vec=null,dim=NaN;
@@ -565,8 +724,6 @@ export class Transform {
 			dim=params;
 		} else {
 			// Pull attributes from a dict.
-			const allow={"ang":1,"dim":1,"mat":1,"scale":1,"vec":1};
-			for (let attr in params) {if (!allow[attr]) {throw "Unknown attr: "+attr;}}
 			mat=params.mat??null;
 			vec=params.vec??null;
 			dim=params.dim??NaN;
@@ -575,17 +732,19 @@ export class Transform {
 		}
 		// Reconstruct what we're missing.
 		if (isNaN(dim)) {
-			if (vec!==null) {dim=vec.length;}
-			else if (mat!==null) {dim=mat.rows;}
-			else if (scale!==null && scale.length) {dim=scale.length;}
+			if (vec) {dim=vec.length;}
+			else if (mat) {dim=mat.rows;}
+			else if (scale) {dim=scale.length??NaN;}
+			if (isNaN(dim)) {throw "no dimension";}
 		}
-		if (isNaN(dim)) {throw "no dimension";}
-		if (vec===null) {vec=new Vector(dim);}
-		if (mat===null) {mat=(new Matrix(dim)).one();}
-		if (vec.length!==dim) {throw `vec dimension: ${vec.length}, ${dim}`;}
-		if (mat.rows!==dim || mat.cols!==dim) {throw `mat dimensions: (${mat.rows},${mat.cols}), ${dim}`;}
-		this.mat=new Matrix(mat);
-		this.vec=new Vector(vec);
+		if (!vec)      {vec=new Vector(dim);}
+		else if (init) {vec=new Vector(vec);}
+		if (!mat)      {mat=(new Matrix(dim,dim,false)).one();}
+		else if (init) {mat=new Matrix(mat);}
+		if (vec.length!==dim) {throw `vec dimension: ${vec.length}!=${dim}`;}
+		if (mat.rows!==dim || mat.cols!==dim) {throw `mat dimensions: (${mat.rows},${mat.cols})!=${dim}`;}
+		this.mat=mat;
+		this.vec=vec;
 		if (scale!==null) {this.scalemat(scale);}
 		if (ang!==null) {this.rotatemat(ang);}
 	}
@@ -601,15 +760,16 @@ export class Transform {
 
 	apply(point) {
 		// (A.apply(B)).apply(P) = A.apply(B.apply(P))
-		let mat=this.mat,vec=this.vec;
-		if (!(point instanceof Transform)) {return mat.mul(point).iadd(vec);}
-		return new Transform({mat:mat.mul(point.mat),vec:mat.mul(point.vec).iadd(vec)});
+		let amat=this.mat,avec=this.vec;
+		let bmat=point.mat,bvec=point.vec;
+		if (!bmat || !bvec) {return amat.mul(point).iadd(avec);}
+		return new Transform({mat:amat.mul(bmat),vec:amat.mul(bvec).iadd(avec)},false);
 	}
 
 
 	inv() {
 		let inv=this.mat.inv();
-		return new Transform({mat:inv,vec:inv.mul(this.vec).ineg()});
+		return new Transform({mat:inv,vec:inv.mul(this.vec).ineg()},false);
 	}
 
 
@@ -636,11 +796,22 @@ export class Transform {
 	}
 
 
-	scalemat(muls) {
-		let mat=this.mat,dim=this.vec.length,dim2=dim*dim;
-		if (muls.length===undefined) {muls=(new Array(dim)).fill(muls);}
-		if (muls.length!==dim) {throw `Invalid dimensions: ${muls.length}, ${dim}`;}
-		for (let i=0;i<dim2;i++) {mat[i]*=muls[(i/dim)|0];}
+	scalemat(mul) {
+		// Accepts a scalar or dim sized array.
+		let mat=this.mat;
+		let dim=mul.length,vlen=this.vec.length;
+		if (dim===undefined) {
+			mat.imul(mul);
+		} else if (dim!==vlen) {
+			throw `Invalid dimensions: ${dim}, ${vlen}`;
+		} else {
+			let i=0,s=dim;
+			for (let r=0;r<dim;r++) {
+				let m=mul[r];
+				while (i<s) {mat[i++]*=m;}
+				s+=dim;
+			}
+		}
 		return this;
 	}
 
@@ -666,12 +837,6 @@ export class Transform {
 
 	rotate(angs) {
 		return this.rotatevec(angs).rotatemat(angs);
-	}
-
-
-	lookat() {
-		// https://math.stackexchange.com/questions/180418
-		throw "not implemented";
 	}
 
 }

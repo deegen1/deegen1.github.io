@@ -713,7 +713,7 @@ class Creature {
 		let hp=this.hitpoints,armour=this.armour;
 		if (this.pack_hunter) {dps*=1.3;}
 		if (this.herding) {armour=Math.min(armour*1.3,0.6);}
-		//if (this.frenzy_attack) {dps*=1.5;hp/=1.3;}
+		// if (this.frenzy_attack) {dps*=1.5;hp/=1.3;}
 		if (this.regeneration) {hp*=1.1;}
 		if (this.is_immune) {hp*=1.05;}
 		if (this.deflection_armour) {armour*=1.1;dps*=1.02;}

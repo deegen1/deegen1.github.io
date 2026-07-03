@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v17.55
+library.js - v18.70
 
 Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -13,13 +13,13 @@ Versions
 
 Env     - v1.02
 Random  - v1.11
-Data    - v1.00
-Vector  - v3.09
+Data    - v2.01
+Vector  - v3.15
 Input   - v1.19
-Drawing - v5.01
-UI      - v1.02
-Audio   - v3.11
-Physics - v1.00
+Drawing - v5.04
+UI      - v1.03
+Audio   - v3.12
+Physics - v1.03
 
 
 --------------------------------------------------------------------------------
@@ -178,18 +178,181 @@ export class Random {
 
 
 //---------------------------------------------------------------------------------
-// Data - v1.00
+// Data - v2.01
 
+
+class ListLink {
+
+	constructor(obj) {
+		this.prev=null;
+		this.next=null;
+		this.list=null;
+		this.obj=obj??null;
+		this.idx=null;
+	}
+
+
+	release() {this.remove();}
+
+
+	add(list) {list.add(this);}
+
+
+	remove(clear=false) {
+		let list=this.list;
+		if (list!==null) {list.remove(this,clear);}
+		return list;
+	}
+
+}
+
+
+export class List {
+
+	static Link=ListLink;
+
+
+	constructor(ptr=null) {
+		this.head=null;
+		this.tail=null;
+		this.ptr=ptr;
+		this.count=0;
+	}
+
+
+	release(clear=false) {
+		let link=this.head;
+		while (link!==null) {
+			let next=link.next;
+			link.prev=null;
+			link.next=null;
+			link.list=null;
+			if (clear) {link.obj=null;}
+			link=next;
+		}
+		this.count=0;
+	}
+
+
+	first() {return this.head;}
+
+
+	last() {return this.tail;}
+
+
+	*iter() {
+		let link=null,next=this.head;
+		while ((link=next)!==null) {
+			next=link.next;
+			yield link.obj;
+		}
+	}
+
+
+	add(value) {
+		let link=new ListLink(value);
+		this.addafter(link,this.tail);
+		return link;
+	}
+
+
+	addafter(link,prev=null) {
+		// Inserts the link after prev.
+		if (link.list!==null) {throw "link already in list";}
+		let next=null;
+		if (prev!==null) {
+			next=prev.next;
+			prev.next=link;
+		} else {
+			next=this.head;
+			this.head=link;
+		}
+		link.prev=prev;
+		link.next=next;
+		link.list=this;
+		if (next!==null) {
+			next.prev=link;
+		} else {
+			this.tail=link;
+		}
+		this.count++;
+	}
+
+
+	addbefore(link,next=null) {
+		// Inserts the link before next.
+		if (link.list!==null) {throw "link already in list";}
+		let prev=null;
+		if (next!==null) {
+			prev=next.prev;
+			next.prev=link;
+		} else {
+			prev=this.tail;
+			this.tail=link;
+		}
+		link.prev=prev;
+		link.next=next;
+		link.list=this;
+		if (prev!==null) {
+			prev.next=link;
+		} else {
+			this.head=link;
+		}
+		this.count++;
+	}
+
+
+	remove(link,clear) {
+		if (link===null) {return;}
+		let list=link.list;
+		if (list===null) {return;}
+		if (list!==this) {throw "removing from wrong list";}
+		let prev=link.prev;
+		let next=link.next;
+		if (prev!==null) {
+			prev.next=next;
+		} else {
+			this.head=next;
+		}
+		if (next!==null) {
+			next.prev=prev;
+		} else {
+			this.tail=prev;
+		}
+		this.count--;
+		link.prev=null;
+		link.next=null;
+		link.list=null;
+		if (clear) {link.obj=null;}
+	}
+
+}
 
 
 class TreeNode {
 
 	constructor(value) {
-		this.weight=1;
+		this.weight=0;
 		this.parent=null;
 		this.left=null;
 		this.right=null;
 		this.value=value;
+	}
+
+
+	remove() {
+		let tree=this.tree();
+		if (tree!==null) {tree.removenode(this);}
+		return tree;
+	}
+
+
+	tree() {
+		// zero.value=tree. Searching up is ~(h-1)/2, searching down is ~1.
+		if (!this.weight) {return null;}
+		let zero=this,node=this.left;
+		while (node!==null) {zero=node;node=node.left;}
+		return zero.value;
 	}
 
 
@@ -205,15 +368,13 @@ class TreeNode {
 		//
 		// If N has a right child, R, the left-most child of R is the next node.
 		// Otherwise, the nearest parent of N with N on the left is the next node.
-		let node=this,child=this.right;
-		if (child) {
-			while (child) {node=child;child=child.left;}
+		let n0=this,n1=n0.right,n2=n1.left;
+		if (n2!==null) {
+			do {n0=n1;n1=n2;n2=n2.left;} while (n2!==null);
 		} else {
-			while (node && Object.is(node.right,child)) {
-				child=node;node=node.parent;
-			}
+			do {n1=n0;n0=n0.parent;} while (n0.right===n1);
 		}
-		return node;
+		return n0.weight?n0:null;
 	}
 
 
@@ -229,69 +390,13 @@ class TreeNode {
 		//
 		// If N has a left child, L, the right-most child of L is the next node.
 		// Otherwise, the nearest parent of N with N on the right is the next node.
-		let node=this,child=this.left;
-		if (child) {
-			while (child) {node=child;child=child.right;}
+		let n0=this,n1=n0.left,n2=n1.right;
+		if (n2!==null) {
+			do {n0=n1;n1=n2;n2=n2.right;} while (n2!==null);
 		} else {
-			while (node && Object.is(node.left,child)) {
-				child=node;node=node.parent;
-			}
+			do {n1=n0;n0=n0.parent;} while (n0.left===n1);
 		}
-		return node;
-	}
-
-
-	rotleft() {
-		// Raise z, lower x, and maintain the sorted order of the nodes.
-		//
-		//        A                B
-		//       / \              / \
-		//      x   B     ->     A   z
-		//         / \          / \
-		//        y   z        x   y
-		//
-		let a=this;
-		let b=a.right;
-		let r=b.left;
-		b.parent=a.parent;
-		b.left=a;
-		a.parent=b;
-		a.right=r;
-		if (r) {r.parent=a;}
-		a.calcweight();
-		b.calcweight();
-		return b;
-	}
-
-
-	rotright() {
-		// Raise x, lower z, and maintain the sorted order of the nodes.
-		//
-		//          A            B
-		//         / \          / \
-		//        B   z   ->   x   A
-		//       / \              / \
-		//      x   y            y   z
-		//
-		let a=this;
-		let b=a.left;
-		let l=b.right;
-		b.parent=a.parent;
-		b.right=a;
-		a.parent=b;
-		a.left=l;
-		if (l) {l.parent=a;}
-		a.calcweight();
-		b.calcweight();
-		return b;
-	}
-
-
-	calcweight() {
-		let l=this.left,r=this.right,weight=1;
-		if (l) {weight+=l.weight;}
-		if (r) {weight+=r.weight;}
-		this.weight=weight;
+		return n0.weight?n0:null;
 	}
 
 
@@ -299,20 +404,19 @@ class TreeNode {
 		// Returns the node's index within the tree. Ex: tree[node.index()]=node
 		let idx=-1;
 		let node=this,prev=this.right;
-		while (node) {
-			if (Object.is(node.right,prev)) {
-				idx+=node.left?node.left.weight+1:1;
-			}
+		while (true) {
+			let l=node.left;
+			if (node.right===prev) {idx+=l.weight+1;}
+			else if (l!==prev) {return idx;}
 			prev=node;
 			node=node.parent;
 		}
-		return idx;
 	}
 
 }
 
 
-class Tree {
+export class Tree {
 
 	static Node=TreeNode;
 
@@ -332,78 +436,78 @@ class Tree {
 
 	static defcmp(l,r) {
 		if (l<r) {return -1;}
-		if (l>r) {return  1;}
-		return 0;
+		return r<l?1:0;
 	}
 
 
-	constructor(cmp=Tree.defcmp,duplicate=Tree.ADD) {
+	constructor(cmp=null,duplicate=Tree.ADD) {
 		// cmp(l,r) is expected to be a function where
 		//
 		//      cmp(l,r)<0 if l<r
 		//      cmp(l,r)=0 if l=r
 		//      cmp(l,r)>0 if l>r
 		//
-		this.cmp=cmp;
+		this.cmp=cmp??Tree.defcmp;
 		this.duplicate=duplicate;
-		this.root=null;
+		this.zero=new TreeNode(this);
+		this.root=this.zero;
+		this.length=0;
 	}
 
 
-	clear() {this.root=null;}
-
-
-	length() {
-		// Return the number of nodes in the tree.
-		return this.root?this.root.weight:0;
-	}
-
-
-	get(i) {
-		// Index nodes like an array.
-		let node=this.root;
-		let weight=node?node.weight:0;
-		if (i<0) {i+=weight;}
-		if (i<0 || i>=weight) {return null;}
-		while (true) {
-			let left=node.left;
-			let lw=left?left.weight:0;
-			if (i>lw) {
-				i-=lw+1;
-				node=node.right;
-			} else if (i===lw) {
-				break;
-			} else {
-				node=left;
-			}
-		}
-		return node;
-	}
-
-
-	*iter() {
-		// Iterate over all nodes in ascending order.
-		let node=this.first();
-		while (node) {
-			yield node;
-			node=node.next();
+	release() {
+		let node=null;
+		while ((node=this.root)!==null) {
+			this.removenode(node);
 		}
 	}
 
 
 	first() {
 		// Return the smallest node in the tree.
-		let node=this.root,ret=null;
-		while (node) {ret=node;node=node.left;}
+		let node=this.root,ret=null,zero=this.zero;
+		while (node!==zero) {ret=node;node=node.left;}
 		return ret;
 	}
 
 
 	last() {
 		// Return the greatest node in the tree.
-		let node=this.root,ret=null;
-		while (node) {ret=node;node=node.right;}
+		let node=this.root,ret=null,zero=this.zero;
+		while (node!==zero) {ret=node;node=node.right;}
 		return ret;
+	}
+
+
+	*iter() {
+		// Iterate over all nodes in ascending order.
+		let node=this.first();
+		while (node!==null) {
+			let next=node.next();
+			yield node;
+			node=next;
+		}
+	}
+
+
+	get(i) {
+		// Index nodes like an array.
+		let node=this.root;
+		let weight=node.weight;
+		if (i<0) {i+=weight;}
+		if (i<0 || i>=weight) {return null;}
+		while (true) {
+			let l=node.left;
+			let lw=l.weight;
+			if (i>=lw) {
+				i-=lw+1;
+				if (i<0) {break;}
+				node=node.right;
+			} else {
+				node=l;
+			}
+		}
+		return node;
 	}
 
 
@@ -417,67 +521,64 @@ class Tree {
 		//      GT : Return the least    node>value.
 		//      GE : Return the least    node>=value.
 		//
-		let node=this.root,ret=null;
+		let node=this.root,ret=null,zero=this.zero;
 		let cmp=this.cmp;
-		let dup=this.duplicate;
-		let lset  =[false,false,true ,true ,false,false][mode];
-		let rset  =[false,false,false,false,true ,true ][mode];
-		let eset  =[true ,true ,false,true ,false,true ][mode];
-		let eright=[false,true ,false,true ,true ,false][mode];
-		while (node) {
+		let set=0x34652>>>(mode*3);
+		let right=1|((0x34>>>mode)&2);
+		while (node!==zero) {
 			let c=cmp(node.value,value);
-			if (c<0) {
-				if (lset) {ret=node;}
-				node=node.right;
-			} else if (c>0) {
-				if (rset) {ret=node;}
-				node=node.left;
-			} else {
-				if (eset) {
-					ret=node;
-					if (dup) {break;}
-				}
-				node=eright?node.right:node.left;
-			}
+			let bit=1<<(1+(c>0)-(c<0));
+			ret=(set&bit)?node:ret;
+			node=(right&bit)?node.right:node.left;
 		}
 		return ret;
 	}
 
 
-	addnode(orig) {
-		// Find a leaf node to add the new value to. Then rebalance from the new node on
-		// up. By traversing right when cmp<=0, this algorithm is stable.
-		let value=orig.value;
-		let node=this.root,prev=null;
-		let cmp=this.cmp;
-		let dup=this.duplicate,c=0;
-		while (node) {
-			c=cmp(node.value,value);
-			if (c===0 && dup) {
-				if (dup===Tree.DISCARD) {return null;}
-				node.value=value;
-				return node;
-			}
-			prev=node;
-			node=c>0?node.left:node.right;
-		}
-		orig.weight=1;
-		orig.left=null;
-		orig.right=null;
-		orig.parent=prev;
-		if (prev===null) {
-			this.root=orig;
-		} else {
-			if (c>0) {prev.left=orig;}
-			else     {prev.right=orig;}
-			this.rebalance(prev);
-		}
-		return orig;
+	add(value) {
+		return this.addnode(new TreeNode(value));
 	}
 
 
-	add(value) {
-		return this.addnode(new TreeNode(value));
+	remove(value) {
+		// Remove a node given a value.
+		let node=this.find(value);
+		if (node!==null) {this.removenode(node);}
+		return node;
+	}
+
+
+	addnode(node) {
+		// Find a leaf node to add the new value to. Then rebalance from the new node on
+		// up. By traversing right when cmp<=0, this algorithm is stable.
+		if (node.weight) {throw "node already in tree";}
+		let value=node.value;
+		let trav=this.root,zero=this.zero,prev=zero;
+		let cmp=this.cmp;
+		let dup=this.duplicate,c=0;
+		while (trav!==zero) {
+			c=cmp(trav.value,value);
+			if (c===0 && dup) {
+				if (dup===Tree.DISCARD) {return null;}
+				trav.value=value;
+				return trav;
+			}
+			prev=trav;
+			trav=c>0?trav.left:trav.right;
+		}
+		this.length++;
+		node.weight=1;
+		node.left=zero;
+		node.right=zero;
+		node.parent=prev;
+		if (prev===zero) {
+			this.root=node;
+		} else {
+			if (c>0) {prev.left=node;}
+			else     {prev.right=node;}
+			this.rebalance(prev);
+		}
+		return node;
 	}
 
 
@@ -500,83 +601,132 @@ class Tree {
 		//        / \                |   / \                     |
 		//       X   *               |  *   B                    |
 		//
-		let p=node.parent;
-		let l=node.left,r=node.right;
-		let next=null,bal=null;
-		if (r===null) {
+		if (!node.weight) {throw "double removal";}
+		let p=node.parent,l=node.left,r=node.right;
+		let zero=this.zero,next=r,bal=p;
+		node.weight=0;
+		node.parent=null;
+		node.left=null;
+		node.right=null;
+		if (r===zero) {
 			// Case 1
-			bal=p;next=l;l=null;
-		} else if (r.left) {
+			next=l;l=zero;
+		} else if (r.left!==zero) {
 			// Case 2
-			next=r;
-			while (next.left) {bal=next;next=next.left;}
-			let c=next.right;
+			let c=next.left;
+			do {bal=next;next=c;c=next.left;} while (c!==zero);
+			c=next.right;
 			bal.left=c;
-			if (c) {c.parent=bal;}
+			c.parent=bal;
 		} else {
 			// Case 3
-			bal=r;next=r;r=null;
+			bal=r;r=zero;
 		}
 		// Replace node with next.
-		if (p===null) {this.root=next;}
-		else if (Object.is(p.left,node)) {p.left=next;}
+		if (p===zero) {this.root=next;}
+		else if (p.left===node) {p.left=next;}
 		else {p.right=next;}
-		if (next) {
-			next.parent=p;
-			if (l) {next.left=l;l.parent=next;}
-			if (r) {next.right=r;r.parent=next;}
+		this.length--;
+		next.parent=p;
+		if (l!==zero) {
+			next.left=l;
+			l.parent=next;
+		}
+		if (r!==zero) {
+			next.right=r;
+			r.parent=next;
 		}
 		this.rebalance(bal);
 	}
 
 
-	remove(value) {
-		// Remove a node given a value.
-		let node=this.find(value);
-		if (node) {this.removenode(node);}
-		return node;
-	}
-
-
 	rebalance(next) {
-		// Rebalance from next upward. If 2 children differ in weight by a ratio of 2.5 or
-		// more, we can rotate to rebalance.
-		function Weight(n) {return n?n.weight:0;}
-		while (next) {
-			let node=next,orig=next;
-			next=node.parent;
-			let l=node.left,r=node.right;
-			let lw=Weight(l),rw=Weight(r);
-			if (rw*5+2<lw*2) {
+		// Rebalance from next upward.
+		let zero=this.zero;
+		while (next!==zero) {
+			let n=next,orig=next;
+			next=n.parent;
+			let l=n.left,r=n.right;
+			let lw=l.weight,rw=r.weight;
+			// Primary invariant: L*17+7<R*7, secondary invariant: L.L*17+4<L*7.
+			// con=4 has fewest rebalances and lowest height. 17/7>1+sqrt(2).
+			let rem=(rw+lw+7)>>>3;
+			if (rw+rw<lw-rem) {
 				// Leaning to the left.
-				if (Weight(l.left)*5<lw*2) {node.left=l.rotleft();}
-				node=node.rotright();
-			} else if (lw*5+2<rw*2) {
+				r=l.right;
+				let a=l.left;
+				let aw=a.weight;
+				if (aw+aw<lw-((aw+lw+4)>>>3)) {
+					// Left rotate L, then right rotate N.
+					//
+					//          N                N               R
+					//         / \              / \             / \
+					//        L   d            R   d           /   \
+					//       / \      ->      / \      ->     L     N
+					//      a   R            L   c           / \   / \
+					//         / \          / \             a   b c   d
+					//        b   c        a   b
+					//
+					let b=r.left;
+					l.parent=r;
+					l.right=b;
+					b.parent=l;
+					l.weight=b.weight+aw+1;
+					r.left=l;l=r;
+					r=r.right;
+				}
+				// Right rotate N.
+				//
+				//          N            L
+				//         / \          / \
+				//        L   c   ->   a   N
+				//       / \              / \
+				//      a   b            b   c
+				//
+				n.parent=l;
+				n.left=r;
+				r.parent=n;
+				n.weight=r.weight+rw+1;
+				l.parent=next;
+				l.right=n;
+				n=l;
+			} else if (lw+lw<rw-rem) {
 				// Leaning to the right.
-				if (Weight(r.right)*5<rw*2) {node.right=r.rotright();}
-				node=node.rotleft();
-			} else {
-				// Balanced.
-				node.weight=lw+rw+1;
-				continue;
+				l=r.left;
+				let d=r.right;
+				let dw=d.weight;
+				if (dw+dw<rw-((dw+rw+4)>>>3)) {
+					// Right rotate R, then left rotate N.
+					let c=l.right;
+					r.parent=l;
+					r.left=c;
+					c.parent=r;
+					r.weight=c.weight+dw+1;
+					l.right=r;r=l;
+					l=l.left;
+				}
+				// Left rotate N.
+				n.parent=r;
+				n.right=l;
+				l.parent=n;
+				n.weight=l.weight+lw+1;
+				r.parent=next;
+				r.left=n;
+				n=r;
 			}
-			if (next===null) {this.root=node;}
-			else if (Object.is(next.left,orig)) {next.left=node;}
-			else {next.right=node;}
+			n.weight=lw+rw+1;
+			if (n===orig) {continue;}
+			if (next===zero) {this.root=n;}
+			else if (next.left===orig) {next.left=n;}
+			else {next.right=n;}
 		}
 	}
 
 }
 
 
-const Data={
-	Tree:Tree,
-};
-export {Data};
-
-
 //---------------------------------------------------------------------------------
-// Vector - v3.09
+// Vector - v3.15
 
 
 export class Vector extends Array {
@@ -584,10 +734,10 @@ export class Vector extends Array {
 	static rnd=new Random();
 
 
-	constructor(elem) {
-		let arr=elem.length!==undefined;
-		super(arr?elem.length:elem);
-		this.set(arr?elem:0);
+	constructor(elem,init=true) {
+		let len=elem.length;
+		super(len??elem);
+		if (init) {this.set(len?elem:0);}
 	}
 
 
@@ -595,24 +745,11 @@ export class Vector extends Array {
 	toString() {return this.tostring();}
 
 
-	sanitize(v) {
-		// Converts v to a vector or throws an error.
-		let len=this.length,vlen=v.length;
-		if (vlen!==undefined) {
-			if (vlen!==len) {throw `Incompatible lengths: ${len}, ${vlen}`;}
-			return v;
-		} else if (!isNaN(v)) {
-			return (new Vector(len)).set(v);
-		}
-		throw `Unrecognized vector type: ${typeof v}`;
-	}
-
-
 	set(v=0) {
 		let len=this.length,vlen=v.length;
 		if (vlen!==undefined) {
-			len=len<vlen?len:vlen;
-			for (let i=0;i<len;i++) {this[i]=v[i];}
+			if (len!==vlen) {this.length=vlen;}
+			for (let i=0;i<vlen;i++) {this[i]=v[i];}
 		} else if (!isNaN(v)) {
 			for (let i=0;i<len;i++) {this[i]=v;}
 		} else {
@@ -629,43 +766,80 @@ export class Vector extends Array {
 	// Comparison
 
 
-	static cmp(u,v) {
+	cmp(v) {
 		// return -1, 0, 1
-		let ulen=u.length,vlen=v.length;
-		let len=ulen<vlen?ulen:vlen;
-		for (let i=0;i<len;i++) {
-			let x=u[i],y=v[i];
-			if (x!==y) {return x<y?-1:1;}
+		let ulen=this.length,vlen=v.length;
+		let u=this;
+		if (vlen!==undefined) {
+			if (ulen!==vlen) {throw `Incompatible lengths ${ulen}!=${vlen}`;}
+			for (let i=0;i<ulen;i++) {
+				let x=u[i],y=v[i];
+				if (x!==y) {return x<y?-1:1;}
+			}
+		} else {
+			for (let i=0;i<ulen;i++) {
+				let x=u[i];
+				if (x!==v) {return x<v?-1:1;}
+			}
 		}
-		if (ulen===vlen) {return 0;}
-		return ulen<vlen?-1:1;
+		return 0;
 	}
 
 
-	static lt(u,v) {return u.cmp(v)<0;}
-	static le(u,v) {return u.cmp(v)<=0;}
+	lt(u,v) {return u.cmp(v)<0;}
+	le(u,v) {return u.cmp(v)<=0;}
 
 
 	imin(v) {
-		v=this.sanitize(v);
-		let u=this,len=this.length;
-		for (let i=0;i<len;i++) {let x=u[i],y=v[i];u[i]=x<y?x:y;}
+		let ulen=this.length,vlen=v.length;
+		let u=this;
+		if (vlen!==undefined) {
+			if (ulen!==vlen) {throw `Incompatible lengths ${ulen}!=${vlen}`;}
+			for (let i=0;i<ulen;i++) {let x=u[i],y=v[i];u[i]=x<y?x:y;}
+		} else {
+			for (let i=0;i<ulen;i++) {let x=u[i];u[i]=x<v?x:v;}
+		}
 		return this;
 	}
 
 
-	min(v) {return this.copy().imin(v);}
+	min(v) {
+		let ulen=this.length,vlen=v.length;
+		let u=this,r=new Vector(ulen,false);
+		if (vlen!==undefined) {
+			if (ulen!==vlen) {throw `Incompatible lengths ${ulen}!=${vlen}`;}
+			for (let i=0;i<ulen;i++) {let x=u[i],y=v[i];r[i]=x<y?x:y;}
+		} else {
+			for (let i=0;i<ulen;i++) {let x=u[i];r[i]=x<v?x:v;}
+		}
+		return r;
+	}
 
 
 	imax(v) {
-		v=this.sanitize(v);
-		let u=this,len=this.length;
-		for (let i=0;i<len;i++) {let x=u[i],y=v[i];u[i]=x>y?x:y;}
+		let ulen=this.length,vlen=v.length;
+		let u=this;
+		if (vlen!==undefined) {
+			if (ulen!==vlen) {throw `Incompatible lengths ${ulen}!=${vlen}`;}
+			for (let i=0;i<ulen;i++) {let x=u[i],y=v[i];u[i]=x>y?x:y;}
+		} else {
+			for (let i=0;i<ulen;i++) {let x=u[i];u[i]=x>v?x:v;}
+		}
 		return this;
 	}
 
 
-	max(v) {return this.copy().imax(v);}
+	max(v) {
+		let ulen=this.length,vlen=v.length;
+		let u=this,r=new Vector(ulen,false);
+		if (vlen!==undefined) {
+			if (ulen!==vlen) {throw `Incompatible lengths ${ulen}!=${vlen}`;}
+			for (let i=0;i<ulen;i++) {let x=u[i],y=v[i];r[i]=x>y?x:y;}
+		} else {
+			for (let i=0;i<ulen;i++) {let x=u[i];r[i]=x>v?x:v;}
+		}
+		return r;
+	}
 
 
 	// ----------------------------------------
@@ -679,31 +853,50 @@ export class Vector extends Array {
 	}
 
 
-	neg() {return this.copy().ineg();}
+	neg() {
+		let len=this.length;
+		let u=this,r=new Vector(len,false);
+		for (let i=0;i<len;i++) {r[i]=-u[i];}
+		return r;
+	}
 
 
 	iadd(v) {
 		// u+=v
-		v=this.sanitize(v);
-		let u=this,len=this.length;
-		for (let i=0;i<len;i++) {u[i]+=v[i];}
+		let ulen=this.length,vlen=v.length;
+		if (ulen!==vlen) {throw `Incompatible lengths: ${ulen}!=${vlen}`;}
+		let u=this;
+		for (let i=0;i<ulen;i++) {u[i]+=v[i];}
 		return this;
 	}
 
 
-	add(v) {return this.copy().iadd(v);}
+	add(v) {
+		let ulen=this.length,vlen=v.length;
+		if (ulen!==vlen) {throw `Incompatible lengths: ${ulen}!=${vlen}`;}
+		let u=this,r=new Vector(ulen,false);
+		for (let i=0;i<ulen;i++) {r[i]=u[i]+v[i];}
+		return r;
+	}
 
 
 	isub(v) {
 		// u-=v
-		v=this.sanitize(v);
-		let u=this,len=this.length;
-		for (let i=0;i<len;i++) {u[i]-=v[i];}
+		let ulen=this.length,vlen=v.length;
+		if (ulen!==vlen) {throw `Incompatible lengths: ${ulen}!=${vlen}`;}
+		let u=this;
+		for (let i=0;i<ulen;i++) {u[i]-=v[i];}
 		return this;
 	}
 
 
-	sub(v) {return this.copy().isub(v);}
+	sub(v) {
+		let ulen=this.length,vlen=v.length;
+		if (ulen!==vlen) {throw `Incompatible lengths: ${ulen}!=${vlen}`;}
+		let u=this,r=new Vector(ulen,false);
+		for (let i=0;i<ulen;i++) {r[i]=u[i]-v[i];}
+		return r;
+	}
 
 
 	imul(s) {
@@ -716,15 +909,16 @@ export class Vector extends Array {
 
 	mul(v) {
 		// dot or scalar product
-		let u=this,len=this.length,vlen=v.length;
+		let u=this;
+		let ulen=this.length,vlen=v.length;
 		if (vlen!==undefined) {
-			if (vlen!==len) {throw `Incompatible lengths: ${len}, ${vlen}`;}
+			if (ulen!==vlen) {throw `Incompatible lengths: ${ulen}!=${vlen}`;}
 			let sum=0;
-			for (let i=0;i<len;i++) {sum+=u[i]*v[i];}
+			for (let i=0;i<ulen;i++) {sum+=u[i]*v[i];}
 			return sum;
 		}
-		let r=new Vector(len);
-		for (let i=0;i<len;i++) {r[i]=u[i]*v;}
+		let r=new Vector(ulen,false);
+		for (let i=0;i<ulen;i++) {r[i]=u[i]*v;}
 		return r;
 	}
 
@@ -735,9 +929,11 @@ export class Vector extends Array {
 
 	dist2(v) {
 		// (u-v)^2
-		v=this.sanitize(v);
-		let u=this,len=this.length,sum=0;
-		for (let i=0;i<len;i++) {let x=u[i]-v[i];sum+=x*x;}
+		let u=this;
+		let ulen=this.length,vlen=v.length;
+		if (ulen!==vlen) {throw `Incompatible lengths: ${ulen}!=${vlen}`;}
+		let sum=0;
+		for (let i=0;i<ulen;i++) {let x=u[i]-v[i];sum+=x*x;}
 		return sum;
 	}
 
@@ -757,6 +953,7 @@ export class Vector extends Array {
 
 
 	normalize() {
+		// Normalize the vector.
 		let u=this,len=this.length,mag=0;
 		for (let i=0;i<len;i++) {
 			let x=u[i];
@@ -772,7 +969,22 @@ export class Vector extends Array {
 	}
 
 
-	norm() {return this.copy().normalize();}
+	norm() {
+		// Return a new normal vector.
+		let len=this.length,mag=0;
+		let u=this,r=new Vector(len,false);
+		for (let i=0;i<len;i++) {
+			let x=u[i];
+			mag+=x*x;
+		}
+		if (mag>1e-10) {
+			mag=1/Math.sqrt(mag);
+			for (let i=0;i<len;i++) {r[i]=u[i]*mag;}
+		} else {
+			r.randomize();
+		}
+		return r;
+	}
 
 
 	randomize() {
@@ -793,44 +1005,54 @@ export class Vector extends Array {
 	}
 
 
-	static random(dim) {return (new Vector(dim)).randomize();}
+	static random(dim) {return (new Vector(dim,false)).randomize();}
 
 }
 
 
 export class Matrix extends Array {
 
-	constructor(rows,cols) {
+	static _perm=[];
+
+
+	constructor(rows,cols,init=true) {
 		// Expected: (dim), (rows,cols), (Matrix), or (array,[rows,cols])
 		let val=0;
 		if (rows instanceof Matrix) {val=rows;rows=val.rows;cols=val.cols;}
 		else if (rows.length!==undefined) {val=rows;rows=cols[0];cols=cols[1];}
-		else if (cols===undefined) {cols=rows;}
+		else {cols=cols??rows;}
 		super(rows*cols);
 		this.rows=rows;
 		this.cols=cols;
-		this.set(val);
+		if (init) {this.set(val);}
 	}
 
 
 	one() {
-		this.set(0);
 		let elem=this;
-		let cols=this.cols,rows=this.rows;
-		rows=rows<cols?rows:cols;
-		for (let i=0;i<rows;i++) {elem[i*cols+i]=1;}
+		let elems=this.length,cols=this.cols+1,c=0;
+		for (let i=0;i<elems;i++) {
+			let x=0;if (i===c) {x=1;c+=cols;}
+			elem[i]=x;
+		}
 		return this;
 	}
 
 
 	set(val=0) {
 		let elem=this;
-		let elems=elem.length,vlen=val.length;
+		let rows=this.rows,cols=this.cols;
+		let elems=rows*cols,vlen=val.length;
 		if (vlen===undefined) {
 			for (let i=0;i<elems;i++) {elem[i]=val;}
+		} else if (val instanceof Matrix) {
+			if (vlen!==elems) {elem.length=vlen;}
+			this.rows=val.rows;
+			this.cols=val.cols;
+			for (let i=0;i<vlen;i++) {elem[i]=val[i];}
 		} else {
-			if (vlen!==elems) {throw `set length: ${elems}!=${vlen}`;}
-			for (let i=0;i<elems;i++) {elem[i]=val[i];}
+			if (vlen!==elems) {throw `invalid array dimensions: ${vlen}!=${elems}`;}
+			for (let i=0;i<vlen;i++) {elem[i]=val[i];}
 		}
 		return this;
 	}
@@ -840,16 +1062,16 @@ export class Matrix extends Array {
 		let aelem=this;
 		let arows=this.rows,acols=this.cols;
 		let aelems=this.length,belems=b.length;
-		if (b.length===undefined) {
+		if (belems===undefined) {
 			// scalar
-			let m=new Matrix(this);
-			for (let i=0;i<aelems;i++) {m[i]*=b;}
+			let m=new Matrix(arows,acols,false);
+			for (let i=0;i<aelems;i++) {m[i]=aelem[i]*b;}
 			return m;
 		} else if (!(b instanceof Matrix)) {
 			// vector
-			if (belems!==acols) {throw `mat*vec dimensions: ${acols}!=${belems}`;}
-			let v=new Vector(arows),i=0;
-			for (let r=0;r<arows;r++) {
+			if (acols!==belems) {throw `mat*vec dimensions: ${acols}!=${belems}`;}
+			let v=new Vector(arows,false);
+			for (let r=0,i=0;r<arows;r++) {
 				let sum=0;
 				for (let c=0;c<acols;c++) {sum+=aelem[i++]*b[c];}
 				v[r]=sum;
@@ -857,134 +1079,139 @@ export class Matrix extends Array {
 			return v;
 		}
 		// matrix
-		let brows=b.rows,bcols=b.cols,melems=arows*bcols;belems--;
-		if (acols!==brows) {throw `A*B needs cols(A)=rows(B): ${acols}, ${brows}`;}
-		let m=new Matrix(arows,bcols);
+		let bcols=b.cols,melems=arows*bcols;belems--;
+		if (acols!==b.rows) {throw `A*B needs cols(A)=rows(B): ${acols}, ${b.rows}`;}
+		let m=new Matrix(arows,bcols,false);
 		let belem=b,melem=m;
-		let aval=0,bval=0;
+		let aidx=0,bidx=0;
 		for (let i=0;i<melems;i++) {
 			// Multiply row r of A with column c of B.
-			let sum=melem[i];
-			while (bval<=belems) {
-				sum+=aelem[aval]*belem[bval];
-				aval++;
-				bval+=bcols;
+			let sum=0;
+			while (bidx<=belems) {
+				sum+=aelem[aidx++]*belem[bidx];
+				bidx+=bcols;
 			}
 			melem[i]=sum;
-			bval-=belems;
-			if (bval===bcols) {bval=0;}
-			else {aval-=brows;}
+			bidx-=belems;
+			if (bidx===bcols) {bidx=0;}
+			else {aidx-=acols;}
 		}
 		return m;
 	}
 
 
-	det() {
-		let rows=this.rows,cols=this.cols;
-		if (rows!==cols) {return 0;}
-		if (rows===0) {return 1;}
-		// Copy the matrix. Use the upper triangular form to compute the determinant.
-		let elem=new Matrix(this);
-		let sign=0;
-		for (let i=0;i<cols-1;i++) {
-			// Find a row with an invertible element in column i.
-			let dval=i*cols,sval=dval,j=i;
-			let inv=NaN;
-			for (;j<rows;j++) {
-				inv=1/elem[sval+i];
-				if (inv>-Infinity && inv<Infinity) {break;}
-				sval+=cols;
-			}
-			if (j===rows) {return 0;}
-			if (sval!==dval) {
-				sign^=1;
-				for (let c=i;c<cols;c++) {
-					let tmp=elem[sval+c];
-					elem[sval+c]=elem[dval+c];
-					elem[dval+c]=tmp;
-				}
-			}
-			for (let c=i+1;c<cols;c++) {
-				elem[dval+c]*=inv;
-			}
-			for (let r=i+1;r<cols;r++) {
-				sval=r*cols;
-				let mul=elem[sval+i];
-				for (let c=i+1;c<cols;c++) {
-					elem[sval+c]-=elem[dval+c]*mul;
-				}
-			}
+	imul(b) {
+		if (b.length===undefined) {
+			let elem=this;
+			let elems=this.length;
+			for (let i=0;i<elems;i++) {elem[i]*=b;}
+		} else {
+			this.set(this.mul(b));
 		}
-		// We have the matrix in upper triangular form. Multiply the diagonals to get the
-		// determinant.
-		let det=elem[0];
-		for (let i=1;i<cols;i++) {
-			det=det*elem[i*cols+i];
-		}
-		return sign?-det:det;
+		return this;
 	}
 
 
-	inv() {
-		// Returns the multiplicative inverse of A.
-		let rows=this.rows,cols=this.cols;
-		if (rows!==cols) {throw `Can only invert square matrices: ${rows}, ${cols}`;}
-		let ret=new Matrix(this);
-		let elem=ret;
-		let perm=new Array(cols);
-		for (let i=0;i<cols;i++) {perm[i]=i;}
-		for (let i=0;i<rows;i++) {
-			// Find a row with an invertible element in column i.
-			let dval=i*cols,sval=dval,j=i;
-			let inv=NaN;
-			for (;j<rows;j++) {
-				inv=1/elem[sval+i];
-				if (inv>-Infinity && inv<Infinity) {break;}
-				sval+=cols;
-			}
-			if (j===rows) {throw `Unable to find an invertible element.`;}
-			// Swap the desired row with row i. Then put row i in reduced echelon form.
-			if (sval!==dval) {
-				for (let c=0;c<cols;c++) {
-					let tmp=elem[sval+c];
-					elem[sval+c]=elem[dval+c];
-					elem[dval+c]=tmp;
+	det() {
+		let dim=this.rows,cols=this.cols,elems=dim*dim;
+		if (dim!==cols) {return 0;}
+		// Copy the matrix. Use the upper triangular form to compute the determinant.
+		let elem=new Matrix(this);
+		let det=1;
+		for (let i=0;i<dim;i++) {
+			// Find a column with an invertible element on row i.
+			let j=i+1,row=i*dim,stop=row+dim,swap=-1;
+			let max=0,inv=0;
+			for (let c=i;c<dim;c++) {
+				let x=elem[row+c],a=x<0?-x:x;
+				if (max<a) {
+					max=a;
+					inv=x;
+					swap=c;
 				}
 			}
-			let tmp=perm[i];perm[i]=perm[j];perm[j]=tmp;
-			// Put the row into reduced echelon form. Since entry (i,i)=1 and (i,i')=1*inv,
-			// set (i,i)=inv.
-			for (let c=0;c<cols;c++) {
-				if (c!==i) {elem[dval+c]*=inv;}
+			det*=swap===i?inv:-inv;
+			// We couldn't find an element, so det=0.
+			if (swap<0) {break;}
+			// Normalize the row.
+			elem[row+swap]=elem[row+i];
+			for (let c=row+j;c<stop;c++) {elem[c]/=inv;}
+			// Row reduce the lower triangle.
+			for (let e=j*dim;e<elems;e+=dim) {
+				let mul=elem[e+swap];
+				elem[e+swap]=elem[e+i];
+				let dst=e+j,src=row+j;
+				while (src<stop) {
+					elem[dst++]-=elem[src++]*mul;
+				}
 			}
-			elem[dval+i]=inv;
+		}
+		return det;
+	}
+
+
+	inv() {return (new Matrix(this)).invert();}
+
+
+	invert() {
+		// Returns the multiplicative inverse of A.
+		let dim=this.rows,cols=this.cols;
+		if (dim!==cols) {throw `Can only invert square matrices: ${dim}, ${cols}`;}
+		let elem=this;
+		let perm=Matrix._perm;
+		if (perm.length<dim) {Matrix._perm=perm=new Array(dim);}
+		// let perm=new Array(dim);
+		for (let i=0;i<dim;i++) {
+			// Find a column with an invertible element on row i.
+			let row=i*dim,stop=row+dim,swap=-1;
+			let max=1e-10,inv=0;
+			for (let c=i;c<dim;c++) {
+				let x=elem[row+c],a=x<0?-x:x;
+				if (max<a) {
+					max=a;
+					inv=x;
+					swap=c;
+				}
+			}
+			if (swap<0) {throw `Unable to find an invertible element.`;}
+			// Swap the desired column with i and put the row in reduced echelon form.
+			// Since entry (i,i)=1 and (i,i')=1*inv, set (i,i)=inv.
+			perm[i]=swap;
+			elem[row+swap]=elem[row+i];
+			elem[row+i]=1;
+			for (let c=row;c<stop;c++) {elem[c]/=inv;}
 			// Perform row operations with row i to clear column i for all other rows in A.
 			// Entry (j,i') will be 0 in the augmented matrix, and (i,i') will be inv, hence
 			// (j,i')=(j,i')-(j,i)*(i,i')=-(j,i)*inv.
-			for (let r=0;r<rows;r++) {
+			for (let r=0;r<dim;r++) {
 				if (r===i) {continue;}
-				sval=r*cols;
-				let mul=elem[sval+i];
-				for (let c=0;c<cols;c++) {
-					if (c!==i) {elem[sval+c]-=elem[dval+c]*mul;}
+				let dst=r*dim,src=row;
+				let mul=elem[dst+swap];
+				elem[dst+swap]=elem[dst+i];
+				elem[dst+i]=0;
+				while (src<stop) {
+					elem[dst++]-=elem[src++]*mul;
 				}
-				elem[sval+i]=-elem[dval+i]*mul;
 			}
 		}
-		// Re-order columns due to swapped rows.
-		let tmp=new Array(cols);
-		for (let r=0;r<rows;r++) {
-			let dval=r*cols;
-			for (let i=0;i<cols;i++) {tmp[i]=elem[dval+i];}
-			for (let i=0;i<cols;i++) {elem[dval+perm[i]]=tmp[i];}
+		// Correct the row order to account for swapping columns.
+		for (let r=dim-1;r>=0;r--) {
+			let i=r*dim,j=perm[r]*dim,stop=i+dim;
+			if (i===j) {continue;}
+			while (i<stop) {
+				let tmp=elem[i];
+				elem[i++]=elem[j];
+				elem[j++]=tmp;
+			}
 		}
-		return ret;
+		return this;
 	}
 
 
 	trans() {
+		// Transpose.
 		let rows=this.rows,cols=this.cols,elems=rows*cols;
-		let ret=new Matrix(cols,rows);
+		let ret=new Matrix(cols,rows,false);
 		for (let i=0;i<elems;i++) {ret[i]=this[(i%rows)*cols+(~~(i/rows))];}
 		return ret;
 	}
@@ -993,7 +1220,7 @@ export class Matrix extends Array {
 	static fromangles(angs) {
 		let dim=0,ang2=(angs.length??1)*2;
 		while (dim*(dim-1)<ang2) {dim++;}
-		return (new Matrix(dim,dim)).one().rotate(angs);
+		return (new Matrix(dim,dim,false)).one().rotate(angs);
 	}
 
 
@@ -1014,8 +1241,9 @@ export class Matrix extends Array {
 				// We have
 				// (i,i)=cos   (i,j)=-sin
 				// (j,i)=sin   (j,j)=cos
-				let cs=Math.cos(angs[--a]);
-				let sn=Math.sin(angs[  a]);
+				let ang=angs[--a];
+				let cs=Math.cos(ang);
+				let sn=Math.sin(ang);
 				// For each row r:
 				// (r,i)=(r,i)*cos+(r,j)*sin
 				// (r,j)=(r,j)*cos-(r,i)*sin
@@ -1041,7 +1269,7 @@ export class Transform {
 	// mat*point+vec
 
 
-	constructor(params) {
+	constructor(params,init=true) {
 		// Accepts: Vector, Matrix, Transform, dim, {ang,dim,mat,scale,vec}
 		// Parse what we're given.
 		let mat=null,vec=null,dim=NaN;
@@ -1057,8 +1285,6 @@ export class Transform {
 			dim=params;
 		} else {
 			// Pull attributes from a dict.
-			const allow={"ang":1,"dim":1,"mat":1,"scale":1,"vec":1};
-			for (let attr in params) {if (!allow[attr]) {throw "Unknown attr: "+attr;}}
 			mat=params.mat??null;
 			vec=params.vec??null;
 			dim=params.dim??NaN;
@@ -1067,17 +1293,19 @@ export class Transform {
 		}
 		// Reconstruct what we're missing.
 		if (isNaN(dim)) {
-			if (vec!==null) {dim=vec.length;}
-			else if (mat!==null) {dim=mat.rows;}
-			else if (scale!==null && scale.length) {dim=scale.length;}
+			if (vec) {dim=vec.length;}
+			else if (mat) {dim=mat.rows;}
+			else if (scale) {dim=scale.length??NaN;}
+			if (isNaN(dim)) {throw "no dimension";}
 		}
-		if (isNaN(dim)) {throw "no dimension";}
-		if (vec===null) {vec=new Vector(dim);}
-		if (mat===null) {mat=(new Matrix(dim)).one();}
-		if (vec.length!==dim) {throw `vec dimension: ${vec.length}, ${dim}`;}
-		if (mat.rows!==dim || mat.cols!==dim) {throw `mat dimensions: (${mat.rows},${mat.cols}), ${dim}`;}
-		this.mat=new Matrix(mat);
-		this.vec=new Vector(vec);
+		if (!vec)      {vec=new Vector(dim);}
+		else if (init) {vec=new Vector(vec);}
+		if (!mat)      {mat=(new Matrix(dim,dim,false)).one();}
+		else if (init) {mat=new Matrix(mat);}
+		if (vec.length!==dim) {throw `vec dimension: ${vec.length}!=${dim}`;}
+		if (mat.rows!==dim || mat.cols!==dim) {throw `mat dimensions: (${mat.rows},${mat.cols})!=${dim}`;}
+		this.mat=mat;
+		this.vec=vec;
 		if (scale!==null) {this.scalemat(scale);}
 		if (ang!==null) {this.rotatemat(ang);}
 	}
@@ -1093,15 +1321,16 @@ export class Transform {
 
 	apply(point) {
 		// (A.apply(B)).apply(P) = A.apply(B.apply(P))
-		let mat=this.mat,vec=this.vec;
-		if (!(point instanceof Transform)) {return mat.mul(point).iadd(vec);}
-		return new Transform({mat:mat.mul(point.mat),vec:mat.mul(point.vec).iadd(vec)});
+		let amat=this.mat,avec=this.vec;
+		let bmat=point.mat,bvec=point.vec;
+		if (!bmat || !bvec) {return amat.mul(point).iadd(avec);}
+		return new Transform({mat:amat.mul(bmat),vec:amat.mul(bvec).iadd(avec)},false);
 	}
 
 
 	inv() {
 		let inv=this.mat.inv();
-		return new Transform({mat:inv,vec:inv.mul(this.vec).ineg()});
+		return new Transform({mat:inv,vec:inv.mul(this.vec).ineg()},false);
 	}
 
 
@@ -1128,11 +1357,22 @@ export class Transform {
 	}
 
 
-	scalemat(muls) {
-		let mat=this.mat,dim=this.vec.length,dim2=dim*dim;
-		if (muls.length===undefined) {muls=(new Array(dim)).fill(muls);}
-		if (muls.length!==dim) {throw `Invalid dimensions: ${muls.length}, ${dim}`;}
-		for (let i=0;i<dim2;i++) {mat[i]*=muls[(i/dim)|0];}
+	scalemat(mul) {
+		// Accepts a scalar or dim sized array.
+		let mat=this.mat;
+		let dim=mul.length,vlen=this.vec.length;
+		if (dim===undefined) {
+			mat.imul(mul);
+		} else if (dim!==vlen) {
+			throw `Invalid dimensions: ${dim}, ${vlen}`;
+		} else {
+			let i=0,s=dim;
+			for (let r=0;r<dim;r++) {
+				let m=mul[r];
+				while (i<s) {mat[i++]*=m;}
+				s+=dim;
+			}
+		}
 		return this;
 	}
 
@@ -1158,12 +1398,6 @@ export class Transform {
 
 	rotate(angs) {
 		return this.rotatevec(angs).rotatemat(angs);
-	}
-
-
-	lookat() {
-		// https://math.stackexchange.com/questions/180418
-		throw "not implemented";
 	}
 
 }
@@ -1554,7 +1788,7 @@ export class Input {
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v5.01
+// Drawing - v5.04
 
 
 class DrawPath {
@@ -1584,9 +1818,9 @@ class DrawPath {
 		this.area0=0;
 		this.curve=3;
 		this.move=null;
-		this.minx=Infinity;
+		this.minx= Infinity;
 		this.maxx=-Infinity;
-		this.miny=Infinity;
+		this.miny= Infinity;
 		this.maxy=-Infinity;
 		return this;
 	}
@@ -1610,8 +1844,8 @@ class DrawPath {
 		this.begin();
 		for (let i=0;i<vidx;i++) {
 			let v=varr[i];
-			let t=trans.apply([v.x,v.y]);
-			this.addvert(v.type,t[0],t[1]);
+			let w=trans.apply([v.x,v.y]);
+			this.addvert(v.type,w);
 		}
 	}
 
@@ -1686,30 +1920,6 @@ class DrawPath {
 	}
 
 
-	arcto(x,y,ang0,ang1,xrad,yrad,lineto=false) {
-		// Circular arc approximation.
-		yrad=yrad??xrad;
-		let turn=ang1-ang0;
-		turn=turn>-Math.PI*2?turn:-Math.PI*2;
-		turn=turn< Math.PI*2?turn: Math.PI*2;
-		// Control point length.
-		let c =0.087840004*turn;
-		let cx=c*xrad,cy=c*yrad;
-		let c1=Math.cos(ang0),x1=c1*xrad+x;c1*=cy;
-		let s1=Math.sin(ang0),y1=s1*yrad+y;s1*=cx;
-		if (lineto) {this.lineto(x1,y1);}
-		for (let i=1;i<5;i++) {
-			let ang=ang0+i*(turn/4);
-			let c0=c1;c1=Math.cos(ang);
-			let s0=s1;s1=Math.sin(ang);
-			let x0=x1;x1=c1*xrad+x;c1*=cy;
-			let y0=y1;y1=s1*yrad+y;s1*=cx;
-			this.curveto(x0-s0,y0+c0,x1+s1,y1-c1,x1,y1);
-		}
-		return this;
-	}
-
-
 	close() {
 		// Draw a line from the current vertex to our last moveto() call.
 		if (this.move) {this.addvert(DrawPath.CLOSE);}
@@ -1732,16 +1942,17 @@ class DrawPath {
 		}
 		let name=["M ","Z","L ","C "];
 		let ret="";
+		let varr=this.vertarr;
 		for (let i=0;i<this.vertidx;i++) {
-			let v=this.vertarr[i],t=v.type;
+			let v=varr[i],t=v.type;
 			ret+=(i?" ":"")+name[t];
 			if (t!==DrawPath.CLOSE) {
 				ret+=tostring(v.x)+" "+tostring(v.y);
 			}
 			if (t===DrawPath.CURVE) {
-				v=this.vertarr[++i];
+				v=varr[++i];
 				ret+=" "+tostring(v.x)+" "+tostring(v.y);
-				v=this.vertarr[++i];
+				v=varr[++i];
 				ret+=" "+tostring(v.x)+" "+tostring(v.y);
 			}
 		}
@@ -1800,8 +2011,8 @@ class DrawPath {
 		let varr=path.vertarr,vidx=path.vertidx;
 		for (let i=0;i<vidx;i++) {
 			let v=varr[i];
-			let t=trans.apply([v.x,v.y]);
-			this.addvert(v.type,t[0],t[1]);
+			let w=trans.apply([v.x,v.y]);
+			this.addvert(v.type,w);
 		}
 		return this;
 	}
@@ -1812,8 +2023,36 @@ class DrawPath {
 	}
 
 
+	addarc(x,y,ang0,ang1,xrad,yrad,lineto=false) {
+		// Circular arc approximation.
+		yrad=yrad??xrad;
+		let turn=ang1-ang0;
+		turn=turn<0?-turn:turn;
+		turn=turn<Math.PI*2?turn:Math.PI*2;
+		// Control point length.
+		let segs=~~(turn/(Math.PI/2));
+		segs=segs<3?segs+1:4;
+		turn=(ang1<ang0?-turn:turn)/segs;
+		let ang2=turn*turn;
+		let proj=turn*(0.333338514+ang2*(0.006927896+ang2*0.000152242));
+		let px=proj*xrad,py=proj*yrad;
+		let c1=Math.cos(ang0),x1=c1*xrad+x;c1*=py;
+		let s1=Math.sin(ang0),y1=s1*yrad+y;s1*=px;
+		if (lineto) {this.lineto(x1,y1);}
+		for (let s=0;s<segs;s++) {
+			ang0+=turn;
+			let c0=c1;c1=Math.cos(ang0);
+			let s0=s1;s1=Math.sin(ang0);
+			let x0=x1;x1=c1*xrad+x;c1*=py;
+			let y0=y1;y1=s1*yrad+y;s1*=px;
+			this.curveto(x0-s0,y0+c0,x1+s1,y1-c1,x1,y1);
+		}
+		return this;
+	}
+
+
 	addoval(x,y,xrad,yrad) {
-		return this.arcto(x,y,0,Math.PI*2,xrad,yrad,true).close();
+		return this.addarc(x,y,0,Math.PI*2,xrad,yrad,true).close();
 	}
 
 
@@ -2008,7 +2247,7 @@ class DrawPath {
 		let vidx=this.vertidx;
 		if (!vidx) {return false;}
 		// Put the point in path-space.
-		let [px,py]=point;
+		let px=point[0],py=point[1];
 		if (trans) {
 			if (!(trans instanceof Transform)) {trans=new Transform(trans);}
 			let mat=trans.mat,vec=trans.vec;
@@ -2049,7 +2288,7 @@ class DrawPath {
 			let r=1;
 			let u0=1,y0=p3y,tmp=0;
 			let disc=q2y*q2y-3*q3y*q1y;
-			if (disc>1e-10) {
+			if (disc>=0) {
 				disc=Math.sqrt(disc);
 				let a=(-q2y-disc)/(3*q3y);
 				let b=(-q2y+disc)/(3*q3y);
@@ -2182,7 +2421,7 @@ class DrawImage {
 			for (let x=0;x<w;x++) {
 				dst[didx++]=src[sidx+2];
 				dst[didx++]=src[sidx+1];
-				dst[didx++]=src[sidx+0];
+				dst[didx++]=src[sidx  ];
 				dst[didx++]=src[sidx+3];
 				sidx+=4;
 			}
@@ -2229,101 +2468,101 @@ class DrawFont {
 		none
 		1000
 		SPC 553
-		█ 553 M0 0H553V1000H0Z
-		! 553 M340 692c0-86-130-86-130 0 0 86 130 86 130 0ZM238 560h76L327 54H224Z
-		" 553 M332 284h80L426 54H318Zm-191 0h80L235 54H127Z
-		# 553 M173 106h71L228 268H354l17-162h72L426 268H532v64H420L403 504H506v64H396L378 748H306l18-180H198L180 748H108l18-180H21V504H132l18-172H46V268H156Zm49 226-17 172H331l17-172Z
-		$ 553 M291 14h71l-13 95c35 4 72 9 99 16v75c-29-7-72-16-108-18L312 392c283 85 213 350-48 355L248 864H177l16-117c-44-4-90-9-138-21V645c47 15 97 25 149 26l28-221C-49 366 44 107 279 107ZM268 182c-117-1-183 125-25 183Zm7 489c153-4 174-152 25-193Z
-		% 553 M344 606c0-109 119-112 119 0 0 109-119 123-119 0Zm57 149c176 0 183-294 6-294-180 0-182 294-6 294ZM90 192c0-109 119-112 119 0 0 109-119 123-119 0Zm57 149c176 0 183-294 6-294-180 0-182 294-6 294ZM10 748H90L543 54H462Z
-		& 553 M396 553c11-32 23-81 21-140h86c0 68-8 135-49 211l99 124H440l-43-54C304 786 28 796 28 573c0-121 84-164 121-189C26 244 82 68 254 68c192 0 234 231 16 326ZM227 341c160-81 104-201 26-201-95 0-109 118-26 201Zm-34 98C8 563 188 780 349 634Z
+		! 553 M339 692c0-86-128-86-128 1 0 84 128 86 128-1ZM238 560h76L327 54H224Z
+		" 553 M332 284h81L426 54H318Zm-191 0h81L235 54H127Z
+		# 553 M173 106h72L228 268H354l17-162h73L426 268H532v64H420L403 504H506v64H397L378 748H305l19-180H199L180 748H107l19-180H21V504H132l18-172H46V268H156Zm49 226-17 172H330l18-172Z
+		$ 553 M291 14h71l-13 95c41 4 70 9 100 16l-1 76c-33-9-57-13-108-20L312 395c281 74 217 350-47 351L248 864H177l16-117c-44-3-98-11-139-21l1-82c46 17 92 23 148 28l30-225C-44 375 37 107 278 109ZM268 184c-130-6-173 133-24 180Zm7 486c153 1 177-155 24-190Z
+		% 553 M461 55l83-2L91 747l-81 1ZM18 198C18-2 282-5 282 189c0 199-264 207-264 9Zm72-2c0 112 119 112 119-2C209 76 90 82 90 196ZM271 614c0-203 265-205 265-12 0 202-265 205-265 12Zm72-4c-1 116 122 109 121-4-1-113-120-112-121 4Z
+		& 553 M396 553c11-24 23-83 20-140h87c0 59-8 138-49 211l99 124H440l-44-54C309 786 28 796 28 573c0-121 90-168 122-190C35 263 69 68 257 68c194 0 226 240 12 325ZM227 340c149-64 116-200 29-200-103 0-110 122-29 200Zm-34 99C23 548 162 784 349 634Z
 		' 553 M234 284h85L333 54H221Z
-		( 553 M376 17C72 293 70 678 373 954l52-53C162 647 182 298 426 68Z
-		) 553 M127 903c244-230 264-579 1-833l52-53c303 276 301 661-3 937Z
-		* 553 M241 54h71L299 222l140-94 34 60-152 75 151 73-33 58-139-92 12 169H241l12-169-141 92-31-57 151-75L81 186l33-57 140 93Z
-		+ 553 M234 244h85V443H512v75H319V718H234V518H41V443H234Z
-		, 553 M117 916c278 5 291-326 149-326-41 0-66 31-66 63 0 53 46 59 46 112 0 71-90 85-129 84Z
+		( 553 M376 17C71 293 70 682 374 953l52-52C167 652 174 308 426 68Z
+		) 553 M127 903c253-239 257-586 1-833l50-53c305 272 304 661-1 937Z
+		* 553 M242 54h70L299 222l140-94 33 61-150 74 150 73-33 58-138-91 11 168H242l10-168-141 91-30-58 151-74L81 187l33-58 139 92Z
+		+ 553 M235 244h84V443H512v75H319V718H234l1-200H41V443H234Z
+		, 553 M117 916c286 1 284-326 151-326-51 0-68 40-68 65 0 50 46 57 46 110 0 68-85 86-129 84Z
 		- 553 M130 441H423v80H130Z
-		. 553 M354 675c0 109-163 109-163 0 0-108 163-108 163 0Z
-		/ 553 M393 54h82L138 854H56Z
-		0 553 M420 363c41 394-236 380-272 204ZM132 484C97 94 368 117 403 283ZM281 97C122 97 43 235 43 418c0 229 83 339 228 339 143 0 239-105 239-339 0-206-83-321-229-321Z
+		. 553 M354 677c0 103-162 109-162-1 0-110 162-109 162 1Z
+		/ 553 M393 54h82L138 854H57Z
+		0 553 M420 364c37 412-245 365-271 202ZM132 484C101 73 379 132 402 284ZM281 97C72 97 6 334 62 586c52 234 380 230 430-16 50-246-6-473-211-473Z
 		1 553 M66 210l32 73 154-84V668H86v80H490V668H346V103H271Z
-		2 553 M75 181c44-40 90-84 195-84 121 0 191 81 191 185 0 131-85 195-278 385H495v81H72V672C307 432 368 401 368 290c0-137-147-155-246-53Z
-		3 553 M98 197c70-25 264-65 264 69 0 83-62 116-126 116H159v70h79c67 0 155 22 155 109 0 169-272 115-312 111v77c472 75 483-307 265-341C527 339 497 1 98 122Z
-		4 553 M106 531 330 188V531Zm-85 0v75H330V748h88V606H527V531H418V106H295Z
-		5 553 M99 106H444v74H179V361h51c175 0 249 72 249 180 0 126-117 252-392 207V671c182 36 300-6 300-125 0-85-71-112-180-112H99Z
-		6 553 M149 465c142-81 265-46 265 83 0 180-286 220-265-84ZM453 106H380C176 106 60 225 60 470c0 200 79 287 217 287 335 0 305-555-128-364 5-149 99-212 232-212h72Z
-		7 553 M57 106H491v80L222 748H125L404 185H57Z
-		8 553 M281 97c251 0 254 235 80 315 197 80 184 345-88 345C8 757-5 505 193 419 1 334 42 97 281 97Zm3 278c171-81 123-207-6-207-141 0-181 129 6 207Zm-14 81c-159 61-162 228 7 228 147 0 189-146-7-228Z
-		9 553 M88 673h70c135 0 237-51 246-212C-25 654-64 97 276 97c127 0 216 91 216 287 0 267-130 364-350 364H88ZM404 390c6-313-265-258-265-84 0 132 115 162 265 83Z
-		: 553 M352 321c0 100-151 100-151 0 0-99 151-99 151 0zm0 360c0 100-151 100-151 0 0-99 151-99 151 0z
-		; 553 M352 321c0-99-151-99-151 0 0 100 151 100 151 0ZM123 916c278 5 291-326 149-326-41 0-66 31-66 63 0 53 46 59 46 112 0 71-90 85-129 84Z
-		< 553 M398 205l53 54L184 480l267 221-53 54L68 480Z
+		2 553 M122 238c90-99 246-89 246 50 0 111-59 144-296 384v76H495V667H186L352 501c83-83 158-210 72-333-86-123-290-66-349 14Z
+		3 553 M98 198C444 80 406 382 248 382H159v70h96c201 0 224 302-175 217v78c473 83 486-312 263-339C525 345 506 4 98 121Z
+		4 553 M106 531 330 189V531Zm-85 0v75H330V748h88V606H527V531H418V106H295Z
+		5 553 M99 106H445v75H179V361h77c357 0 282 479-169 387V670c364 90 373-236 163-236H99Z
+		6 553 M151 464c97-58 263-78 263 89 0 178-290 214-263-89ZM453 106H388C173 106 60 225 60 471c0 211 89 286 218 286 337 0 300-552-128-367 5-158 111-209 230-209h73Z
+		7 553 M57 106H491v80L223 748H125L404 185H57Z
+		8 553 M280 97c272 0 239 257 77 315 203 77 191 345-86 345C-6 757 5 489 198 419 9 349 30 97 280 97Zm5 276c145-55 151-205-9-205-153 0-163 147 9 205Zm-15 85c-161 60-161 226 8 226 161 0 176-160-8-226Z
+		9 553 M89 673h64c146 0 245-57 249-209C-30 648-58 97 272 97c155 0 220 120 220 292 0 258-128 359-350 359H88ZM400 392c31-300-261-273-261-91 0 174 174 141 261 91Z
+		: 553 M351 322c0 99-150 99-150-1 0-97 150-101 150 1Zm0 360c0 100-150 99-149-1 1-100 149-98 149 1Z
+		; 553 M351 321c0-98-149-100-149 1 0 98 149 100 149-1ZM123 916c286 1 283-326 152-326-55 0-69 43-69 65 0 51 46 56 46 112 0 69-97 86-129 81Z
+		< 553 M398 205l53 55L183 479 451 702l-54 54L67 480Z
 		= 553 M65 359H488v72H65Zm0 171H488v72H65Z
-		> 553 M103 260 370 481 103 702l53 54L485 480 156 204Z
-		? 553 M304 692c0-86-130-86-130 0 0 86 130 87 130 0ZM149 131c250-12 263 241 121 241H197l6 188h74l3-121C551 432 503 40 149 54Z
-		@ 553 M423 292 384 544c-13 84-4 109 22 109 46 0 71-97 71-248 0-190-49-297-160-297C182 108 74 320 74 580c0 293 130 369 342 272v63C127 1029 5 873 5 579 5 258 145 48 321 48c121 0 225 80 225 357 0 411-235 330-223 239-17 72-185 147-185-72 0-199 95-319 221-265Zm-90 81c-84-70-117 106-117 186 0 147 53 95 84 30Z
-		A 553 M275 186 383 530H166Zm-57-80L5 748H95l46-141H408l45 141h95L338 106Z
-		B 553 M261 106c285 0 251 261 109 301 192 35 185 341-117 341H78V106ZM165 380h94c163 0 176-200-1-200H165Zm0 294h97c199 0 188-221 0-221H165Z
-		C 553 M489 214C30-21 6 869 489 642v83C-132 949-79-97 489 128Z
-		D 553 M141 672V180h75c148 0 209 75 209 237 0 185-81 255-217 255ZM54 106V748H197c166 0 320-72 320-331 0-140-42-311-294-311Z
+		> 553 M103 260 370 481 103 702l53 54L486 480 155 205Z
+		? 553 M303 692c0-87-128-84-128 0 0 85 128 87 128 0ZM149 131c265-8 246 241 133 241H197l6 188h73l5-122C544 438 513 41 149 55Z
+		@ 553 M421 291 379 585c-15 105 98 129 98-173 0-194-45-304-161-304C175 108 74 334 74 577c0 289 124 376 343 275v66C117 1025 5 871 5 574 5 271 140 48 318 48c141 0 228 103 228 353 0 445-243 310-227 248-28 86-181 119-181-67 0-207 89-330 223-275Zm-88 82C197 250 171 845 300 592Z
+		A 553 M275 186 383 530H166Zm-57-80L5 748H96l45-141H408l45 141h95L338 106Z
+		B 553 M165 453h94c210 0 178 221 27 221H165Zm0-273H277c152 0 144 200-12 200H165ZM78 106V748H250c321 0 302-321 117-341 135-19 189-301-90-301Z
+		C 553 M489 128C288 47 45 118 45 438c0 260 162 374 443 291l1-82C167 760 138 534 138 426c0-117 52-335 351-216Z
+		D 553 M141 672V180h79c171 0 205 107 205 249 0 161-73 243-217 243ZM54 106V748H192c153 0 325-57 325-327 0-152-46-315-298-315Z
 		E 553 M464 106v74H186V378H453v74H186V673H464v75H99V106Z
 		F 553 M463 106v75H190V389H449v73H190V748H101V106Z
-		G 553 M494 128c-612-226-620 845 3 590V390H279v72H411V666C-14 796 43-13 494 215Z
+		G 553 M494 215C248 103 124 246 124 424c0 73 5 311 287 243V462H280V390H497V719C178 836 31 664 31 433 31 247 159 12 494 128Z
 		H 553 M412 106h87V748H412V453H142V748H55V106h87V377H412Z
 		I 553 M84 106H469v74H321V673H469v75H84V673H232V180H84Z
-		J 553 M98 182H342V552c0 156-147 151-252 79v88c116 68 341 57 341-173V106H98Z
-		K 553 M77 106h87V404L399 106H503L249 411 514 748H404L164 433V748H77Z
+		J 553 M98 182H342V552c0 164-159 144-252 80v88c120 67 341 53 341-174V106H98Z
+		K 553 M77 106h87V405L399 106H503L250 411 514 748H404L164 433V748H77Z
 		L 553 M114 106h89V673H484v75H114Z
-		M 553 M24 748h83l13-552L240 539h61L425 196l19 552h85L498 106H392L274 429 159 106H55Z
-		N 553 M58 106H171L414 633V106h81V748H381L140 218V748H58Z
-		O 553 M277 174c216 0 215 507-3 507-211 0-207-507 3-507Zm4-77c-318 0-352 660-9 660 344 0 332-659 9-660Z
-		P 553 M259 106c343 0 295 412 6 412H165V748H78V106Zm9 337c180 0 197-264-3-264H165V443Z
-		Q 553 M553 876C445 966 237 938 230 754-55 717-44 97 281 97c345 0 301 639 30 657 23 138 172 95 203 62ZM275 680c216 0 222-506 1-506-210 0-215 506-1 506Z
-		R 553 M171 392V180h85c169 0 162 212-13 212ZM83 106V748h88V462h41c100 0 99 72 205 286h99C396 498 386 463 330 442c169-23 225-336-73-336Z
-		S 553 M448 115C182 55 62 158 62 273c0 205 336 167 336 305 0 153-273 97-344 72v85c317 71 436-36 436-160 0-208-336-167-336-312 0-98 145-107 294-69Z
+		M 553 M24 748h83l14-534L240 539h61L426 200l18 548h85L498 106H391L273 424 159 106H56Z
+		N 553 M58 106H171L414 624V106h81V748H381L140 230V748H58Z
+		O 553 M277 174c165 0 179 233 141 385-39 156-238 164-278 16-50-185-13-401 137-401Zm9-77C52 97-2 349 42 569c50 250 408 260 470-19C548 388 530 97 286 97Z
+		P 553 M165 443V179H268c193 0 186 264-2 264ZM78 106V748h87V518h89c311 0 340-412 17-412Z
+		Q 553 M553 876c-89 82-314 75-323-123C32 734-9 465 57 259c66-206 383-234 449 8 54 198 7 457-194 486 19 136 172 101 201 61ZM276 680c159 0 180-232 145-379-40-168-251-178-290 17-24 120-24 362 145 362Z
+		R 553 M171 392V180h97c148 0 150 212-18 212ZM83 106V748h88V462h34c106 0 97 51 213 286h98C399 506 389 464 328 441c179-24 217-335-61-335Z
+		S 553 M448 117C182 51 62 160 62 273c0 204 336 165 336 309 0 146-274 93-344 68v86c330 69 436-44 436-161 0-206-336-171-336-309 0-104 147-110 294-72Z
 		T 553 M42 106H511v75H321V748H232V181H42Z
-		U 553 M54 106V532c0 173 92 225 221 225 142 0 225-92 225-225V106H413V532c0 89-40 152-136 152-91 0-136-44-136-152V106Z
-		V 553 M101 106 278 666 458 106h93L333 748H215L2 106Z
-		W 553 M105 106l32 556L245 323h61L425 662l28-556h78L488 748H374L273 447 176 748H66L22 106Z
-		X 553 M130 106 277 348 424 106H524L328 416 541 748H431L275 488 118 748H9L223 420 26 106Z
-		Y 553 M0 106 232 517V748h89V518L553 106H453L281 436 106 106Z
-		Z 553 M64 106H492v69L164 667H498v81H55V682L385 185H64Z
+		U 553 M54 106V561c0 275 446 259 446-16V106H413V542c0 199-272 176-272 24V106Z
+		V 553 M101 106 279 663 458 106h93L333 748H215L2 106Z
+		W 553 M104 106l33 554L245 323h61L423 657l30-551h78L488 748H374L273 454 176 748H66L22 106Z
+		X 553 M130 106 276 347 425 106H525L328 416 541 748H430L275 488 118 748H9L222 420 26 106Z
+		Y 553 M0 106 232 516V748h89V519L553 106H453L281 431 106 106Z
+		Z 553 M64 106H492v68L164 667H498v81H55V682L384 185H64Z
 		[ 553 M169 37H412v69H251V880H412v69H169Z
-		\\ 553 M79 54h81L497 854H416Z
+		\\ 553 M79 54h81L497 854H415Z
 		] 553 M141 106H301V880H141v69H384V37H141Z
-		^ 553 M60 420h77L271 174 412 420h86L309 106H239Z
+		^ 553 M60 420h77L271 173 412 420h86L309 106H239Z
 		_ 553 M0 878H553v71H0Z
-		\` 553 M242 173h86L209 54H86Z
-		a 553 M386 524v87C158 821 58 524 274 524ZM107 355c220-85 279-6 279 57v47H271C146 459 65 517 65 616c0 176 238 174 329 66l1 66h77V406c0-187-217-181-365-129Z
-		b 553 M79 54h86l-5 283c77-124 340-162 340 151 0 235-176 322-421 231Zm85 610c38 16 249 85 249-169 0-212-136-225-249-72Z
-		c 553 M462 353C78 173 51 829 462 651v79C-74 905-34 107 462 271Z
-		d 553 M386 569C114 968-2 180 386 340Zm0-308C119 201 53 391 53 508c0 309 246 299 340 146l2 94h77V54H386Z
-		e 553 M147 529c-2 222 268 147 322 136v70C124 817 57 659 57 504c0-353 490-345 436 25Zm259-66c8-197-250-201-259 0Z
-		f 553 M516 60C268 12 198 113 198 243v84H39v71H198V748h87V398H501V327H285V236c0-111 77-137 231-103Z
-		g 553 M328 739c141 6 118 147-52 147-180 0-161-98-85-151ZM269 522c-141 0-141-212 0-212 143 0 143 212 0 212Zm64-267C100 200 19 418 116 524c-82 87-52 164-2 188C26 763-24 954 268 954c152 0 243-64 243-165 0-231-467-25-342-226 191 87 365-80 265-238h79V255Z
-		h 553 M79 748h85V420c130-169 226-99 226 12V748h85V420c0-227-238-207-314-87l3-279H79Z
-		i 553 M344 116c0 89-135 89-135 0 0-90 135-90 135 0ZM101 255H333V677H480v71H85V677H247V326H101Z
-		j 553 M85 326H326V749c0 118-89 173-261 99v81c148 57 348 29 348-192V255H85ZM428 116c0-90-134-90-134 0 0 89 134 89 134 0Z
-		k 553 M89 54h86V480L397 255H509L278 482 522 748H405L175 484V748H89Z
+		\` 553 M243 173h85L209 54H85Z
+		a 553 M386 524v88C151 820 66 524 268 524ZM107 354c202-75 279-21 279 60v45H267C-78 459 51 930 394 691l1 57h77V408c0-190-216-182-365-131Z
+		b 553 M164 425c286-382 382 410 0 236ZM78 720c252 91 422-3 422-229 0-320-264-276-338-156l3-281H78Z
+		c 553 M462 353C78 166 53 835 462 651v79C-73 912-37 95 462 272Z
+		d 553 M386 568C112 974 2 172 386 342Zm0-309C134 207 53 369 53 509c0 317 258 290 339 144l4 95h76V54H386Z
+		e 553 M147 529c2 222 257 147 322 137v69C126 817 57 661 57 500c0-350 494-341 433 29Zm259-66c13-191-249-208-258 0Z
+		f 553 M516 60C271 13 198 110 198 244v83H39v71H198V748h87V398H501V327H285V242c0-125 83-141 231-108Z
+		g 553 M513 255v70H437c90 166-70 318-271 240C49 764 511 552 511 798c0 52-43 156-244 156-303 0-233-204-151-241-45-18-88-97 1-189-94-97-29-325 225-269ZM269 522c142 0 144-212 1-212-142 0-143 212-1 212ZM191 735c-42 20-134 151 87 151 175 0 187-141 50-146Z
+		h 553 M79 748h85V424c109-157 226-123 226 3V748h85V417c0-217-232-208-311-85V54H79Z
+		i 553 M344 116c0 89-135 89-135 1 0-91 135-91 135-1ZM101 255H333V677H480v71H85V677H247V326H101Z
+		j 553 M85 326H326V745c0 119-81 178-261 104v81c137 50 348 39 348-196V255H85ZM428 116c0-90-134-90-134 0 0 89 134 89 134 0Z
+		k 553 M89 54h86V480L397 255H510L278 482 522 748H405L175 484V748H89Z
 		l 553 M101 54H333V677H480v71H85V677H247V124H101Z
-		m 553 M110 255l3 94c63-158 196-120 191 4 55-155 205-140 205 29V748H430V391c0-108-52-104-115 41V748H237V393c0-92-43-127-114 38V748H44V255Z
-		n 553 M79 255V748h85V421c118-164 226-108 226 8V748h85V416c0-200-212-222-317-81l-3-80Z
-		o 553 M277 319c196 0 192 366 0 366-199 0-191-366 0-366Zm4-73c-306 0-324 511-9 511 304 0 327-511 9-511Z
-		p 553 M164 424c280-374 384 399 0 240ZM79 255V949h85V743c66 24 336 40 336-248 0-318-255-286-340-157l-6-83Z
-		q 553 M386 568C119 972-2 177 386 339Zm10-303C267 221 53 254 53 511c0 309 249 291 337 147l-4 291h86V246Z
-		r 553 M99 255V748h86V431c125-171 242-128 233 12h86c14-237-214-249-325-97l-2-91Z
-		s 553 M437 260C178 208 96 305 96 386c0 176 285 127 285 234 0 67-110 86-292 40v78c208 48 380 7 380-127 0-173-286-121-286-231 0-63 99-81 254-43Z
-		t 553 M254 97V255H476v72H254V579c0 107 94 121 222 89v74c-220 41-307-16-307-162V327H31V255H169V119Z
-		u 553 M390 255h85V748H398l-2-80C314 790 79 812 79 581V255h85V581c0 114 116 159 226 1Z
-		v 553 M423 255h94L324 748H225L32 255h98L277 660Z
-		w 553 M451 255h85L464 748H360L275 491 190 748H90L18 255h84l50 410 92-287h62l99 284Z
-		x 553 M153 255 282 444 410 255H515L330 503 523 748H410L277 559 145 748H34L226 500 43 255Z
-		y 553 M33 255 229 748C176 862 128 887 29 872v78c120 7 224-2 320-254L517 255H423L280 658 130 255Z
+		m 553 M109 255l5 97c50-157 202-130 189 6 50-160 206-147 206 16V748H430V371c0-56-41-113-115 64V748H237V375c0-62-42-116-114 58V748H44V255Z
+		n 553 M79 255V748h85V424c105-159 226-120 226-1V748h85V415c0-214-230-209-317-78l-3-82Z
+		o 553 M275 319c157 0 165 188 127 283-46 115-211 107-252 1-41-106-18-284 125-284Zm8-73C40 246 6 515 77 652c71 137 309 146 393-1 72-126 61-405-187-405Z
+		p 553 M155 255l5 85c70-126 340-170 340 149 0 277-234 284-336 253V949H78V255Zm9 406c382 174 286-618 0-236Z
+		q 553 M386 568C111 975 4 170 386 341Zm11-303C244 218 53 265 53 521c0 283 241 290 335 138l-3 290h87V246Z
+		r 553 M99 255V748h86V433c127-178 246-126 231 10h87c17-238-218-250-324-94l-2-94Z
+		s 553 M437 261C175 206 96 309 96 386c0 176 285 128 285 233 0 75-125 82-292 41v78c214 49 380 5 380-128 0-170-286-122-286-229 0-61 88-83 254-44Z
+		t 553 M254 97V255H476v72H254V574c0 114 89 125 222 94v75c-218 39-307-16-307-160V327H31V255H169V119Z
+		u 553 M390 255h85V748H399l-4-83C318 792 79 808 79 590V255h85V581c0 118 119 158 226-2Z
+		v 553 M423 255h94L324 748H226L32 255h98L277 653Z
+		w 553 M451 255h84L464 748H360L274 498 190 748H90L18 255h84l50 410 92-287h62l99 281Z
+		x 553 M153 255 282 445 410 255H516L330 502 523 748H410L276 560 145 748H34L226 501 43 255Z
+		y 553 M32 255 230 749C174 861 131 888 29 872v79c121 5 224-3 320-255L517 255H424L281 653 130 255Z
 		z 553 M87 255H462v66L188 676H478v72H81V686L359 327H87Z
-		{ 553 M441 37H407C62 37 339 430 127 430H80v70h44c219 0-64 449 274 449h43V880H406c-231 0 15-394-212-415 215-30-8-359 211-359h36Z
+		{ 553 M441 37H411C58 37 339 430 131 430H79v70h42c233 0-74 449 285 449h35V880H407c-234 0 16-394-215-415 224-34-16-359 220-359h29Z
 		| 553 M236 0h81V949H236Z
-		} 553 M112 37h34c348 0 61 393 291 393h36v70H429c-219 0 64 449-274 449H112V880h35c231 0-11-393 212-415-216-25 8-359-211-359H112Z
-		~ 553 M443 407c0 95-40 94-59 94-69 0-100-123-216-123-67 0-136 45-136 173h79c0-57 14-96 57-96 66 0 103 124 216 124 75 0 137-51 137-173Z
+		} 553 M112 37h29c357 0 66 393 292 393h41v70H422c-216 0 81 449-273 449H112V880h33c239 0-15-381 214-415-221-29 16-359-218-359H112Z
+		~ 553 M442 406c5 98-55 139-145 37C192 324 26 372 33 551h79c-6-106 63-131 144-38 108 124 274 66 264-107Z
+		█ 553 M0 0H553V1000H0Z
 	`;
 	// `
 
@@ -2364,7 +2603,7 @@ class DrawFont {
 			if (chr.length<=0) {continue;}
 			chr=special[chr]??chr.charCodeAt(0);
 			let g={
-				width:parseInt(token(32))/scale,
+				width:parseFloat(token(32))/scale,
 				path :new DrawPath(token(10),trans)
 			};
 			this.glyphs[chr]=g;
@@ -2656,7 +2895,8 @@ export class Draw {
 		let pixminy=(invyx<0?invyx:0)+(invyy<0?invyy:0);
 		let pixmaxy=(invyx>0?invyx:0)+(invyy>0?invyy:0);
 		// Iterate over dst rows.
-		let [rshift,gshift,bshift,ashift]=this.rgbashift;
+		let shift=this.rgbashift;
+		let rshift=shift[0],gshift=shift[1],bshift=shift[2],ashift=shift[3];
 		let dstdata=dstimg.data32;
 		let srcdata=srcimg.data32;
 		for (let dsty=dstminy;dsty<dstmaxy;dsty++) {
@@ -3171,7 +3411,7 @@ export class Draw {
 
 
 //---------------------------------------------------------------------------------
-// UI - v1.02
+// UI - v1.03
 
 
 export class UI {
@@ -3214,7 +3454,7 @@ export class UI {
 		let input=this.input;
 		let draw=this.draw,img=draw.img;
 		let dw=img.width,dh=img.height;
-		let [mx,my]=input.getmousepos();
+		let mpos=input.getmousepos(),mx=mpos[0],my=mpos[1];
 		let grabbing=this.grabbing;
 		let focus=this.focus;
 		// If we're not grabbing something, check if we're focused on anything.
@@ -3335,7 +3575,7 @@ export class UI {
 
 
 //---------------------------------------------------------------------------------
-// Audio - v3.11
+// Audio - v3.12
 
 
 class AudioSound {
@@ -3680,6 +3920,12 @@ class AudioSound {
 }
 
 
+const CON=0,VAR=1,OP=2;
+const EXPR=0,ENV=1,TBL=2,TRI=3,PLS=4,SAW=5,SIN=6,SQR=7,NOI=8,DEL=9,OSC0=2,OSC1=7;
+const LPF=10,HPF=11,BPF=12,NPF=13,APF=14,PKF=15,LSF=16,HSF=17,FIL0=10,FIL1=17;
+const VBITS=24,VMASK=(1<<VBITS)-1,PBITS=8,PMASK=(1<<PBITS)-1;
+
+
 class AudioSFX {
 
 	// Array Format
@@ -3772,8 +4018,6 @@ class AudioSFX {
 	parse(seqstr) {
 		// Last node is used as output. Node names must start with #.
 		// Translating addresses: (node_num+1)<<8+param_num
-		const EXPR=0,ENV=1,TBL=2,NOI=8,DEL=9,OSC0=2,OSC1=7,FIL0=10,FIL1=17;
-		const CON=0,VAR=1,OP=2,VBITS=24,VMASK=(1<<VBITS)-1,PBITS=8,PMASK=(1<<PBITS)-1;
 		this.namemap={};
 		let nodetypes=[
 			{str:"expr" ,type: 0,params:" "},
@@ -4132,7 +4376,6 @@ class AudioSFX {
 
 
 	biquadcoefs(n,type,rate,bw,gain) {
-		const LPF=10,HPF=11,BPF=12,NPF=13,APF=14,PKF=15,LSF=16,HSF=17;
 		let b0=1,b1=0,b2=0;
 		let a0=1,a1=0,a2=0;
 		let v  =gain;
@@ -4231,9 +4474,6 @@ class AudioSFX {
 		if (flen===undefined) {flen=sndlen;}
 		if (fstart+flen<sndlen) {sndlen=fstart+flen;}
 		let sndrate=1/sndfreq;
-		const EXPR=0,ENV=1,TBL=2,TRI=3,PLS=4,SAW=5,SIN=6,SQR=7,NOI=8,DEL=9;
-		const OSC0=2,OSC1=7,FIL0=10,FIL1=17;
-		const VBITS=24,VMASK=(1<<VBITS)-1;
 		function fmod(x,mod) {
 			x=(x<0 || x>=mod)?x%mod:x;
 			return x<0?x+mod:x;
@@ -4343,9 +4583,9 @@ class AudioSFX {
 					let pos=di32[n+4];
 					let len=next-n-5;
 					if (++pos>=len) {pos=0;}
-					// Allpass the delayed output.
 					del=del<max?del:max;
 					del=del>0?del*sndfreq:0;
+					// Allpass the delayed output.
 					/*let i=del>>>0;
 					let f=del-i;
 					let ap=(1-f)/(1+f);
@@ -4619,11 +4859,10 @@ export class Audio {
 		// 2 = Audio mute, 1 = browser mute
 		this.muted=mute?2:0;
 		this.mutefunc=function(){ctx.resume();};
-		this.updatetime=NaN;
 		if (!Audio.def) {Audio.initdef(this);}
+		let state=this;
 		if (autoupdate) {
-			let st=this;
-			function update() {if (st.update()) {requestAnimationFrame(update);}}
+			function update() {if (state.update()) {requestAnimationFrame(update);}}
 			update();
 		}
 	}
@@ -4699,153 +4938,14 @@ export class Audio {
 
 
 //---------------------------------------------------------------------------------
-// Physics - v1.00
-
-
-class PhyLink {
-
-	constructor(obj) {
-		this.prev=null;
-		this.next=null;
-		this.list=null;
-		this.obj=obj||null;
-		this.idx=null;
-	}
-
-
-	release() {
-		this.remove();
-	}
-
-
-	add(list) {
-		if (this.list!==list) {list.add(this);}
-	}
-
-
-	remove(clear) {
-		if (this.list!==null) {this.list.remove(this,clear);}
-	}
-
-}
-
-
-class PhyList {
-
-	constructor(ptr=null) {
-		this.head=null;
-		this.tail=null;
-		this.ptr=ptr;
-		this.count=0;
-	}
-
-
-	release(clear) {
-		let link=this.head;
-		while (link!==null) {
-			let next=link.next;
-			link.prev=null;
-			link.next=null;
-			link.list=null;
-			if (clear) {link.obj=null;}
-			link=next;
-		}
-		this.count=0;
-	}
-
-
-	*iter() {
-		let link=null,next=this.head;
-		while ((link=next)!==null) {
-			next=link.next;
-			yield link.obj;
-		}
-	}
-
-
-	add(link) {
-		this.addafter(link);
-	}
-
-
-	addafter(link,prev=null) {
-		// Inserts the link after prev.
-		link.remove();
-		let next=null;
-		if (prev!==null) {
-			next=prev.next;
-			prev.next=link;
-		} else {
-			next=this.head;
-			this.head=link;
-		}
-		link.prev=prev;
-		link.next=next;
-		link.list=this;
-		if (next!==null) {
-			next.prev=link;
-		} else {
-			this.tail=link;
-		}
-		this.count++;
-	}
-
-
-	addbefore(link,next=null) {
-		// Inserts the link before next.
-		link.remove();
-		let prev=null;
-		if (next!==null) {
-			prev=next.prev;
-			next.prev=link;
-		} else {
-			prev=this.tail;
-			this.tail=link;
-		}
-		link.prev=prev;
-		link.next=next;
-		link.list=this;
-		if (prev!==null) {
-			prev.next=link;
-		} else {
-			this.head=link;
-		}
-		this.count++;
-	}
-
-
-	remove(link,clear) {
-		if (link===null) {
-			return;
-		}
-		let prev=link.prev;
-		let next=link.next;
-		if (prev!==null) {
-			prev.next=next;
-		} else {
-			this.head=next;
-		}
-		if (next!==null) {
-			next.prev=prev;
-		} else {
-			this.tail=prev;
-		}
-		this.count--;
-		link.prev=null;
-		link.next=null;
-		link.list=null;
-		if (clear) {link.obj=null;}
-	}
-
-}
+// Physics - v1.03
 
 
 class PhyInteraction {
 
 	constructor(a,b) {
 		this.world=a.world;
-		this.worldlink=new PhyLink(this);
-		this.world.intrlist.add(this.worldlink);
+		this.worldlink=this.world.intrlist.add(this);
 		this.a=a;
 		this.b=b;
 		this.pmul=0;
@@ -4890,8 +4990,8 @@ class PhyBodyType {
 
 	constructor(world,id,damp,density,elasticity,push,statictension,staticdist) {
 		this.world=world;
-		this.worldlink=new PhyLink(this);
-		this.bodylist=new PhyList();
+		this.worldlink=new List.Link(this);
+		this.bodylist=new List();
 		this.id=id;
 		this.intarr=[];
 		this.damp=damp;
@@ -4917,7 +5017,7 @@ class PhyBodyType {
 			link.obj.intarr[id]=null;
 			link=link.next;
 		}
-		this.bodylist.clear();
+		this.bodylist.release(true);
 		this.worldlink.remove();
 	}
 
@@ -5032,16 +5132,13 @@ class PhyBody {
 	constructor(world,verts,pos,angle,type) {
 		type=type??world.deftype;
 		this.world=world;
-		this.worldlink=new PhyLink(this);
-		this.world.bodylist.addbefore(this.worldlink);
+		this.worldlink=this.world.bodylist.add(this);
 		this.deleted=false;
 		this.sleeping=false;
-		this.bondlist=new PhyList();
-		this.typelink=new PhyLink(this);
+		this.bondlist=new List();
+		this.typelink=type.bodylist.add(this);
 		this.type=type;
-		type.bodylist.add(this.typelink);
 		this.data={};
-		//
 		let vertarr=[];
 		this.volume=0;
 		if (verts instanceof PhyBody) {
@@ -5049,25 +5146,53 @@ class PhyBody {
 			verts=body.vertarr;
 			this.volume=body.volume;
 			type=type??body.type;
-			// trans=trans??body.trans;
 		}
 		let dim=world.dim,dim2=(dim*(dim-1))>>>1;
 		for (let v of verts) {vertarr.push(new Vector(v));}
 		this.vertarr=vertarr;
 		this.facearr=[];
 		this.type=type;
+		this.pos=new Vector(pos);
 		this.vel=new Vector(dim);
 		this.spin=(new Float64Array(dim2)).fill(0);
 		this.angle=(new Float64Array(dim2)).fill(0);
 		if (angle) {for (let i=0;i<dim2;i++) {this.angle[i]=angle[i];}}
-		this.trans=new Transform({vec:pos,ang:this.angle});
-		this.inv=this.trans.mat.inv();
+		this.mat=(new Matrix(dim)).one().rotate(this.angle);
+		this.inv=this.mat.inv();
 		this.updateconstants();
 	}
 
 
-	relpos(v) {return this.trans.apply(v);}
-	invpos(v) {return this.trans.inv().apply(v);}
+	release() {
+		if (this.deleted) {return;}
+		this.deleted=true;
+		let link=null;
+		while ((link=this.bondlist.head)!==null) {
+			link.obj.release();
+		}
+		this.typelink.remove();
+		this.worldlink.remove();
+	}
+
+
+	relpos(v) {return this.mat.mul(v).iadd(this.pos);}
+
+
+	invpos(v) {
+		let w=(new Vector(v)).isub(this.pos);
+		return this.mat.inv().mul(w);
+	}
+
+
+	relvel(p) {
+		let vel=this.vel,spin=this.spin[0];
+		let x=vel[0]-p[1]*spin;
+		let y=vel[1]+p[0]*spin;
+		return new Vector([x,y]);
+	}
+
+
+	bonditer() {return this.bondlist.iter();}
 
 
 	updateconstants() {
@@ -5088,7 +5213,7 @@ class PhyBody {
 		} else {
 			let vertarr=this.vertarr;
 			let verts=vertarr.length;
-			// Find the left-most vertex.
+			// Find the left-most, bottom-most vertex.
 			let minv=vertarr[0];
 			let mini=0;
 			for (let i=1;i<verts;i++) {
@@ -5144,6 +5269,7 @@ class PhyBody {
 			for (let v of vertarr) {
 				v.isub(cen);
 			}
+			this.pos.iadd(cen);
 			// Inertia.
 			let inertia=0;
 			for (let face of facearr) {
@@ -5164,9 +5290,10 @@ class PhyBody {
 	closestpoint(point) {
 		// Returns [overlapping, point] with a point on the border.
 		let world=this.world;
-		let trans=new Transform({dim:world.dim});
 		point=new Vector(point);
-		let col=world.closestpoint(this.vertarr,this.trans,[point],trans);
+		let dim=world.dim;
+		let cen=new Vector(dim),mat=(new Matrix(dim,dim)).one();
+		let col=world.closestpoint(this.vertarr,this.pos,this.mat,[point],cen,mat);
 		return [col[0],col[1]];
 	}
 
@@ -5177,8 +5304,7 @@ class PhyBody {
 		// pos+=vel*dt1+acc*dt2
 		// vel =vel*dt0+acc*dt1
 		let world=this.world;
-		let trans=this.trans;
-		let pe=trans.vec,ve=this.vel;
+		let pe=this.pos,ve=this.vel;
 		let dim=world.dim,type=this.type;
 		let ge=type.gravity;
 		ge=(ge===null?world.gravity:ge);
@@ -5199,8 +5325,8 @@ class PhyBody {
 			se[i]=spin*dt0;
 			ae[i]=ang;
 		}
-		trans.mat.one().rotate(ae);
-		this.inv=trans.mat.inv();
+		this.mat.one().rotate(ae);
+		this.inv.set(this.mat).invert();
 	}
 
 
@@ -5216,7 +5342,8 @@ class PhyBody {
 		amass=amass>=Infinity?1.0:amass/mass;
 		bmass=bmass>=Infinity?1.0:bmass/mass;
 		// Get the collision normal and contact points.
-		let col=world.closestpoint(a.vertarr,a.trans,b.vertarr,b.trans);
+		let apos=a.pos,bpos=b.pos;
+		let col=world.closestpoint(a.vertarr,apos,a.mat,b.vertarr,bpos,b.mat);
 		if (!col[0]) {return;}
 		let acon=col[1],bcon=col[2];
 		let norm=world.tmpvec[0];
@@ -5228,7 +5355,6 @@ class PhyBody {
 		}
 		if (push<1e-10) {return;}
 		push=Math.sqrt(push);
-		let apos=a.trans.vec,bpos=b.trans.vec;
 		// norm=|norm|, acon-=apos, bcon-=bpos
 		for (let i=0;i<dim;i++) {
 			norm[i]/=push;
@@ -5251,25 +5377,23 @@ class PhyBody {
 		let nmag=ndot>0?ndot:0;
 		nmag=nmag*intr.vmul+push*intr.vpmul;
 		push*=intr.push0;
-		// If we have a callback, allow it to handle the collision.
-		let callback=world.collcallback;
-		if (callback!==null && !callback(intr,a,acon,b,bcon,norm,nmag,push)) {return;}
 		// Add static friction bonds.
 		let staticdist=intr.staticdist;
-		if (staticdist>0 && intr.statictension>0) {
-			// Get inverse contact points.
-			let ainv=world.tmpvec[2],binv=world.tmpvec[3];
-			let amat=a.inv,bmat=b.inv;
-			let ai=0,bi=0;
-			for (let d=0;d<dim;d++) {
-				let ax=0,bx=0;
-				for (let j=0;j<dim;j++) {
-					ax+=amat[ai++]*acon[j];
-					bx+=bmat[bi++]*bcon[j];
-				}
-				ainv[d]=ax;
-				binv[d]=bx;
+		let bonded=null,staticbond=false;
+		// Get inverse contact points.
+		let ainv=world.tmpvec[2],binv=world.tmpvec[3];
+		let amat=a.inv,bmat=b.inv;
+		let ai=0,bi=0;
+		for (let d=0;d<dim;d++) {
+			let ax=0,bx=0;
+			for (let i=0;i<dim;i++) {
+				ax+=amat[ai++]*acon[i];
+				bx+=bmat[bi++]*bcon[i];
 			}
+			ainv[d]=ax;
+			binv[d]=bx;
+		}
+		if (staticdist>0 && intr.statictension>0) {
 			// Find any bonds close to the contact points.
 			let dist2=staticdist*staticdist;
 			let al=a.bondlist,bl=b.bondlist;
@@ -5283,16 +5407,27 @@ class PhyBody {
 					v=u;u=bond.b;
 					vcon=ucon;ucon=bond.bpos;
 				}
-				if (bond.breakdist<Infinity && u===a && v===b) {
-					if (ucon.dist2(ainv)<dist2 || vcon.dist2(binv)<dist2) {
+				if (u===a && v===b) {
+					bonded=bond;
+					// if (bond.breakdist<Infinity) {
+					let d0=0,d1=0;
+					for (let i=0;i<dim;i++) {
+						let x=ucon[i]-ainv[i];d0+=x*x;
+						let y=vcon[i]-binv[i];d1+=y*y;
+					}
+					if (d0<dist2 || d1<dist2) {
+						staticbond=true;
 						break;
 					}
 				}
 			}
-			if (link===null) {
-				let bond=world.createbond(a,ainv,b,binv,0,intr.statictension);
-				bond.breakdist=staticdist;
-			}
+		}
+		// If we have a callback, allow it to handle the collision.
+		let callback=world.collcallback;
+		if (callback!==null && !callback(intr,a,acon,b,bcon,norm,nmag,push,bonded)) {return;}
+		if (!staticbond && intr.statictension>0 && intr.staticdist>0) {
+			let bond=world.createbond(a,ainv,b,binv,0,intr.statictension);
+			bond.breakdist=intr.staticdist;
 		}
 		// Apply forces and separate.
 		let ainertia=amass*a.inertiainv[0],binertia=bmass*b.inertiainv[0];
@@ -5318,8 +5453,7 @@ class PhyBond {
 
 	constructor(world,a,apos,b,bpos,dist,tension) {
 		this.world=world;
-		this.worldlink=new PhyLink(this);
-		this.world.bondlist.add(this.worldlink);
+		this.worldlink=this.world.bondlist.add(this);
 		this.deleted=false;
 		this.a=a;
 		this.apos=new Vector(apos);
@@ -5329,10 +5463,8 @@ class PhyBond {
 		this.dist=dist;
 		this.breakdist=Infinity;
 		this.tension=tension;
-		this.alink=new PhyLink(this);
-		this.blink=new PhyLink(this);
-		this.a.bondlist.add(this.alink);
-		this.b.bondlist.add(this.blink);
+		this.alink=this.a.bondlist.add(this);
+		this.blink=this.b.bondlist.add(this);
 		this.data={};
 	}
 
@@ -5346,12 +5478,12 @@ class PhyBond {
 	}
 
 
-	relapos() {return this.a.trans.apply(this.apos);}
-	relbpos() {return this.b.trans.apply(this.bpos);}
+	relapos() {return this.a.relpos(this.apos);}
+	relbpos() {return this.b.relpos(this.bpos);}
 
 
 	update() {
-		// Pull two atoms toward eachother based on the distance and bond strength.
+		// Pull two bodies toward eachother based on the distance and bond strength.
 		// Vector operations are unrolled to use constant memory.
 		let a=this.a,b=this.b;
 		if (this.deleted || (a.sleeping && b.sleeping)) {return;}
@@ -5364,42 +5496,42 @@ class PhyBond {
 		}
 		amass=amass>=Infinity?1.0:amass/mass;
 		bmass=bmass>=Infinity?1.0:bmass/mass;
-		// Get the distance and direction between the atoms.
-		let apos=a.trans.vec,bpos=b.trans.vec;
-		let acon=world.tmpvec[1];
-		let bcon=world.tmpvec[2];
-		for (let side=0;side<2;side++) {
-			let mat=(side?b:a).trans.mat;
-			let scon=side?this.bpos:this.apos;
-			let dcon=side?bcon:acon;
-			let midx=0;
-			for (let i=0;i<dim;i++) {
-				let x=0;
-				for (let j=0;j<dim;j++) {
-					x+=mat[midx++]*scon[j];
-				}
-				dcon[i]=x;
-			}
-		}
-		let norm=world.tmpvec[0];
-		let dist=0.0;
+		// Get the distance and direction between the bodies.
+		let tmpvec=world.tmpvec;
+		let aloc=this.apos,bloc=this.bpos;
+		let apos=a.pos,bpos=b.pos;
+		let amat=a.mat,bmat=b.mat;
+		let acon=tmpvec[1],bcon=tmpvec[2];
+		let norm=tmpvec[0];
+		let dist=0;
+		let midx=0;
 		for (let i=0;i<dim;i++) {
-			let x=bcon[i]-acon[i]+bpos[i]-apos[i];
-			norm[i]=x;
-			dist+=x*x;
+			// relative contact points
+			let ac=0,bc=0;
+			for (let j=0;j<dim;j++) {
+				ac+=amat[midx  ]*aloc[j];
+				bc+=bmat[midx++]*bloc[j];
+			}
+			acon[i]=ac;
+			bcon[i]=bc;
+			// norm
+			let d=bc-ac+bpos[i]-apos[i];
+			norm[i]=d;
+			dist+=d*d;
 		}
-		// If the atoms are too close together, randomize the direction.
+		dist=Math.sqrt(dist);
+		// If the points are too far, break the bond.
+		if (!(dist<this.breakdist)) {
+			this.release();
+			return;
+		}
+		// If the points are too close together, randomize the direction.
 		let tension=this.tension;
 		if (dist>1e-10) {
-			dist=Math.sqrt(dist);
 			// tension/=dist;
 			for (let i=0;i<dim;i++) {norm[i]/=dist;}
 		} else {
 			norm.randomize();
-		}
-		if (dist>this.breakdist) {
-			this.release();
-			return;
 		}
 		// let ainertia=0,binertia=0;
 		let ainertia=amass*a.inertiainv[0],binertia=bmass*b.inertiainv[0];
@@ -5425,11 +5557,11 @@ class PhyBond {
 		ainertia*=ancross*acc;
 		a.angle[0]-=ainertia*at.dt2;
 		a.spin[0] -=ainertia*at.dt1;
-		a.trans.mat.one().rotate(a.angle);
+		a.mat.one().rotate(a.angle);
 		binertia*=bncross*acc;
 		b.angle[0]+=binertia*bt.dt2;
 		b.spin[0] +=binertia*bt.dt1;
-		b.trans.mat.one().rotate(b.angle);
+		b.mat.one().rotate(b.angle);
 	}
 
 }
@@ -5487,12 +5619,15 @@ class PhyBroadphase {
 		let world=this.world;
 		let dim=world.dim;
 		let bodycnt=world.bodylist.count;
-		this.bodycnt=bodycnt;
-		if (bodycnt===0) {return;}
+		if (!bodycnt) {
+			this.bodycnt=0;
+			return;
+		}
 		// Allocate working arrays.
 		let dim2=2*dim,nodesize=3+dim2;
 		let sortstart=nodesize*(bodycnt*2-1);
-		let treesize=sortstart*2;
+		let leafstart=sortstart+bodycnt;
+		let treesize=leafstart+bodycnt*nodesize;
 		let memi=this.memi32;
 		if (memi.length<treesize) {
 			memi=new Int32Array(treesize*2);
@@ -5502,50 +5637,52 @@ class PhyBroadphase {
 		}
 		let memf=this.memf32;
 		// Store bodies and their bounds. body_id*2+sleeping.
-		let leafstart=sortstart+bodycnt;
 		let slack=(1+this.slack)*0.5;
-		let leafidx=leafstart;
 		let bodyarr=this.bodyarr;
 		let bodylink=world.bodylist.head;
-		let tmpbnd=new Float32Array(dim*2);
-		for (let i=0;i<bodycnt;i++) {
+		bodycnt=0;
+		while (bodylink) {
 			let body=bodylink.obj;
 			bodylink=bodylink.next;
-			bodyarr[i]=body;
-			memi[leafidx++]=(i<<1)|(body.sleeping?1:0);
-			memi[sortstart+i]=leafidx;
+			// Reject empty bodies.
+			let varr=body.vertarr;
+			let vlen=varr.length;
+			if (!vlen) {continue;}
+			let leafidx=leafstart+(1+dim2)*bodycnt;
+			memi[leafidx++]=(bodycnt<<1)|(body.sleeping?1:0);
+			memi[sortstart+bodycnt]=leafidx;
+			bodyarr[bodycnt++]=body;
 			// Find the bounding box of the transformed body.
-			let trans=body.trans;
-			let pos=trans.vec,mat=trans.mat;
+			let pos=body.pos,mat=body.mat;
 			for (let d=0;d<dim;d++) {
-				tmpbnd[d*2  ]= Infinity;
-				tmpbnd[d*2+1]=-Infinity;
-			}
-			for (let v of body.vertarr) {
-				let midx=0;
-				for (let d=0;d<dim;d++) {
-					let d2=d+d;
-					let x=pos[d];
-					for (let j=0;j<dim;j++) {
-						x+=mat[midx++]*v[j];
-					}
-					let y=tmpbnd[d2];
-					tmpbnd[d2]=x<y?x:y;
-					y=tmpbnd[++d2];
-					tmpbnd[d2]=x>y?x:y;
+				let min=Infinity,max=-Infinity;
+				let midx=d*dim;
+				for (let i=0;i<vlen;i++) {
+					let v=varr[i],x=0;
+					for (let j=0;j<dim;j++) {x+=mat[midx+j]*v[j];}
+					min=min<x?min:x;
+					max=max>x?max:x;
 				}
-			}
-			for (let d=0;d<dim2;d+=2) {
-				let min=tmpbnd[d],max=tmpbnd[d+1];
-				let cen=(max+min)*0.5,dev=(max-min)*slack;
-				memf[leafidx++]=cen-dev;
-				memf[leafidx++]=cen+dev;
+				let dev=(max-min)*slack;
+				let cen=(max+min)*0.5+pos[d];
+				min=cen-dev;
+				max=cen+dev;
+				// Reject bodies with degenerate coordinates.
+				if (!(min<Infinity && max>-Infinity)) {
+					bodycnt--;
+					break;
+				}
+				memf[leafidx++]=min;
+				memf[leafidx++]=max;
 			}
 		}
+		this.bodycnt=bodycnt;
+		if (!bodycnt) {return;}
 		memi[1]=-1;
 		memi[2]=sortstart+bodycnt;
+		let workstop=nodesize*(bodycnt*2-1);
 		let worklo=sortstart;
-		for (let work=0;work<sortstart;work+=nodesize) {
+		for (let work=0;work<workstop;work+=nodesize) {
 			// Pop the top working range off the stack.
 			let workhi=memi[work+2],workcnt=workhi-worklo;
 			if (workcnt===1) {worklo++;continue;}
@@ -5590,15 +5727,17 @@ class PhyBroadphase {
 			memi[work+2]=r;
 		}
 		// Set parents and bounding boxes.
-		for (let n=sortstart-nodesize;n>=0;n-=nodesize) {
+		for (let n=workstop-nodesize;n>=0;n-=nodesize) {
 			let l=n+nodesize,r=memi[n+2],ndim=n+nodesize;
 			if (r>=sortstart) {
+				// Leaf
 				l=memi[r-1];r=l;
 				let a=memi[l-1];
-				memi[n+2]=a>>>1;
-				memi[n  ]=((a&1)<<1)|1;
+				memi[n+2]=a>>>1; // body_idx
+				memi[n  ]=((a&1)<<1)|1; // sleeping|is_leaf
 			} else {
-				memi[n  ]=memi[l]&memi[r]&2;
+				// Parent
+				memi[n  ]=memi[l]&memi[r]&2; // sleeping|is_parent
 				memi[l+1]=n;l+=3;
 				memi[r+1]=n;r+=3;
 			}
@@ -5617,58 +5756,46 @@ class PhyBroadphase {
 		// collision order.
 		let bodycnt=this.bodycnt;
 		if (bodycnt<=1) {return;}
+		this.bodycnt=0;
 		let nodesize=3+this.world.dim*2;
-		let treeend=nodesize*(bodycnt*2-1);
 		let memi=this.memi32;
 		let memf=this.memf32;
 		let bodyarr=this.bodyarr;
 		let collide=PhyBody.collide;
-		// Randomly flip the left and right children and repack them.
-		// Also find the next node to skip AABB's we've already checked.
-		let randstart=treeend;
-		let randend=randstart+treeend;
+		// Skip traversal by setting node.parent to node.next.
+		let randstart=nodesize*(bodycnt*2-1);
+		let randend=randstart;
 		let rnd=this.world.rnd;
-		let swap=0;
-		memi[randstart  ]=0;
-		memi[randstart+1]=randend;
-		memi[randstart+2]=treeend;
-		for (let n=randstart;n<randend;n+=nodesize) {
-			let orig=memi[n  ];
+		memi[1]=randstart<<2;
+		for (let n=nodesize;n<randstart;n+=nodesize) {
+			let flag=memi[n];
+			// if root: next=end
+			// if node=parent.right: next=parent.next
+			// if node=parent.left : next=parent.right
 			let next=memi[n+1];
-			let cnt =memi[n+2]-nodesize;
-			// Copy original right child and AABB.
-			let u=n+2,v=orig+2,stop=n+nodesize;
-			while (u<stop) {memi[u++]=memi[v++];}
-			// Set the flags on .next.
-			let f=memi[orig];
-			memi[n+1]=(next<<2)|f;
-			if (f&1) {continue;}
-			// Randomly swap the children.
-			let r=memi[orig+2];
-			let l=orig+nodesize;
-			if (swap<=1) {swap=rnd.getu32()|0x80000000;}
-			if (swap&1) {let tmp=l;l=r;r=tmp;}
-			swap>>>=1;
-			let lcnt=(l<r?0:cnt)+r-l,rcnt=cnt-lcnt;
-			let lidx=n+nodesize,ridx=lidx+lcnt;
-			memi[lidx  ]=l;
-			memi[lidx+1]=ridx;
-			memi[lidx+2]=lcnt;
-			memi[ridx  ]=r;
-			memi[ridx+1]=next;
-			memi[ridx+2]=rcnt;
+			if (n===next+nodesize) {
+				next=memi[next+2];
+			} else {
+				next=memi[next+1]>>>2;
+			}
+			if (flag&1) {
+				let cnt=(++randend)-randstart;
+				let j=randstart+rnd.mod(cnt);
+				memi[randend-1]=memi[j];
+				memi[j]=(n<<2)|flag;
+			}
+			memi[n+1]=(next<<2)|flag;
 		}
 		// Process leaves left to right.
-		for (let n=randstart;n<randend;n+=nodesize) {
-			let node=memi[n+1];
-			if (!(node&1)) {continue;}
-			let sleeping=node&2;
-			let body=bodyarr[memi[n+2]];
-			let nbnd=n+3,ndim=n+nodesize;
+		for (let n=randstart;n<randend;n++) {
+			let node=memi[n],sleep=node&2;
 			node>>>=2;
-			while (node<randend) {
+			let body=bodyarr[memi[node+2]];
+			let nbnd=node+3,ndim=node+nodesize;
+			node=memi[node+1]>>>2;
+			while (node<randstart) {
 				let next=memi[node+1];
-				if (!(sleeping&next)) {
+				if (!(sleep&next)) {
 					// Down - check for overlap.
 					let u=nbnd,v=node+3;
 					while (u<ndim && memf[u]<=memf[v+1] && memf[v]<=memf[u+1]) {u+=2;v+=2;}
@@ -5695,10 +5822,10 @@ class PhyWorld {
 		for (let i=0;i<4;i++) {this.tmpvec.push(new Vector(dim));}
 		this.gravity=new Vector(dim);
 		this.gravity[dim-1]=gravity;
-		this.typelist=new PhyList();
-		this.intrlist=new PhyList();
-		this.bodylist=new PhyList();
-		this.bondlist=new PhyList();
+		this.typelist=new List();
+		this.intrlist=new List();
+		this.bodylist=new List();
+		this.bondlist=new List();
 		this.bondarr =[];
 		this.broad=new PhyBroadphase(this);
 		this.stepcallback=null;
@@ -5905,7 +6032,7 @@ class PhyWorld {
 	}
 
 
-	closestpoint(_avertarr,atrans,_bvertarr,btrans) {
+	closestpoint(_avertarr,_apos,_amat,_bvertarr,_bpos,_bmat) {
 		// GJK
 		// Determines if bodies are colliding.
 		// Doesn't use constant memory.
@@ -5923,7 +6050,7 @@ class PhyWorld {
 		let dif=this.coldif;
 		let normsum=0;
 		for (let i=0;i<dim;i++) {
-			let x=btrans.vec[i]-atrans.vec[i];
+			let x=_bpos[i]-_apos[i];
 			dif[i]=x;
 			normsum+=x*x;
 		}
@@ -5936,7 +6063,7 @@ class PhyWorld {
 				dstarr=new Float64Array(vertlen*2);
 				this.coltmpvertarr[side]=dstarr;
 			}
-			let mat=(side?btrans:atrans).mat;
+			let mat=side?_bmat:_amat;
 			// mat*v+vec
 			for (let s=0,d=0;s<verts;s++) {
 				let v=srcarr[s];
@@ -6167,7 +6294,7 @@ class PhyWorld {
 		}
 		if (epaprev!==null) {
 			// Calculate contact points based on weights.
-			let apos=atrans.vec;
+			let apos=_apos;
 			let ap=new Vector(apos),bp=new Vector(apos);
 			for (let i=0;i<dim;i++) {
 				let w =epaprev.weight[i];

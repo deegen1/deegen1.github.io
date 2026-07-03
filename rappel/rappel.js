@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-rappel.js - v3.00
+rappel.js - v3.01
 
 Copyright 2025 Alec Dee
 2dee.net - akdee144@gmail.com
@@ -38,17 +38,13 @@ TODO
 
 
 Physics
-	fast path for 2D: mat.inv(), mat.rotate(), mat.toangle(), mat.imul
 	createsphere() allow for single radius.
-	Remove body.trans, replace with body.pos/body.mat.
-	Don't use world.tmpvec multiple times. Use tmpvec=world.tmpvec.
 	Minkowski wrapping.
-	Better BVH partitioning.
 	Add friction.
 
 Go back to N+2 rope.
 
-Leaf: some glowing. Used for lights?
+Leaf: some glowing. Used for lights? Blend modes?
 Rune: set angle based on vel? use body.data.pos for towing.
 
 
@@ -458,7 +454,7 @@ export class Game {
 		adat.accel+=veldif*(1-u);
 		bdat.accel+=veldif*u;
 		// Scale sound by distance.
-		let apos=a.trans.vec,bpos=b.trans.vec;
+		let apos=a.pos,bpos=b.pos;
 		let cenx=(acon[0]+apos[0]+bcon[0]+bpos[0])*0.5;
 		let ceny=(acon[1]+apos[1]+bcon[1]+bpos[1])*0.5;
 		let cam=this.camcen;
@@ -662,7 +658,7 @@ export class Game {
 		let playerbody=this.playerbody;
 		if (!playerbody) {return;}
 		let ropebody=this.ropebody;
-		let playerpos=playerbody.trans.vec;
+		let playerpos=playerbody.pos;
 		let playervel=playerbody.vel;
 		let climb=this.climb,stop=this.climbstop;
 		climb=climb<playerpos[1]?climb:playerpos[1];
@@ -731,7 +727,7 @@ export class Game {
 			look.imul(throwing===2?35*charge:0);
 			let force=look.add(playervel);
 			for (let hook of hookbody) {
-				hook.trans.vec.set(trans.apply(hook.data.pos));
+				hook.pos.set(trans.apply(hook.data.pos));
 				hook.vel.set(force);
 				for (let bond of hook.bonditer()) {
 					if (!(bond.breakdist===Infinity)) {bond.release();}
@@ -741,7 +737,7 @@ export class Game {
 			let tension=throwing<2?this.ropemax:this.ropemin;
 			look.imul(-1/ropebody.length);
 			for (let rope of ropebody) {
-				rope.trans.vec.set(playerpos);
+				rope.pos.set(playerpos);
 				rope.vel.set(force);
 				force.iadd(look);
 				for (let bond of rope.bonditer()) {
@@ -766,15 +762,15 @@ export class Game {
 				let u=1-i/(len-1),r=u*rad,a=ang-1.5*u*charge;
 				let dif=playerpos.add([Math.cos(a)*r,Math.sin(a)*r]);
 				let atom=ropebody[i];
-				dif.isub(atom.trans.vec);
+				dif.isub(atom.pos);
 				atom.vel.iadd(dif);
-				atom.trans.vec.iadd(dif);
+				atom.pos.iadd(dif);
 			}
 			let prev=ropebody[0];
-			let trans=new Transform({vec:prev.trans.vec,ang:ang-Math.PI*0.75});
-			for (let atom of hookbody) {
-				atom.trans.vec.set(trans.apply(atom.data.pos));
-				atom.vel.set(prev.vel);
+			let trans=new Transform({vec:prev.pos,ang:ang-Math.PI*0.75});
+			for (let body of hookbody) {
+				body.pos.set(trans.apply(body.data.pos));
+				body.vel.set(prev.vel);
 			}
 		}
 		this.spininst=sndinst;
@@ -867,7 +863,7 @@ export class Game {
 		for (let body of this.world.bodyiter()) {
 			let bdat=body.data;
 			let tdat=body.type.data,id=body.type.id;
-			let pos=body.trans.vec;
+			let pos=body.pos;
 			// Allow the accumulated acceleration to gradually decay.
 			let accel=bdat.accel;
 			bdat.accel=accel*decay;
@@ -881,7 +877,7 @@ export class Game {
 				tdat.sndacc+=vol<1?vol:1;
 			}
 			bdat.sndacc*=decay;
-			let bodytrans=trans.apply(body.trans);
+			let bodytrans=trans.apply({mat:body.mat,vec:body.pos});
 			// Update particle state.
 			let paths=bdat.paths;
 			if (id>=PART) {
@@ -892,7 +888,7 @@ export class Game {
 				// Destroy rain or snow if they're hit hard.
 				if (id===RAIN && accel>0.1) {
 					if (time>0.05) {
-						let droppos=pos.add(body.trans.mat.mul([0.17,0]));
+						let droppos=pos.add(body.mat.mul([0.17,0]));
 						for (let j=0;j<8;j++) {
 							this.createparticle(PART,droppos,{vel:vel,rand:2,rgb:rgb});
 						}
@@ -940,7 +936,7 @@ export class Game {
 		for (let body of world.bodyiter()) {
 			// Display physics collider.
 			draw.setcolor(255,255,255,64);
-			draw.fillpath(body.data.objpath,trans.apply(body.trans));
+			draw.fillpath(body.data.objpath,trans.apply({mat:body.mat,vec:body.pos}));
 		}
 		draw.setcolor(100,100,255,255);
 		draw.filltext(5,100,`body: ${world.bodylist.count}`,20);
@@ -978,7 +974,7 @@ export class Game {
 		draw.settransform(trans);
 		let charge=this.charge;
 		if (charge>0) {
-			let [x,y]=this.playerbody.trans.vec;
+			let [x,y]=this.playerbody.pos;
 			let ang0=-Math.PI*0.5,ang1=ang0+Math.PI*2*charge;
 			let path=draw.begin();
 			path.addarc(x,y,ang0,ang1,1.75,1.75,true);

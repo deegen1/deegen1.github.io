@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v17.60
+library.js - v18.70
 
 Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -13,12 +13,12 @@ Versions
 
 Env     - v1.02
 Random  - v1.11
-Data    - v1.00
-Vector  - v3.09
+Data    - v2.01
+Vector  - v3.15
 Input   - v1.19
-Drawing - v5.03
-UI      - v1.02
-Audio   - v3.11
+Drawing - v5.04
+UI      - v1.03
+Audio   - v3.12
 Physics - v1.03
 
 
@@ -178,17 +178,181 @@ export class Random {
 
 
 //---------------------------------------------------------------------------------
-// Data - v1.00
+// Data - v2.01
+
+
+class ListLink {
+
+	constructor(obj) {
+		this.prev=null;
+		this.next=null;
+		this.list=null;
+		this.obj=obj??null;
+		this.idx=null;
+	}
+
+
+	release() {this.remove();}
+
+
+	add(list) {list.add(this);}
+
+
+	remove(clear=false) {
+		let list=this.list;
+		if (list!==null) {list.remove(this,clear);}
+		return list;
+	}
+
+}
+
+
+export class List {
+
+	static Link=ListLink;
+
+
+	constructor(ptr=null) {
+		this.head=null;
+		this.tail=null;
+		this.ptr=ptr;
+		this.count=0;
+	}
+
+
+	release(clear=false) {
+		let link=this.head;
+		while (link!==null) {
+			let next=link.next;
+			link.prev=null;
+			link.next=null;
+			link.list=null;
+			if (clear) {link.obj=null;}
+			link=next;
+		}
+		this.count=0;
+	}
+
+
+	first() {return this.head;}
+
+
+	last() {return this.tail;}
+
+
+	*iter() {
+		let link=null,next=this.head;
+		while ((link=next)!==null) {
+			next=link.next;
+			yield link.obj;
+		}
+	}
+
+
+	add(value) {
+		let link=new ListLink(value);
+		this.addafter(link,this.tail);
+		return link;
+	}
+
+
+	addafter(link,prev=null) {
+		// Inserts the link after prev.
+		if (link.list!==null) {throw "link already in list";}
+		let next=null;
+		if (prev!==null) {
+			next=prev.next;
+			prev.next=link;
+		} else {
+			next=this.head;
+			this.head=link;
+		}
+		link.prev=prev;
+		link.next=next;
+		link.list=this;
+		if (next!==null) {
+			next.prev=link;
+		} else {
+			this.tail=link;
+		}
+		this.count++;
+	}
+
+
+	addbefore(link,next=null) {
+		// Inserts the link before next.
+		if (link.list!==null) {throw "link already in list";}
+		let prev=null;
+		if (next!==null) {
+			prev=next.prev;
+			next.prev=link;
+		} else {
+			prev=this.tail;
+			this.tail=link;
+		}
+		link.prev=prev;
+		link.next=next;
+		link.list=this;
+		if (prev!==null) {
+			prev.next=link;
+		} else {
+			this.head=link;
+		}
+		this.count++;
+	}
+
+
+	remove(link,clear) {
+		if (link===null) {return;}
+		let list=link.list;
+		if (list===null) {return;}
+		if (list!==this) {throw "removing from wrong list";}
+		let prev=link.prev;
+		let next=link.next;
+		if (prev!==null) {
+			prev.next=next;
+		} else {
+			this.head=next;
+		}
+		if (next!==null) {
+			next.prev=prev;
+		} else {
+			this.tail=prev;
+		}
+		this.count--;
+		link.prev=null;
+		link.next=null;
+		link.list=null;
+		if (clear) {link.obj=null;}
+	}
+
+}
 
 
 class TreeNode {
 
 	constructor(value) {
-		this.weight=1;
+		this.weight=0;
 		this.parent=null;
 		this.left=null;
 		this.right=null;
 		this.value=value;
+	}
+
+
+	remove() {
+		let tree=this.tree();
+		if (tree!==null) {tree.removenode(this);}
+		return tree;
+	}
+
+
+	tree() {
+		// zero.value=tree. Searching up is ~(h-1)/2, searching down is ~1.
+		if (!this.weight) {return null;}
+		let zero=this,node=this.left;
+		while (node!==null) {zero=node;node=node.left;}
+		return zero.value;
 	}
 
 
@@ -204,15 +368,13 @@ class TreeNode {
 		//
 		// If N has a right child, R, the left-most child of R is the next node.
 		// Otherwise, the nearest parent of N with N on the left is the next node.
-		let node=this,child=this.right;
-		if (child) {
-			while (child) {node=child;child=child.left;}
+		let n0=this,n1=n0.right,n2=n1.left;
+		if (n2!==null) {
+			do {n0=n1;n1=n2;n2=n2.left;} while (n2!==null);
 		} else {
-			while (node && Object.is(node.right,child)) {
-				child=node;node=node.parent;
-			}
+			do {n1=n0;n0=n0.parent;} while (n0.right===n1);
 		}
-		return node;
+		return n0.weight?n0:null;
 	}
 
 
@@ -228,69 +390,13 @@ class TreeNode {
 		//
 		// If N has a left child, L, the right-most child of L is the next node.
 		// Otherwise, the nearest parent of N with N on the right is the next node.
-		let node=this,child=this.left;
-		if (child) {
-			while (child) {node=child;child=child.right;}
+		let n0=this,n1=n0.left,n2=n1.right;
+		if (n2!==null) {
+			do {n0=n1;n1=n2;n2=n2.right;} while (n2!==null);
 		} else {
-			while (node && Object.is(node.left,child)) {
-				child=node;node=node.parent;
-			}
+			do {n1=n0;n0=n0.parent;} while (n0.left===n1);
 		}
-		return node;
-	}
-
-
-	rotleft() {
-		// Raise z, lower x, and maintain the sorted order of the nodes.
-		//
-		//        A                B
-		//       / \              / \
-		//      x   B     ->     A   z
-		//         / \          / \
-		//        y   z        x   y
-		//
-		let a=this;
-		let b=a.right;
-		let r=b.left;
-		b.parent=a.parent;
-		b.left=a;
-		a.parent=b;
-		a.right=r;
-		if (r) {r.parent=a;}
-		a.calcweight();
-		b.calcweight();
-		return b;
-	}
-
-
-	rotright() {
-		// Raise x, lower z, and maintain the sorted order of the nodes.
-		//
-		//          A            B
-		//         / \          / \
-		//        B   z   ->   x   A
-		//       / \              / \
-		//      x   y            y   z
-		//
-		let a=this;
-		let b=a.left;
-		let l=b.right;
-		b.parent=a.parent;
-		b.right=a;
-		a.parent=b;
-		a.left=l;
-		if (l) {l.parent=a;}
-		a.calcweight();
-		b.calcweight();
-		return b;
-	}
-
-
-	calcweight() {
-		let l=this.left,r=this.right,weight=1;
-		if (l) {weight+=l.weight;}
-		if (r) {weight+=r.weight;}
-		this.weight=weight;
+		return n0.weight?n0:null;
 	}
 
 
@@ -298,20 +404,19 @@ class TreeNode {
 		// Returns the node's index within the tree. Ex: tree[node.index()]=node
 		let idx=-1;
 		let node=this,prev=this.right;
-		while (node) {
-			if (Object.is(node.right,prev)) {
-				idx+=node.left?node.left.weight+1:1;
-			}
+		while (true) {
+			let l=node.left;
+			if (node.right===prev) {idx+=l.weight+1;}
+			else if (l!==prev) {return idx;}
 			prev=node;
 			node=node.parent;
 		}
-		return idx;
 	}
 
 }
 
 
-class Tree {
+export class Tree {
 
 	static Node=TreeNode;
 
@@ -331,78 +436,78 @@ class Tree {
 
 	static defcmp(l,r) {
 		if (l<r) {return -1;}
-		if (l>r) {return  1;}
-		return 0;
+		return r<l?1:0;
 	}
 
 
-	constructor(cmp=Tree.defcmp,duplicate=Tree.ADD) {
+	constructor(cmp=null,duplicate=Tree.ADD) {
 		// cmp(l,r) is expected to be a function where
 		//
 		//      cmp(l,r)<0 if l<r
 		//      cmp(l,r)=0 if l=r
 		//      cmp(l,r)>0 if l>r
 		//
-		this.cmp=cmp;
+		this.cmp=cmp??Tree.defcmp;
 		this.duplicate=duplicate;
-		this.root=null;
+		this.zero=new TreeNode(this);
+		this.root=this.zero;
+		this.length=0;
 	}
 
 
-	clear() {this.root=null;}
-
-
-	length() {
-		// Return the number of nodes in the tree.
-		return this.root?this.root.weight:0;
-	}
-
-
-	get(i) {
-		// Index nodes like an array.
-		let node=this.root;
-		let weight=node?node.weight:0;
-		if (i<0) {i+=weight;}
-		if (i<0 || i>=weight) {return null;}
-		while (true) {
-			let left=node.left;
-			let lw=left?left.weight:0;
-			if (i>lw) {
-				i-=lw+1;
-				node=node.right;
-			} else if (i===lw) {
-				break;
-			} else {
-				node=left;
-			}
-		}
-		return node;
-	}
-
-
-	*iter() {
-		// Iterate over all nodes in ascending order.
-		let node=this.first();
-		while (node) {
-			yield node;
-			node=node.next();
+	release() {
+		let node=null;
+		while ((node=this.root)!==null) {
+			this.removenode(node);
 		}
 	}
 
 
 	first() {
 		// Return the smallest node in the tree.
-		let node=this.root,ret=null;
-		while (node) {ret=node;node=node.left;}
+		let node=this.root,ret=null,zero=this.zero;
+		while (node!==zero) {ret=node;node=node.left;}
 		return ret;
 	}
 
 
 	last() {
 		// Return the greatest node in the tree.
-		let node=this.root,ret=null;
-		while (node) {ret=node;node=node.right;}
+		let node=this.root,ret=null,zero=this.zero;
+		while (node!==zero) {ret=node;node=node.right;}
 		return ret;
+	}
+
+
+	*iter() {
+		// Iterate over all nodes in ascending order.
+		let node=this.first();
+		while (node!==null) {
+			let next=node.next();
+			yield node;
+			node=next;
+		}
+	}
+
+
+	get(i) {
+		// Index nodes like an array.
+		let node=this.root;
+		let weight=node.weight;
+		if (i<0) {i+=weight;}
+		if (i<0 || i>=weight) {return null;}
+		while (true) {
+			let l=node.left;
+			let lw=l.weight;
+			if (i>=lw) {
+				i-=lw+1;
+				if (i<0) {break;}
+				node=node.right;
+			} else {
+				node=l;
+			}
+		}
+		return node;
 	}
 
 
@@ -416,67 +521,64 @@ class Tree {
 		//      GT : Return the least    node>value.
 		//      GE : Return the least    node>=value.
 		//
-		let node=this.root,ret=null;
+		let node=this.root,ret=null,zero=this.zero;
 		let cmp=this.cmp;
-		let dup=this.duplicate;
-		let lset  =[false,false,true ,true ,false,false][mode];
-		let rset  =[false,false,false,false,true ,true ][mode];
-		let eset  =[true ,true ,false,true ,false,true ][mode];
-		let eright=[false,true ,false,true ,true ,false][mode];
-		while (node) {
+		let set=0x34652>>>(mode*3);
+		let right=1|((0x34>>>mode)&2);
+		while (node!==zero) {
 			let c=cmp(node.value,value);
-			if (c<0) {
-				if (lset) {ret=node;}
-				node=node.right;
-			} else if (c>0) {
-				if (rset) {ret=node;}
-				node=node.left;
-			} else {
-				if (eset) {
-					ret=node;
-					if (dup) {break;}
-				}
-				node=eright?node.right:node.left;
-			}
+			let bit=1<<(1+(c>0)-(c<0));
+			ret=(set&bit)?node:ret;
+			node=(right&bit)?node.right:node.left;
 		}
 		return ret;
 	}
 
 
-	addnode(orig) {
-		// Find a leaf node to add the new value to. Then rebalance from the new node on
-		// up. By traversing right when cmp<=0, this algorithm is stable.
-		let value=orig.value;
-		let node=this.root,prev=null;
-		let cmp=this.cmp;
-		let dup=this.duplicate,c=0;
-		while (node) {
-			c=cmp(node.value,value);
-			if (c===0 && dup) {
-				if (dup===Tree.DISCARD) {return null;}
-				node.value=value;
-				return node;
-			}
-			prev=node;
-			node=c>0?node.left:node.right;
-		}
-		orig.weight=1;
-		orig.left=null;
-		orig.right=null;
-		orig.parent=prev;
-		if (prev===null) {
-			this.root=orig;
-		} else {
-			if (c>0) {prev.left=orig;}
-			else     {prev.right=orig;}
-			this.rebalance(prev);
-		}
-		return orig;
+	add(value) {
+		return this.addnode(new TreeNode(value));
 	}
 
 
-	add(value) {
-		return this.addnode(new TreeNode(value));
+	remove(value) {
+		// Remove a node given a value.
+		let node=this.find(value);
+		if (node!==null) {this.removenode(node);}
+		return node;
+	}
+
+
+	addnode(node) {
+		// Find a leaf node to add the new value to. Then rebalance from the new node on
+		// up. By traversing right when cmp<=0, this algorithm is stable.
+		if (node.weight) {throw "node already in tree";}
+		let value=node.value;
+		let trav=this.root,zero=this.zero,prev=zero;
+		let cmp=this.cmp;
+		let dup=this.duplicate,c=0;
+		while (trav!==zero) {
+			c=cmp(trav.value,value);
+			if (c===0 && dup) {
+				if (dup===Tree.DISCARD) {return null;}
+				trav.value=value;
+				return trav;
+			}
+			prev=trav;
+			trav=c>0?trav.left:trav.right;
+		}
+		this.length++;
+		node.weight=1;
+		node.left=zero;
+		node.right=zero;
+		node.parent=prev;
+		if (prev===zero) {
+			this.root=node;
+		} else {
+			if (c>0) {prev.left=node;}
+			else     {prev.right=node;}
+			this.rebalance(prev);
+		}
+		return node;
 	}
 
 
@@ -499,83 +601,132 @@ class Tree {
 		//        / \                |   / \                     |
 		//       X   *               |  *   B                    |
 		//
-		let p=node.parent;
-		let l=node.left,r=node.right;
-		let next=null,bal=null;
-		if (r===null) {
+		if (!node.weight) {throw "double removal";}
+		let p=node.parent,l=node.left,r=node.right;
+		let zero=this.zero,next=r,bal=p;
+		node.weight=0;
+		node.parent=null;
+		node.left=null;
+		node.right=null;
+		if (r===zero) {
 			// Case 1
-			bal=p;next=l;l=null;
-		} else if (r.left) {
+			next=l;l=zero;
+		} else if (r.left!==zero) {
 			// Case 2
-			next=r;
-			while (next.left) {bal=next;next=next.left;}
-			let c=next.right;
+			let c=next.left;
+			do {bal=next;next=c;c=next.left;} while (c!==zero);
+			c=next.right;
 			bal.left=c;
-			if (c) {c.parent=bal;}
+			c.parent=bal;
 		} else {
 			// Case 3
-			bal=r;next=r;r=null;
+			bal=r;r=zero;
 		}
 		// Replace node with next.
-		if (p===null) {this.root=next;}
-		else if (Object.is(p.left,node)) {p.left=next;}
+		if (p===zero) {this.root=next;}
+		else if (p.left===node) {p.left=next;}
 		else {p.right=next;}
-		if (next) {
-			next.parent=p;
-			if (l) {next.left=l;l.parent=next;}
-			if (r) {next.right=r;r.parent=next;}
+		this.length--;
+		next.parent=p;
+		if (l!==zero) {
+			next.left=l;
+			l.parent=next;
+		}
+		if (r!==zero) {
+			next.right=r;
+			r.parent=next;
 		}
 		this.rebalance(bal);
 	}
 
 
-	remove(value) {
-		// Remove a node given a value.
-		let node=this.find(value);
-		if (node) {this.removenode(node);}
-		return node;
-	}
-
-
 	rebalance(next) {
-		// Rebalance from next upward. If 2 children differ in weight by a ratio of 2.5 or
-		// more, we can rotate to rebalance.
-		function Weight(n) {return n?n.weight:0;}
-		while (next) {
-			let node=next,orig=next;
-			next=node.parent;
-			let l=node.left,r=node.right;
-			let lw=Weight(l),rw=Weight(r);
-			if (rw*5+2<lw*2) {
+		// Rebalance from next upward.
+		let zero=this.zero;
+		while (next!==zero) {
+			let n=next,orig=next;
+			next=n.parent;
+			let l=n.left,r=n.right;
+			let lw=l.weight,rw=r.weight;
+			// Primary invariant: L*17+7<R*7, secondary invariant: L.L*17+4<L*7.
+			// con=4 has fewest rebalances and lowest height. 17/7>1+sqrt(2).
+			let rem=(rw+lw+7)>>>3;
+			if (rw+rw<lw-rem) {
 				// Leaning to the left.
-				if (Weight(l.left)*5<lw*2) {node.left=l.rotleft();}
-				node=node.rotright();
-			} else if (lw*5+2<rw*2) {
+				r=l.right;
+				let a=l.left;
+				let aw=a.weight;
+				if (aw+aw<lw-((aw+lw+4)>>>3)) {
+					// Left rotate L, then right rotate N.
+					//
+					//          N                N               R
+					//         / \              / \             / \
+					//        L   d            R   d           /   \
+					//       / \      ->      / \      ->     L     N
+					//      a   R            L   c           / \   / \
+					//         / \          / \             a   b c   d
+					//        b   c        a   b
+					//
+					let b=r.left;
+					l.parent=r;
+					l.right=b;
+					b.parent=l;
+					l.weight=b.weight+aw+1;
+					r.left=l;l=r;
+					r=r.right;
+				}
+				// Right rotate N.
+				//
+				//          N            L
+				//         / \          / \
+				//        L   c   ->   a   N
+				//       / \              / \
+				//      a   b            b   c
+				//
+				n.parent=l;
+				n.left=r;
+				r.parent=n;
+				n.weight=r.weight+rw+1;
+				l.parent=next;
+				l.right=n;
+				n=l;
+			} else if (lw+lw<rw-rem) {
 				// Leaning to the right.
-				if (Weight(r.right)*5<rw*2) {node.right=r.rotright();}
-				node=node.rotleft();
-			} else {
-				// Balanced.
-				node.weight=lw+rw+1;
-				continue;
+				l=r.left;
+				let d=r.right;
+				let dw=d.weight;
+				if (dw+dw<rw-((dw+rw+4)>>>3)) {
+					// Right rotate R, then left rotate N.
+					let c=l.right;
+					r.parent=l;
+					r.left=c;
+					c.parent=r;
+					r.weight=c.weight+dw+1;
+					l.right=r;r=l;
+					l=l.left;
+				}
+				// Left rotate N.
+				n.parent=r;
+				n.right=l;
+				l.parent=n;
+				n.weight=l.weight+lw+1;
+				r.parent=next;
+				r.left=n;
+				n=r;
 			}
-			if (next===null) {this.root=node;}
-			else if (Object.is(next.left,orig)) {next.left=node;}
-			else {next.right=node;}
+			n.weight=lw+rw+1;
+			if (n===orig) {continue;}
+			if (next===zero) {this.root=n;}
+			else if (next.left===orig) {next.left=n;}
+			else {next.right=n;}
 		}
 	}
 
 }
 
 
-const Data={
-	Tree:Tree,
-};
-export {Data};
-
-
 //---------------------------------------------------------------------------------
-// Vector - v3.09
+// Vector - v3.15
 
 
 export class Vector extends Array {
@@ -583,10 +734,10 @@ export class Vector extends Array {
 	static rnd=new Random();
 
 
-	constructor(elem) {
-		let arr=elem.length!==undefined;
-		super(arr?elem.length:elem);
-		this.set(arr?elem:0);
+	constructor(elem,init=true) {
+		let len=elem.length;
+		super(len??elem);
+		if (init) {this.set(len?elem:0);}
 	}
 
 
@@ -594,24 +745,11 @@ export class Vector extends Array {
 	toString() {return this.tostring();}
 
 
-	sanitize(v) {
-		// Converts v to a vector or throws an error.
-		let len=this.length,vlen=v.length;
-		if (vlen!==undefined) {
-			if (vlen!==len) {throw `Incompatible lengths: ${len}, ${vlen}`;}
-			return v;
-		} else if (!isNaN(v)) {
-			return (new Vector(len)).set(v);
-		}
-		throw `Unrecognized vector type: ${typeof v}`;
-	}
-
-
 	set(v=0) {
 		let len=this.length,vlen=v.length;
 		if (vlen!==undefined) {
-			len=len<vlen?len:vlen;
-			for (let i=0;i<len;i++) {this[i]=v[i];}
+			if (len!==vlen) {this.length=vlen;}
+			for (let i=0;i<vlen;i++) {this[i]=v[i];}
 		} else if (!isNaN(v)) {
 			for (let i=0;i<len;i++) {this[i]=v;}
 		} else {
@@ -628,43 +766,80 @@ export class Vector extends Array {
 	// Comparison
 
 
-	static cmp(u,v) {
+	cmp(v) {
 		// return -1, 0, 1
-		let ulen=u.length,vlen=v.length;
-		let len=ulen<vlen?ulen:vlen;
-		for (let i=0;i<len;i++) {
-			let x=u[i],y=v[i];
-			if (x!==y) {return x<y?-1:1;}
+		let ulen=this.length,vlen=v.length;
+		let u=this;
+		if (vlen!==undefined) {
+			if (ulen!==vlen) {throw `Incompatible lengths ${ulen}!=${vlen}`;}
+			for (let i=0;i<ulen;i++) {
+				let x=u[i],y=v[i];
+				if (x!==y) {return x<y?-1:1;}
+			}
+		} else {
+			for (let i=0;i<ulen;i++) {
+				let x=u[i];
+				if (x!==v) {return x<v?-1:1;}
+			}
 		}
-		if (ulen===vlen) {return 0;}
-		return ulen<vlen?-1:1;
+		return 0;
 	}
 
 
-	static lt(u,v) {return u.cmp(v)<0;}
-	static le(u,v) {return u.cmp(v)<=0;}
+	lt(u,v) {return u.cmp(v)<0;}
+	le(u,v) {return u.cmp(v)<=0;}
 
 
 	imin(v) {
-		v=this.sanitize(v);
-		let u=this,len=this.length;
-		for (let i=0;i<len;i++) {let x=u[i],y=v[i];u[i]=x<y?x:y;}
+		let ulen=this.length,vlen=v.length;
+		let u=this;
+		if (vlen!==undefined) {
+			if (ulen!==vlen) {throw `Incompatible lengths ${ulen}!=${vlen}`;}
+			for (let i=0;i<ulen;i++) {let x=u[i],y=v[i];u[i]=x<y?x:y;}
+		} else {
+			for (let i=0;i<ulen;i++) {let x=u[i];u[i]=x<v?x:v;}
+		}
 		return this;
 	}
 
 
-	min(v) {return this.copy().imin(v);}
+	min(v) {
+		let ulen=this.length,vlen=v.length;
+		let u=this,r=new Vector(ulen,false);
+		if (vlen!==undefined) {
+			if (ulen!==vlen) {throw `Incompatible lengths ${ulen}!=${vlen}`;}
+			for (let i=0;i<ulen;i++) {let x=u[i],y=v[i];r[i]=x<y?x:y;}
+		} else {
+			for (let i=0;i<ulen;i++) {let x=u[i];r[i]=x<v?x:v;}
+		}
+		return r;
+	}
 
 
 	imax(v) {
-		v=this.sanitize(v);
-		let u=this,len=this.length;
-		for (let i=0;i<len;i++) {let x=u[i],y=v[i];u[i]=x>y?x:y;}
+		let ulen=this.length,vlen=v.length;
+		let u=this;
+		if (vlen!==undefined) {
+			if (ulen!==vlen) {throw `Incompatible lengths ${ulen}!=${vlen}`;}
+			for (let i=0;i<ulen;i++) {let x=u[i],y=v[i];u[i]=x>y?x:y;}
+		} else {
+			for (let i=0;i<ulen;i++) {let x=u[i];u[i]=x>v?x:v;}
+		}
 		return this;
 	}
 
 
-	max(v) {return this.copy().imax(v);}
+	max(v) {
+		let ulen=this.length,vlen=v.length;
+		let u=this,r=new Vector(ulen,false);
+		if (vlen!==undefined) {
+			if (ulen!==vlen) {throw `Incompatible lengths ${ulen}!=${vlen}`;}
+			for (let i=0;i<ulen;i++) {let x=u[i],y=v[i];r[i]=x>y?x:y;}
+		} else {
+			for (let i=0;i<ulen;i++) {let x=u[i];r[i]=x>v?x:v;}
+		}
+		return r;
+	}
 
 
 	// ----------------------------------------
@@ -678,31 +853,50 @@ export class Vector extends Array {
 	}
 
 
-	neg() {return this.copy().ineg();}
+	neg() {
+		let len=this.length;
+		let u=this,r=new Vector(len,false);
+		for (let i=0;i<len;i++) {r[i]=-u[i];}
+		return r;
+	}
 
 
 	iadd(v) {
 		// u+=v
-		v=this.sanitize(v);
-		let u=this,len=this.length;
-		for (let i=0;i<len;i++) {u[i]+=v[i];}
+		let ulen=this.length,vlen=v.length;
+		if (ulen!==vlen) {throw `Incompatible lengths: ${ulen}!=${vlen}`;}
+		let u=this;
+		for (let i=0;i<ulen;i++) {u[i]+=v[i];}
 		return this;
 	}
 
 
-	add(v) {return this.copy().iadd(v);}
+	add(v) {
+		let ulen=this.length,vlen=v.length;
+		if (ulen!==vlen) {throw `Incompatible lengths: ${ulen}!=${vlen}`;}
+		let u=this,r=new Vector(ulen,false);
+		for (let i=0;i<ulen;i++) {r[i]=u[i]+v[i];}
+		return r;
+	}
 
 
 	isub(v) {
 		// u-=v
-		v=this.sanitize(v);
-		let u=this,len=this.length;
-		for (let i=0;i<len;i++) {u[i]-=v[i];}
+		let ulen=this.length,vlen=v.length;
+		if (ulen!==vlen) {throw `Incompatible lengths: ${ulen}!=${vlen}`;}
+		let u=this;
+		for (let i=0;i<ulen;i++) {u[i]-=v[i];}
 		return this;
 	}
 
 
-	sub(v) {return this.copy().isub(v);}
+	sub(v) {
+		let ulen=this.length,vlen=v.length;
+		if (ulen!==vlen) {throw `Incompatible lengths: ${ulen}!=${vlen}`;}
+		let u=this,r=new Vector(ulen,false);
+		for (let i=0;i<ulen;i++) {r[i]=u[i]-v[i];}
+		return r;
+	}
 
 
 	imul(s) {
@@ -715,15 +909,16 @@ export class Vector extends Array {
 
 	mul(v) {
 		// dot or scalar product
-		let u=this,len=this.length,vlen=v.length;
+		let u=this;
+		let ulen=this.length,vlen=v.length;
 		if (vlen!==undefined) {
-			if (vlen!==len) {throw `Incompatible lengths: ${len}, ${vlen}`;}
+			if (ulen!==vlen) {throw `Incompatible lengths: ${ulen}!=${vlen}`;}
 			let sum=0;
-			for (let i=0;i<len;i++) {sum+=u[i]*v[i];}
+			for (let i=0;i<ulen;i++) {sum+=u[i]*v[i];}
 			return sum;
 		}
-		let r=new Vector(len);
-		for (let i=0;i<len;i++) {r[i]=u[i]*v;}
+		let r=new Vector(ulen,false);
+		for (let i=0;i<ulen;i++) {r[i]=u[i]*v;}
 		return r;
 	}
 
@@ -734,9 +929,11 @@ export class Vector extends Array {
 
 	dist2(v) {
 		// (u-v)^2
-		v=this.sanitize(v);
-		let u=this,len=this.length,sum=0;
-		for (let i=0;i<len;i++) {let x=u[i]-v[i];sum+=x*x;}
+		let u=this;
+		let ulen=this.length,vlen=v.length;
+		if (ulen!==vlen) {throw `Incompatible lengths: ${ulen}!=${vlen}`;}
+		let sum=0;
+		for (let i=0;i<ulen;i++) {let x=u[i]-v[i];sum+=x*x;}
 		return sum;
 	}
 
@@ -756,6 +953,7 @@ export class Vector extends Array {
 
 
 	normalize() {
+		// Normalize the vector.
 		let u=this,len=this.length,mag=0;
 		for (let i=0;i<len;i++) {
 			let x=u[i];
@@ -771,7 +969,22 @@ export class Vector extends Array {
 	}
 
 
-	norm() {return this.copy().normalize();}
+	norm() {
+		// Return a new normal vector.
+		let len=this.length,mag=0;
+		let u=this,r=new Vector(len,false);
+		for (let i=0;i<len;i++) {
+			let x=u[i];
+			mag+=x*x;
+		}
+		if (mag>1e-10) {
+			mag=1/Math.sqrt(mag);
+			for (let i=0;i<len;i++) {r[i]=u[i]*mag;}
+		} else {
+			r.randomize();
+		}
+		return r;
+	}
 
 
 	randomize() {
@@ -792,44 +1005,54 @@ export class Vector extends Array {
 	}
 
 
-	static random(dim) {return (new Vector(dim)).randomize();}
+	static random(dim) {return (new Vector(dim,false)).randomize();}
 
 }
 
 
 export class Matrix extends Array {
 
-	constructor(rows,cols) {
+	static _perm=[];
+
+
+	constructor(rows,cols,init=true) {
 		// Expected: (dim), (rows,cols), (Matrix), or (array,[rows,cols])
 		let val=0;
 		if (rows instanceof Matrix) {val=rows;rows=val.rows;cols=val.cols;}
 		else if (rows.length!==undefined) {val=rows;rows=cols[0];cols=cols[1];}
-		else if (cols===undefined) {cols=rows;}
+		else {cols=cols??rows;}
 		super(rows*cols);
 		this.rows=rows;
 		this.cols=cols;
-		this.set(val);
+		if (init) {this.set(val);}
 	}
 
 
 	one() {
-		this.set(0);
 		let elem=this;
-		let cols=this.cols,rows=this.rows;
-		rows=rows<cols?rows:cols;
-		for (let i=0;i<rows;i++) {elem[i*cols+i]=1;}
+		let elems=this.length,cols=this.cols+1,c=0;
+		for (let i=0;i<elems;i++) {
+			let x=0;if (i===c) {x=1;c+=cols;}
+			elem[i]=x;
+		}
 		return this;
 	}
 
 
 	set(val=0) {
 		let elem=this;
-		let elems=elem.length,vlen=val.length;
+		let rows=this.rows,cols=this.cols;
+		let elems=rows*cols,vlen=val.length;
 		if (vlen===undefined) {
 			for (let i=0;i<elems;i++) {elem[i]=val;}
+		} else if (val instanceof Matrix) {
+			if (vlen!==elems) {elem.length=vlen;}
+			this.rows=val.rows;
+			this.cols=val.cols;
+			for (let i=0;i<vlen;i++) {elem[i]=val[i];}
 		} else {
-			if (vlen!==elems) {throw `set length: ${elems}!=${vlen}`;}
-			for (let i=0;i<elems;i++) {elem[i]=val[i];}
+			if (vlen!==elems) {throw `invalid array dimensions: ${vlen}!=${elems}`;}
+			for (let i=0;i<vlen;i++) {elem[i]=val[i];}
 		}
 		return this;
 	}
@@ -839,16 +1062,16 @@ export class Matrix extends Array {
 		let aelem=this;
 		let arows=this.rows,acols=this.cols;
 		let aelems=this.length,belems=b.length;
-		if (b.length===undefined) {
+		if (belems===undefined) {
 			// scalar
-			let m=new Matrix(this);
-			for (let i=0;i<aelems;i++) {m[i]*=b;}
+			let m=new Matrix(arows,acols,false);
+			for (let i=0;i<aelems;i++) {m[i]=aelem[i]*b;}
 			return m;
 		} else if (!(b instanceof Matrix)) {
 			// vector
-			if (belems!==acols) {throw `mat*vec dimensions: ${acols}!=${belems}`;}
-			let v=new Vector(arows),i=0;
-			for (let r=0;r<arows;r++) {
+			if (acols!==belems) {throw `mat*vec dimensions: ${acols}!=${belems}`;}
+			let v=new Vector(arows,false);
+			for (let r=0,i=0;r<arows;r++) {
 				let sum=0;
 				for (let c=0;c<acols;c++) {sum+=aelem[i++]*b[c];}
 				v[r]=sum;
@@ -856,134 +1079,139 @@ export class Matrix extends Array {
 			return v;
 		}
 		// matrix
-		let brows=b.rows,bcols=b.cols,melems=arows*bcols;belems--;
-		if (acols!==brows) {throw `A*B needs cols(A)=rows(B): ${acols}, ${brows}`;}
-		let m=new Matrix(arows,bcols);
+		let bcols=b.cols,melems=arows*bcols;belems--;
+		if (acols!==b.rows) {throw `A*B needs cols(A)=rows(B): ${acols}, ${b.rows}`;}
+		let m=new Matrix(arows,bcols,false);
 		let belem=b,melem=m;
-		let aval=0,bval=0;
+		let aidx=0,bidx=0;
 		for (let i=0;i<melems;i++) {
 			// Multiply row r of A with column c of B.
-			let sum=melem[i];
-			while (bval<=belems) {
-				sum+=aelem[aval]*belem[bval];
-				aval++;
-				bval+=bcols;
+			let sum=0;
+			while (bidx<=belems) {
+				sum+=aelem[aidx++]*belem[bidx];
+				bidx+=bcols;
 			}
 			melem[i]=sum;
-			bval-=belems;
-			if (bval===bcols) {bval=0;}
-			else {aval-=brows;}
+			bidx-=belems;
+			if (bidx===bcols) {bidx=0;}
+			else {aidx-=acols;}
 		}
 		return m;
 	}
 
 
-	det() {
-		let rows=this.rows,cols=this.cols;
-		if (rows!==cols) {return 0;}
-		if (rows===0) {return 1;}
-		// Copy the matrix. Use the upper triangular form to compute the determinant.
-		let elem=new Matrix(this);
-		let sign=0;
-		for (let i=0;i<cols-1;i++) {
-			// Find a row with an invertible element in column i.
-			let dval=i*cols,sval=dval,j=i;
-			let inv=NaN;
-			for (;j<rows;j++) {
-				inv=1/elem[sval+i];
-				if (inv>-Infinity && inv<Infinity) {break;}
-				sval+=cols;
-			}
-			if (j===rows) {return 0;}
-			if (sval!==dval) {
-				sign^=1;
-				for (let c=i;c<cols;c++) {
-					let tmp=elem[sval+c];
-					elem[sval+c]=elem[dval+c];
-					elem[dval+c]=tmp;
-				}
-			}
-			for (let c=i+1;c<cols;c++) {
-				elem[dval+c]*=inv;
-			}
-			for (let r=i+1;r<cols;r++) {
-				sval=r*cols;
-				let mul=elem[sval+i];
-				for (let c=i+1;c<cols;c++) {
-					elem[sval+c]-=elem[dval+c]*mul;
-				}
-			}
+	imul(b) {
+		if (b.length===undefined) {
+			let elem=this;
+			let elems=this.length;
+			for (let i=0;i<elems;i++) {elem[i]*=b;}
+		} else {
+			this.set(this.mul(b));
 		}
-		// We have the matrix in upper triangular form. Multiply the diagonals to get the
-		// determinant.
-		let det=elem[0];
-		for (let i=1;i<cols;i++) {
-			det=det*elem[i*cols+i];
-		}
-		return sign?-det:det;
+		return this;
 	}
 
 
-	inv() {
-		// Returns the multiplicative inverse of A.
-		let rows=this.rows,cols=this.cols;
-		if (rows!==cols) {throw `Can only invert square matrices: ${rows}, ${cols}`;}
-		let ret=new Matrix(this);
-		let elem=ret;
-		let perm=new Array(cols);
-		for (let i=0;i<cols;i++) {perm[i]=i;}
-		for (let i=0;i<rows;i++) {
-			// Find a row with an invertible element in column i.
-			let dval=i*cols,sval=dval,j=i;
-			let inv=NaN;
-			for (;j<rows;j++) {
-				inv=1/elem[sval+i];
-				if (inv>-Infinity && inv<Infinity) {break;}
-				sval+=cols;
-			}
-			if (j===rows) {throw `Unable to find an invertible element.`;}
-			// Swap the desired row with row i. Then put row i in reduced echelon form.
-			if (sval!==dval) {
-				for (let c=0;c<cols;c++) {
-					let tmp=elem[sval+c];
-					elem[sval+c]=elem[dval+c];
-					elem[dval+c]=tmp;
+	det() {
+		let dim=this.rows,cols=this.cols,elems=dim*dim;
+		if (dim!==cols) {return 0;}
+		// Copy the matrix. Use the upper triangular form to compute the determinant.
+		let elem=new Matrix(this);
+		let det=1;
+		for (let i=0;i<dim;i++) {
+			// Find a column with an invertible element on row i.
+			let j=i+1,row=i*dim,stop=row+dim,swap=-1;
+			let max=0,inv=0;
+			for (let c=i;c<dim;c++) {
+				let x=elem[row+c],a=x<0?-x:x;
+				if (max<a) {
+					max=a;
+					inv=x;
+					swap=c;
 				}
 			}
-			let tmp=perm[i];perm[i]=perm[j];perm[j]=tmp;
-			// Put the row into reduced echelon form. Since entry (i,i)=1 and (i,i')=1*inv,
-			// set (i,i)=inv.
-			for (let c=0;c<cols;c++) {
-				if (c!==i) {elem[dval+c]*=inv;}
+			det*=swap===i?inv:-inv;
+			// We couldn't find an element, so det=0.
+			if (swap<0) {break;}
+			// Normalize the row.
+			elem[row+swap]=elem[row+i];
+			for (let c=row+j;c<stop;c++) {elem[c]/=inv;}
+			// Row reduce the lower triangle.
+			for (let e=j*dim;e<elems;e+=dim) {
+				let mul=elem[e+swap];
+				elem[e+swap]=elem[e+i];
+				let dst=e+j,src=row+j;
+				while (src<stop) {
+					elem[dst++]-=elem[src++]*mul;
+				}
 			}
-			elem[dval+i]=inv;
+		}
+		return det;
+	}
+
+
+	inv() {return (new Matrix(this)).invert();}
+
+
+	invert() {
+		// Returns the multiplicative inverse of A.
+		let dim=this.rows,cols=this.cols;
+		if (dim!==cols) {throw `Can only invert square matrices: ${dim}, ${cols}`;}
+		let elem=this;
+		let perm=Matrix._perm;
+		if (perm.length<dim) {Matrix._perm=perm=new Array(dim);}
+		// let perm=new Array(dim);
+		for (let i=0;i<dim;i++) {
+			// Find a column with an invertible element on row i.
+			let row=i*dim,stop=row+dim,swap=-1;
+			let max=1e-10,inv=0;
+			for (let c=i;c<dim;c++) {
+				let x=elem[row+c],a=x<0?-x:x;
+				if (max<a) {
+					max=a;
+					inv=x;
+					swap=c;
+				}
+			}
+			if (swap<0) {throw `Unable to find an invertible element.`;}
+			// Swap the desired column with i and put the row in reduced echelon form.
+			// Since entry (i,i)=1 and (i,i')=1*inv, set (i,i)=inv.
+			perm[i]=swap;
+			elem[row+swap]=elem[row+i];
+			elem[row+i]=1;
+			for (let c=row;c<stop;c++) {elem[c]/=inv;}
 			// Perform row operations with row i to clear column i for all other rows in A.
 			// Entry (j,i') will be 0 in the augmented matrix, and (i,i') will be inv, hence
 			// (j,i')=(j,i')-(j,i)*(i,i')=-(j,i)*inv.
-			for (let r=0;r<rows;r++) {
+			for (let r=0;r<dim;r++) {
 				if (r===i) {continue;}
-				sval=r*cols;
-				let mul=elem[sval+i];
-				for (let c=0;c<cols;c++) {
-					if (c!==i) {elem[sval+c]-=elem[dval+c]*mul;}
+				let dst=r*dim,src=row;
+				let mul=elem[dst+swap];
+				elem[dst+swap]=elem[dst+i];
+				elem[dst+i]=0;
+				while (src<stop) {
+					elem[dst++]-=elem[src++]*mul;
 				}
-				elem[sval+i]=-elem[dval+i]*mul;
 			}
 		}
-		// Re-order columns due to swapped rows.
-		let tmp=new Array(cols);
-		for (let r=0;r<rows;r++) {
-			let dval=r*cols;
-			for (let i=0;i<cols;i++) {tmp[i]=elem[dval+i];}
-			for (let i=0;i<cols;i++) {elem[dval+perm[i]]=tmp[i];}
+		// Correct the row order to account for swapping columns.
+		for (let r=dim-1;r>=0;r--) {
+			let i=r*dim,j=perm[r]*dim,stop=i+dim;
+			if (i===j) {continue;}
+			while (i<stop) {
+				let tmp=elem[i];
+				elem[i++]=elem[j];
+				elem[j++]=tmp;
+			}
 		}
-		return ret;
+		return this;
 	}
 
 
 	trans() {
+		// Transpose.
 		let rows=this.rows,cols=this.cols,elems=rows*cols;
-		let ret=new Matrix(cols,rows);
+		let ret=new Matrix(cols,rows,false);
 		for (let i=0;i<elems;i++) {ret[i]=this[(i%rows)*cols+(~~(i/rows))];}
 		return ret;
 	}
@@ -992,7 +1220,7 @@ export class Matrix extends Array {
 	static fromangles(angs) {
 		let dim=0,ang2=(angs.length??1)*2;
 		while (dim*(dim-1)<ang2) {dim++;}
-		return (new Matrix(dim,dim)).one().rotate(angs);
+		return (new Matrix(dim,dim,false)).one().rotate(angs);
 	}
 
 
@@ -1013,8 +1241,9 @@ export class Matrix extends Array {
 				// We have
 				// (i,i)=cos   (i,j)=-sin
 				// (j,i)=sin   (j,j)=cos
-				let cs=Math.cos(angs[--a]);
-				let sn=Math.sin(angs[  a]);
+				let ang=angs[--a];
+				let cs=Math.cos(ang);
+				let sn=Math.sin(ang);
 				// For each row r:
 				// (r,i)=(r,i)*cos+(r,j)*sin
 				// (r,j)=(r,j)*cos-(r,i)*sin
@@ -1040,7 +1269,7 @@ export class Transform {
 	// mat*point+vec
 
 
-	constructor(params) {
+	constructor(params,init=true) {
 		// Accepts: Vector, Matrix, Transform, dim, {ang,dim,mat,scale,vec}
 		// Parse what we're given.
 		let mat=null,vec=null,dim=NaN;
@@ -1056,8 +1285,6 @@ export class Transform {
 			dim=params;
 		} else {
 			// Pull attributes from a dict.
-			const allow={"ang":1,"dim":1,"mat":1,"scale":1,"vec":1};
-			for (let attr in params) {if (!allow[attr]) {throw "Unknown attr: "+attr;}}
 			mat=params.mat??null;
 			vec=params.vec??null;
 			dim=params.dim??NaN;
@@ -1066,17 +1293,19 @@ export class Transform {
 		}
 		// Reconstruct what we're missing.
 		if (isNaN(dim)) {
-			if (vec!==null) {dim=vec.length;}
-			else if (mat!==null) {dim=mat.rows;}
-			else if (scale!==null && scale.length) {dim=scale.length;}
+			if (vec) {dim=vec.length;}
+			else if (mat) {dim=mat.rows;}
+			else if (scale) {dim=scale.length??NaN;}
+			if (isNaN(dim)) {throw "no dimension";}
 		}
-		if (isNaN(dim)) {throw "no dimension";}
-		if (vec===null) {vec=new Vector(dim);}
-		if (mat===null) {mat=(new Matrix(dim)).one();}
-		if (vec.length!==dim) {throw `vec dimension: ${vec.length}, ${dim}`;}
-		if (mat.rows!==dim || mat.cols!==dim) {throw `mat dimensions: (${mat.rows},${mat.cols}), ${dim}`;}
-		this.mat=new Matrix(mat);
-		this.vec=new Vector(vec);
+		if (!vec)      {vec=new Vector(dim);}
+		else if (init) {vec=new Vector(vec);}
+		if (!mat)      {mat=(new Matrix(dim,dim,false)).one();}
+		else if (init) {mat=new Matrix(mat);}
+		if (vec.length!==dim) {throw `vec dimension: ${vec.length}!=${dim}`;}
+		if (mat.rows!==dim || mat.cols!==dim) {throw `mat dimensions: (${mat.rows},${mat.cols})!=${dim}`;}
+		this.mat=mat;
+		this.vec=vec;
 		if (scale!==null) {this.scalemat(scale);}
 		if (ang!==null) {this.rotatemat(ang);}
 	}
@@ -1092,15 +1321,16 @@ export class Transform {
 
 	apply(point) {
 		// (A.apply(B)).apply(P) = A.apply(B.apply(P))
-		let mat=this.mat,vec=this.vec;
-		if (!(point instanceof Transform)) {return mat.mul(point).iadd(vec);}
-		return new Transform({mat:mat.mul(point.mat),vec:mat.mul(point.vec).iadd(vec)});
+		let amat=this.mat,avec=this.vec;
+		let bmat=point.mat,bvec=point.vec;
+		if (!bmat || !bvec) {return amat.mul(point).iadd(avec);}
+		return new Transform({mat:amat.mul(bmat),vec:amat.mul(bvec).iadd(avec)},false);
 	}
 
 
 	inv() {
 		let inv=this.mat.inv();
-		return new Transform({mat:inv,vec:inv.mul(this.vec).ineg()});
+		return new Transform({mat:inv,vec:inv.mul(this.vec).ineg()},false);
 	}
 
 
@@ -1127,11 +1357,22 @@ export class Transform {
 	}
 
 
-	scalemat(muls) {
-		let mat=this.mat,dim=this.vec.length,dim2=dim*dim;
-		if (muls.length===undefined) {muls=(new Array(dim)).fill(muls);}
-		if (muls.length!==dim) {throw `Invalid dimensions: ${muls.length}, ${dim}`;}
-		for (let i=0;i<dim2;i++) {mat[i]*=muls[(i/dim)|0];}
+	scalemat(mul) {
+		// Accepts a scalar or dim sized array.
+		let mat=this.mat;
+		let dim=mul.length,vlen=this.vec.length;
+		if (dim===undefined) {
+			mat.imul(mul);
+		} else if (dim!==vlen) {
+			throw `Invalid dimensions: ${dim}, ${vlen}`;
+		} else {
+			let i=0,s=dim;
+			for (let r=0;r<dim;r++) {
+				let m=mul[r];
+				while (i<s) {mat[i++]*=m;}
+				s+=dim;
+			}
+		}
 		return this;
 	}
 
@@ -1157,12 +1398,6 @@ export class Transform {
 
 	rotate(angs) {
 		return this.rotatevec(angs).rotatemat(angs);
-	}
-
-
-	lookat() {
-		// https://math.stackexchange.com/questions/180418
-		throw "not implemented";
 	}
 
 }
@@ -1553,7 +1788,7 @@ export class Input {
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v5.03
+// Drawing - v5.04
 
 
 class DrawPath {
@@ -2012,7 +2247,7 @@ class DrawPath {
 		let vidx=this.vertidx;
 		if (!vidx) {return false;}
 		// Put the point in path-space.
-		let [px,py]=point;
+		let px=point[0],py=point[1];
 		if (trans) {
 			if (!(trans instanceof Transform)) {trans=new Transform(trans);}
 			let mat=trans.mat,vec=trans.vec;
@@ -2660,7 +2895,8 @@ export class Draw {
 		let pixminy=(invyx<0?invyx:0)+(invyy<0?invyy:0);
 		let pixmaxy=(invyx>0?invyx:0)+(invyy>0?invyy:0);
 		// Iterate over dst rows.
-		let [rshift,gshift,bshift,ashift]=this.rgbashift;
+		let shift=this.rgbashift;
+		let rshift=shift[0],gshift=shift[1],bshift=shift[2],ashift=shift[3];
 		let dstdata=dstimg.data32;
 		let srcdata=srcimg.data32;
 		for (let dsty=dstminy;dsty<dstmaxy;dsty++) {
@@ -3175,7 +3411,7 @@ export class Draw {
 
 
 //---------------------------------------------------------------------------------
-// UI - v1.02
+// UI - v1.03
 
 
 export class UI {
@@ -3218,7 +3454,7 @@ export class UI {
 		let input=this.input;
 		let draw=this.draw,img=draw.img;
 		let dw=img.width,dh=img.height;
-		let [mx,my]=input.getmousepos();
+		let mpos=input.getmousepos(),mx=mpos[0],my=mpos[1];
 		let grabbing=this.grabbing;
 		let focus=this.focus;
 		// If we're not grabbing something, check if we're focused on anything.
@@ -3339,7 +3575,7 @@ export class UI {
 
 
 //---------------------------------------------------------------------------------
-// Audio - v3.11
+// Audio - v3.12
 
 
 class AudioSound {
@@ -3684,6 +3920,12 @@ class AudioSound {
 }
 
 
+const CON=0,VAR=1,OP=2;
+const EXPR=0,ENV=1,TBL=2,TRI=3,PLS=4,SAW=5,SIN=6,SQR=7,NOI=8,DEL=9,OSC0=2,OSC1=7;
+const LPF=10,HPF=11,BPF=12,NPF=13,APF=14,PKF=15,LSF=16,HSF=17,FIL0=10,FIL1=17;
+const VBITS=24,VMASK=(1<<VBITS)-1,PBITS=8,PMASK=(1<<PBITS)-1;
+
+
 class AudioSFX {
 
 	// Array Format
@@ -3776,8 +4018,6 @@ class AudioSFX {
 	parse(seqstr) {
 		// Last node is used as output. Node names must start with #.
 		// Translating addresses: (node_num+1)<<8+param_num
-		const EXPR=0,ENV=1,TBL=2,NOI=8,DEL=9,OSC0=2,OSC1=7,FIL0=10,FIL1=17;
-		const CON=0,VAR=1,OP=2,VBITS=24,VMASK=(1<<VBITS)-1,PBITS=8,PMASK=(1<<PBITS)-1;
 		this.namemap={};
 		let nodetypes=[
 			{str:"expr" ,type: 0,params:" "},
@@ -4136,7 +4376,6 @@ class AudioSFX {
 
 
 	biquadcoefs(n,type,rate,bw,gain) {
-		const LPF=10,HPF=11,BPF=12,NPF=13,APF=14,PKF=15,LSF=16,HSF=17;
 		let b0=1,b1=0,b2=0;
 		let a0=1,a1=0,a2=0;
 		let v  =gain;
@@ -4235,9 +4474,6 @@ class AudioSFX {
 		if (flen===undefined) {flen=sndlen;}
 		if (fstart+flen<sndlen) {sndlen=fstart+flen;}
 		let sndrate=1/sndfreq;
-		const EXPR=0,ENV=1,TBL=2,TRI=3,PLS=4,SAW=5,SIN=6,SQR=7,NOI=8,DEL=9;
-		const OSC0=2,OSC1=7,FIL0=10,FIL1=17;
-		const VBITS=24,VMASK=(1<<VBITS)-1;
 		function fmod(x,mod) {
 			x=(x<0 || x>=mod)?x%mod:x;
 			return x<0?x+mod:x;
@@ -4623,15 +4859,12 @@ export class Audio {
 		// 2 = Audio mute, 1 = browser mute
 		this.muted=mute?2:0;
 		this.mutefunc=function(){ctx.resume();};
-		this.updatetime=NaN;
 		if (!Audio.def) {Audio.initdef(this);}
 		let state=this;
 		if (autoupdate) {
 			function update() {if (state.update()) {requestAnimationFrame(update);}}
 			update();
 		}
-		// Stop all sounds when exiting the page.
-		// window.addEventListener("beforeUnload",()=>{state.release();});
 	}
 
 
@@ -4640,13 +4873,6 @@ export class Audio {
 		if (!def) {def=new Audio();}
 		Audio.def=def;
 		return def;
-	}
-
-
-	release() {
-		// Stop and release all audio.
-		this.mute(true);
-		while (this.queue) {this.queue.remove();}
 	}
 
 
@@ -4715,150 +4941,11 @@ export class Audio {
 // Physics - v1.03
 
 
-class PhyLink {
-
-	constructor(obj) {
-		this.prev=null;
-		this.next=null;
-		this.list=null;
-		this.obj=obj??null;
-		this.idx=null;
-	}
-
-
-	release() {
-		this.remove();
-	}
-
-
-	add(list) {
-		if (this.list!==list) {list.add(this);}
-	}
-
-
-	remove(clear) {
-		if (this.list!==null) {this.list.remove(this,clear);}
-	}
-
-}
-
-
-class PhyList {
-
-	constructor(ptr=null) {
-		this.head=null;
-		this.tail=null;
-		this.ptr=ptr;
-		this.count=0;
-	}
-
-
-	release(clear) {
-		let link=this.head;
-		while (link!==null) {
-			let next=link.next;
-			link.prev=null;
-			link.next=null;
-			link.list=null;
-			if (clear) {link.obj=null;}
-			link=next;
-		}
-		this.count=0;
-	}
-
-
-	*iter() {
-		let link=null,next=this.head;
-		while ((link=next)!==null) {
-			next=link.next;
-			yield link.obj;
-		}
-	}
-
-
-	add(link) {
-		this.addafter(link);
-	}
-
-
-	addafter(link,prev=null) {
-		// Inserts the link after prev.
-		link.remove();
-		let next=null;
-		if (prev!==null) {
-			next=prev.next;
-			prev.next=link;
-		} else {
-			next=this.head;
-			this.head=link;
-		}
-		link.prev=prev;
-		link.next=next;
-		link.list=this;
-		if (next!==null) {
-			next.prev=link;
-		} else {
-			this.tail=link;
-		}
-		this.count++;
-	}
-
-
-	addbefore(link,next=null) {
-		// Inserts the link before next.
-		link.remove();
-		let prev=null;
-		if (next!==null) {
-			prev=next.prev;
-			next.prev=link;
-		} else {
-			prev=this.tail;
-			this.tail=link;
-		}
-		link.prev=prev;
-		link.next=next;
-		link.list=this;
-		if (prev!==null) {
-			prev.next=link;
-		} else {
-			this.head=link;
-		}
-		this.count++;
-	}
-
-
-	remove(link,clear) {
-		if (link===null) {
-			return;
-		}
-		let prev=link.prev;
-		let next=link.next;
-		if (prev!==null) {
-			prev.next=next;
-		} else {
-			this.head=next;
-		}
-		if (next!==null) {
-			next.prev=prev;
-		} else {
-			this.tail=prev;
-		}
-		this.count--;
-		link.prev=null;
-		link.next=null;
-		link.list=null;
-		if (clear) {link.obj=null;}
-	}
-
-}
-
-
 class PhyInteraction {
 
 	constructor(a,b) {
 		this.world=a.world;
-		this.worldlink=new PhyLink(this);
-		this.world.intrlist.add(this.worldlink);
+		this.worldlink=this.world.intrlist.add(this);
 		this.a=a;
 		this.b=b;
 		this.pmul=0;
@@ -4903,8 +4990,8 @@ class PhyBodyType {
 
 	constructor(world,id,damp,density,elasticity,push,statictension,staticdist) {
 		this.world=world;
-		this.worldlink=new PhyLink(this);
-		this.bodylist=new PhyList();
+		this.worldlink=new List.Link(this);
+		this.bodylist=new List();
 		this.id=id;
 		this.intarr=[];
 		this.damp=damp;
@@ -5045,16 +5132,13 @@ class PhyBody {
 	constructor(world,verts,pos,angle,type) {
 		type=type??world.deftype;
 		this.world=world;
-		this.worldlink=new PhyLink(this);
-		this.world.bodylist.addbefore(this.worldlink);
+		this.worldlink=this.world.bodylist.add(this);
 		this.deleted=false;
 		this.sleeping=false;
-		this.bondlist=new PhyList();
-		this.typelink=new PhyLink(this);
+		this.bondlist=new List();
+		this.typelink=type.bodylist.add(this);
 		this.type=type;
-		type.bodylist.add(this.typelink);
 		this.data={};
-		//
 		let vertarr=[];
 		this.volume=0;
 		if (verts instanceof PhyBody) {
@@ -5062,19 +5146,19 @@ class PhyBody {
 			verts=body.vertarr;
 			this.volume=body.volume;
 			type=type??body.type;
-			// trans=trans??body.trans;
 		}
 		let dim=world.dim,dim2=(dim*(dim-1))>>>1;
 		for (let v of verts) {vertarr.push(new Vector(v));}
 		this.vertarr=vertarr;
 		this.facearr=[];
 		this.type=type;
+		this.pos=new Vector(pos);
 		this.vel=new Vector(dim);
 		this.spin=(new Float64Array(dim2)).fill(0);
 		this.angle=(new Float64Array(dim2)).fill(0);
 		if (angle) {for (let i=0;i<dim2;i++) {this.angle[i]=angle[i];}}
-		this.trans=new Transform({vec:pos,ang:this.angle});
-		this.inv=this.trans.mat.inv();
+		this.mat=(new Matrix(dim)).one().rotate(this.angle);
+		this.inv=this.mat.inv();
 		this.updateconstants();
 	}
 
@@ -5091,8 +5175,14 @@ class PhyBody {
 	}
 
 
-	relpos(v) {return this.trans.apply(v);}
-	invpos(v) {return this.trans.inv().apply(v);}
+	relpos(v) {return this.mat.mul(v).iadd(this.pos);}
+
+
+	invpos(v) {
+		let w=(new Vector(v)).isub(this.pos);
+		return this.mat.inv().mul(w);
+	}
+
 
 	relvel(p) {
 		let vel=this.vel,spin=this.spin[0];
@@ -5123,7 +5213,7 @@ class PhyBody {
 		} else {
 			let vertarr=this.vertarr;
 			let verts=vertarr.length;
-			// Find the left-most vertex.
+			// Find the left-most, bottom-most vertex.
 			let minv=vertarr[0];
 			let mini=0;
 			for (let i=1;i<verts;i++) {
@@ -5179,7 +5269,7 @@ class PhyBody {
 			for (let v of vertarr) {
 				v.isub(cen);
 			}
-			this.trans.vec.iadd(cen);
+			this.pos.iadd(cen);
 			// Inertia.
 			let inertia=0;
 			for (let face of facearr) {
@@ -5200,9 +5290,10 @@ class PhyBody {
 	closestpoint(point) {
 		// Returns [overlapping, point] with a point on the border.
 		let world=this.world;
-		let trans=new Transform({dim:world.dim});
 		point=new Vector(point);
-		let col=world.closestpoint(this.vertarr,this.trans,[point],trans);
+		let dim=world.dim;
+		let cen=new Vector(dim),mat=(new Matrix(dim,dim)).one();
+		let col=world.closestpoint(this.vertarr,this.pos,this.mat,[point],cen,mat);
 		return [col[0],col[1]];
 	}
 
@@ -5213,8 +5304,7 @@ class PhyBody {
 		// pos+=vel*dt1+acc*dt2
 		// vel =vel*dt0+acc*dt1
 		let world=this.world;
-		let trans=this.trans;
-		let pe=trans.vec,ve=this.vel;
+		let pe=this.pos,ve=this.vel;
 		let dim=world.dim,type=this.type;
 		let ge=type.gravity;
 		ge=(ge===null?world.gravity:ge);
@@ -5235,8 +5325,8 @@ class PhyBody {
 			se[i]=spin*dt0;
 			ae[i]=ang;
 		}
-		trans.mat.one().rotate(ae);
-		this.inv=trans.mat.inv();
+		this.mat.one().rotate(ae);
+		this.inv.set(this.mat).invert();
 	}
 
 
@@ -5252,7 +5342,8 @@ class PhyBody {
 		amass=amass>=Infinity?1.0:amass/mass;
 		bmass=bmass>=Infinity?1.0:bmass/mass;
 		// Get the collision normal and contact points.
-		let col=world.closestpoint(a.vertarr,a.trans,b.vertarr,b.trans);
+		let apos=a.pos,bpos=b.pos;
+		let col=world.closestpoint(a.vertarr,apos,a.mat,b.vertarr,bpos,b.mat);
 		if (!col[0]) {return;}
 		let acon=col[1],bcon=col[2];
 		let norm=world.tmpvec[0];
@@ -5264,7 +5355,6 @@ class PhyBody {
 		}
 		if (push<1e-10) {return;}
 		push=Math.sqrt(push);
-		let apos=a.trans.vec,bpos=b.trans.vec;
 		// norm=|norm|, acon-=apos, bcon-=bpos
 		for (let i=0;i<dim;i++) {
 			norm[i]/=push;
@@ -5322,8 +5412,8 @@ class PhyBody {
 					// if (bond.breakdist<Infinity) {
 					let d0=0,d1=0;
 					for (let i=0;i<dim;i++) {
-						let a=ucon[i]-ainv[i];d0+=a*a;
-						let b=vcon[i]-binv[i];d1+=b*b;
+						let x=ucon[i]-ainv[i];d0+=x*x;
+						let y=vcon[i]-binv[i];d1+=y*y;
 					}
 					if (d0<dist2 || d1<dist2) {
 						staticbond=true;
@@ -5363,8 +5453,7 @@ class PhyBond {
 
 	constructor(world,a,apos,b,bpos,dist,tension) {
 		this.world=world;
-		this.worldlink=new PhyLink(this);
-		this.world.bondlist.add(this.worldlink);
+		this.worldlink=this.world.bondlist.add(this);
 		this.deleted=false;
 		this.a=a;
 		this.apos=new Vector(apos);
@@ -5374,10 +5463,8 @@ class PhyBond {
 		this.dist=dist;
 		this.breakdist=Infinity;
 		this.tension=tension;
-		this.alink=new PhyLink(this);
-		this.blink=new PhyLink(this);
-		this.a.bondlist.add(this.alink);
-		this.b.bondlist.add(this.blink);
+		this.alink=this.a.bondlist.add(this);
+		this.blink=this.b.bondlist.add(this);
 		this.data={};
 	}
 
@@ -5391,8 +5478,8 @@ class PhyBond {
 	}
 
 
-	relapos() {return this.a.trans.apply(this.apos);}
-	relbpos() {return this.b.trans.apply(this.bpos);}
+	relapos() {return this.a.relpos(this.apos);}
+	relbpos() {return this.b.relpos(this.bpos);}
 
 
 	update() {
@@ -5411,27 +5498,26 @@ class PhyBond {
 		bmass=bmass>=Infinity?1.0:bmass/mass;
 		// Get the distance and direction between the bodies.
 		let tmpvec=world.tmpvec;
-		let apos=a.trans.vec,bpos=b.trans.vec;
+		let aloc=this.apos,bloc=this.bpos;
+		let apos=a.pos,bpos=b.pos;
+		let amat=a.mat,bmat=b.mat;
 		let acon=tmpvec[1],bcon=tmpvec[2];
-		for (let side=0;side<2;side++) {
-			let mat=(side?b:a).trans.mat;
-			let scon=side?this.bpos:this.apos;
-			let dcon=side?bcon:acon;
-			let midx=0;
-			for (let i=0;i<dim;i++) {
-				let x=0;
-				for (let j=0;j<dim;j++) {
-					x+=mat[midx++]*scon[j];
-				}
-				dcon[i]=x;
-			}
-		}
 		let norm=tmpvec[0];
-		let dist=0.0;
+		let dist=0;
+		let midx=0;
 		for (let i=0;i<dim;i++) {
-			let x=bcon[i]-acon[i]+bpos[i]-apos[i];
-			norm[i]=x;
-			dist+=x*x;
+			// relative contact points
+			let ac=0,bc=0;
+			for (let j=0;j<dim;j++) {
+				ac+=amat[midx  ]*aloc[j];
+				bc+=bmat[midx++]*bloc[j];
+			}
+			acon[i]=ac;
+			bcon[i]=bc;
+			// norm
+			let d=bc-ac+bpos[i]-apos[i];
+			norm[i]=d;
+			dist+=d*d;
 		}
 		dist=Math.sqrt(dist);
 		// If the points are too far, break the bond.
@@ -5471,11 +5557,11 @@ class PhyBond {
 		ainertia*=ancross*acc;
 		a.angle[0]-=ainertia*at.dt2;
 		a.spin[0] -=ainertia*at.dt1;
-		a.trans.mat.one().rotate(a.angle);
+		a.mat.one().rotate(a.angle);
 		binertia*=bncross*acc;
 		b.angle[0]+=binertia*bt.dt2;
 		b.spin[0] +=binertia*bt.dt1;
-		b.trans.mat.one().rotate(b.angle);
+		b.mat.one().rotate(b.angle);
 	}
 
 }
@@ -5533,12 +5619,15 @@ class PhyBroadphase {
 		let world=this.world;
 		let dim=world.dim;
 		let bodycnt=world.bodylist.count;
-		this.bodycnt=bodycnt;
-		if (bodycnt===0) {return;}
+		if (!bodycnt) {
+			this.bodycnt=0;
+			return;
+		}
 		// Allocate working arrays.
 		let dim2=2*dim,nodesize=3+dim2;
 		let sortstart=nodesize*(bodycnt*2-1);
-		let treesize=sortstart*2;
+		let leafstart=sortstart+bodycnt;
+		let treesize=leafstart+bodycnt*nodesize;
 		let memi=this.memi32;
 		if (memi.length<treesize) {
 			memi=new Int32Array(treesize*2);
@@ -5548,50 +5637,52 @@ class PhyBroadphase {
 		}
 		let memf=this.memf32;
 		// Store bodies and their bounds. body_id*2+sleeping.
-		let leafstart=sortstart+bodycnt;
 		let slack=(1+this.slack)*0.5;
-		let leafidx=leafstart;
 		let bodyarr=this.bodyarr;
 		let bodylink=world.bodylist.head;
-		let tmpbnd=new Float32Array(dim*2);
-		for (let i=0;i<bodycnt;i++) {
+		bodycnt=0;
+		while (bodylink) {
 			let body=bodylink.obj;
 			bodylink=bodylink.next;
-			bodyarr[i]=body;
-			memi[leafidx++]=(i<<1)|(body.sleeping?1:0);
-			memi[sortstart+i]=leafidx;
+			// Reject empty bodies.
+			let varr=body.vertarr;
+			let vlen=varr.length;
+			if (!vlen) {continue;}
+			let leafidx=leafstart+(1+dim2)*bodycnt;
+			memi[leafidx++]=(bodycnt<<1)|(body.sleeping?1:0);
+			memi[sortstart+bodycnt]=leafidx;
+			bodyarr[bodycnt++]=body;
 			// Find the bounding box of the transformed body.
-			let trans=body.trans;
-			let pos=trans.vec,mat=trans.mat;
+			let pos=body.pos,mat=body.mat;
 			for (let d=0;d<dim;d++) {
-				tmpbnd[d*2  ]= Infinity;
-				tmpbnd[d*2+1]=-Infinity;
-			}
-			for (let v of body.vertarr) {
-				let midx=0;
-				for (let d=0;d<dim;d++) {
-					let d2=d+d;
-					let x=pos[d];
-					for (let j=0;j<dim;j++) {
-						x+=mat[midx++]*v[j];
-					}
-					let y=tmpbnd[d2];
-					tmpbnd[d2]=x<y?x:y;
-					y=tmpbnd[++d2];
-					tmpbnd[d2]=x>y?x:y;
+				let min=Infinity,max=-Infinity;
+				let midx=d*dim;
+				for (let i=0;i<vlen;i++) {
+					let v=varr[i],x=0;
+					for (let j=0;j<dim;j++) {x+=mat[midx+j]*v[j];}
+					min=min<x?min:x;
+					max=max>x?max:x;
 				}
-			}
-			for (let d=0;d<dim2;d+=2) {
-				let min=tmpbnd[d],max=tmpbnd[d+1];
-				let cen=(max+min)*0.5,dev=(max-min)*slack;
-				memf[leafidx++]=cen-dev;
-				memf[leafidx++]=cen+dev;
+				let dev=(max-min)*slack;
+				let cen=(max+min)*0.5+pos[d];
+				min=cen-dev;
+				max=cen+dev;
+				// Reject bodies with degenerate coordinates.
+				if (!(min<Infinity && max>-Infinity)) {
+					bodycnt--;
+					break;
+				}
+				memf[leafidx++]=min;
+				memf[leafidx++]=max;
 			}
 		}
+		this.bodycnt=bodycnt;
+		if (!bodycnt) {return;}
 		memi[1]=-1;
 		memi[2]=sortstart+bodycnt;
+		let workstop=nodesize*(bodycnt*2-1);
 		let worklo=sortstart;
-		for (let work=0;work<sortstart;work+=nodesize) {
+		for (let work=0;work<workstop;work+=nodesize) {
 			// Pop the top working range off the stack.
 			let workhi=memi[work+2],workcnt=workhi-worklo;
 			if (workcnt===1) {worklo++;continue;}
@@ -5636,15 +5727,17 @@ class PhyBroadphase {
 			memi[work+2]=r;
 		}
 		// Set parents and bounding boxes.
-		for (let n=sortstart-nodesize;n>=0;n-=nodesize) {
+		for (let n=workstop-nodesize;n>=0;n-=nodesize) {
 			let l=n+nodesize,r=memi[n+2],ndim=n+nodesize;
 			if (r>=sortstart) {
+				// Leaf
 				l=memi[r-1];r=l;
 				let a=memi[l-1];
-				memi[n+2]=a>>>1;
-				memi[n  ]=((a&1)<<1)|1;
+				memi[n+2]=a>>>1; // body_idx
+				memi[n  ]=((a&1)<<1)|1; // sleeping|is_leaf
 			} else {
-				memi[n  ]=memi[l]&memi[r]&2;
+				// Parent
+				memi[n  ]=memi[l]&memi[r]&2; // sleeping|is_parent
 				memi[l+1]=n;l+=3;
 				memi[r+1]=n;r+=3;
 			}
@@ -5663,58 +5756,46 @@ class PhyBroadphase {
 		// collision order.
 		let bodycnt=this.bodycnt;
 		if (bodycnt<=1) {return;}
+		this.bodycnt=0;
 		let nodesize=3+this.world.dim*2;
-		let treeend=nodesize*(bodycnt*2-1);
 		let memi=this.memi32;
 		let memf=this.memf32;
 		let bodyarr=this.bodyarr;
 		let collide=PhyBody.collide;
-		// Randomly flip the left and right children and repack them.
-		// Also find the next node to skip AABB's we've already checked.
-		let randstart=treeend;
-		let randend=randstart+treeend;
+		// Skip traversal by setting node.parent to node.next.
+		let randstart=nodesize*(bodycnt*2-1);
+		let randend=randstart;
 		let rnd=this.world.rnd;
-		let swap=0;
-		memi[randstart  ]=0;
-		memi[randstart+1]=randend;
-		memi[randstart+2]=treeend;
-		for (let n=randstart;n<randend;n+=nodesize) {
-			let orig=memi[n  ];
+		memi[1]=randstart<<2;
+		for (let n=nodesize;n<randstart;n+=nodesize) {
+			let flag=memi[n];
+			// if root: next=end
+			// if node=parent.right: next=parent.next
+			// if node=parent.left : next=parent.right
 			let next=memi[n+1];
-			let cnt =memi[n+2]-nodesize;
-			// Copy original right child and AABB.
-			let u=n+2,v=orig+2,stop=n+nodesize;
-			while (u<stop) {memi[u++]=memi[v++];}
-			// Set the flags on .next.
-			let f=memi[orig];
-			memi[n+1]=(next<<2)|f;
-			if (f&1) {continue;}
-			// Randomly swap the children.
-			let r=memi[orig+2];
-			let l=orig+nodesize;
-			if (swap<=1) {swap=rnd.getu32()|0x80000000;}
-			if (swap&1) {let tmp=l;l=r;r=tmp;}
-			swap>>>=1;
-			let lcnt=(l<r?0:cnt)+r-l,rcnt=cnt-lcnt;
-			let lidx=n+nodesize,ridx=lidx+lcnt;
-			memi[lidx  ]=l;
-			memi[lidx+1]=ridx;
-			memi[lidx+2]=lcnt;
-			memi[ridx  ]=r;
-			memi[ridx+1]=next;
-			memi[ridx+2]=rcnt;
+			if (n===next+nodesize) {
+				next=memi[next+2];
+			} else {
+				next=memi[next+1]>>>2;
+			}
+			if (flag&1) {
+				let cnt=(++randend)-randstart;
+				let j=randstart+rnd.mod(cnt);
+				memi[randend-1]=memi[j];
+				memi[j]=(n<<2)|flag;
+			}
+			memi[n+1]=(next<<2)|flag;
 		}
 		// Process leaves left to right.
-		for (let n=randstart;n<randend;n+=nodesize) {
-			let node=memi[n+1];
-			if (!(node&1)) {continue;}
-			let sleeping=node&2;
-			let body=bodyarr[memi[n+2]];
-			let nbnd=n+3,ndim=n+nodesize;
+		for (let n=randstart;n<randend;n++) {
+			let node=memi[n],sleep=node&2;
 			node>>>=2;
-			while (node<randend) {
+			let body=bodyarr[memi[node+2]];
+			let nbnd=node+3,ndim=node+nodesize;
+			node=memi[node+1]>>>2;
+			while (node<randstart) {
 				let next=memi[node+1];
-				if (!(sleeping&next)) {
+				if (!(sleep&next)) {
 					// Down - check for overlap.
 					let u=nbnd,v=node+3;
 					while (u<ndim && memf[u]<=memf[v+1] && memf[v]<=memf[u+1]) {u+=2;v+=2;}
@@ -5741,10 +5822,10 @@ class PhyWorld {
 		for (let i=0;i<4;i++) {this.tmpvec.push(new Vector(dim));}
 		this.gravity=new Vector(dim);
 		this.gravity[dim-1]=gravity;
-		this.typelist=new PhyList();
-		this.intrlist=new PhyList();
-		this.bodylist=new PhyList();
-		this.bondlist=new PhyList();
+		this.typelist=new List();
+		this.intrlist=new List();
+		this.bodylist=new List();
+		this.bondlist=new List();
 		this.bondarr =[];
 		this.broad=new PhyBroadphase(this);
 		this.stepcallback=null;
@@ -5951,7 +6032,7 @@ class PhyWorld {
 	}
 
 
-	closestpoint(_avertarr,atrans,_bvertarr,btrans) {
+	closestpoint(_avertarr,_apos,_amat,_bvertarr,_bpos,_bmat) {
 		// GJK
 		// Determines if bodies are colliding.
 		// Doesn't use constant memory.
@@ -5969,7 +6050,7 @@ class PhyWorld {
 		let dif=this.coldif;
 		let normsum=0;
 		for (let i=0;i<dim;i++) {
-			let x=btrans.vec[i]-atrans.vec[i];
+			let x=_bpos[i]-_apos[i];
 			dif[i]=x;
 			normsum+=x*x;
 		}
@@ -5982,7 +6063,7 @@ class PhyWorld {
 				dstarr=new Float64Array(vertlen*2);
 				this.coltmpvertarr[side]=dstarr;
 			}
-			let mat=(side?btrans:atrans).mat;
+			let mat=side?_bmat:_amat;
 			// mat*v+vec
 			for (let s=0,d=0;s<verts;s++) {
 				let v=srcarr[s];
@@ -6213,7 +6294,7 @@ class PhyWorld {
 		}
 		if (epaprev!==null) {
 			// Calculate contact points based on weights.
-			let apos=atrans.vec;
+			let apos=_apos;
 			let ap=new Vector(apos),bp=new Vector(apos);
 			for (let i=0;i<dim;i++) {
 				let w =epaprev.weight[i];

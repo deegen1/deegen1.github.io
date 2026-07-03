@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-ui.js - v1.02
+ui.js - v1.03
 
 Copyright 2025 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -23,6 +23,8 @@ History
      Consumes input by calling getkeyhit().
 1.02
      Added index section and export.
+1.03
+     Removed array destructuring since it's slow. Ex: let [x,y]=point.
 
 
 --------------------------------------------------------------------------------
@@ -42,7 +44,7 @@ import {Transform,Draw} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
-// UI - v1.02
+// UI - v1.03
 
 
 export class UI {
@@ -85,7 +87,7 @@ export class UI {
 		let input=this.input;
 		let draw=this.draw,img=draw.img;
 		let dw=img.width,dh=img.height;
-		let [mx,my]=input.getmousepos();
+		let mpos=input.getmousepos(),mx=mpos[0],my=mpos[1];
 		let grabbing=this.grabbing;
 		let focus=this.focus;
 		// If we're not grabbing something, check if we're focused on anything.

@@ -88,8 +88,8 @@ Sound effects
 	Go through sound design book. Thunder, crickets, etc.
 	Dial up sound scratching. Use for electric guitar type sound.
 
-
 Audio keeps playing
+	How to tell if a page actually unloaded?
 	// Some browsers continue playing on refresh or back.
 	window.addEventListener("beforeunload",()=>{state.release();});
 	window.addEventListener("popstate",()=>{state.release();});
