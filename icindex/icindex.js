@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-icindex.js - v1.06
+icindex.js - v1.07
 
 Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -80,14 +80,17 @@ History
 1.06
      Filtered out deflection_armour_head from dunkleosteus.
      Added calcstats() to find top 10% for each level.
+1.07
+     Fixed mod selection dropdown to use Mod.Name attribute.
+     Updated ICP to 1.2.
 
 
 --------------------------------------------------------------------------------
 TODO
 
 
-add history
-release
+update ICP
+set dropdown by module name
 
 Calculate weighted stats based on top 10% NER. Weight by 1/(coal+elec).
 See what stocks rate as most efficient.
@@ -105,6 +108,12 @@ import * as MOD_ICP from "./mod_icp.js";
 // import * as MOD_TEL from "./mod_tel.js";
 // import * as MOD_INS from "./mod_ins.js";
 // import * as MOD_IC  from "./mod_ic.js";
+const ModArr=[
+	MOD_ICP
+	//MOD_TEL,
+	//MOD_INS,
+	//MOD_IC
+];
 
 // Damage types
 // const DT_REGULAR =0
@@ -738,7 +747,8 @@ class ICDex {
 		this.loading=stocks;
 		OpenTarGZ(mod.DataPath,(files,filemap)=>{
 			let id=0;
-			for (let [path,name] of mod.StockFiles) {
+			for (let file of mod.StockFiles) {
+				let path=file[0],name=file[1];
 				let data=filemap[path];
 				if (!data) {throw `${path} not found`;}
 				let text=(new TextDecoder()).decode(data);
@@ -859,9 +869,6 @@ class UI {
 
 	constructor() {
 		let state=this;
-		this.moddesc=document.getElementById("uimoddesc");
-		this.modselect=document.getElementById("uimodselect");
-		this.modselect.onchange=function() {state.setmod(name);};
 		this.uirun=document.getElementById("uirun");
 		this.uirun.onclick=function() {state.run();};
 		this.uicount=document.getElementById("uicount");
@@ -910,30 +917,39 @@ class UI {
 			this.uifillist.add(opt);
 		}
 		this.uifillist.onchange=function() {state.addfilter();};
+		// Mod details.
 		this.icd=null;
-		this.setmod("ICP");
+		let select=document.getElementById("uimodselect");
+		this.moddesc=document.getElementById("uimoddesc");
+		this.modselect=select;
+		for (let i=0;i<ModArr.length;i++) {
+			let option=document.createElement("option");
+			option.text=ModArr[i].Name;
+			option.value=i.toString();
+			select.appendChild(option);
+		}
+		select.onchange=function() {state.setmod(this.value);};
+		select.value="0";
+		state.setmod("0");
 	}
 
 
-	setmod(name) {
-		console.log("setting mod:",name);
-		let mod=null;
-		if (name==="ICP") {mod=MOD_ICP;}
-		if (mod) {
-			this.icd=new ICDex(mod);
-			this.moddesc.innerHTML="Mod Description: "+mod.Description;
-			this.modselect.value=name;
-			this.uicount.innerText=`Waiting for initial run`;
-			this.selrow=null;
-			this.results=[];
-			this.clearfilter();
-			// Stock filter is configured here, after loading the mod.
-			let stockarr=[];
-			for (let s of mod.StockFiles) {stockarr.push({name:s[1],attr:"name"});}
-			stockarr.sort((l,r)=>{return l.name<r.name?-1:1;});
-			for (let f of this.filters) {if (f.name==="Stock") {f.arr=stockarr;}}
-			this.displayresults();
-		}
+	setmod(idx) {
+		let mod=ModArr[parseInt(idx)];
+		console.log("setting mod:",idx,mod.Name);
+		this.icd=new ICDex(mod);
+		this.moddesc.innerHTML="Mod Description: "+mod.Description;
+		//this.modselect.value=name;
+		this.uicount.innerText=`Waiting for initial run`;
+		this.selrow=null;
+		this.results=[];
+		this.clearfilter();
+		// Stock filter is configured here, after loading the mod.
+		let stockarr=[];
+		for (let s of mod.StockFiles) {stockarr.push({name:s[1],attr:"name"});}
+		stockarr.sort((l,r)=>{return l.name<r.name?-1:1;});
+		for (let f of this.filters) {if (f.name==="Stock") {f.arr=stockarr;}}
+		this.displayresults();
 	}
 
 

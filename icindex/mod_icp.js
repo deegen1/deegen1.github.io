@@ -3,7 +3,7 @@
 
 JS translation of lua files.
 
-IC Paradise v1.1
+IC Paradise v1.2
 
 
 --------------------------------------------------------------------------------
@@ -42,6 +42,10 @@ Regex sanitization strings to help convert lua files. Apply in order.
 
 To check for lua array padding: \[[^P]
 
+Compare line differences
+
+     diff attrcombiner_old.lua attrcombiner.lua
+
 
 --------------------------------------------------------------------------------
 TODO
@@ -58,9 +62,9 @@ Add _ to attrcombiner-only variables. Ex: c.power -> c._power.
 // Globals
 
 
-export const Name="IC Paradise (1.1)";
+export const Name="IC Paradise (1.2)";
 
-export const Description="Fork of Tellurian, <a href='https://discord.gg/XZyTr3GkY'>ICP Discord</a>, <a href='https://www.youtube.com/@ImpossibleCreaturesParadise'>ICP Youtube</a>";
+export const Description="Fork of Tellurian, <a href='https://discord.gg/HFyZRFqgZw'>ICP Discord</a>, <a href='https://www.youtube.com/@ImpossibleCreaturesParadise'>ICP Youtube</a>";
 
 export const DataPath="./data_icp.tar.gz";
 
@@ -168,6 +172,7 @@ export const StockFiles=[
 	["postosuchus.lua","Postosuchus"],
 	["praying_mantis.lua","Praying Mantis"],
 	["pteranodon.lua","Pteranodon"],
+	["Rabbit.lua","Rabbit"],
 	["ram.lua","Ram"],
 	["rat.lua","Rat"],
 	["rattlesnake.lua","Rattlesnake"],
@@ -195,6 +200,7 @@ export const StockFiles=[
 	["tapir.lua","Tapir"],
 	["tarantula.lua","Tarantula"],
 	["termite.lua","Termite"],
+	["therizinosaurus.lua","Therizinosaurus"],
 	["thylacine.lua","Thylacine"],
 	["tiger.lua","Tiger"],
 	["triceratops.lua","Triceratops"],
@@ -265,7 +271,7 @@ function Power(ehp_in, damage_in, rank_in) {
 	if (rank_in===0) {
 		return Math.pow(ehp_in,0.610)*((0.20*damage_in) + 2.8);
 	}
-	return Math.pow(ehp_in,0.610)*((0.20*damage_in) + 2.8)+Math.pow(ehp_in,(0.6+((0.16- (0.03 * rank_in))*rank_in)))/rank_in + Calculate_sum(ehp_in, (rank_in) * 125 );
+	return Math.pow(ehp_in,0.610)*((0.20*damage_in) + 2.8)+Math.pow(ehp_in,(0.6+((0.16-(0.03 * rank_in))*rank_in)))/rank_in + Calculate_sum(ehp_in, (rank_in) * 125 );
 }
 
 
@@ -313,6 +319,8 @@ export function AttrCombiner(creature) {
 	// Used to denote where we intentionally offset lua arrays.
 	const PAD=null;
 
+	const PackBonus_basedefensemodifier = 1.3;
+
 	// attr_functions.lua
 	c["null"]=1;
 
@@ -335,19 +343,19 @@ export function AttrCombiner(creature) {
 	let RankTable = [PAD,
 		[PAD,60,    60,     1   ],   // L1
 		[PAD,120,   100,    1   ],   // L2
-		[PAD,230,   170,    0.8 ],   // L3
-		[PAD,400,   240,    0.8 ],   // L4
+		[PAD,230,   170,    0.85],   // L3
+		[PAD,400,   240,    0.75],   // L4
 		[PAD,1000,  410,    0.75]    // L5
 	];
 
 	// Just some candy; this table is only ever used during the final elec cost scaling
 	// to associate damagetypes with strings for display in combotest.
 	let DTStringTable = [PAD,
-		[PAD,1, "DT_Poison"],
-		[PAD,2, "DT_Horns"],
-		[PAD,4, "DT_Barrier_Destroy"],
-		[PAD,8, "DT_Electric"],
-		[PAD,16, "DT_Sonic"],
+		[PAD,1   , "DT_Poison"],
+		[PAD,2   , "DT_Horns"],
+		[PAD,4   , "DT_Barrier_Destroy"],
+		[PAD,8   , "DT_Electric"],
+		[PAD,16  , "DT_Sonic"],
 		[PAD,4096, "DT_Ranged_Poison"],
 	];
 
@@ -365,9 +373,9 @@ export function AttrCombiner(creature) {
 	let ranged_coal_cost_mult       = 1.27;
 	// edit flag orginal : 1.5
 	let direct_range_elec_mult      = 2.0;
-	let sonic_elec_mult             = 1.4;
+	let sonic_elec_mult             = 1.3;
 	let flying_artillery_elec_mult  = 1.5;
-	let range_pack_hunter_mult      = 1.42;
+	let range_pack_hunter_mult      = 1.39;
 	let artillery_targets_hit       = 1;
 
 	// The below multipliers apply a factor to various parameters if the unit is a
@@ -400,7 +408,6 @@ export function AttrCombiner(creature) {
 	let defense_cost_multiplier = 0.9;
 
 	// These variables are grabbed from tuning!
-	let PackBonus_basedefensemodifier = 1.3;
 	let herding_def_multiplier = PackBonus_basedefensemodifier; // I know this says pack but it's herding
 
 	// ----------------------------------------
@@ -458,7 +465,7 @@ export function AttrCombiner(creature) {
 	c.ehp = c.hitpoints/(1-c.armour); // Effective HP, a measure of HP and defense. Doesn't account for flyer bonus.
 	c.cost_ehp = c.ehp * ehp_flyer_factor; // EHP with flyer bonus accounted for.
 	c.scaling_size = c.size;  // For creatures over size 9, this is their size as displayed in army builder.
-	c.range_damage = 0;   // The maximum damage dealt by all of the creature's ranged attacks.
+	c.range_damage = 0;    // The maximum damage dealt by all of the creature's ranged attacks.
 	c.range_distance = 0;  // The ranged attack distance of the unit.
 	c.range_damage_distance = 0; // An equivalent melee damage based on a creature's ranged attack attributes.
 	c.mixed_dps = 0;       // An equivalent melee damage based on all of a creature's attack attributes.
@@ -573,14 +580,18 @@ export function AttrCombiner(creature) {
 		}
 	}
 
-	// Gray
-	// if (has_flying===1) {
-	// c.can_dig = 0;
-	// c.leap_attack = 0;
-	// c.charge_attack = 0;
-	// c.can_SRF = 0;
-	// c.electric_burst = 0; // disable electric burst for flyers
-	// end
+	// Prevent flyers from being charged for abilities they cannot use (Gray)
+	if (c.is_flyer===1) {
+		if (c.can_dig===1) {
+			c.can_dig=0;
+		}
+		if (c.leap_attack===1) {
+			c.leap_attack=0;
+		}
+		if (c.charge_attack===1) {
+			c.charge_attack=0;
+		}
+	}
 
 	if (has_swim===1 && has_land===0) {
 		c.can_dig = 0;
@@ -808,23 +819,23 @@ export function AttrCombiner(creature) {
 		[PAD, ABT_Ability, "poplowtorso",            1, null_domain      , null_domain         ,   0,   0,   0,   0],  // special
 		[PAD, ABT_Ability, "is_swimmer",             2, null_domain      , null_domain         ,   0,   0,   0,   0],  // special
 		[PAD, ABT_Ability, "keen_sense",             1, null_domain      , null_domain         ,  10,   0,   0,   0],
-		[PAD, ABT_Ability, "infestation",            2, mobility_domain  , cost_ehp_domain     ,  10,  25,  20, 27.5],
+		[PAD, ABT_Ability, "infestation",            2, mobility_domain  , cost_ehp_domain     ,  10,  25,  20,27.5],
 		[PAD, ABT_Ability, "end_bonus",              1, null_domain      , null_domain         ,   5,   0,   0,   0],
 		[PAD, ABT_Ability, "loner",                  3, power_domain     , null_domain         , 100, 650, 100, 650],
-		[PAD, ABT_Ability, "overpopulation",         1, power_domain     , null_domain         ,   0, 150,   0, 150],
+		[PAD, ABT_Ability, "overpopulation",         1, power_domain     , null_domain         ,   0, 150,   0,  90],
 		[PAD, ABT_Ability, "soiled_land",            3, mobility_domain  , rank_domain         ,  30,  90,  50, 110],
 		[PAD, ABT_Ability, "is_immune",              1, power_domain     , defense_domain      ,   1,  85,  50, 100],
-		[PAD, ABT_Ability, "deflection_armour",      2, cost_ehp_domain  , rank_domain         ,  10, 240,  20, 200],
-		[PAD, ABT_Ability, "herding",                1, herd_boost_domain, eff_mixed_dps_domain,   0, 180,  50, 320],
-		[PAD, ABT_Ability, "pack_hunter",            1, cost_ehp_domain  , eff_mixed_dps_domain,   0, 130,  95, 390],
-		[PAD, ABT_Ability, "is_stealthy",            1, cost_ehp_domain  , eff_mixed_dps_domain,   0,  90, 180, 100],
+		[PAD, ABT_Ability, "deflection_armour",      2, cost_ehp_domain  , rank_domain         ,  10, 200,  20, 200],
+		[PAD, ABT_Ability, "herding",                1, herd_boost_domain, eff_mixed_dps_domain,   0, 180,  70, 275],
+		[PAD, ABT_Ability, "pack_hunter",            1, cost_ehp_domain  , eff_mixed_dps_domain,   0,  80, 130, 250],
+		[PAD, ABT_Ability, "is_stealthy",            1, cost_ehp_domain  , eff_mixed_dps_domain,   0,  70, 180, 100],
 		[PAD, ABT_Ability, "can_dig",                1, cost_ehp_domain  , eff_mixed_dps_domain,   0,  60, 150, 210],
-		[PAD, ABT_Ability, "regeneration",           1, cost_ehp_domain  , eff_mixed_dps_domain,   5,  90,  90, 200],
-		[PAD, ABT_Ability, "frenzy_attack",          1, cost_ehp_domain  , eff_mixed_dps_domain,   0,  60, 100, 200],
+		[PAD, ABT_Ability, "regeneration",           1, cost_ehp_domain  , eff_mixed_dps_domain,   5,  60,  90, 130],
+		[PAD, ABT_Ability, "frenzy_attack",          1, cost_ehp_domain  , eff_mixed_dps_domain,   0,  60, 100, 150],
 		[PAD, ABT_Ability, "is_flyer",               1, null_domain      , null_domain         ,   0,   0,   0,   0],
 		[PAD, ABT_Ability, "ranged_piercing",        1, cost_ehp_domain  , range_dps_domain    ,   5, 180, 180, 250],
-		[PAD, ABT_Ability, "leap_attack",            2, cost_ehp_domain  , eff_melee_dps_domain,  15,  30,  40,  50],
-		[PAD, ABT_Ability, "charge_attack",          2, cost_ehp_domain  , eff_melee_dps_domain,  10,  45,  65,  80],
+		[PAD, ABT_Ability, "leap_attack",            2, cost_ehp_domain  , eff_melee_dps_domain,  15,  20,  50,  50],
+		[PAD, ABT_Ability, "charge_attack",          2, cost_ehp_domain  , eff_melee_dps_domain,  10,  40,  65,  60],
 		[PAD, ABT_Ability, "flyer_direct_range",     1, cost_ehp_domain  , range_dps_domain    ,   0,  95,  80, 250],
 		[PAD, ABT_Ability, "non_flyer_direct_range", 1, null_domain      , null_domain         ,   0,   0,   0,   0],  // special case, but it really shouldn't be... TODO: fix this
 		[PAD, ABT_Ability, "has_artillery",          1, dist_dam_domain  , distance_domain     ,   0,  20,  75, 225],
@@ -838,9 +849,9 @@ export function AttrCombiner(creature) {
 
 		[PAD, ABT_Range  , DT_Electric,              2, null_domain      , null_domain         ,   0,   0,   0,   0],  // special
 		[PAD, ABT_Range  , DT_Sonic,                 2, null_domain      , null_domain         ,   0,   0,   0,   0],  // special
-		[PAD, ABT_Range  , DT_Poison,                3, rank_domain      , null_domain         , -20,  40, -20,  40],  // Cost for chemical artillery (which has the melee poison damagetype).
+		[PAD, ABT_Range  , DT_Poison,                3, rank_domain      , null_domain         , -20,  40, -20,  40],  // Costforchemicalartillery(whichhasthemeleepoisondamagetype).
 
-		[PAD, ABT_Melee  , DT_Poison,                3, rank_domain      , null_domain         , -20,  80, -20,  80],
+		[PAD, ABT_Melee  , DT_Poison,                3, rank_domain      , null_domain         , -20,  80, -20,  70],
 		[PAD, ABT_Melee  , DT_HornNegateFull,        2, rank_domain      , null_domain         ,  10,  50,  10,  50],
 		[PAD, ABT_Melee  , DT_BarrierDestroy,        1, ehp_domain       , melee_dps_domain    ,   0,   5,  10,  15],
 		[PAD, ABT_Melee  , DT_HornNegateArmour,      1, cost_ehp_domain  , eff_melee_dps_domain, -15, 200, 220, 250]
@@ -948,6 +959,61 @@ export function AttrCombiner(creature) {
 	// multiplying hp by a factor and then calculating ehp has the exact same result as
 	// multiplying ehp by that same factor.
 	let defense_rebate_ehp = ( c.hitpoints * ehp_flyer_factor ) / ( 1-(c.armour * defense_cost_multiplier) );
+
+	// EHP Ceiling Per Rank (Gray)
+	// Pushes overly-tanky units up in rank
+
+	// Define the maximum EHP allowed at each rank.
+	// Index = rank tier. If EHP exceeds the ceiling for the
+	// current rank, the unit is bumped up until it fits.
+	// Rank 5 has no ceiling (nil = unlimited).
+	let ehp_rank_ceilings = [PAD,
+		200,     // Rank 1 cap
+		400,     // Rank 2 cap
+		800,     // Rank 3 cap
+		1200,    // Rank 4 cap (a 1200 EHP unit stays here; raise/lower as you wish)
+		Infinity // Rank 5: no ceiling
+	];
+
+	// Safety: make sure we have a valid numeric rank and EHP.
+	let current_rank = c.creature_rank?c.creature_rank:1;
+	let unit_ehp     = defense_rebate_ehp?defense_rebate_ehp:0;
+
+	// Make sure rank is at least 1 and at most 5
+	if (current_rank < 1) {current_rank = 1;}
+	if (current_rank > 5) {current_rank = 5;}
+
+	// Walk up the ranks until the EHP fits under that rank's ceiling.
+	let new_rank = current_rank;
+	while (new_rank < 5 && unit_ehp > ehp_rank_ceilings[new_rank]) {
+		new_rank = new_rank + 1;
+	}
+
+	// Only overwrite if we actually moved the unit up.
+	if (new_rank !== current_rank) {
+		c.creature_rank=new_rank;
+	}
+
+	// Flyer Minimum Rank Enforcement (Gray)
+	// Flyers cannot exist at tier 1, so any flyer
+	// whose power placed it in tier 1 must be
+	// bumped to tier 2 BEFORE cost scaling runs.
+
+	// Define the minimum rank for flyers.
+	// Change this number if your mod allows tier 1 flyers.
+	let flyer_min_rank = 2;
+
+	// Safety: fetch current rank with a fallback so a nil
+	// value won't crash the comparison below.
+	current_rank = c.creature_rank?c.creature_rank:1;
+
+	// Only act on flyers.
+	if (c.is_flyer===1) {
+		if (current_rank < flyer_min_rank) {
+			c.creature_rank = flyer_min_rank;
+		}
+	}
+
 	// edit flag
 	let cRank = c.creature_rank;
 	// let cMelee = c.melee_damage;
@@ -1077,30 +1143,30 @@ export function AttrCombiner(creature) {
 				cost_coal = cost_coal * 0.98;  // 2% discount
 			}
 
-		// Rank 3: Power 120-225
+		// Rank 3: Power 120-225 (front-loaded discount curve)
 		} else if (rank===3) {
 			if (power_val < 130) {
-				cost_coal = cost_coal * 0.92;  // 8% discount
+				cost_coal = cost_coal * 0.90;  // 10.0%
 			} else if (power_val < 140) {
-				cost_coal = cost_coal * 0.925; // 7.5% discount
+				cost_coal = cost_coal * 0.905; // 9.5%
 			} else if (power_val < 150) {
-				cost_coal = cost_coal * 0.93;  // 7% discount
+				cost_coal = cost_coal * 0.915; // 8.5%
 			} else if (power_val < 160) {
-				cost_coal = cost_coal * 0.935; // 6.5% discount
+				cost_coal = cost_coal * 0.925; // 7.5%
 			} else if (power_val < 170) {
-				cost_coal = cost_coal * 0.94;  // 6% discount
+				cost_coal = cost_coal * 0.935; // 6.5%
 			} else if (power_val < 180) {
-				cost_coal = cost_coal * 0.945; // 5.5% discount
+				cost_coal = cost_coal * 0.945; // 5.5%
 			} else if (power_val < 190) {
-				cost_coal = cost_coal * 0.95;  // 5% discount
+				cost_coal = cost_coal * 0.955; // 4.5%
 			} else if (power_val < 200) {
-				cost_coal = cost_coal * 0.96;  // 4% discount
+				cost_coal = cost_coal * 0.965; // 3.5%
 			} else if (power_val < 210) {
-				cost_coal = cost_coal * 0.965; // 3% discount
+				cost_coal = cost_coal * 0.975; // 2.5%
 			} else if (power_val < 220) {
-				cost_coal = cost_coal * 0.97;  // 2% discount
+				cost_coal = cost_coal * 0.985; // 1.5%
 			} else if (power_val <= 225) {
-				cost_coal = cost_coal * 0.97;  // 1% discount
+				cost_coal = cost_coal * 0.99;  // 1.0%
 			}
 
 		// Rank 4: Power 230-390, intervals of 10, starting at 8% discount, decreasing 0.5%
@@ -1141,7 +1207,7 @@ export function AttrCombiner(creature) {
 			}
 
 
-		// Rank 5: Power 500-1550
+		// Rank 5: Power 500-1650
 		} else if (rank===5 && power_val >= 500) {
 			if (power_val < 550) {
 				cost_coal = cost_coal * 0.98;  // 2% discount
@@ -1185,8 +1251,12 @@ export function AttrCombiner(creature) {
 				cost_coal = cost_coal * 0.79;  // 21% discount
 			} else if (power_val < 1550) {
 				cost_coal = cost_coal * 0.78;  // 22% discount
-			} else if (power_val <= 1550) {
+			} else if (power_val < 1600) {
 				cost_coal = cost_coal * 0.77;  // 23% discount
+			} else if (power_val < 1650) {
+				cost_coal = cost_coal * 0.76;  // 24% discount
+			} else if (power_val <=1650) {
+				cost_coal = cost_coal * 0.75;  // 25% discount
 			}
 		}
 	}
