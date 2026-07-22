@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-rappel.js - v3.01
+rappel.js - v3.03
 
 Copyright 2025 Alec Dee
 2dee.net - akdee144@gmail.com
@@ -16,8 +16,6 @@ Player size = 2 units = 32 pixels
 The hook should be tuned to allow pulling horizontally and slip when player is
 at terminal velocity.
 
-Limit player to 50 atoms and 300 bonds.
-
 Sounds played too often sound like nails on a chalkboard.
 
 
@@ -31,16 +29,16 @@ History
      Created a physically based grappeling hook.
 3.00
      Changed from atom-based physics to rigid body polygons.
+3.03
+     Updated physics engine. Frame time dropped from 16ms to 10ms.
+     Removed static bonds for friction.
 
 
 --------------------------------------------------------------------------------
 TODO
 
 
-Physics
-	createsphere() allow for single radius.
-	Minkowski wrapping.
-	Add friction.
+Fix particles being created.
 
 Go back to N+2 rope.
 
@@ -129,8 +127,8 @@ export class Game {
 		];
 		for (let n=16*30-1;n>=0;n--) {
 			let t=n/8,b=1<<(n&15);
-			for (let [mask,snd] of notelib) {
-				if (mask&b) {bgsnd.add(snd,t);}
+			for (let note of notelib) {
+				if (note[0]&b) {bgsnd.add(note[1],t);}
 			}
 		}
 		bgsnd.resizetime(60);
@@ -313,7 +311,7 @@ export class Game {
 			let p=(new Vector([0,(1-u)*11-1,0])).isub(cam);
 			// Scale x to screen boundaries.
 			p[0]=rnd.gets()*p.mul(xproj)-cam[0];
-			let [x,y,z]=inv.mul(p),w=f/z;
+			let ip=inv.mul(p),x=ip[0],y=ip[1],z=ip[2],w=f/z;
 			x=x*w+draww/2;
 			y=y*w+drawh/2;
 			if (i===toweri) {
@@ -345,17 +343,17 @@ export class Game {
 		world.collcallback=function() {return state.collcallback(...arguments);};
 		world.stepcallback=function(dt) {return state.stepcallback(dt);};
 		world.deftype.release();
-		let normmat=world.createbodytype(0.01,1.0,0.98);
-		let wallmat=world.createbodytype(1.00,Infinity,0.95);
-		let bodymat=world.createbodytype(0.01,1.0500,0.00);
-		let ropemat=world.createbodytype(0.50,0.2763,0.00);
-		let hookmat=world.createbodytype(0.25,0.5525,0.25);
-		let edgemat=world.createbodytype(0.01,0.5525,0.50,1,9950);
-		let partmat=world.createbodytype(0.50,1e-9,0.50,1,NaN);
-		let leafmat=world.createbodytype(0.75,1e-8,0.00,1);
-		let runemat=world.createbodytype(0.95,1e-8,0.25,0.2,NaN);
-		let rainmat=world.createbodytype(0.25,1e-8,0.00,1,NaN);
-		let charmat=world.createbodytype(0.75,1e-8,0.25,0.2,NaN);
+		let normmat=world.createbodytype(0.01,1.0   ,0.98,0.2);
+		let wallmat=world.createbodytype(1.00,Infinity,0.95,0.5);
+		let bodymat=world.createbodytype(0.01,1.0500,0.00,0.2);
+		let ropemat=world.createbodytype(0.50,0.2763,0.00,1.0);
+		let hookmat=world.createbodytype(0.25,0.5525,0.25,1.0);
+		let edgemat=world.createbodytype(0.01,0.5525,0.50,1.0);
+		let partmat=world.createbodytype(0.50,1e-9  ,0.50,0.0);
+		let leafmat=world.createbodytype(0.75,1e-8  ,0.00,1.0);
+		let runemat=world.createbodytype(0.95,1e-8  ,0.25,0.0);
+		let rainmat=world.createbodytype(0.25,1e-8  ,0.00,0.0);
+		let charmat=world.createbodytype(0.75,1e-8  ,0.25,0.0);
 		world.deftype=normmat;
 		this.typearr=[];
 		for (let type of world.typelist.iter()) {
@@ -364,8 +362,6 @@ export class Game {
 		partmat.gravity=new Vector([0,0]);
 		runemat.gravity=new Vector([0,0]);
 		charmat.gravity=new Vector([0,0]);
-		for (let intr of edgemat.intarr) {intr.staticdist=5.625;}
-		leafmat.intarr[edgemat.id].staticdist=0.1;
 		// Materials.
 		function addmeta(type,rgb,path,vert,snd=null,sndmin=0,sndmax=0,freq=0,rad=0,scale=0,ang=0,life=0) {
 			let t=type.data;
@@ -431,7 +427,7 @@ export class Game {
 	}
 
 
-	collcallback(intr,a,acon,b,bcon,norm,veldif,posdif,bond) {
+	collcallback(intr,a,acon,b,bcon,norm,veldif,posdif) {
 		let aid=a.type.id,bid=b.type.id;
 		if (aid===WALL && bid===WALL) {
 			return false;
@@ -441,10 +437,30 @@ export class Game {
 		} else if ((aid>=ROPE && aid<=EDGE) || (bid>=ROPE && bid<=EDGE)) {
 			if (aid>=BODY && aid<=EDGE && bid>=BODY && bid<=EDGE) {return false;}
 			if (this.throwing<2) {return false;}
-			// Allow the hook to form bonds by flipping the tension sign.
-			if (aid===EDGE || bid===EDGE) {
-				let tension=intr.statictension;
-				intr.statictension=(tension>0)===(this.throwing===3)?tension:-tension;
+			// Allow the hook to form bonds.
+			let uid=aid,vid=bid;
+			if (vid===EDGE) {uid=bid;vid=aid;}
+			if (this.throwing===3 && uid===EDGE && (vid===NORM || vid===WALL)) {
+				// Check for other bonds.
+				let al=a.bondlist,bl=b.bondlist;
+				let link=(al.count<bl.count?al:bl).head;
+				while (link!==null) {
+					let bond=link.obj;
+					let u=bond.a,v=bond.b;
+					if ((u===a && v===b) || (u===b && v===a)) {
+						break;
+					}
+					link=link.next;
+				}
+				if (link===null) {
+					let world=a.world;
+					let ainv=aid===EDGE?new Vector(2):a.mat.inv().mul(acon);
+					let binv=bid===EDGE?new Vector(2):b.mat.inv().mul(bcon);
+					let bond=world.createbond(a,ainv,b,binv,0,4400);
+					bond.breakdist=5.625;
+					//bond.data.rgb=[255,255,255];
+				}
+				return false;
 			}
 		}
 		// Track each atom's acceleration.
@@ -465,7 +481,7 @@ export class Game {
 			bdat.sndacc+=veldif*vol*u;
 		}
 		// Create a particle between the 2 atoms.
-		if (veldif>2.0 && bond===null && aid<PART && bid<PART) {
+		if (veldif>2.0 && aid<PART && bid<PART) {
 			let mag=posdif*0.5*this.rnd.getf();
 			let dir=Vector.random(2);
 			let cen=[cenx+dir[0]*mag,ceny+dir[1]*mag];
@@ -519,16 +535,15 @@ export class Game {
 
 	createbiome(id,pos,dim) {
 		let type=this.typearr[id],tdat=type.data;
-		let [bx,by]=pos,[bw,bh]=dim;
+		let bx=pos[0],by=pos[1],bw=dim[0],bh=dim[1];
 		let freq=tdat.partfreq/(bw*bh),life=tdat.partlife;
 		let biome={type:id,time:0,freq:freq,pos:new Vector(pos),dim:new Vector(dim)};
 		this.biomearr.push(biome);
 		// Seed the biome particles.
 		let rnd=this.rnd;
-		let points=life/freq;
-		if (id===RAIN) {life=0;}
+		let points=(id===RAIN?0.5:1)*life/freq;
 		for (let p=0;p<points;p++) {
-			this.createparticle(id,[rnd.getf()*bw+bx,rnd.getf()*bh+by],{time:rnd.getf()*life});
+			this.createparticle(id,[rnd.getf()*bw+bx,rnd.getf()*bh+by],{life:rnd.getf()*life});
 		}
 		return biome;
 	}
@@ -578,11 +593,12 @@ export class Game {
 		// Environmental particles.
 		let rnd=this.rnd;
 		for (let biome of this.biomearr) {
-			let [bx,by]=biome.pos,[bw,bh]=biome.dim;
+			let pos=biome.pos,dim=biome.dim;
 			let time=biome.time+dt,freq=biome.freq;
 			while (time>=freq) {
 				time-=freq;
-				let x=rnd.getf()*bw+bx,y=rnd.getf()*bh+by;
+				let x=rnd.getf()*dim[0]+pos[0];
+				let y=rnd.getf()*dim[1]+pos[1];
 				this.createparticle(biome.type,[x,y]);
 			}
 			biome.time=time;
@@ -617,7 +633,7 @@ export class Game {
 				let pos=new Vector([(len-1)*hookspace-dx*i,dy*i]);
 				let supp=(!i || i===len-1)?1:0,disp=supp;
 				let mat=typearr[i===len-1?EDGE:HOOK];
-				let body=world.createsphere([0.16,0.16],8,pos.add(playerpos),0,mat);
+				let body=world.createsphere(0.16,8,pos.add(playerpos),0,mat);
 				let data=Game.bodyinit(body);
 				data.pos=pos;
 				data.time=supp;
@@ -641,7 +657,7 @@ export class Game {
 		for (let i=0;i<21;i++) {
 			let body=this.playerbody;
 			if (i<20) {
-				body=world.createsphere([0.16,0.16],8,playerpos,null,typearr[ROPE]);
+				body=world.createsphere(0.16,8,playerpos,null,typearr[ROPE]);
 				this.ropebody.push(body);
 			}
 			for (let b=0;b<16;b++) {
@@ -919,9 +935,9 @@ export class Game {
 				rgb[3]=255.99*(half<fade?half/fade:1)|0;
 			}
 			// Draw
-			for (let [rgb,path] of paths) {
-				draw.setcolor(rgb);
-				draw.fillpath(path,bodytrans);
+			for (let p of paths) {
+				draw.setcolor(p[0]);
+				draw.fillpath(p[1],bodytrans);
 			}
 		}
 	}
@@ -974,7 +990,7 @@ export class Game {
 		draw.settransform(trans);
 		let charge=this.charge;
 		if (charge>0) {
-			let [x,y]=this.playerbody.pos;
+			let pos=this.playerbody.pos,x=pos[0],y=pos[1];
 			let ang0=-Math.PI*0.5,ang1=ang0+Math.PI*2*charge;
 			let path=draw.begin();
 			path.addarc(x,y,ang0,ang1,1.75,1.75,true);

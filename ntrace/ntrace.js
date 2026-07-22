@@ -197,39 +197,5 @@ class PhyBroadphase {
 		}
 	}
 
-
-	def intersect(self,ray):
-		# Project the box onto the ray. The intersection of all projections will give us
-		# the range of u where the ray intersects the box. If the intersection of all the
-		# ranges is null, then the ray misses the box.
-		#
-		#             b3
-		#              '. b2
-		#              . '.              ray=pos+u*dir
-		#              .  .'.            ranges: [b0,b1] [b2,b3]
-		#              .  .  '.
-		#      +----------+. . '.b1
-		#      |          |      '.
-		#      |          |        '.
-		#      |          |          '.
-		#      |          |            '.
-		#      +----------+. . . . . . . '.b0
-		#
-		# Want pos[i]+u*dir[i]=box[i], thus u=(box[i]-pos[i])/dir[i].
-		# We spend almost half of our time in this function, so optimize it.
-		raypos,rayinv=ray.pos.elem,ray.inv.elem
-		bbmin,bbmax=self.bbmin.elem,self.bbmax.elem
-		u0,u1,i=ray.min,ray.max,len(bbmin)
-		while i:
-			i-=1
-			p,d=raypos[i],rayinv[i]
-			b0=(bbmin[i]-p)*d
-			b1=(bbmax[i]-p)*d
-			if b0>b1: b0,b1=b1,b0
-			if u0<b0: u0=b0
-			if u1>b1: u1=b1
-			if u0>u1: return False
-		return True
-
 }
 */

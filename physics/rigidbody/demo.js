@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.00
+demo.js - v1.01
 
 Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -22,7 +22,7 @@ TODO
 /* npx eslint demo.js -c ../../../standards/eslint.js */
 
 
-import {Env,Random,Vector,Transform,Input,Draw} from "./library.js";
+import {Env,Random,Transform,Input,Draw} from "./library.js";
 import {Phy} from "./physics.js";
 
 
@@ -42,7 +42,6 @@ export class PhyScene {
 		this.draw.screencanvas(canvas);
 		this.input=new Input(canvas);
 		this.input.disablenav();
-		this.mouse=new Vector(2);
 		this.frames=0;
 		this.framesum=0;
 		this.framestr="0.0 ms";
@@ -86,9 +85,9 @@ export class PhyScene {
 	initworld() {
 		this.world=new Phy.World(2);
 		let world=this.world;
-		world.maxsteptime=1/180;
+		this.grab=null;
 		// Create walls and fill screen with random shapes.
-		let walltype=world.createbodytype(1,Infinity,0.9);
+		let walltype=world.createbodytype(1,Infinity,0.0);
 		this.wallarr=[
 			world.createbox([10,0.5],[0,-0.995],[0],walltype),
 			world.createbox([10,0.5],[0, 0.895],[0.1],walltype),
@@ -97,20 +96,12 @@ export class PhyScene {
 		];
 		let rnd=new Random(1);
 		for (let i=0;i<500;i++) {
-			let sides=[rnd.getf()*0.02+0.01,rnd.getf()*0.02+0.01];
+			let sides=rnd.mod(14)+3;
+			let smul=[rnd.getf()*0.02+0.01,rnd.getf()*0.02+0.01];
 			let pos=[rnd.gets()*0.14,rnd.gets()*0.04];
-			if (i&1) {world.createbox(sides,pos);}
-			else     {world.createsphere(sides,16,pos);}
+			if (i&1) {world.createsphere(smul,sides,pos);}
+			else     {world.createbox(smul,pos);}
 		}
-		let playertype=world.createbodytype(0,Infinity,0.5);
-		playertype.gravity=new Vector(2);
-		let avertarr=[];
-		for (let i=0;i<5;i++) {
-			let ang=Math.PI*2*i/5,rad=0.04;
-			avertarr.push(new Vector([Math.cos(ang)*rad,Math.sin(ang)*rad]));
-		}
-		let player=world.createbody(avertarr,[0,0],null,playertype);
-		this.player=player;
 		// Precompute drawing paths for each body.
 		for (let body of world.bodyiter()) {
 			let path=new Draw.Path();
@@ -147,17 +138,22 @@ export class PhyScene {
 		// Move the player.
 		let trans=new Transform({scale:scale,vec:[draww*0.5,drawh*0.5]});
 		let transinv=trans.inv();
-		let mouse=transinv.apply(new Vector(input.getmousepos()));
-		this.mouse=mouse;
-		let player=this.player;
-		let dir=mouse.sub(player.pos);
-		let mag=dir.sqr();
-		if (mag<Infinity && dt>1e-10) {
-			player.vel=dir.mul(mag>1e-6?0.2/dt:0);
+		let mouse=input.getmousepos();
+		let mouserel=transinv.apply(mouse);
+		let mdown=input.getkeydown(input.MOUSE.LEFT);
+		let hover=null;
+		let grab=this.grab;
+		if (grab!==null) {
+			if (!mdown) {
+				grab.release();
+				grab=null;
+			} else {
+				hover=world.anchor;
+				grab.apos.set(mouserel);
+			}
 		}
 		// Draw bodies.
 		let velscale=Math.pow(0.75,dt);
-		let bodytrans=new Transform(2);
 		for (let body of world.bodyiter()) {
 			let bodytrans=trans.apply({vec:body.pos,mat:body.mat});
 			let data=body.data;
@@ -169,27 +165,38 @@ export class PhyScene {
 				u=~~(u<255?u:255);
 				rgb=[u,0,255-u];
 			}
+			if (hover===null && data.innerpath.pointinside(mouse,bodytrans)) {
+				hover=body;
+				rgb=[200,200,200];
+			}
 			draw.setcolor(rgb);
 			draw.fillpath(data.innerpath,bodytrans);
 			draw.setcolor(rgb[0]*0.5,rgb[1]*0.5,rgb[2]*0.5);
 			draw.fillpath(data.outerpath,bodytrans);
 		}
+		// Controls.
+		if (mdown && hover!==null && grab===null) {
+			let hpos=hover.invpos(mouserel);
+			grab=world.createbond(world.anchor,mouserel,hover,hpos,0,200);
+		}
+		this.grab=grab;
 		// Draw bonds.
-		/*for (let bond of world.bonditer()) {
+		draw.setcolor(255,255,255,255);
+		for (let bond of world.bonditer()) {
 			let a=trans.apply(bond.relapos()),b=trans.apply(bond.relbpos());
 			draw.drawline(a[0],a[1],b[0],b[1]);
-		}*/
+		}
 		// Draw the HUD.
 		draw.setcolor(255,255,255,255);
 		let diag="time : "+this.framestr;
 		draw.filltext(5,5,diag,18);
+		draw.filltext(5,25,"click and drag",18);
 		draw.screenflip();
 		// Calculate the frame time.
 		this.framesum+=performance.now()-starttime;
 		if (++this.frames>=60) {
 			let avg=this.framesum/this.frames;
 			this.framestr=avg.toFixed(1)+" ms";
-			// this.framestr=world.bondlist.count+"";
 			this.frames=0;
 			this.framesum=0;
 		}

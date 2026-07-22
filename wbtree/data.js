@@ -1,7 +1,7 @@
 /*
 
 
-data.js - v2.01
+data.js - v2.02
 
 Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -23,6 +23,8 @@ History
      Using explicit null comparisons if(node!==null) is 7% faster.
      Unrolling rotations in Tree.rebalance() is 8% faster.
      A zero-weight node is used to avoid null checks and point to the tree.
+2.02
+     Fix zero check in Tree.release().
 
 
 --------------------------------------------------------------------------------
@@ -56,6 +58,33 @@ make the tree balanced?
 Double check invariants.
 Article: Easy, Near-Optimal Weight Balanced Trees
 Try balancing by floor(log(weight)).
+A new weight balanced binary search tree - Seonghun Cho
+
+Tree.release() {
+	for (let node of this.iter()) {
+		node.parent=null;
+		node.left=null;
+		node.right=null;
+		node.weight=0;
+	}
+	this.length=0;
+	this.root=this.zero;
+}
+
+Tree.release() {
+	let node=this.root,last=node;
+	while (node!==zero) {
+		let l=node.left,r=node.right;
+		if (l!==zero) {last.parent=l;last=l;}
+		if (r!==zero) {last.parent=r;last=r;}
+		node.parent=null;
+		node.left=null;
+		node.right=null;
+		node.weight=0;
+	}
+	this.length=0;
+	this.root=this.zero;
+}
 
 
 */
@@ -63,7 +92,7 @@ Try balancing by floor(log(weight)).
 
 
 //---------------------------------------------------------------------------------
-// Data - v2.01
+// Data - v2.02
 
 
 class ListLink {
@@ -341,8 +370,8 @@ export class Tree {
 
 
 	release() {
-		let node=null;
-		while ((node=this.root)!==null) {
+		let node=null,zero=this.zero;
+		while ((node=this.root)!==zero) {
 			this.removenode(node);
 		}
 	}

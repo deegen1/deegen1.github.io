@@ -80,7 +80,7 @@ Better explanation of compiled form in article.
 
 Sound effects
 	Remove tbl
-	Optimize %mod lines in sfx.fill().
+	Optimize %mod lines in sfx.fill(). Replace with a-=floor(a/b)*b;
 	Simplify attribute naming in namemap[].
 	Configure delay filter to cache at a static frequency. If rate is too
 	small accumulate till we have enough. If too large, split up and fill

@@ -172,6 +172,7 @@ DrawPath
 	Clip based on area sign?
 
 fillpath
+	Fixed point math.
 	Area accuracy
 		Fix UnitAreaCalc() for large coordinates.
 		Go back to clipping to unit rect, but branch by dy>1 and dx>1.
@@ -186,6 +187,7 @@ fillpath
 	Simplify sa/da blending. Integer only? Rebalance for 255 vs 256.
 
 DrawImage
+	Fixed point math.
 	Make sure drawimagei() and drawimage() are 1-to-1.
 	See if narrow dx/dy causes problems.
 	Create page describing algorithm: Transforming an image (the hard way).

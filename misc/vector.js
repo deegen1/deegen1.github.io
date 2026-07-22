@@ -137,7 +137,9 @@ inv()
 			m[3]=m3/det;m[4]=m4/det;m[5]=m5/det;
 			m[6]=m6/det;m[7]=m7/det;m[8]=m8/det;
 		}
-		if (!(det<-1e-10 || det>1e-10)) {throw `Unable to find an invertible element.`;}
+		if (!(det<-1e-10 || det>1e-10)) {
+			throw `Unable to find an invertible element.`;
+		}
 		return m;
 	}
 

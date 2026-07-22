@@ -89,9 +89,6 @@ History
 TODO
 
 
-update ICP
-set dropdown by module name
-
 Calculate weighted stats based on top 10% NER. Weight by 1/(coal+elec).
 See what stocks rate as most efficient.
 
@@ -110,9 +107,9 @@ import * as MOD_ICP from "./mod_icp.js";
 // import * as MOD_IC  from "./mod_ic.js";
 const ModArr=[
 	MOD_ICP
-	//MOD_TEL,
-	//MOD_INS,
-	//MOD_IC
+	// MOD_TEL,
+	// MOD_INS,
+	// MOD_IC
 ];
 
 // Damage types
@@ -691,7 +688,7 @@ class Creature {
 	}
 
 
-	calcefficiency() {
+	calcefficiency1() {
 		// Nandid efficiency rating
 		let damage=0;
 		for (let r of this.rangearr) {damage=Math.max(damage,r.damage);}
@@ -700,7 +697,7 @@ class Creature {
 	}
 
 
-	calcefficiency2() {
+	calcefficiency() {
 		// Better efficiency calculation.
 		// horn bonus, assuming armour=~0.3: (1-0.3*(1-0.35))/(1-0.3) = 1.15
 		let dps=0,poison=0;
@@ -708,7 +705,7 @@ class Creature {
 			let tmp=range.damage;
 			if (range.dmgtype&DT_HORN) {tmp*=1.15;}
 			if (range.dmgtype&DT_SONIC) {tmp*=1.1;}
-			// if (range.special) {tmp*=2;}
+			// if (range.special) {return 0;}
 			if (dps<tmp) {
 				dps=tmp;
 				poison=range.dmgtype&DT_POISON;
@@ -939,7 +936,7 @@ class UI {
 		console.log("setting mod:",idx,mod.Name);
 		this.icd=new ICDex(mod);
 		this.moddesc.innerHTML="Mod Description: "+mod.Description;
-		//this.modselect.value=name;
+		// this.modselect.value=name;
 		this.uicount.innerText=`Waiting for initial run`;
 		this.selrow=null;
 		this.results=[];
