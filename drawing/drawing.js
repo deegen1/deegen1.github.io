@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v5.04
+drawing.js - v5.05
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -153,6 +153,8 @@ History
      continuous. Reduced maximum error from 1.8% to 0.4%.
 5.04
      Removed array destructuring since it's slow. Ex: let [x,y]=point.
+5.05
+     Fixed trace() for single points and certain sharp angles.
 
 
 --------------------------------------------------------------------------------
@@ -170,6 +172,7 @@ Font
 DrawPath
 	Fix tracing for narrow edges.
 	Clip based on area sign?
+	Clip based on both line lengths?
 
 fillpath
 	Fixed point math.
@@ -188,6 +191,7 @@ fillpath
 
 DrawImage
 	Fixed point math.
+	Remove rounding values.
 	Make sure drawimagei() and drawimage() are 1-to-1.
 	See if narrow dx/dy causes problems.
 	Create page describing algorithm: Transforming an image (the hard way).
@@ -202,7 +206,7 @@ import {Transform} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v5.04
+// Drawing - v5.05
 
 
 class DrawPath {
@@ -515,7 +519,7 @@ class DrawPath {
 		inrad=inrad??-outrad;
 		let out=new Draw.Path();
 		let scale=(this.maxx-this.minx+this.maxy-this.miny)/1000;
-		if (!(scale>1e-10)) {return out;}
+		scale=scale>1e-10?scale:1e-10;
 		let curvemaxdist2=0.03*scale*scale;
 		let maxext=Math.abs(outrad-inrad)+1e-10;
 		let lv=DrawPath._traceline,cv=DrawPath._tracecurve;
@@ -545,6 +549,14 @@ class DrawPath {
 				// Remove overlapping points.
 				if (li>2) {
 					let x0=lv[0],y0=lv[1];
+					if (closed) {
+						while (li>2) {
+							let dx=lv[li-2]-x0;
+							let dy=lv[li-1]-y0;
+							if (dx*dx+dy*dy>1e-10) {break;}
+							li-=2;
+						}
+					}
 					let ni=2;
 					for (let j=2;j<li;j+=2) {
 						let x1=lv[j  ],dx=x1-x0;
@@ -555,15 +567,6 @@ class DrawPath {
 						}
 					}
 					li=ni;
-					if (closed) {
-						x0=lv[0];y0=lv[1];
-						while (li>2) {
-							let dx=lv[li-2]-x0;
-							let dy=lv[li-1]-y0;
-							if (dx*dx+dy*dy>1e-10) {break;}
-							li-=2;
-						}
-					}
 				}
 				if (li===2) {
 					// Single point.
@@ -571,7 +574,7 @@ class DrawPath {
 				} else if (li>2) {
 					// Trace around line segments.
 					for (let side=0;side<2;side++) {
-						let rad=(side>0)===(area<0)?inrad:outrad;
+						let off=(side>0)===(area<0)?inrad:outrad;
 						let i0=2,i1=0;
 						if (side!==closed) {i1=li-2;i0=i1-2;}
 						let x0=lv[i0],y0=lv[i0+1];
@@ -581,7 +584,7 @@ class DrawPath {
 						dx1/=mag;dy1/=mag;
 						for (let j=closed?0:2;j<li;j+=2) {
 							let k=side?li-2-j:j;
-							let dx0=dx1,dy0=dy1;
+							let dx0=dx1,dy0=dy1,pmag=mag+maxext;
 							x0=x1;x1=lv[k  ];dx1=x1-x0;
 							y0=y1;y1=lv[k+1];dy1=y1-y0;
 							mag=Math.sqrt(dx1*dx1+dy1*dy1);
@@ -590,13 +593,13 @@ class DrawPath {
 							let dot=dx0*dx1+dy0*dy1;
 							let den=dx0*dy1-dy0*dx1;
 							let u=dot>0?0:maxext;
-							if (den<-1e-5 || den>1e-5) {u=(dot-1)*rad/den;}
+							if (den<-1e-5 || den>1e-5) {u=(dot-1)*off/den;}
 							// Miter if we need to.
-							if (u<=-maxext || u>=maxext) {
-								u=u<0?-maxext:maxext;
-								out.lineto(x0-dy0*rad+dx0*u,y0+dx0*rad+dy0*u);
+							if (u<=-pmag || u>=maxext) {
+								u=u<0?-pmag:maxext;
+								out.lineto(x0-dy0*off+dx0*u,y0+dx0*off+dy0*u);
 							}
-							out.lineto(x0-dy1*rad-dx1*u,y0+dx1*rad-dy1*u);
+							out.lineto(x0-dy1*off-dx1*u,y0+dx1*off-dy1*u);
 						}
 						if (side || closed) {out.close();}
 					}

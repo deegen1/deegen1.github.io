@@ -39,8 +39,10 @@ TODO
 
 
 Fix particles being created.
+See if breaking up walls improves performance.
+Remove kludge from raindrop particles.
 
-Go back to N+2 rope.
+Go back to N+2 rope?
 
 Leaf: some glowing. Used for lights? Blend modes?
 Rune: set angle based on vel? use body.data.pos for towing.
@@ -346,9 +348,9 @@ export class Game {
 		let normmat=world.createbodytype(0.01,1.0   ,0.98,0.2);
 		let wallmat=world.createbodytype(1.00,Infinity,0.95,0.5);
 		let bodymat=world.createbodytype(0.01,1.0500,0.00,0.2);
-		let ropemat=world.createbodytype(0.50,0.2763,0.00,1.0);
-		let hookmat=world.createbodytype(0.25,0.5525,0.25,1.0);
-		let edgemat=world.createbodytype(0.01,0.5525,0.50,1.0);
+		let ropemat=world.createbodytype(0.50,0.2763,0.00,0.0);
+		let hookmat=world.createbodytype(0.25,0.5525,0.25,0.0);
+		let edgemat=world.createbodytype(0.01,0.5525,0.50,0.0);
 		let partmat=world.createbodytype(0.50,1e-9  ,0.50,0.0);
 		let leafmat=world.createbodytype(0.75,1e-8  ,0.00,1.0);
 		let runemat=world.createbodytype(0.95,1e-8  ,0.25,0.0);
@@ -458,7 +460,7 @@ export class Game {
 					let binv=bid===EDGE?new Vector(2):b.mat.inv().mul(bcon);
 					let bond=world.createbond(a,ainv,b,binv,0,4400);
 					bond.breakdist=5.625;
-					//bond.data.rgb=[255,255,255];
+					// bond.data.rgb=[255,255,255];
 				}
 				return false;
 			}
@@ -957,6 +959,64 @@ export class Game {
 		draw.setcolor(100,100,255,255);
 		draw.filltext(5,100,`body: ${world.bodylist.count}`,20);
 		draw.filltext(5,120,`bond: ${world.bondlist.count}`,20);
+	}
+
+
+	debugmap() {
+		// For testing purposes. Draw an image of the full level.
+		// Find the bounding box of all atoms.
+		let scale=16,maxdim=10000/scale;
+		let minx=0,maxx=this.worldw;
+		let miny=0,maxy=this.worldh;
+		let bodyarr=[];
+		for (let body of this.world.bodyiter()) {
+			let x=atom.pos[0],y=atom.pos[1],rad=atom.rad;
+			if (!(x-rad>-maxdim && x+rad<maxdim && y-rad>-maxdim && y+rad<maxdim)) {
+				console.log("rejected atom:",x,y,rad);
+				continue;
+			}
+			minx=minx>x-rad?x-rad:minx;
+			maxx=maxx<x+rad?x+rad:maxx;
+			miny=miny>y-rad?y-rad:miny;
+			maxy=maxy<y+rad?y+rad:maxy;
+			atomarr.push(atom);
+		}
+		// Create an image to fit everything.
+		let difx=(maxx-minx)*0.05;
+		let dify=(maxy-miny)*0.05;
+		minx-=difx;
+		maxx+=difx;
+		miny-=dify;
+		maxy+=dify;
+		let draww=(maxx-minx+1)*scale|0;
+		let drawh=(maxy-miny+1)*scale|0;
+		console.log("dimensions:",draww,drawh);
+		let draw=new Draw(draww,drawh);
+		draw.fill(0,0,0,0);
+		// Fill in all atoms based on size.
+		atomarr.sort((l,r)=>r.rad-l.rad);
+		let minr=atomarr[0].rad;
+		let maxr=0.5/(atomarr[atomarr.length-1].rad-minr);
+		for (let atom of atomarr) {
+			let x=(atom.pos[0]-minx)*scale;
+			let y=(atom.pos[1]-miny)*scale;
+			let rad=atom.rad*scale;
+			let rgb=atom.data.rgb;
+			if (rgb===undefined) {rgb=atom.type.data.rgb;}
+			if (rgb===undefined) {rgb=[255,255,255,255];}
+			let col=0.5+maxr*(atom.rad-minr);
+			draw.setcolor(rgb[0]*col,rgb[1]*col,rgb[2]*col,255);
+			draw.filloval(x,y,rad,rad);
+		}
+		// Draw the world dimensions.
+		draw.setcolor(0,0,255,128);
+		let poly=new Draw.Poly();
+		let worldx=(0-minx)*scale,worldy=(0-miny)*scale,pad=4;
+		let worldw=this.worldw*scale,worldh=this.worldh*scale;
+		poly.addrect(worldx-pad,worldy-pad,worldw+pad*2,worldh+pad*2);
+		poly.addrect(worldx,worldy+worldh,worldw,-worldh);
+		draw.fillpoly(poly);
+		draw.img.savefile("rappel_map.tga");
 	}
 
 

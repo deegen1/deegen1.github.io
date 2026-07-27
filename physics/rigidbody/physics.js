@@ -302,7 +302,7 @@ class PhyBody {
 		let dim=world.dim,dim2=(dim*(dim-1))>>>1;
 		for (let v of verts) {vertarr.push(new Vector(v));}
 		this.vertarr=vertarr;
-		//this.facearr=[];
+		// this.facearr=[];
 		this.type=type;
 		this.pos=new Vector(pos);
 		this.vel=new Vector(dim);
@@ -420,11 +420,11 @@ class PhyBody {
 			verts=vidx;
 			this.vertarr=vertarr;
 			// Faces.
-			//let facearr=[];
-			//for (let i=0;i<verts;i++) {
-			//	facearr.push([i,(i+1)%verts]);
-			//}
-			//this.facearr=facearr;
+			// let facearr=[];
+			// for (let i=0;i<verts;i++) {
+			// 	facearr.push([i,(i+1)%verts]);
+			// }
+			// this.facearr=facearr;
 			// Zero on center of mass.
 			let cenx=0,ceny=0;
 			if (center) {

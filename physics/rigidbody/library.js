@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v19.68
+library.js - v19.70
 
 Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -16,10 +16,10 @@ Random  - v1.11
 Data    - v2.02
 Vector  - v3.15
 Input   - v1.19
-Drawing - v5.04
+Drawing - v5.05
 UI      - v1.03
 Audio   - v3.12
-Physics - v2.00
+Physics - v2.01
 
 
 --------------------------------------------------------------------------------
@@ -1788,7 +1788,7 @@ export class Input {
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v5.04
+// Drawing - v5.05
 
 
 class DrawPath {
@@ -2101,7 +2101,7 @@ class DrawPath {
 		inrad=inrad??-outrad;
 		let out=new Draw.Path();
 		let scale=(this.maxx-this.minx+this.maxy-this.miny)/1000;
-		if (!(scale>1e-10)) {return out;}
+		scale=scale>1e-10?scale:1e-10;
 		let curvemaxdist2=0.03*scale*scale;
 		let maxext=Math.abs(outrad-inrad)+1e-10;
 		let lv=DrawPath._traceline,cv=DrawPath._tracecurve;
@@ -2131,6 +2131,14 @@ class DrawPath {
 				// Remove overlapping points.
 				if (li>2) {
 					let x0=lv[0],y0=lv[1];
+					if (closed) {
+						while (li>2) {
+							let dx=lv[li-2]-x0;
+							let dy=lv[li-1]-y0;
+							if (dx*dx+dy*dy>1e-10) {break;}
+							li-=2;
+						}
+					}
 					let ni=2;
 					for (let j=2;j<li;j+=2) {
 						let x1=lv[j  ],dx=x1-x0;
@@ -2141,15 +2149,6 @@ class DrawPath {
 						}
 					}
 					li=ni;
-					if (closed) {
-						x0=lv[0];y0=lv[1];
-						while (li>2) {
-							let dx=lv[li-2]-x0;
-							let dy=lv[li-1]-y0;
-							if (dx*dx+dy*dy>1e-10) {break;}
-							li-=2;
-						}
-					}
 				}
 				if (li===2) {
 					// Single point.
@@ -2157,7 +2156,7 @@ class DrawPath {
 				} else if (li>2) {
 					// Trace around line segments.
 					for (let side=0;side<2;side++) {
-						let rad=(side>0)===(area<0)?inrad:outrad;
+						let off=(side>0)===(area<0)?inrad:outrad;
 						let i0=2,i1=0;
 						if (side!==closed) {i1=li-2;i0=i1-2;}
 						let x0=lv[i0],y0=lv[i0+1];
@@ -2167,7 +2166,7 @@ class DrawPath {
 						dx1/=mag;dy1/=mag;
 						for (let j=closed?0:2;j<li;j+=2) {
 							let k=side?li-2-j:j;
-							let dx0=dx1,dy0=dy1;
+							let dx0=dx1,dy0=dy1,pmag=mag+maxext;
 							x0=x1;x1=lv[k  ];dx1=x1-x0;
 							y0=y1;y1=lv[k+1];dy1=y1-y0;
 							mag=Math.sqrt(dx1*dx1+dy1*dy1);
@@ -2176,13 +2175,13 @@ class DrawPath {
 							let dot=dx0*dx1+dy0*dy1;
 							let den=dx0*dy1-dy0*dx1;
 							let u=dot>0?0:maxext;
-							if (den<-1e-5 || den>1e-5) {u=(dot-1)*rad/den;}
+							if (den<-1e-5 || den>1e-5) {u=(dot-1)*off/den;}
 							// Miter if we need to.
-							if (u<=-maxext || u>=maxext) {
-								u=u<0?-maxext:maxext;
-								out.lineto(x0-dy0*rad+dx0*u,y0+dx0*rad+dy0*u);
+							if (u<=-pmag || u>=maxext) {
+								u=u<0?-pmag:maxext;
+								out.lineto(x0-dy0*off+dx0*u,y0+dx0*off+dy0*u);
 							}
-							out.lineto(x0-dy1*rad-dx1*u,y0+dx1*rad-dy1*u);
+							out.lineto(x0-dy1*off-dx1*u,y0+dx1*off-dy1*u);
 						}
 						if (side || closed) {out.close();}
 					}
@@ -4938,7 +4937,7 @@ export class Audio {
 
 
 //---------------------------------------------------------------------------------
-// Physics - v2.00
+// Physics - v2.01
 
 
 class PhyInteraction {
@@ -5130,7 +5129,7 @@ class PhyBody {
 	constructor(world,verts,pos,angle,type) {
 		type=type??world.deftype;
 		this.world=world;
-		this.worldlink=this.world.bodylist.add(this);
+		this.worldlink=world.bodylist.add(this);
 		this.deleted=false;
 		this.sleeping=false;
 		this.bondlist=new List();
@@ -5148,7 +5147,7 @@ class PhyBody {
 		let dim=world.dim,dim2=(dim*(dim-1))>>>1;
 		for (let v of verts) {vertarr.push(new Vector(v));}
 		this.vertarr=vertarr;
-		this.facearr=[];
+		// this.facearr=[];
 		this.type=type;
 		this.pos=new Vector(pos);
 		this.vel=new Vector(dim);
@@ -5156,7 +5155,6 @@ class PhyBody {
 		this.angle=(new Float64Array(dim2)).fill(0);
 		if (angle) {for (let i=0;i<dim2;i++) {this.angle[i]=angle[i];}}
 		this.mat=(new Matrix(dim)).one().rotate(this.angle);
-		this.inv=this.mat.inv();
 		this.updateconstants();
 		this.restpos=new Vector(this.pos);
 	}
@@ -5178,8 +5176,18 @@ class PhyBody {
 
 
 	invpos(v) {
-		let w=(new Vector(v)).isub(this.pos);
-		return this.mat.inv().mul(w);
+		// Since mat is orthonormal, inv(mat)=trans(mat).
+		let pos=this.pos,mat=this.mat;
+		let dim=pos.length;
+		let w=new Vector(dim);
+		for (let i=0;i<dim;i++) {
+			let m=i*dim;
+			let x=v[i]-pos[i];
+			for (let j=0;j<dim;j++) {
+				w[j]+=mat[m+j]*x;
+			}
+		}
+		return w;
 	}
 
 
@@ -5194,21 +5202,20 @@ class PhyBody {
 	bonditer() {return this.bondlist.iter();}
 
 
-	updateconstants() {
+	updateconstants(center=false) {
 		// Calculate mass and inertia.
 		let dim=this.world.dim,dim2=(dim*(dim-1))>>>1;
 		let vertarr=this.vertarr;
 		let verts=vertarr.length;
 		let volume=0;
-		let inertia=new Matrix(dim2,dim2);
+		let imat=new Matrix(dim2,dim2);
 		if (verts===0) {
+			volume=Infinity;
 		} else if (dim!==2) {
+			volume=1;
 			let dist=0;
 			for (let v of vertarr) {dist+=v.sqr();}
-			volume=1;
-			for (let i=0;i<dim2;i++) {
-				inertia[i*dim2+i]=dist;
-			}
+			for (let i=0;i<dim2;i++) {imat[i*dim2+i]=dist;}
 		} else {
 			// Given a set points, find the convex hull and sort counter-clockwise.
 			// Start with the bottom-most, left-most vertex.
@@ -5257,50 +5264,58 @@ class PhyBody {
 			vertarr=vertarr.slice(0,vidx);
 			verts=vidx;
 			this.vertarr=vertarr;
-			// Calculate center of mass and volume.
-			let facearr=[];
-			let v=vertarr[verts-1],x1=v[0],y1=v[1];
-			let cenx=0,ceny=0;
-			for (let i=0;i<verts;i++) {
-				facearr.push([(i?i:verts)-1,i]);
-				let x0=x1,y0=y1;
-				v=vertarr[i];x1=v[0];y1=v[1];
-				let cross=x0*y1-x1*y0;
-				volume+=cross;
-				cenx+=(x0+x1)*cross;
-				ceny+=(y0+y1)*cross;
-			}
-			volume*=0.5;
-			this.volume=volume;
-			this.facearr=facearr;
+			// Faces.
+			// let facearr=[];
+			// for (let i=0;i<verts;i++) {
+			// 	facearr.push([i,(i+1)%verts]);
+			// }
+			// this.facearr=facearr;
 			// Zero on center of mass.
-			let den=1/(volume*6);
-			if (volume<1e-10 || verts<3) {
-				cenx=0,ceny=0;
-				for (v of vertarr) {cenx+=v[0];ceny+=v[1];}
-				den=1/verts;
+			let cenx=0,ceny=0;
+			if (center) {
+				volume=0;
+				let v=vertarr[verts-1],x1=v[0],y1=v[1];
+				for (let i=0;i<verts;i++) {
+					v=vertarr[i];
+					let x0=x1;x1=v[0];
+					let y0=y1;y1=v[1];
+					let xy=x0*y1-x1*y0;
+					volume+=xy;
+					cenx+=xy*(x0+x1);
+					ceny+=xy*(y0+y1);
+				}
+				this.volume=volume*0.5;
+				let den=1/(volume*3);
+				if (volume<1e-10 || verts<3) {
+					cenx=0,ceny=0;
+					for (v of vertarr) {cenx+=v[0];ceny+=v[1];}
+					den=1/verts;
+				}
+				cenx*=den;
+				ceny*=den;
+				this.pos[0]+=cenx;
+				this.pos[1]+=ceny;
 			}
-			cenx*=den;
-			ceny*=den;
-			this.pos[0]+=cenx;
-			this.pos[1]+=ceny;
-			// Inertia.
-			v=vertarr[verts-1];
-			x1=v[0]-cenx;
-			y1=v[1]-ceny;
-			let isum=0;
+			// Inertia and volume.
+			volume=0;
+			let inertia=0;
+			let v=vertarr[verts-1];
+			let x1=v[0]-cenx,y1=v[1]-ceny;
 			for (let i=0;i<verts;i++) {
-				let x0=x1,y0=y1;
 				v=vertarr[i];
-				x1=v[0]-cenx;v[0]=x1;
-				y1=v[1]-ceny;v[1]=y1;
-				isum+=x0*(x0*2+x1)+y0*(y0*2+y1);
+				let x0=x1;x1=v[0]-cenx;v[0]=x1;
+				let y0=y1;y1=v[1]-ceny;v[1]=y1;
+				let xy=x0*y1-x1*y0;
+				let xx=x0+x1,yy=y0+y1;
+				volume +=xy;
+				inertia+=xy*(xx*xx-x0*x1+yy*yy-y0*y1);
 			}
-			inertia[0]=isum/6;
+			imat[0]=inertia/(volume*6);
+			this.volume=volume*0.5;
 		}
 		this.mass=this.type.density*volume;
-		this.inertia=inertia;
-		try {this.inertiainv=inertia.inv();}
+		this.inertia=imat;
+		try {this.inertiainv=imat.inv();}
 		catch {this.inertiainv=new Matrix(dim2,dim2);}
 	}
 
@@ -5320,7 +5335,7 @@ class PhyBody {
 		let spin=this.spin,ang=this.angle;
 		let dim2=(dim*(dim-1))>>>1;
 		// If we haven't moved much, fix the position. This needs to be done before
-		// applying forces to allow the body to continue interacting with the floor.
+		// applying forces to allow the body to continue interacting with neighbors.
 		let restpos=this.restpos;
 		if (pos.dist2(restpos)<world.restdist) {
 			pos.set(restpos);
@@ -5341,14 +5356,13 @@ class PhyBody {
 			ang[i]=a;
 		}
 		this.mat.one().rotate(ang);
-		this.inv.set(this.mat).invert();
 	}
 
 
-	static checkoverlap(a,b) {
+	static checkoverlap(a,b,acon,bcon) {
 		let avert=a.vertarr,bvert=b.vertarr;
 		let averts=avert.length,bverts=bvert.length;
-		if (!averts || !bverts) {return [false,null,null];}
+		if (!averts || !bverts) {return false;}
 		// Load transforms.
 		let amat=a.mat,apos=a.pos;
 		let amatxx=amat[0],amatxy=amat[1],amatx=apos[0];
@@ -5443,21 +5457,21 @@ class PhyBody {
 				minbx=bx;minby=by;
 			}
 		}
-		let ap=new Vector([minax+amatx,minay+amaty]);
-		let bp=new Vector([minbx+bmatx,minby+bmaty]);
-		return [overlap,ap,bp];
+		acon[0]=minax+amatx;acon[1]=minay+amaty;
+		bcon[0]=minbx+bmatx;bcon[1]=minby+bmaty;
+		return overlap;
 	}
 
 
-	closestpoint(point) {
+	/*closestpoint(point) {
 		// Returns [overlapping, point] with a point on the border.
-		let world=this.world;
-		point=new Vector(point);
-		let dim=world.dim;
-		let cen=new Vector(dim),mat=(new Matrix(dim,dim)).one();
-		let col=world.closestpoint(this.vertarr,this.pos,this.mat,[point],cen,mat);
-		return [col[0],col[1]];
-	}
+		let tmpvec=this.world.tmpvec;
+		let acon=tmpvec[0],bcon=tmpvec[1];
+		let a=this.anchor,b=this;
+		a.vertarr[0].set(point);
+		let col=PhyBody.checkoverlap(a,b,acon,bcon);
+		return [col,new Vector(bcon)];
+	}*/
 
 
 	static collide(a,b) {
@@ -5472,41 +5486,40 @@ class PhyBody {
 		amass=amass>=Infinity?1.0:amass/mass;
 		bmass=bmass>=Infinity?1.0:bmass/mass;
 		// Get the collision normal and contact points.
-		let col=PhyBody.checkoverlap(a,b);
-		if (!col[0]) {return;}
-		let acon=col[1],bcon=col[2];
-		let norm=world.tmpvec[0];
+		let tmpvec=world.tmpvec;
+		let acon=tmpvec[5],bcon=tmpvec[6];
+		if (!PhyBody.checkoverlap(a,b,acon,bcon)) {
+			return;
+		}
+		let norm=tmpvec[0];
 		let push=0;
+		let apos=a.pos,bpos=b.pos;
 		for (let i=0;i<dim;i++) {
-			let x=acon[i]-bcon[i];
+			let ac=acon[i],bc=bcon[i],x=ac-bc;
 			norm[i]=x;
 			push+=x*x;
+			acon[i]=ac-apos[i];
+			bcon[i]=bc-bpos[i];
 		}
 		if (push<1e-10) {return;}
 		push=Math.sqrt(push);
-		// norm=|norm|, acon-=apos, bcon-=bpos
-		let apos=a.pos,bpos=b.pos;
-		for (let i=0;i<dim;i++) {
-			norm[i]/=push;
-			acon[i]-=apos[i];
-			bcon[i]-=bpos[i];
-		}
 		// Calculate normal and perpendicular collision forces.
-		// If they're moving away, don't apply any force.
-		let intr=a.type.intarr[b.type.id];
-		let vel=world.tmpvec[1];
+		let vel=tmpvec[1];
 		let avel=a.vel,bvel=b.vel;
-		vel[0] =avel[0]-acon[1]*a.spin[0];
-		vel[1] =avel[1]+acon[0]*a.spin[0];
-		vel[0]-=bvel[0]-bcon[1]*b.spin[0];
-		vel[1]-=bvel[1]+bcon[0]*b.spin[0];
+		let aspin=a.spin,bspin=b.spin;
+		vel[0] =avel[0]-acon[1]*aspin[0];
+		vel[1] =avel[1]+acon[0]*aspin[0];
+		vel[0]-=bvel[0]-bcon[1]*bspin[0];
+		vel[1]-=bvel[1]+bcon[0]*bspin[0];
 		let ndot=0;
 		for (let i=0;i<dim;i++) {
-			ndot+=vel[i]*norm[i];
+			let n=norm[i]/push;
+			norm[i]=n;
+			ndot+=vel[i]*n;
 		}
 		// Friction vector.
 		// perp=vel-norm*(norm*vel)
-		let perp=world.tmpvec[4];
+		let perp=tmpvec[4];
 		let pmag=0;
 		for (let i=0;i<dim;i++) {
 			let x=vel[i]-norm[i]*ndot;
@@ -5519,7 +5532,8 @@ class PhyBody {
 		} else {
 			pmag=0;
 		}
-		// Elastic coefficient.
+		// Elastic coefficient. If they're moving away, don't apply any force.
+		let intr=a.type.intarr[b.type.id];
 		let nmag=ndot>0?ndot:0;
 		nmag=nmag*intr.vmul+push*intr.vpmul;
 		push*=intr.push0;
@@ -5549,8 +5563,8 @@ class PhyBody {
 			bpos[i]+=bmass*tpos;
 			bvel[i]+=bmass*tvel;
 		}
-		a.spin[0]-=ainertia*(ancross*nmag+apcross*pmag);
-		b.spin[0]+=binertia*(bncross*nmag+bpcross*pmag);
+		aspin[0]-=ainertia*(ancross*nmag+apcross*pmag);
+		bspin[0]+=binertia*(bncross*nmag+bpcross*pmag);
 	}
 
 }
@@ -5560,18 +5574,18 @@ class PhyBond {
 
 	constructor(world,a,apos,b,bpos,dist,tension) {
 		this.world=world;
-		this.worldlink=this.world.bondlist.add(this);
+		this.worldlink=world.bondlist.add(this);
 		this.deleted=false;
 		this.a=a;
-		this.apos=new Vector(apos);
 		this.b=b;
+		this.apos=new Vector(apos);
 		this.bpos=new Vector(bpos);
+		this.alink=a.bondlist.add(this);
+		this.blink=b.bondlist.add(this);
 		if (!(dist>=0)) {dist=this.relapos().dist(this.relbpos());}
 		this.dist=dist;
 		this.breakdist=Infinity;
 		this.tension=tension;
-		this.alink=this.a.bondlist.add(this);
-		this.blink=this.b.bondlist.add(this);
 		this.data={};
 	}
 
@@ -5926,7 +5940,7 @@ class PhyWorld {
 		this.maxsteptime=1/180;
 		this.rnd=new Random();
 		this.tmpvec=[];
-		for (let i=0;i<5;i++) {this.tmpvec.push(new Vector(dim));}
+		for (let i=0;i<7;i++) {this.tmpvec.push(new Vector(dim));}
 		this.gravity=new Vector(dim);
 		this.gravity[dim-1]=gravity;
 		this.typelist=new List();
@@ -5940,6 +5954,8 @@ class PhyWorld {
 		this.data={};
 		// Default type
 		this.deftype=this.createbodytype();
+		this.anchor=this.createbody([],new Vector(dim));
+		this.anchor.worldlink.release();
 	}
 
 
