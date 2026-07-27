@@ -78,6 +78,8 @@ Keep under 50kb, minus header.
 
 Better explanation of compiled form in article.
 
+Why do delay filters need a phase correction?
+
 Sound effects
 	Remove tbl
 	Optimize %mod lines in sfx.fill(). Replace with a-=floor(a/b)*b;

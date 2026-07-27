@@ -962,64 +962,6 @@ export class Game {
 	}
 
 
-	debugmap() {
-		// For testing purposes. Draw an image of the full level.
-		// Find the bounding box of all atoms.
-		let scale=16,maxdim=10000/scale;
-		let minx=0,maxx=this.worldw;
-		let miny=0,maxy=this.worldh;
-		let bodyarr=[];
-		for (let body of this.world.bodyiter()) {
-			let x=atom.pos[0],y=atom.pos[1],rad=atom.rad;
-			if (!(x-rad>-maxdim && x+rad<maxdim && y-rad>-maxdim && y+rad<maxdim)) {
-				console.log("rejected atom:",x,y,rad);
-				continue;
-			}
-			minx=minx>x-rad?x-rad:minx;
-			maxx=maxx<x+rad?x+rad:maxx;
-			miny=miny>y-rad?y-rad:miny;
-			maxy=maxy<y+rad?y+rad:maxy;
-			atomarr.push(atom);
-		}
-		// Create an image to fit everything.
-		let difx=(maxx-minx)*0.05;
-		let dify=(maxy-miny)*0.05;
-		minx-=difx;
-		maxx+=difx;
-		miny-=dify;
-		maxy+=dify;
-		let draww=(maxx-minx+1)*scale|0;
-		let drawh=(maxy-miny+1)*scale|0;
-		console.log("dimensions:",draww,drawh);
-		let draw=new Draw(draww,drawh);
-		draw.fill(0,0,0,0);
-		// Fill in all atoms based on size.
-		atomarr.sort((l,r)=>r.rad-l.rad);
-		let minr=atomarr[0].rad;
-		let maxr=0.5/(atomarr[atomarr.length-1].rad-minr);
-		for (let atom of atomarr) {
-			let x=(atom.pos[0]-minx)*scale;
-			let y=(atom.pos[1]-miny)*scale;
-			let rad=atom.rad*scale;
-			let rgb=atom.data.rgb;
-			if (rgb===undefined) {rgb=atom.type.data.rgb;}
-			if (rgb===undefined) {rgb=[255,255,255,255];}
-			let col=0.5+maxr*(atom.rad-minr);
-			draw.setcolor(rgb[0]*col,rgb[1]*col,rgb[2]*col,255);
-			draw.filloval(x,y,rad,rad);
-		}
-		// Draw the world dimensions.
-		draw.setcolor(0,0,255,128);
-		let poly=new Draw.Poly();
-		let worldx=(0-minx)*scale,worldy=(0-miny)*scale,pad=4;
-		let worldw=this.worldw*scale,worldh=this.worldh*scale;
-		poly.addrect(worldx-pad,worldy-pad,worldw+pad*2,worldh+pad*2);
-		poly.addrect(worldx,worldy+worldh,worldw,-worldh);
-		draw.fillpoly(poly);
-		draw.img.savefile("rappel_map.tga");
-	}
-
-
 	update(frametime) {
 		// Get the timestep. Prevent steps that are too large.
 		let dt=(frametime-this.frameprev)*0.001;

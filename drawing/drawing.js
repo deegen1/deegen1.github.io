@@ -584,7 +584,7 @@ class DrawPath {
 						dx1/=mag;dy1/=mag;
 						for (let j=closed?0:2;j<li;j+=2) {
 							let k=side?li-2-j:j;
-							let dx0=dx1,dy0=dy1,pmag=mag+maxext;
+							let dx0=dx1,dy0=dy1,mag0=mag+maxext;
 							x0=x1;x1=lv[k  ];dx1=x1-x0;
 							y0=y1;y1=lv[k+1];dy1=y1-y0;
 							mag=Math.sqrt(dx1*dx1+dy1*dy1);
@@ -595,8 +595,8 @@ class DrawPath {
 							let u=dot>0?0:maxext;
 							if (den<-1e-5 || den>1e-5) {u=(dot-1)*off/den;}
 							// Miter if we need to.
-							if (u<=-pmag || u>=maxext) {
-								u=u<0?-pmag:maxext;
+							if (u<=-mag0 || u>=maxext) {
+								u=u<0?-mag0:maxext;
 								out.lineto(x0-dy0*off+dx0*u,y0+dx0*off+dy0*u);
 							}
 							out.lineto(x0-dy1*off-dx1*u,y0+dx1*off-dy1*u);
