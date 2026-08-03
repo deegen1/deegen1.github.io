@@ -1,9 +1,9 @@
 /*------------------------------------------------------------------------------
 
 
-rappel.js - v3.03
+rappel.js - v1.00
 
-Copyright 2025 Alec Dee
+Copyright 2026 Alec Dee
 2dee.net - akdee144@gmail.com
 
 
@@ -18,34 +18,21 @@ at terminal velocity.
 
 Sounds played too often sound like nails on a chalkboard.
 
+Splitting up walls doesn't improve performance.
+
 
 --------------------------------------------------------------------------------
 History
 
 
 1.00
-     Beta versions with different control schemes (jumping, rolling, etc).
-2.00
-     Created a physically based grappeling hook.
-3.00
-     Changed from atom-based physics to rigid body polygons.
-3.03
-     Updated physics engine. Frame time dropped from 16ms to 10ms.
-     Removed static bonds for friction.
+     Minimum viable version.
+     Meets performance requirements.
+     Rope swinging feels good.
 
 
 --------------------------------------------------------------------------------
 TODO
-
-
-Fix particles being created.
-See if breaking up walls improves performance.
-Remove kludge from raindrop particles.
-
-Go back to N+2 rope?
-
-Leaf: some glowing. Used for lights? Blend modes?
-Rune: set angle based on vel? use body.data.pos for towing.
 
 
 */
@@ -71,6 +58,8 @@ export class Game {
 		this.mouse=new Vector(2);
 		this.rnd=new Random();
 		this.scale=16;
+		this.drawrad=800/this.scale;
+		this.maxspeed=50;
 		this.snddist=20;
 		this.frames=0;
 		this.framesum=0;
@@ -280,6 +269,7 @@ export class Game {
 	resizebackground(draww,drawh) {
 		let draw=this.draw;
 		draw.img.resize(draww,drawh);
+		this.drawrad=Math.sqrt(draww*draww+drawh*drawh)/this.scale;
 		// Draw a dark forest.
 		let bg=new Draw.Image(draww,drawh);
 		this.background=bg;
@@ -365,18 +355,18 @@ export class Game {
 		runemat.gravity=new Vector([0,0]);
 		charmat.gravity=new Vector([0,0]);
 		// Materials.
-		function addmeta(type,rgb,path,vert,snd=null,sndmin=0,sndmax=0,freq=0,rad=0,scale=0,ang=0,life=0) {
+		function addmeta(type,rgb,path,vert,snd=null,sndmin=0,sndmax=0,freq=0,bscale=0,dscale=0,ang=0,life=0) {
 			let t=type.data;
 			t.rgb=rgb;
-			t.partpath=path;
-			t.partvert=vert;
+			t.drawpath=path;
+			t.bodyvert=vert;
 			t.snd=snd;
 			t.sndacc=0;
 			t.sndmin=sndmin;
 			t.sndmax=sndmax;
 			t.partfreq=freq;
-			t.partrad=rad;
-			t.partscale=scale;
+			t.bodyscale=bscale;
+			t.drawscale=dscale;
 			t.partang=ang;
 			t.partlife=life;
 		}
@@ -404,7 +394,7 @@ export class Game {
 	static bodyinit(body) {
 		let data=body.data;
 		if (data.sndacc!==undefined) {return data;}
-		data.rad=1;
+		data.scale=1;
 		data.pos=null;
 		data.accel=0;
 		data.sndacc=0;
@@ -415,7 +405,6 @@ export class Game {
 		let path=new Draw.Path();
 		for (let v of body.vertarr) {path.lineto(v);}
 		path.close();
-		data.objpath=path;
 		let type=body.type,tdat=type.data;
 		let rgb=tdat.rgb;
 		if (rgb) {
@@ -423,7 +412,7 @@ export class Game {
 				data.paths=[[[32,32,32,255],path]];
 				path=path.trace(0,-0.2);
 			}
-			data.paths.push([rgb,path]);
+			data.paths.push([rgb.slice(),path]);
 		}
 		return data;
 	}
@@ -458,8 +447,8 @@ export class Game {
 					let world=a.world;
 					let ainv=aid===EDGE?new Vector(2):a.mat.inv().mul(acon);
 					let binv=bid===EDGE?new Vector(2):b.mat.inv().mul(bcon);
-					let bond=world.createbond(a,ainv,b,binv,0,4400);
-					bond.breakdist=5.625;
+					let bond=world.createbond(a,ainv,b,binv,0,6000);
+					bond.breakdist=1.5;
 					// bond.data.rgb=[255,255,255];
 				}
 				return false;
@@ -508,24 +497,42 @@ export class Game {
 				this.throwing=3;
 			}
 		}
-		// If we've thrown for long enough, begin pulling.
-		if (this.throwing===3 && this.hooktime<3) {
-			let hooktime=this.hooktime+dt;
-			this.hooktime=hooktime;
-			let distmul=hooktime*4;
-			distmul=(distmul<1?distmul:1)*4+1;
-			for (let bond of this.hookbond) {
-				bond.dist=bond.data.orig*distmul;
-			}
-			let u=hooktime/3;
-			let tension=this.ropemin+(this.ropemax-this.ropemin)*(u<1?u*u:1);
-			tension=tension<this.ropemax?tension:this.ropemax;
-			for (let body of this.ropebody) {
-				for (let bond of body.bonditer()) {
-					if (bond.breakdist===Infinity) {
-						bond.tension=tension;
+		if (this.throwing===3) {
+			// If we've thrown for long enough, begin pulling.
+			let pulltime=3;
+			let hooktime=this.hooktime;
+			if (hooktime<pulltime) {
+				hooktime+=dt;
+				hooktime=hooktime<pulltime?hooktime:pulltime;
+				this.hooktime=hooktime;
+				// Expand the hook.
+				let distmul=hooktime*4;
+				distmul=(distmul<1?distmul:1)*4+1;
+				for (let bond of this.hookbond) {
+					bond.dist=bond.data.orig*distmul;
+				}
+				// Increase rope tension.
+				let u=hooktime/pulltime;
+				let tension=this.ropemin+(u*u)*(this.ropemax-this.ropemin);
+				for (let body of this.ropebody) {
+					for (let bond of body.bonditer()) {
+						if (bond.breakdist===Infinity) {
+							bond.tension=tension;
+						}
 					}
 				}
+			}
+			// Color code tension of edges.
+			for (let body of this.edgebody) {
+				let l=body.data.life;
+				for (let bond of body.bonditer()) {
+					let max=bond.breakdist;
+					if (max<Infinity) {
+						let u=bond.relapos().dist(bond.relbpos())/max;
+						l=l>u?l:u;
+					}
+				}
+				body.data.life=l;
 			}
 		}
 	}
@@ -556,7 +563,7 @@ export class Game {
 		let off=new Vector(2);
 		for (let i=0;i<text.length;i++) {
 			let c=text.charCodeAt(i);
-			if (c>32 && c<128) {this.createparticle(CHAR+c,pos.add(off),{rad:scale});}
+			if (c>32 && c<128) {this.createparticle(CHAR+c,pos.add(off),{scale:scale});}
 			else if (c===10) {off[0]=0;off[1]+=scale*2.5;}
 			off[0]+=scale*2;
 		}
@@ -566,18 +573,25 @@ export class Game {
 	createparticle(id,pos,opt={}) {
 		// opt: ang, time, rad, rgb, rand, vel
 		let type=this.typearr[id<CHAR?id:CHAR],tdat=type.data;
+		let life=tdat.partlife*(id<CHAR?this.rnd.getf()*0.5+1:1);
+		// If the particle is too far away, don't spawn it.
+		if (id>=PART && id!==CHAR) {
+			let dist=this.playerbody.pos.dist(pos);
+			let drawdist=this.drawrad+life*this.maxspeed;
+			if (dist>drawdist) {return null;}
+		}
 		let ang=opt.ang??tdat.partang;
 		ang=isNaN(ang)?this.rnd.getf()*Math.PI*2:ang;
-		let vert=[],scale=opt.rad??tdat.partrad;
-		for (let v of tdat.partvert) {vert.push([v[0]*scale,v[1]*scale]);}
+		let vert=[],scale=opt.scale??tdat.bodyscale;
+		for (let v of tdat.bodyvert) {vert.push([v[0]*scale,v[1]*scale]);}
 		let body=this.world.createbody(vert,pos,[ang],type);
 		let data=Game.bodyinit(body);
-		let path=id<CHAR?tdat.partpath:this.runearr[id-CHAR];
+		let path=id<CHAR?tdat.drawpath:this.runearr[id-CHAR];
 		if (!path) {path=data.paths[0][1];}
 		body.vel.set(opt.vel??0);
-		data.rad=scale;
+		data.scale=scale;
 		if (opt.rand) {body.vel.iadd(Vector.random(2).imul(opt.rand));}
-		data.life=tdat.partlife*(id<CHAR?this.rnd.getf()*0.5+1:1);
+		data.life=life;
 		data.time=opt.time??0;
 		let rgb=(opt.rgb??tdat.rgb).slice();
 		if (id===LEAF) {
@@ -615,58 +629,67 @@ export class Game {
 	initplayer(playerpos) {
 		// Setup the player.
 		let world=this.world;
-		let ropespace=0.6/20,hookspace=0.135;
 		this.throwing=-1;
 		let typearr=this.typearr;
-		this.hookang=0;
 		this.camera.set(playerpos);
 		this.camcen.set(playerpos);
 		this.playerbody=world.createbody([[-1,-1],[1,-1],[1,1],[-1,1]],playerpos,null,typearr[BODY]);
 		// Create the hook.
+		let hookspace=0.135;
+		this.hookang=0;
 		this.hooktime=0;
-		this.hookbody=[];
 		this.hookbond=[];
-		let prev1=null;
+		this.edgebody=[];
+		let hookbody=[];
+		let len=3;
 		for (let s=0;s<3;s++) {
-			let ang=[1.3,-1.3,0][s],len=4;
+			let ang=(s-1)*1.3;
 			let dx=Math.cos(ang)*hookspace,dy=Math.sin(ang)*hookspace;
-			prev1=s?this.hookbody[0]:null;
-			for (let i=s?1:0;i<len;i++) {
-				let pos=new Vector([(len-1)*hookspace-dx*i,dy*i]);
-				let supp=(!i || i===len-1)?1:0,disp=supp;
-				let mat=typearr[i===len-1?EDGE:HOOK];
+			for (let i=s?1:0;i<=len;i++) {
+				let pos=new Vector([len*hookspace-dx*i,dy*i]);
+				let mat=typearr[i===len?EDGE:HOOK];
 				let body=world.createsphere(0.16,8,pos.add(playerpos),0,mat);
 				let data=Game.bodyinit(body);
+				let disp=null;
+				if (i===len) {
+					this.edgebody.push(body);
+					disp=data.paths[0][0];
+				}
 				data.pos=pos;
-				data.time=supp;
-				for (let nb of this.hookbody) {
-					let bonds=[0,1,10][nb.data.time+supp];
+				let bsup=(i%len)?0:1;
+				for (let j=0;j<hookbody.length;j++) {
+					let n=hookbody[j],nsup=(j%len)?0:1;
+					let bonds=[0,1,10][nsup+bsup];
 					for (let b=0;b<bonds;b++) {
-						let bond=world.createbond(nb,[0,0],body,[0,0],-1,6000);
-						if (disp) {disp=0;bond.data.rgb=[100,100,100,255];}
-						bond.data.orig=bond.dist;
+						let bond=world.createbond(n,[0,0],body,[0,0],-1,6000);
 						this.hookbond.push(bond);
+						bond.data.orig=bond.dist;
+						bond.data.rgb=disp;
+						disp=null;
 					}
 				}
-				this.hookbody.push(body);
-				prev1=body;
+				hookbody.push(body);
 			}
 		}
+		this.hookbody=hookbody;
+		let prev=hookbody[len*2];
 		// Create the hair.
-		this.ropemin=55;
-		this.ropemax=6000;
+		let segs=20,bonds=8;
+		let ropespace=0.7/segs;
+		this.ropemin=880/bonds;
+		this.ropemax=96000/bonds;
 		this.ropebody=[];
-		for (let i=0;i<21;i++) {
+		for (let i=0;i<segs;i++) {
 			let body=this.playerbody;
-			if (i<20) {
+			if (i<segs-1) {
 				body=world.createsphere(0.16,8,playerpos,null,typearr[ROPE]);
 				this.ropebody.push(body);
 			}
-			for (let b=0;b<16;b++) {
-				let bond=world.createbond(prev1,[0,0],body,[0,0],ropespace,this.ropemax);
+			for (let b=0;b<bonds;b++) {
+				let bond=world.createbond(prev,[0,0],body,[0,0],ropespace,this.ropemax);
 				if (!b) {bond.data.rgb=[255,255,255,255];}
 			}
-			prev1=body;
+			prev=body;
 		}
 	}
 
@@ -747,6 +770,7 @@ export class Game {
 			for (let hook of hookbody) {
 				hook.pos.set(trans.apply(hook.data.pos));
 				hook.vel.set(force);
+				hook.data.life=0;
 				for (let bond of hook.bonditer()) {
 					if (!(bond.breakdist===Infinity)) {bond.release();}
 				}
@@ -766,6 +790,23 @@ export class Game {
 			charge=throwing>0?charge:0;
 			if (sndinst!==null) {sndinst.remove();sndinst=null;}
 			this.hooktime=0;
+		}
+		// Glow according to hook tension.
+		if (this.throwing!==throwing || throwing===3) {
+			let decay=Math.pow(0.2,dt);
+			let glowrgb=[255,128,64,255];
+			let origrgb=this.typearr[EDGE].data.rgb;
+			for (let body of this.edgebody) {
+				let data=body.data;
+				let u=data.life*decay;
+				data.life=u;
+				u=u<1?u:1;
+				let rgb=data.paths[0][0];
+				for (let i=0;i<4;i++) {
+					let a=origrgb[i],b=glowrgb[i];
+					rgb[i]=a+u*(b-a);
+				}
+			}
 		}
 		this.throwing=throwing;
 		this.charge=charge;
@@ -802,7 +843,7 @@ export class Game {
 	initlevel() {
 		this.reset();
 		let world=this.world;
-		let toph=15,both=20,climb=200;
+		let toph=15,both=15,climb=200;
 		let miny=-toph-climb,maxy=both;
 		let minx=0,maxx=200;
 		this.worldmin=new Vector([minx,miny]);
@@ -906,9 +947,8 @@ export class Game {
 				// Destroy rain or snow if they're hit hard.
 				if (id===RAIN && accel>0.1) {
 					if (time>0.05) {
-						let droppos=pos.add(body.mat.mul([0.17,0]));
 						for (let j=0;j<8;j++) {
-							this.createparticle(PART,droppos,{vel:vel,rand:2,rgb:rgb});
+							this.createparticle(PART,pos,{vel:vel,rand:2,rgb:rgb});
 						}
 					}
 					time=life;
@@ -918,7 +958,7 @@ export class Game {
 					continue;
 				}
 				bdat.time=time;
-				bodytrans.scalemat(bdat.rad*tdat.partscale);
+				bodytrans.scalemat(bdat.scale*tdat.drawscale);
 				if (id===RUNE) {
 					// Make rune glyph and color dependent on angle.
 					let ang=body.angle[0]/(Math.PI*2);
@@ -954,12 +994,17 @@ export class Game {
 		for (let body of world.bodyiter()) {
 			// Display physics collider.
 			draw.setcolor(255,255,255,64);
-			draw.fillpath(body.data.objpath,trans.apply({mat:body.mat,vec:body.pos}));
+			let path=draw.begin();
+			for (let v of body.vertarr) {
+				path.lineto(v[0],v[1]);
+			}
+			draw.fillpath(path,trans.apply({mat:body.mat,vec:body.pos}));
 		}
 		draw.setcolor(100,100,255,255);
 		draw.filltext(5,100,`body: ${world.bodylist.count}`,20);
 		draw.filltext(5,120,`bond: ${world.bondlist.count}`,20);
 	}
+
 
 
 	update(frametime) {

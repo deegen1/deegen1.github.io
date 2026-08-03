@@ -190,6 +190,7 @@ fillpath
 	Simplify sa/da blending. Integer only? Rebalance for 255 vs 256.
 
 DrawImage
+	Fix drawimagef alpha blending and test speed.
 	Fixed point math.
 	Remove rounding values.
 	Make sure drawimagei() and drawimage() are 1-to-1.
