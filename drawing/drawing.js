@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v5.05
+drawing.js - v5.06
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -155,6 +155,8 @@ History
      Removed array destructuring since it's slow. Ex: let [x,y]=point.
 5.05
      Fixed trace() for single points and certain sharp angles.
+5.06
+     drawimage() transform is now applied to offset, like rects.
 
 
 --------------------------------------------------------------------------------
@@ -207,7 +209,7 @@ import {Transform} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v5.05
+// Drawing - v5.06
 
 
 class DrawPath {
@@ -1270,15 +1272,16 @@ export class Draw {
 		//                  '.   .'
 		//                    '.'
 		//
-		if (trans===undefined) {trans=this.deftrans;}
-		else if (!(trans instanceof Transform)) {trans=new Transform(trans);}
+		trans=trans??this.deftrans;
+		if (!(trans instanceof Transform)) {trans=new Transform(trans);}
 		let dstimg=this.img;
 		let dstw=dstimg.width,dsth=dstimg.height;
 		let srcw=srcimg.width,srch=srcimg.height;
 		const rnd0=1e-6,rnd1=1-rnd0;
 		// src->dst transformation.
-		let matxx=trans.mat[0],matxy=trans.mat[1],matx=trans.vec[0]+offx;
-		let matyx=trans.mat[2],matyy=trans.mat[3],maty=trans.vec[1]+offy;
+		let mat=trans.mat,vec=trans.vec;
+		let matxx=mat[0],matxy=mat[1],matx=vec[0]+offx*matxx+offy*matxy;
+		let matyx=mat[2],matyy=mat[3],maty=vec[1]+offx*matyx+offy*matyy;
 		let det=matxx*matyy-matxy*matyx;
 		let alpha=det*0.5*this.rgba[3]/(255*255);
 		if (!(srcw*srch*(alpha>0?alpha:-alpha)>1e-8 && dstw && dsth)) {return;}
@@ -1543,12 +1546,13 @@ export class Draw {
 		// Preprocess the lines and curves. Use a binary heap to dynamically sort lines.
 		// Keep JS as simple as possible to be efficient. Keep micro optimization in WASM.
 		// ~~x = fast floor(x)
-		if (path===undefined) {path=this.defpath;}
-		if (trans===undefined) {trans=this.deftrans;}
-		else if (!(trans instanceof Transform)) {trans=new Transform(trans);}
+		path =path ??this.defpath;
+		trans=trans??this.deftrans;
+		if (!(trans instanceof Transform)) {trans=new Transform(trans);}
 		// Screenspace transformation.
-		let matxx=trans.mat[0],matxy=trans.mat[1],matx=trans.vec[0];
-		let matyx=trans.mat[2],matyy=trans.mat[3],maty=trans.vec[1];
+		let mat=trans.mat;
+		let matxx=mat[0],matxy=mat[1],matx=trans.vec[0];
+		let matyx=mat[2],matyy=mat[3],maty=trans.vec[1];
 		let det=(matxx*matyy-matxy*matyx)*path.area;
 		const curvemaxdist2=0.02;
 		let iw=this.img.width,ih=this.img.height;

@@ -83,6 +83,9 @@ Why do delay filters need a phase correction?
 Sound effects
 	Remove tbl
 	Optimize %mod lines in sfx.fill(). Replace with a-=floor(a/b)*b;
+	let u=acc+phase;u-=Math.floor(u/mod)*mod;
+	let v=acc+freq*sndrate;
+	df32[n+5]=v-Math.floor(v/mod)*mod;
 	Simplify attribute naming in namemap[].
 	Configure delay filter to cache at a static frequency. If rate is too
 	small accumulate till we have enough. If too large, split up and fill

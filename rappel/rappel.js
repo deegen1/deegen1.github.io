@@ -222,6 +222,20 @@ export class Game {
 			this.runearr[i]=path;
 		}
 		this.runearr.push(null);
+		// Player image.
+		this.playerimg=new Draw.Image(32,32);
+		draw.pushstate();
+		draw.setimage(this.playerimg);
+		let jupiter=new Draw.Path(`
+			M102 236V-185c0-41 63-41 63 0V236H402c39 0 39 63 0 63H165V537c0 38-63 38-63 0
+			V299H-403c-27 0-44-40-13-59 267-150 304-562-3-747-32-21-1-73 33-54C-75-373-64
+			14-301 236Z
+		`,{dim:2,scale:1/565});
+		draw.fill(128,128,255);
+		draw.setcolor(64,64,128);
+		draw.tracerect(0,0,32,32,-1.5,0);
+		draw.fillpath(jupiter,{scale:10,vec:[16,16]});
+		draw.popstate();
 		// Init UI.
 		let state=this;
 		let ui=new UI(draw,this.input);
@@ -401,6 +415,7 @@ export class Game {
 		data.sndready=true;
 		data.time=0;
 		data.life=0;
+		data.img=null;
 		data.paths=[];
 		let path=new Draw.Path();
 		for (let v of body.vertarr) {path.lineto(v);}
@@ -634,6 +649,7 @@ export class Game {
 		this.camera.set(playerpos);
 		this.camcen.set(playerpos);
 		this.playerbody=world.createbody([[-1,-1],[1,-1],[1,1],[-1,1]],playerpos,null,typearr[BODY]);
+		Game.bodyinit(this.playerbody).img=this.playerimg;
 		// Create the hook.
 		let hookspace=0.135;
 		this.hookang=0;
@@ -977,9 +993,16 @@ export class Game {
 				rgb[3]=255.99*(half<fade?half/fade:1)|0;
 			}
 			// Draw
-			for (let p of paths) {
-				draw.setcolor(p[0]);
-				draw.fillpath(p[1],bodytrans);
+			let img=bdat.img;
+			if (img!==null) {
+				bodytrans.scalemat(1/scale);
+				let imgw=img.width,imgh=img.height;
+				draw.drawimage(img,-imgw/2,-imgh/2,bodytrans);
+			} else {
+				for (let p of paths) {
+					draw.setcolor(p[0]);
+					draw.fillpath(p[1],bodytrans);
+				}
 			}
 		}
 	}

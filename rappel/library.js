@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v19.70
+library.js - v19.71
 
 Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -16,7 +16,7 @@ Random  - v1.11
 Data    - v2.02
 Vector  - v3.15
 Input   - v1.19
-Drawing - v5.05
+Drawing - v5.06
 UI      - v1.03
 Audio   - v3.12
 Physics - v2.01
@@ -1788,7 +1788,7 @@ export class Input {
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v5.05
+// Drawing - v5.06
 
 
 class DrawPath {
@@ -2166,7 +2166,7 @@ class DrawPath {
 						dx1/=mag;dy1/=mag;
 						for (let j=closed?0:2;j<li;j+=2) {
 							let k=side?li-2-j:j;
-							let dx0=dx1,dy0=dy1,pmag=mag+maxext;
+							let dx0=dx1,dy0=dy1,mag0=mag+maxext;
 							x0=x1;x1=lv[k  ];dx1=x1-x0;
 							y0=y1;y1=lv[k+1];dy1=y1-y0;
 							mag=Math.sqrt(dx1*dx1+dy1*dy1);
@@ -2177,8 +2177,8 @@ class DrawPath {
 							let u=dot>0?0:maxext;
 							if (den<-1e-5 || den>1e-5) {u=(dot-1)*off/den;}
 							// Miter if we need to.
-							if (u<=-pmag || u>=maxext) {
-								u=u<0?-pmag:maxext;
+							if (u<=-mag0 || u>=maxext) {
+								u=u<0?-mag0:maxext;
 								out.lineto(x0-dy0*off+dx0*u,y0+dx0*off+dy0*u);
 							}
 							out.lineto(x0-dy1*off-dx1*u,y0+dx1*off-dy1*u);
@@ -2851,15 +2851,16 @@ export class Draw {
 		//                  '.   .'
 		//                    '.'
 		//
-		if (trans===undefined) {trans=this.deftrans;}
-		else if (!(trans instanceof Transform)) {trans=new Transform(trans);}
+		trans=trans??this.deftrans;
+		if (!(trans instanceof Transform)) {trans=new Transform(trans);}
 		let dstimg=this.img;
 		let dstw=dstimg.width,dsth=dstimg.height;
 		let srcw=srcimg.width,srch=srcimg.height;
 		const rnd0=1e-6,rnd1=1-rnd0;
 		// src->dst transformation.
-		let matxx=trans.mat[0],matxy=trans.mat[1],matx=trans.vec[0]+offx;
-		let matyx=trans.mat[2],matyy=trans.mat[3],maty=trans.vec[1]+offy;
+		let mat=trans.mat,vec=trans.vec;
+		let matxx=mat[0],matxy=mat[1],matx=vec[0]+offx*matxx+offy*matxy;
+		let matyx=mat[2],matyy=mat[3],maty=vec[1]+offx*matyx+offy*matyy;
 		let det=matxx*matyy-matxy*matyx;
 		let alpha=det*0.5*this.rgba[3]/(255*255);
 		if (!(srcw*srch*(alpha>0?alpha:-alpha)>1e-8 && dstw && dsth)) {return;}
@@ -3124,12 +3125,13 @@ export class Draw {
 		// Preprocess the lines and curves. Use a binary heap to dynamically sort lines.
 		// Keep JS as simple as possible to be efficient. Keep micro optimization in WASM.
 		// ~~x = fast floor(x)
-		if (path===undefined) {path=this.defpath;}
-		if (trans===undefined) {trans=this.deftrans;}
-		else if (!(trans instanceof Transform)) {trans=new Transform(trans);}
+		path =path ??this.defpath;
+		trans=trans??this.deftrans;
+		if (!(trans instanceof Transform)) {trans=new Transform(trans);}
 		// Screenspace transformation.
-		let matxx=trans.mat[0],matxy=trans.mat[1],matx=trans.vec[0];
-		let matyx=trans.mat[2],matyy=trans.mat[3],maty=trans.vec[1];
+		let mat=trans.mat;
+		let matxx=mat[0],matxy=mat[1],matx=trans.vec[0];
+		let matyx=mat[2],matyy=mat[3],maty=trans.vec[1];
 		let det=(matxx*matyy-matxy*matyx)*path.area;
 		const curvemaxdist2=0.02;
 		let iw=this.img.width,ih=this.img.height;

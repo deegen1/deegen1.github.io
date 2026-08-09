@@ -85,7 +85,6 @@ Matrix
 	row(i,v), col(i,v), get(x,y)
 	add, sub, neg.
 
-
 Transform
 	lookat: https://math.stackexchange.com/questions/180418
 
@@ -142,7 +141,6 @@ inv()
 		}
 		return m;
 	}
-
 
 apply()
 	// This is called a lot, so unroll mat*point+vec.
