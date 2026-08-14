@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-icindex.js - v1.07
+icindex.js - v1.08
 
 Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -83,6 +83,8 @@ History
 1.07
      Fixed mod selection dropdown to use Mod.Name attribute.
      Updated ICP to 1.2.
+1.08
+     Added ability exclusions and updated the stat table.
 
 
 --------------------------------------------------------------------------------
@@ -688,7 +690,7 @@ class Creature {
 	}
 
 
-	calcefficiency1() {
+	calcefficiency() {
 		// Nandid efficiency rating
 		let damage=0;
 		for (let r of this.rangearr) {damage=Math.max(damage,r.damage);}
@@ -697,7 +699,7 @@ class Creature {
 	}
 
 
-	calcefficiency() {
+	calcefficiency2() {
 		// Better efficiency calculation.
 		// horn bonus, assuming armour=~0.3: (1-0.3*(1-0.35))/(1-0.3) = 1.15
 		let dps=0,poison=0;
@@ -820,7 +822,7 @@ class ICDex {
 			}
 			let den=0;
 			let power=0,hitpoints=0,armour=0,coal=0,elec=0;
-			let melee=0,meleeden=0,range=0,rangeden=0;
+			let melee=0,meleeden=0,range=0,dist=0,rangeden=0;
 			rem=~~(rem/10);
 			for (let i=0;i<rem;i++) {
 				let c=levelcache[i];
@@ -832,6 +834,7 @@ class ICDex {
 				elec+=c.electricity*w;
 				if (c.rangearr.length) {
 					range+=c.rangearr[0].damage*w;
+					dist+=c.rangearr[0].max*w;
 					rangeden+=w;
 				} else {
 					melee+=c.melee_damage*w;
@@ -846,11 +849,13 @@ class ICDex {
 			elec/=den;
 			melee/=meleeden;
 			range/=rangeden;
+			dist/=rangeden;
 			let out=
 				`<tr><td>${level}</td><td>${power.toFixed(0)}`+
 				`</td><td>${coal.toFixed(0)}</td><td>${elec.toFixed(0)}`+
 				`</td><td>${hitpoints.toFixed(0)}</td><td>${armour.toFixed(2)}`+
-				`</td><td>${melee.toFixed(2)}</td><td>${range.toFixed(2)}</td></tr>`;
+				`</td><td>${melee.toFixed(2)}</td><td>${range.toFixed(2)}`+
+				`</td><td>${dist.toFixed(2)}</td></tr>`;
 			console.log(out);
 		}
 	}
@@ -887,6 +892,7 @@ class UI {
 		let sortability=Abilities.toSorted((l,r)=>{return l.name<r.name?-1:1;});
 		this.filters=[
 			{name:"Abilities"   ,type:"list" ,arr:sortability},
+			{name:"Abilities Exclude",type:"list",arr:sortability},
 			{name:"Air Speed"   ,type:"range",min:0,max:  50,func:function(c){return c.airspeed;}},
 			{name:"Armour"      ,type:"range",min:0,max: 0.6,func:function(c){return c.armour;}},
 			{name:"Build Time"  ,type:"range",min:0,max: 600,func:function(c){return c.constructionticks;}},
@@ -1209,11 +1215,12 @@ class UI {
 			} else {
 				// Filter abilities with flags
 				let sel=Object.values(f.sel);
-				let min=f.mode?1:sel.length;
+				let min=f.mode?1:sel.length,max=Infinity;
+				if (f.name==="Abilities Exclude") {max=min?min-1:0;min=0;}
 				for (let i=0;i<rlen;i++) {
 					let c=results[i],v=0;
 					for (let a of sel) {v+=(c[a.attr]&a.mask)?1:0;}
-					if (v>=min) {results[nlen++]=c;}
+					if (v>=min && v<=max) {results[nlen++]=c;}
 				}
 			}
 			rlen=nlen;
