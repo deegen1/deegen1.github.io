@@ -341,7 +341,7 @@ export class Game {
 
 	initphysics() {
 		// Setup physics world.
-		this.world=new Phy.World(2,100,0.005*640,0.1);
+		this.world=new Phy.World(2,100);
 		let world=this.world;
 		let state=this;
 		world.data.game=this;
@@ -865,7 +865,7 @@ export class Game {
 		this.worldmin=new Vector([minx,miny]);
 		this.worldmax=new Vector([maxx,maxy]);
 		this.worlddif=this.worldmax.sub(this.worldmin);
-		this.initplayer([maxx*0.5-10,10]);
+		this.initplayer([maxx*0.5-24,10]);
 		// Set up the level.
 		// Create the walls
 		let wallmat=this.typearr[WALL];
@@ -915,7 +915,7 @@ export class Game {
 				world.createbody(arr,[holdx,holdy],null,wallmat);
 			}
 		}
-		this.createtext("CLICK TO THROW",[maxx*0.5-6.5*2,4],1);
+		this.createtext("CLICK TO THROW",[maxx*0.5-33,-4],1);
 		this.createbiome(LEAF,[minx,0],[maxx,both]);
 		this.createbiome(RAIN,[minx,-climb+bart],[maxx,climb-bart*2]);
 		// Game state
