@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v5.06
+drawing.js - v5.07
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -157,6 +157,8 @@ History
      Fixed trace() for single points and certain sharp angles.
 5.06
      drawimage() transform is now applied to offset, like rects.
+5.07
+     Updated trace() to allow individual sides.
 
 
 --------------------------------------------------------------------------------
@@ -198,7 +200,9 @@ DrawImage
 	Make sure drawimagei() and drawimage() are 1-to-1.
 	See if narrow dx/dy causes problems.
 	Create page describing algorithm: Transforming an image (the hard way).
-	Faster pixel blending.
+	Faster pixel blending. Integers?
+		u=sa/a
+		c=(sc-dc)*u+dc
 
 
 */
@@ -209,7 +213,7 @@ import {Transform} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v5.06
+// Drawing - v5.07
 
 
 class DrawPath {
@@ -524,7 +528,6 @@ class DrawPath {
 		let scale=(this.maxx-this.minx+this.maxy-this.miny)/1000;
 		scale=scale>1e-10?scale:1e-10;
 		let curvemaxdist2=0.03*scale*scale;
-		let maxext=Math.abs(outrad-inrad)+1e-10;
 		let lv=DrawPath._traceline,cv=DrawPath._tracecurve;
 		let li=0;
 		function AddSeg(x,y) {
@@ -578,6 +581,8 @@ class DrawPath {
 					// Trace around line segments.
 					for (let side=0;side<2;side++) {
 						let off=(side>0)===(area<0)?inrad:outrad;
+						let maxext=Math.abs(off)*2+1e-10;
+						if (!(maxext<Infinity)) {continue;}
 						let i0=2,i1=0;
 						if (side!==closed) {i1=li-2;i0=i1-2;}
 						let x0=lv[i0],y0=lv[i0+1];
@@ -604,8 +609,9 @@ class DrawPath {
 							}
 							out.lineto(x0-dy1*off-dx1*u,y0+dx1*off-dy1*u);
 						}
-						if (side || closed) {out.close();}
+						if (closed) {out.close();}
 					}
+					out.close();
 				}
 				closed=0;
 				li=0;
@@ -1808,9 +1814,9 @@ export class Draw {
 					if (da===255) {
 						sa=256.49-sa*256;
 					} else {
-						let tmp=sa*255+(1-sa)*da;
-						sa=256.49-(sa/tmp)*65280;
-						da=tmp+0.49;
+						da+=sa*(255-da);
+						sa=256.49-(sa/da)*65280;
+						da+=0.49;
 					}
 					// imul() implicitly casts floor(sa).
 					imgdata[p]=(da<<ashift)
