@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-random.js - v1.11
+random.js - v1.12
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -29,6 +29,8 @@ History
 1.11
      Changed gets() range from [-1,1) to [-1,1].
      hashu32() and getu32() now only use ADD and XOR.
+1.12
+     Cleanup up variable declarations.
 
 
 --------------------------------------------------------------------------------
@@ -36,7 +38,20 @@ TODO
 
 
 Only use primitive operations in getnorm().
-https://www.reddit.com/r/algorithms/comments/yyz59u/
+	https://www.reddit.com/r/algorithms/comments/yyz59u/
+	Sum blocks of b bits and average.
+
+
+static hashu64(val) {
+	let hash=val^0xaaaaaaaaaaaaaaab;
+	hash+=hash<<27;hash^=hash>>>17;
+	hash+=hash<<10;hash^=hash>>>19;
+	hash+=hash<<12;hash^=hash>>> 6;
+	hash+=hash<<10;hash^=hash>>>26;
+	hash+=hash<<10;hash^=hash>>>13;
+	hash+=hash<<19;hash^=hash>>>29;
+	return hash>>>0;
+}
 
 
 */
@@ -44,7 +59,7 @@ https://www.reddit.com/r/algorithms/comments/yyz59u/
 
 
 //---------------------------------------------------------------------------------
-// Random - v1.11
+// Random - v1.12
 
 
 export class Random {
@@ -91,18 +106,6 @@ export class Random {
 	}
 
 
-	/*static hashu64(val) {
-		let hash=val^0xaaaaaaaaaaaaaaab;
-		hash+=hash<<27;hash^=hash>>>17;
-		hash+=hash<<10;hash^=hash>>>19;
-		hash+=hash<<12;hash^=hash>>> 6;
-		hash+=hash<<10;hash^=hash>>>26;
-		hash+=hash<<10;hash^=hash>>>13;
-		hash+=hash<<19;hash^=hash>>>29;
-		return hash>>>0;
-	}*/
-
-
 	getu32() {
 		let hash=(this.acc+this.inc)>>>0;
 		this.acc=hash;
@@ -120,7 +123,7 @@ export class Random {
 		if (!(mod>0 && (mod>>>0)===mod)) {
 			throw "mod out of range: "+mod;
 		}
-		let rand=0,rem=0,nmod=(-mod)>>>0;
+		let rand,rem,nmod=(-mod)>>>0;
 		do {
 			rand=this.getu32();
 			rem=rand%mod;

@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-rappel.js - v1.02
+rappel.js - v1.04
 
 Copyright 2026 Alec Dee
 2dee.net - akdee144@gmail.com
@@ -35,7 +35,7 @@ import {Env,Random,Vector,Matrix,Transform,Input,Draw,Audio,UI,Phy} from "./libr
 
 
 // Material IDs
-const NORM=0,WALL=1,BODY=2,ROPE=3,HOOK=4,EDGE=5;
+const WALL=0,BODY=1,ROPE=2,HOOK=3,EDGE=4,NORM=5;
 const PART=6,LEAF=7,RAIN=8,CHAR=9;
 
 
@@ -302,7 +302,7 @@ export class Game {
 			let h=(rnd.getf()+0.5)*w;
 			if (z<1e-7 || y-h>drawh) {continue;}
 			// Shade based on proximity.
-			let col=(rnd.getf()*6+27)/(1.5-u);
+			let col=(rnd.getf()+4.5)*6.3/(1.5-u);
 			draw.setcolor(col,1.33*col,col,255);
 			draw.fillpath(tree,{vec:[x,y],scale:h});
 		}
@@ -323,21 +323,18 @@ export class Game {
 		world.collcallback=function() {return state.collcallback(...arguments);};
 		world.stepcallback=function(dt) {return state.stepcallback(dt);};
 		world.deftype.release();
-		let normmat=world.createbodytype(0.01,1.0   ,0.28,0.2);
 		let wallmat=world.createbodytype(1.00,Infinity,0.95,0.5);
 		let bodymat=world.createbodytype(0.01,1.0500,0.00,0.2);
 		let ropemat=world.createbodytype(0.50,0.2763,0.00,0.0);
 		let hookmat=world.createbodytype(0.25,0.5525,0.25,0.0);
 		let edgemat=world.createbodytype(0.01,0.5525,0.50,0.0);
+		let normmat=world.createbodytype(0.01,1.0   ,0.28,0.2);
 		let partmat=world.createbodytype(0.50,1e-9  ,0.50,0.0);
 		let leafmat=world.createbodytype(0.75,1e-8  ,0.00,1.0);
 		let rainmat=world.createbodytype(0.25,1e-8  ,0.00,0.0);
 		let charmat=world.createbodytype(0.75,1e-8  ,0.25,0.0);
 		world.deftype=normmat;
-		this.typearr=[];
-		for (let type of world.typelist.iter()) {
-			this.typearr.push(type);
-		}
+		this.typearr=world.typelist.array();
 		partmat.gravity=new Vector([0,0]);
 		charmat.gravity=new Vector([0,0]);
 		// Attach metadata to materials.
@@ -362,12 +359,12 @@ export class Game {
 		let rainvert=[[1,0],[0,1],[-8,0],[0,-1]];
 		let runevert=[[-1,-rw],[1,-rw],[1,rw],[-1,rw]];
 		let partvert=[[-1,-1],[1,-1],[1,1],[-1,1]];
-		addmeta(normmat,[255,255,255,255],null,null,this.normsnd,20,40);
-		addmeta(wallmat,[140,170,140,255],null,null);
+		addmeta(wallmat,[132,132, 66,255],null,null);
 		addmeta(bodymat,[128,128,255,255],null,null,this.bodysnd,10,30);
 		addmeta(ropemat,null             ,null,null);
 		addmeta(hookmat,null             ,null,null,this.hooksnd, 2, 6);
 		addmeta(edgemat,[100,100,100,255],null,null,this.hooksnd, 2, 6);
+		addmeta(normmat,[255,255,255,255],null,null,this.normsnd,20,40);
 		addmeta(partmat,[255,255,255,255],null    ,partvert,null        , 0, 0,NaN ,0.05,25  ,NaN,0.2);
 		addmeta(leafmat,[255,255,255,255],leafpath,leafvert,this.leafsnd, 6,10,1000,0.3 ,2   ,NaN,40 );
 		addmeta(rainmat,[128,128,255,255],null    ,rainvert,this.rainsnd,10,15,200 ,0.1 ,10  ,PI2,9  );
@@ -397,7 +394,7 @@ export class Game {
 				path.close();
 			}
 			if (type.id===WALL) {
-				data.paths=[[[32,32,32,255],path]];
+				data.paths=[[[24,24,24,255],path]];
 				path=path.trace(0,-0.2);
 			}
 			data.paths.push([rgb.slice(),path]);
@@ -631,14 +628,9 @@ export class Game {
 				let pos=new Vector([len*hookspace-dx*i,dy*i]);
 				let mat=typearr[i===len?EDGE:HOOK];
 				let body=world.createsphere(0.16,8,pos.add(playerpos),0,mat);
-				let data=Game.bodyinit(body);
-				data.pos=pos;
-				let disp=null;
-				if (i===len) {
-					this.edgebody.push(body);
-					disp=data.paths[0][0];
-				}
+				Game.bodyinit(body).pos=pos;
 				let bsup=(i%len)?0:1;
+				let disp=mat.data.rgb;
 				for (let j=0;j<hookbody.length;j++) {
 					let n=hookbody[j],nsup=(j%len)?0:1;
 					let bonds=[0,1,10][nsup+bsup];
@@ -650,6 +642,7 @@ export class Game {
 						disp=null;
 					}
 				}
+				if (i===len) {this.edgebody.push(body);}
 				hookbody.push(body);
 			}
 		}
@@ -804,6 +797,7 @@ export class Game {
 	initlevel() {
 		// Set up the level.
 		this.reset();
+		let rnd=this.rnd;
 		let world=this.world;
 		let toph=15,both=15,climb=200;
 		let miny=-toph-climb,maxy=both;
@@ -836,21 +830,17 @@ export class Game {
 			world.createbody(verts,[maxx*i/3,both*0.25],[Math.PI/4],wallmat);
 		}
 		// Create holds
-		let rnd=this.rnd;
 		let holdgap=20;
 		let levels=Math.round(climb/holdgap)|1;
 		holdgap=climb/levels;
-		let spanx=2*Math.floor((maxx-minx)/(2*holdgap));
+		let spanx=~~((maxx-minx)/holdgap);
 		let gapx=(maxx-minx)/spanx;
 		for (let l=0;l<levels;l++) {
 			let holdy=maxy-both-l*holdgap;
 			for (let s=1-(l&1);s<=spanx;s+=2) {
 				verts=[];
-				for (let i=0;i<8;i++) {
-					verts.push([rnd.gets()*8,rnd.gets()*8]);
-				}
-				let holdx=s*gapx+minx;
-				world.createbody(verts,[holdx,holdy],null,wallmat);
+				for (let i=0;i<8;i++) {verts.push([rnd.gets()*8,rnd.gets()*8]);}
+				world.createbody(verts,[s*gapx+minx,holdy],null,wallmat);
 			}
 		}
 		// Extra objects.

@@ -18,6 +18,7 @@ Write the articles as if there are no images. Add images later to help.
 body {
 	/* Whitepace after the ":" is preserved */
 	--main-back   :rgb( 26, 26, 26,1);
+	/*--main-back   :rgb( 0,0,0,1);*/
 	--main-text   :rgb(230,230,230,1);
 	/*--main-title1 :rgb( 72, 72,192,1);*/
 	--main-title1 :rgb( 96, 96,255,1);
@@ -69,6 +70,8 @@ body {
 	background-attachment:fixed;
 	background-color:#000000;
 	/*background-color:#efefef;*/
+	background-color:#1a1a1a;
+	background-color:#000000;
 	color:var(--main-text);
 	/*font-family:Montserrat,sans-serif,sans-serif;*/
 	font-family:Arial,"Lucida Grande","Lucida Sans Unicode","GNU Unifont",Verdana,Helvetica,sans-serif;

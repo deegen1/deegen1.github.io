@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-audio.js - v3.12
+audio.js - v3.13
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -68,6 +68,8 @@ History
      Added sound looping.
 3.12
      Moved SFX consts to global.
+3.13
+     Cleanup up variable declarations.
 
 
 --------------------------------------------------------------------------------
@@ -113,7 +115,7 @@ Audio keeps playing
 
 
 //---------------------------------------------------------------------------------
-// Audio - v3.12
+// Audio - v3.13
 
 
 class AudioSound {
@@ -611,7 +613,7 @@ class AudioSFX {
 		for (let i=0;i<seqlen;i++) {addhash(seqstr.charCodeAt(i));}
 		while (s<seqlen || node) {
 			// Read through whitespace and comments.
-			let c=0;
+			let c;
 			while ((c=getc())<33 && c>0) {s++;}
 			if (c===39 || c===34) {
 				// If " stop at ". If ' stop at \n.
@@ -914,8 +916,8 @@ class AudioSFX {
 
 
 	biquadcoefs(n,type,rate,bw,gain) {
-		let b0=1,b1=0,b2=0;
-		let a0=1,a1=0,a2=0;
+		let b0,b1,b2;
+		let a0,a1,a2;
 		let v  =gain;
 		let ang=2*Math.PI*rate;
 		let sn =Math.sin(ang);

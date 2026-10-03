@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-physics.js - v2.01
+physics.js - v2.02
 
 Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -39,6 +39,8 @@ History
      Added resting position if body doesn't move.
 2.01
      Fixed inertia calculation.
+2.02
+     Cleaned up variable declarations.
 
 
 --------------------------------------------------------------------------------
@@ -92,7 +94,7 @@ import {Random,Vector,Matrix,List} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
-// Physics - v2.01
+// Physics - v2.02
 
 
 class PhyInteraction {
@@ -235,7 +237,7 @@ class PhyBodyType {
 		//
 		this.dt=dt;
 		let damp=this.damp,idamp=1-damp;
-		let dt0=0,dt1=0,dt2=0;
+		let dt0,dt1,dt2;
 		if (damp<=1e-10) {
 			// Special case damping=0: just integrate.
 			dt0=1;
@@ -318,7 +320,7 @@ class PhyBody {
 	release() {
 		if (this.deleted) {return;}
 		this.deleted=true;
-		let link=null;
+		let link;
 		while ((link=this.bondlist.head)!==null) {
 			link.obj.release();
 		}
@@ -362,7 +364,7 @@ class PhyBody {
 		let dim=this.world.dim,dim2=(dim*(dim-1))>>>1;
 		let vertarr=this.vertarr;
 		let verts=vertarr.length;
-		let volume=0;
+		let volume;
 		let imat=new Matrix(dim2,dim2);
 		if (verts===0) {
 			volume=Infinity;

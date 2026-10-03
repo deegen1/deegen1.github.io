@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-vector.js - v3.15
+vector.js - v3.16
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -11,7 +11,6 @@ Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 Notes
 
 
-Keep under 20kb, without header.
 Array() is faster than Float64Array().
 isNaN([1])=true
 (A*u)*b = u*(A^t*b)
@@ -74,22 +73,63 @@ History
      Matrices can be created without initializing.
 3.15
      Fixed a bug when calling Matrix.set() on an array.
+3.16
+     Optimized Transform.rotatemat().
+     det() now reuses a temp buffer. This is 2x as fast for a 3x3 matrix.
 
 
 --------------------------------------------------------------------------------
 TODO
 
 
+Keep under 20kb, minus header.
+
+Vector
+	Remove comparisons.
+
 Matrix
 	tostring()
 	row(i,v), col(i,v), get(x,y)
 	add, sub, neg.
+	When inverting, instead of using perm, set temp matrix and then copy at
+	end.
 
 Transform
 	lookat: https://math.stackexchange.com/questions/180418
 
 Test suite.
 Article on random angle generation.
+
+mul()
+	if (acols===arows && acols===bcols) {
+		let a=this;
+		if (acols===2) {
+			let a0=a[0],a1=a[1],a2=a[2],a3=a[3];
+			let b0=b[0],b1=b[1],b2=b[2],b3=b[3];
+			m[0]=a0*b0+a1*b2;
+			m[1]=a0*b1+a1*b3;
+			m[2]=a2*b0+a3*b2;
+			m[3]=a2*b1+a3*b3;
+			return m;
+		} else if (acols===3) {
+			let a0=a[0],a1=a[1],a2=a[2];
+			let a3=a[3],a4=a[4],a5=a[5];
+			let a6=a[6],a7=a[7],a8=a[8];
+			let b0=b[0],b1=b[1],b2=b[2];
+			let b3=b[3],b4=b[4],b5=b[5];
+			let b6=b[6],b7=b[7],b8=b[8];
+			m[0]=a0*b0+a1*b3+a2*b6;
+			m[1]=a0*b1+a1*b4+a2*b7;
+			m[2]=a0*b2+a1*b5+a2*b8;
+			m[3]=a3*b0+a4*b3+a5*b6;
+			m[4]=a3*b1+a4*b4+a5*b7;
+			m[5]=a3*b2+a4*b5+a5*b8;
+			m[6]=a6*b0+a7*b3+a8*b6;
+			m[7]=a6*b1+a7*b4+a8*b7;
+			m[8]=a6*b2+a7*b5+a8*b8;
+			return m;
+		}
+	}
 
 det()
 	// Unroll small matrices. This is 10x faster.
@@ -165,7 +205,7 @@ import {Random} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
-// Vector - v3.15
+// Vector - v3.16
 
 
 export class Vector extends Array {
@@ -429,7 +469,7 @@ export class Vector extends Array {
 	randomize() {
 		let u=this,len=this.length;
 		if (!len) {return this;}
-		let mag=0,rnd=Vector.rnd;
+		let mag,rnd=Vector.rnd;
 		do {
 			mag=0;
 			for (let i=0;i<len;i++) {
@@ -451,7 +491,7 @@ export class Vector extends Array {
 
 export class Matrix extends Array {
 
-	static _perm=[];
+	static _tmp=[];
 
 
 	constructor(rows,cols,init=true) {
@@ -555,7 +595,9 @@ export class Matrix extends Array {
 		let dim=this.rows,cols=this.cols,elems=dim*dim;
 		if (dim!==cols) {return 0;}
 		// Copy the matrix. Use the upper triangular form to compute the determinant.
-		let elem=new Matrix(this);
+		let elem=Matrix._tmp;
+		if (elem.length<elems) {Matrix._tmp=elem=new Array(elems);}
+		for (let i=0;i<elems;i++) {elem[i]=this[i];}
 		let det=1;
 		for (let i=0;i<dim;i++) {
 			// Find a column with an invertible element on row i.
@@ -597,9 +639,8 @@ export class Matrix extends Array {
 		let dim=this.rows,cols=this.cols;
 		if (dim!==cols) {throw `Can only invert square matrices: ${dim}, ${cols}`;}
 		let elem=this;
-		let perm=Matrix._perm;
-		if (perm.length<dim) {Matrix._perm=perm=new Array(dim);}
-		// let perm=new Array(dim);
+		let perm=Matrix._tmp;
+		if (perm.length<dim) {Matrix._tmp=perm=new Array(dim);}
 		for (let i=0;i<dim;i++) {
 			// Find a column with an invertible element on row i.
 			let row=i*dim,stop=row+dim,swap=-1;
@@ -758,12 +799,13 @@ export class Transform {
 	}
 
 
-	apply(point) {
+	apply(b) {
 		// (A.apply(B)).apply(P) = A.apply(B.apply(P))
 		let amat=this.mat,avec=this.vec;
-		let bmat=point.mat,bvec=point.vec;
-		if (!bmat || !bvec) {return amat.mul(point).iadd(avec);}
-		return new Transform({mat:amat.mul(bmat),vec:amat.mul(bvec).iadd(avec)},false);
+		let bmat=b.mat,bvec=b.vec??b;
+		let vec=amat.mul(bvec).iadd(avec);
+		if (!bmat) {return vec;}
+		return new Transform({mat:amat.mul(bmat),vec:vec},false);
 	}
 
 
@@ -829,8 +871,7 @@ export class Transform {
 
 
 	rotatemat(angs) {
-		let rot=Matrix.fromangles(angs);
-		this.mat.set(rot.mul(this.mat));
+		this.mat.rotate(angs);
 		return this;
 	}
 

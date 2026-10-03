@@ -1,7 +1,7 @@
 /*
 
 
-data.js - v2.02
+data.js - v2.04
 
 Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -24,7 +24,11 @@ History
      Unrolling rotations in Tree.rebalance() is 8% faster.
      A zero-weight node is used to avoid null checks and point to the tree.
 2.02
-     Fix zero check in Tree.release().
+     Fixed zero check in Tree.release().
+2.03
+     Added List.array() converter.
+2.04
+     Cleaned up variable declarations.
 
 
 --------------------------------------------------------------------------------
@@ -55,10 +59,11 @@ For duplicate tree values, allow adding before or after.
 For a randomly generated tree, how many rebalance operations does it take to
 make the tree balanced?
 
-Double check invariants.
-Article: Easy, Near-Optimal Weight Balanced Trees
-Try balancing by floor(log(weight)).
-A new weight balanced binary search tree - Seonghun Cho
+Balancing
+	Double check invariants.
+	Article: Easy, Near-Optimal Weight Balanced Trees
+	Try balancing by floor(log(weight)).
+	A new weight balanced binary search tree - Seonghun Cho
 
 Tree.release() {
 	for (let node of this.iter()) {
@@ -92,7 +97,7 @@ Tree.release() {
 
 
 //---------------------------------------------------------------------------------
-// Data - v2.02
+// Data - v2.04
 
 
 class ListLink {
@@ -155,12 +160,15 @@ export class List {
 
 
 	*iter() {
-		let link=null,next=this.head;
+		let link,next=this.head;
 		while ((link=next)!==null) {
 			next=link.next;
 			yield link.obj;
 		}
 	}
+
+
+	array() {return Array.from(this.iter());}
 
 
 	add(value) {
@@ -173,7 +181,7 @@ export class List {
 	addafter(link,prev=null) {
 		// Inserts the link after prev.
 		if (link.list!==null) {throw "link already in list";}
-		let next=null;
+		let next;
 		if (prev!==null) {
 			next=prev.next;
 			prev.next=link;
@@ -196,7 +204,7 @@ export class List {
 	addbefore(link,next=null) {
 		// Inserts the link before next.
 		if (link.list!==null) {throw "link already in list";}
-		let prev=null;
+		let prev;
 		if (next!==null) {
 			prev=next.prev;
 			next.prev=link;
@@ -370,7 +378,7 @@ export class Tree {
 
 
 	release() {
-		let node=null,zero=this.zero;
+		let node,zero=this.zero;
 		while ((node=this.root)!==zero) {
 			this.removenode(node);
 		}

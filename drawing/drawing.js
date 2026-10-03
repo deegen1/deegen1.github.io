@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-drawing.js - v5.07
+drawing.js - v5.08
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -150,7 +150,7 @@ History
      curves needed.
 5.03
      Reduced font size to 9,285 bytes. Realigned all neighboring curves to be
-     continuous. Reduced maximum error from 1.8% to 0.4%.
+     continuous. Reduced error with reference from 1.8% to 0.4%.
 5.04
      Removed array destructuring since it's slow. Ex: let [x,y]=point.
 5.05
@@ -159,6 +159,8 @@ History
      drawimage() transform is now applied to offset, like rects.
 5.07
      Updated trace() to allow individual sides.
+5.08
+     rgbatoint() now rounds instead of floors.
 
 
 --------------------------------------------------------------------------------
@@ -179,6 +181,17 @@ DrawPath
 	Clip based on both line lengths?
 
 fillpath
+	v6.0: Per-subpath color.
+		"#" specifies colors for following segments.
+		track sum of color/area
+		use area, srcr, srcg, srcb
+		if a new color is used, commit src values, area=0 and calc new
+		if area<0, load previous values
+		will need to track how much each segment is adding/overlapping area
+		area = max(subarea,area)
+		a = subarea + (area-subarea)*area
+		u = subarea/a
+		{r,g,b,area,max,prev,next}
 	Fixed point math.
 	Area accuracy
 		Fix UnitAreaCalc() for large coordinates.
@@ -190,11 +203,10 @@ fillpath
 	AABB accuracy for small/large dx/dy.
 	Since subpaths are always closed, remove subpaths if they're out of the
 	image.
-	Per-subpath color. "#" specifies colors for following segments.
 	Simplify sa/da blending. Integer only? Rebalance for 255 vs 256.
+	sa+=sa>>>7
 
 DrawImage
-	Fix drawimagef alpha blending and test speed.
 	Fixed point math.
 	Remove rounding values.
 	Make sure drawimagei() and drawimage() are 1-to-1.
@@ -203,6 +215,7 @@ DrawImage
 	Faster pixel blending. Integers?
 		u=sa/a
 		c=(sc-dc)*u+dc
+		to round, use x+0.5 instead of x*1.001.
 
 
 */
@@ -213,7 +226,7 @@ import {Transform} from "./library.js";
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v5.07
+// Drawing - v5.08
 
 
 class DrawPath {
@@ -712,13 +725,13 @@ class DrawPath {
 			let q1y=3*(p1y-p0y),q2y=3*(p0y+p2y-2*p1y),q3y=p3y-p0y+3*(p1y-p2y);
 			// 3 possible solutions between [0,1] and dy(u)=0.
 			let r=1;
-			let u0=1,y0=p3y,tmp=0;
+			let u0=1,y0=p3y;
 			let disc=q2y*q2y-3*q3y*q1y;
 			if (disc>=0) {
 				disc=Math.sqrt(disc);
 				let a=(-q2y-disc)/(3*q3y);
 				let b=(-q2y+disc)/(3*q3y);
-				if (a>b) {tmp=a;a=b;b=tmp;}
+				if (a>b) {let tmp=a;a=b;b=tmp;}
 				if (a>0 && a<1) {intr[r++]=a;}
 				if (b>0 && b<1) {intr[r++]=b;}
 			}
@@ -1012,7 +1025,7 @@ class DrawFont {
 		this.unknown=undefined;
 		let idx=0,len=fontdef.length;
 		function token(eol) {
-			let c=0;
+			let c;
 			while (idx<len && (c=fontdef.charCodeAt(idx))<=32 && c!==10) {idx++;}
 			let i=idx;
 			while (idx<len && fontdef.charCodeAt(idx)>eol) {idx++;}
@@ -1160,23 +1173,23 @@ export class Draw {
 	}
 
 
-	rgbatoint(r,g,b,a=255) {
+	rgbatoint(r,g,b,a) {
 		// Convert an RGBA array to a int regardless of endianness.
-		if (g===undefined) {
-			if (r instanceof Array) {
-				a=r[3]??255;b=r[2]??255;g=r[1]??255;r=r[0]??255;
-			} else if (r instanceof Object) {
-				a=r.a??255;b=r.b??255;g=r.g??255;r=r.r??255;
+		function san(x) {return x<255?(x>0?~~(x+0.5):0):255;}
+		if (r!==undefined && g===undefined) {
+			if (isNaN(r)) {
+				a=r[3];b=r[2];g=r[1];r=r[0];
 			} else {
-				a=(r>>>0)&255;b=(r>>>8)&255;g=(r>>>16)&255;r>>>=24;
+				a=(r>>> 0)&255;b=(r>>>8)&255;
+				g=(r>>>16)&255;r>>>=24;
 			}
 		}
 		let tmp=this.rgba32[0];
 		let rgba=this.rgba;
-		rgba[0]=r>0?(r<255?(r|0):255):0;
-		rgba[1]=g>0?(g<255?(g|0):255):0;
-		rgba[2]=b>0?(b<255?(b|0):255):0;
-		rgba[3]=a>0?(a<255?(a|0):255):0;
+		rgba[0]=san(r);
+		rgba[1]=san(g);
+		rgba[2]=san(b);
+		rgba[3]=san(a);
 		rgba=this.rgba32[0];
 		this.rgba32[0]=tmp;
 		return rgba;
@@ -1591,7 +1604,7 @@ export class Draw {
 		// Loop through the path nodes.
 		let lr=this.tmpline,lrcnt=lr.length,lcnt=0;
 		let movex=0,movey=0;
-		let p2x=0,p2y=0,p3x=0,p3y=0;
+		let p2x,p2y,p3x=0,p3y=0;
 		let varr=path.vertarr;
 		let vidx=path.vertidx;
 		for (let i=0;i<=vidx;i++) {
@@ -1707,7 +1720,7 @@ export class Draw {
 				let l=lr[0];
 				let x0=l.x0,y0=l.y0;
 				let x1=l.x1,y1=l.y1;
-				let sign=amul,tmp=0;
+				let sign=amul,tmp;
 				if (y0>y1) {
 					sign=-sign;
 					tmp=x0;x0=x1;x1=tmp;
