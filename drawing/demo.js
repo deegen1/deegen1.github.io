@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.18
+demo.js - v1.19
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -16,6 +16,8 @@ History
      Added canvas to display tests.
 1.17
      Tweaked image transform scaling to [1/2,2].
+1.19
+     Cleaned up variable declarations.
 
 
 --------------------------------------------------------------------------------
@@ -319,22 +321,26 @@ export class DrawDemo {
 		this.draw=new Draw(canv);
 		let rnd=new Random();
 		this.rnd=rnd;
-		this.stararr=Array.from({length:1000},_=>({
-			x:rnd.getf()*1.5*dw,
-			y:(rnd.getf()*1.1-0.05)*dh,
-			t:rnd.mod(2)
-		}));
+		this.stararr=[];
+		for (let i=0;i<1000;i++) {
+			this.stararr.push({
+				x:rnd.getf()*1.5*dw,
+				y:(rnd.getf()*1.1-0.05)*dh,
+				t:rnd.mod(2)
+			});
+		}
 		this.star=new Draw.Path(`
 			M.476.155.951-.309.294-.405 0-1-.294-.405-.951
 			-.309-.476.155-.588.809 0 .5.588.809Z
 		`);
-		this.particles=Array.from({length:300},_=>({
-			x:-100,
-			y:-100,
-			dx:0,
-			dy:0,
-			age:rnd.getf()*1.5
-		}));
+		this.particles=[];
+		for (let i=0;i<300;i++) {
+			this.particles.push({
+				x:-100,dx:0,
+				y:-100,dy:0,
+				age:rnd.getf()*1.5
+			});
+		}
 		this.frameprev=0;
 		this.framesum=0;
 		this.framestr="FPS: 0";
@@ -362,7 +368,8 @@ export class DrawDemo {
 		// Handle player input.
 		let input=this.input;
 		input.update();
-		let [mx,my]=input.getmousepos();
+		let mpos=input.getmousepos();
+		let mx=mpos[0],my=mpos[1];
 		mx=mx>0 ?mx:0 ;
 		mx=mx<dw?mx:dw;
 		my=my>0 ?my:0 ;

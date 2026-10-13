@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v18.71
+library.js - v19.79
 
 Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -12,14 +12,14 @@ Versions
 
 
 Env     - v1.02
-Random  - v1.11
-Data    - v2.02
-Vector  - v3.15
+Random  - v1.12
+Data    - v2.04
+Vector  - v3.16
 Input   - v1.19
-Drawing - v5.04
+Drawing - v5.08
 UI      - v1.03
-Audio   - v3.12
-Physics - v1.03
+Audio   - v3.13
+Physics - v2.02
 
 
 --------------------------------------------------------------------------------
@@ -70,7 +70,7 @@ export {Env};
 
 
 //---------------------------------------------------------------------------------
-// Random - v1.11
+// Random - v1.12
 
 
 export class Random {
@@ -117,18 +117,6 @@ export class Random {
 	}
 
 
-	/*static hashu64(val) {
-		let hash=val^0xaaaaaaaaaaaaaaab;
-		hash+=hash<<27;hash^=hash>>>17;
-		hash+=hash<<10;hash^=hash>>>19;
-		hash+=hash<<12;hash^=hash>>> 6;
-		hash+=hash<<10;hash^=hash>>>26;
-		hash+=hash<<10;hash^=hash>>>13;
-		hash+=hash<<19;hash^=hash>>>29;
-		return hash>>>0;
-	}*/
-
-
 	getu32() {
 		let hash=(this.acc+this.inc)>>>0;
 		this.acc=hash;
@@ -146,7 +134,7 @@ export class Random {
 		if (!(mod>0 && (mod>>>0)===mod)) {
 			throw "mod out of range: "+mod;
 		}
-		let rand=0,rem=0,nmod=(-mod)>>>0;
+		let rand,rem,nmod=(-mod)>>>0;
 		do {
 			rand=this.getu32();
 			rem=rand%mod;
@@ -178,7 +166,7 @@ export class Random {
 
 
 //---------------------------------------------------------------------------------
-// Data - v2.02
+// Data - v2.04
 
 
 class ListLink {
@@ -241,12 +229,15 @@ export class List {
 
 
 	*iter() {
-		let link=null,next=this.head;
+		let link,next=this.head;
 		while ((link=next)!==null) {
 			next=link.next;
 			yield link.obj;
 		}
 	}
+
+
+	array() {return Array.from(this.iter());}
 
 
 	add(value) {
@@ -259,7 +250,7 @@ export class List {
 	addafter(link,prev=null) {
 		// Inserts the link after prev.
 		if (link.list!==null) {throw "link already in list";}
-		let next=null;
+		let next;
 		if (prev!==null) {
 			next=prev.next;
 			prev.next=link;
@@ -282,7 +273,7 @@ export class List {
 	addbefore(link,next=null) {
 		// Inserts the link before next.
 		if (link.list!==null) {throw "link already in list";}
-		let prev=null;
+		let prev;
 		if (next!==null) {
 			prev=next.prev;
 			next.prev=link;
@@ -456,7 +447,7 @@ export class Tree {
 
 
 	release() {
-		let node=null,zero=this.zero;
+		let node,zero=this.zero;
 		while ((node=this.root)!==zero) {
 			this.removenode(node);
 		}
@@ -726,7 +717,7 @@ export class Tree {
 
 
 //---------------------------------------------------------------------------------
-// Vector - v3.15
+// Vector - v3.16
 
 
 export class Vector extends Array {
@@ -990,7 +981,7 @@ export class Vector extends Array {
 	randomize() {
 		let u=this,len=this.length;
 		if (!len) {return this;}
-		let mag=0,rnd=Vector.rnd;
+		let mag,rnd=Vector.rnd;
 		do {
 			mag=0;
 			for (let i=0;i<len;i++) {
@@ -1012,7 +1003,7 @@ export class Vector extends Array {
 
 export class Matrix extends Array {
 
-	static _perm=[];
+	static _tmp=[];
 
 
 	constructor(rows,cols,init=true) {
@@ -1116,7 +1107,9 @@ export class Matrix extends Array {
 		let dim=this.rows,cols=this.cols,elems=dim*dim;
 		if (dim!==cols) {return 0;}
 		// Copy the matrix. Use the upper triangular form to compute the determinant.
-		let elem=new Matrix(this);
+		let elem=Matrix._tmp;
+		if (elem.length<elems) {Matrix._tmp=elem=new Array(elems);}
+		for (let i=0;i<elems;i++) {elem[i]=this[i];}
 		let det=1;
 		for (let i=0;i<dim;i++) {
 			// Find a column with an invertible element on row i.
@@ -1158,9 +1151,8 @@ export class Matrix extends Array {
 		let dim=this.rows,cols=this.cols;
 		if (dim!==cols) {throw `Can only invert square matrices: ${dim}, ${cols}`;}
 		let elem=this;
-		let perm=Matrix._perm;
-		if (perm.length<dim) {Matrix._perm=perm=new Array(dim);}
-		// let perm=new Array(dim);
+		let perm=Matrix._tmp;
+		if (perm.length<dim) {Matrix._tmp=perm=new Array(dim);}
 		for (let i=0;i<dim;i++) {
 			// Find a column with an invertible element on row i.
 			let row=i*dim,stop=row+dim,swap=-1;
@@ -1319,12 +1311,13 @@ export class Transform {
 	}
 
 
-	apply(point) {
+	apply(b) {
 		// (A.apply(B)).apply(P) = A.apply(B.apply(P))
 		let amat=this.mat,avec=this.vec;
-		let bmat=point.mat,bvec=point.vec;
-		if (!bmat || !bvec) {return amat.mul(point).iadd(avec);}
-		return new Transform({mat:amat.mul(bmat),vec:amat.mul(bvec).iadd(avec)},false);
+		let bmat=b.mat,bvec=b.vec??b;
+		let vec=amat.mul(bvec).iadd(avec);
+		if (!bmat) {return vec;}
+		return new Transform({mat:amat.mul(bmat),vec:vec},false);
 	}
 
 
@@ -1390,8 +1383,7 @@ export class Transform {
 
 
 	rotatemat(angs) {
-		let rot=Matrix.fromangles(angs);
-		this.mat.set(rot.mul(this.mat));
+		this.mat.rotate(angs);
 		return this;
 	}
 
@@ -1788,7 +1780,7 @@ export class Input {
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v5.04
+// Drawing - v5.08
 
 
 class DrawPath {
@@ -2101,9 +2093,8 @@ class DrawPath {
 		inrad=inrad??-outrad;
 		let out=new Draw.Path();
 		let scale=(this.maxx-this.minx+this.maxy-this.miny)/1000;
-		if (!(scale>1e-10)) {return out;}
+		scale=scale>1e-10?scale:1e-10;
 		let curvemaxdist2=0.03*scale*scale;
-		let maxext=Math.abs(outrad-inrad)+1e-10;
 		let lv=DrawPath._traceline,cv=DrawPath._tracecurve;
 		let li=0;
 		function AddSeg(x,y) {
@@ -2131,6 +2122,14 @@ class DrawPath {
 				// Remove overlapping points.
 				if (li>2) {
 					let x0=lv[0],y0=lv[1];
+					if (closed) {
+						while (li>2) {
+							let dx=lv[li-2]-x0;
+							let dy=lv[li-1]-y0;
+							if (dx*dx+dy*dy>1e-10) {break;}
+							li-=2;
+						}
+					}
 					let ni=2;
 					for (let j=2;j<li;j+=2) {
 						let x1=lv[j  ],dx=x1-x0;
@@ -2141,15 +2140,6 @@ class DrawPath {
 						}
 					}
 					li=ni;
-					if (closed) {
-						x0=lv[0];y0=lv[1];
-						while (li>2) {
-							let dx=lv[li-2]-x0;
-							let dy=lv[li-1]-y0;
-							if (dx*dx+dy*dy>1e-10) {break;}
-							li-=2;
-						}
-					}
 				}
 				if (li===2) {
 					// Single point.
@@ -2157,7 +2147,9 @@ class DrawPath {
 				} else if (li>2) {
 					// Trace around line segments.
 					for (let side=0;side<2;side++) {
-						let rad=(side>0)===(area<0)?inrad:outrad;
+						let off=(side>0)===(area<0)?inrad:outrad;
+						let maxext=Math.abs(off)*2+1e-10;
+						if (!(maxext<Infinity)) {continue;}
 						let i0=2,i1=0;
 						if (side!==closed) {i1=li-2;i0=i1-2;}
 						let x0=lv[i0],y0=lv[i0+1];
@@ -2167,7 +2159,7 @@ class DrawPath {
 						dx1/=mag;dy1/=mag;
 						for (let j=closed?0:2;j<li;j+=2) {
 							let k=side?li-2-j:j;
-							let dx0=dx1,dy0=dy1;
+							let dx0=dx1,dy0=dy1,mag0=mag+maxext;
 							x0=x1;x1=lv[k  ];dx1=x1-x0;
 							y0=y1;y1=lv[k+1];dy1=y1-y0;
 							mag=Math.sqrt(dx1*dx1+dy1*dy1);
@@ -2176,16 +2168,17 @@ class DrawPath {
 							let dot=dx0*dx1+dy0*dy1;
 							let den=dx0*dy1-dy0*dx1;
 							let u=dot>0?0:maxext;
-							if (den<-1e-5 || den>1e-5) {u=(dot-1)*rad/den;}
+							if (den<-1e-5 || den>1e-5) {u=(dot-1)*off/den;}
 							// Miter if we need to.
-							if (u<=-maxext || u>=maxext) {
-								u=u<0?-maxext:maxext;
-								out.lineto(x0-dy0*rad+dx0*u,y0+dx0*rad+dy0*u);
+							if (u<=-mag0 || u>=maxext) {
+								u=u<0?-mag0:maxext;
+								out.lineto(x0-dy0*off+dx0*u,y0+dx0*off+dy0*u);
 							}
-							out.lineto(x0-dy1*rad-dx1*u,y0+dx1*rad-dy1*u);
+							out.lineto(x0-dy1*off-dx1*u,y0+dx1*off-dy1*u);
 						}
-						if (side || closed) {out.close();}
+						if (closed) {out.close();}
 					}
+					out.close();
 				}
 				closed=0;
 				li=0;
@@ -2286,13 +2279,13 @@ class DrawPath {
 			let q1y=3*(p1y-p0y),q2y=3*(p0y+p2y-2*p1y),q3y=p3y-p0y+3*(p1y-p2y);
 			// 3 possible solutions between [0,1] and dy(u)=0.
 			let r=1;
-			let u0=1,y0=p3y,tmp=0;
+			let u0=1,y0=p3y;
 			let disc=q2y*q2y-3*q3y*q1y;
 			if (disc>=0) {
 				disc=Math.sqrt(disc);
 				let a=(-q2y-disc)/(3*q3y);
 				let b=(-q2y+disc)/(3*q3y);
-				if (a>b) {tmp=a;a=b;b=tmp;}
+				if (a>b) {let tmp=a;a=b;b=tmp;}
 				if (a>0 && a<1) {intr[r++]=a;}
 				if (b>0 && b<1) {intr[r++]=b;}
 			}
@@ -2586,7 +2579,7 @@ class DrawFont {
 		this.unknown=undefined;
 		let idx=0,len=fontdef.length;
 		function token(eol) {
-			let c=0;
+			let c;
 			while (idx<len && (c=fontdef.charCodeAt(idx))<=32 && c!==10) {idx++;}
 			let i=idx;
 			while (idx<len && fontdef.charCodeAt(idx)>eol) {idx++;}
@@ -2734,36 +2727,30 @@ export class Draw {
 	}
 
 
-	rgbatoint(r,g,b,a=255) {
+	rgbatoint(r,g,b,a) {
 		// Convert an RGBA array to a int regardless of endianness.
-		if (g===undefined) {
-			if (r instanceof Array) {
-				a=r[3]??255;b=r[2]??255;g=r[1]??255;r=r[0]??255;
-			} else if (r instanceof Object) {
-				a=r.a??255;b=r.b??255;g=r.g??255;r=r.r??255;
+		if (r!==undefined && g===undefined) {
+			if (isNaN(r)) {
+				a=r[3];b=r[2];g=r[1];r=r[0];
 			} else {
-				a=(r>>>0)&255;b=(r>>>8)&255;g=(r>>>16)&255;r>>>=24;
+				a=(r>>> 0)&255;b=(r>>>8)&255;
+				g=(r>>>16)&255;r>>>=24;
 			}
 		}
-		let tmp=this.rgba32[0];
-		let rgba=this.rgba;
-		rgba[0]=r>0?(r<255?(r|0):255):0;
-		rgba[1]=g>0?(g<255?(g|0):255):0;
-		rgba[2]=b>0?(b<255?(b|0):255):0;
-		rgba[3]=a>0?(a<255?(a|0):255):0;
-		rgba=this.rgba32[0];
-		this.rgba32[0]=tmp;
-		return rgba;
+		let s=this.rgbashift,ret=0;
+		for (let i=0;i<4;i++) {
+			ret|=(r<255?(r>0?r+0.5:0):255)<<s[i];
+			r=g;g=b;b=a;
+		}
+		return ret>>>0;
 	}
 
 
-	inttorgba(i) {
-		let rgba32=this.rgba32;
-		let tmp=rgba32[0];
-		rgba32[0]=i;
-		let rgba=this.rgba.slice();
-		rgba32[0]=tmp;
-		return rgba;
+	inttorgba(i,ret) {
+		let s=this.rgbashift;
+		ret=ret??[0,0,0,0];
+		for (let j=0;j<4;j++) {ret[j]=(i>>>s[j])&255;}
+		return ret;
 	}
 
 
@@ -2852,15 +2839,16 @@ export class Draw {
 		//                  '.   .'
 		//                    '.'
 		//
-		if (trans===undefined) {trans=this.deftrans;}
-		else if (!(trans instanceof Transform)) {trans=new Transform(trans);}
+		trans=trans??this.deftrans;
+		if (!(trans instanceof Transform)) {trans=new Transform(trans);}
 		let dstimg=this.img;
 		let dstw=dstimg.width,dsth=dstimg.height;
 		let srcw=srcimg.width,srch=srcimg.height;
 		const rnd0=1e-6,rnd1=1-rnd0;
 		// src->dst transformation.
-		let matxx=trans.mat[0],matxy=trans.mat[1],matx=trans.vec[0]+offx;
-		let matyx=trans.mat[2],matyy=trans.mat[3],maty=trans.vec[1]+offy;
+		let mat=trans.mat,vec=trans.vec;
+		let matxx=mat[0],matxy=mat[1],matx=vec[0]+offx*matxx+offy*matxy;
+		let matyx=mat[2],matyy=mat[3],maty=vec[1]+offx*matyx+offy*matyy;
 		let det=matxx*matyy-matxy*matyx;
 		let alpha=det*0.5*this.rgba[3]/(255*255);
 		if (!(srcw*srch*(alpha>0?alpha:-alpha)>1e-8 && dstw && dsth)) {return;}
@@ -3125,12 +3113,13 @@ export class Draw {
 		// Preprocess the lines and curves. Use a binary heap to dynamically sort lines.
 		// Keep JS as simple as possible to be efficient. Keep micro optimization in WASM.
 		// ~~x = fast floor(x)
-		if (path===undefined) {path=this.defpath;}
-		if (trans===undefined) {trans=this.deftrans;}
-		else if (!(trans instanceof Transform)) {trans=new Transform(trans);}
+		path =path ??this.defpath;
+		trans=trans??this.deftrans;
+		if (!(trans instanceof Transform)) {trans=new Transform(trans);}
 		// Screenspace transformation.
-		let matxx=trans.mat[0],matxy=trans.mat[1],matx=trans.vec[0];
-		let matyx=trans.mat[2],matyy=trans.mat[3],maty=trans.vec[1];
+		let mat=trans.mat;
+		let matxx=mat[0],matxy=mat[1],matx=trans.vec[0];
+		let matyx=mat[2],matyy=mat[3],maty=trans.vec[1];
 		let det=(matxx*matyy-matxy*matyx)*path.area;
 		const curvemaxdist2=0.02;
 		let iw=this.img.width,ih=this.img.height;
@@ -3163,7 +3152,7 @@ export class Draw {
 		// Loop through the path nodes.
 		let lr=this.tmpline,lrcnt=lr.length,lcnt=0;
 		let movex=0,movey=0;
-		let p2x=0,p2y=0,p3x=0,p3y=0;
+		let p2x,p2y,p3x=0,p3y=0;
 		let varr=path.vertarr;
 		let vidx=path.vertidx;
 		for (let i=0;i<=vidx;i++) {
@@ -3279,7 +3268,7 @@ export class Draw {
 				let l=lr[0];
 				let x0=l.x0,y0=l.y0;
 				let x1=l.x1,y1=l.y1;
-				let sign=amul,tmp=0;
+				let sign=amul,tmp;
 				if (y0>y1) {
 					sign=-sign;
 					tmp=x0;x0=x1;x1=tmp;
@@ -3386,9 +3375,9 @@ export class Draw {
 					if (da===255) {
 						sa=256.49-sa*256;
 					} else {
-						let tmp=sa*255+(1-sa)*da;
-						sa=256.49-(sa/tmp)*65280;
-						da=tmp+0.49;
+						da+=sa*(255-da);
+						sa=256.49-(sa/da)*65280;
+						da+=0.49;
 					}
 					// imul() implicitly casts floor(sa).
 					imgdata[p]=(da<<ashift)
@@ -3575,7 +3564,7 @@ export class UI {
 
 
 //---------------------------------------------------------------------------------
-// Audio - v3.12
+// Audio - v3.13
 
 
 class AudioSound {
@@ -4073,7 +4062,7 @@ class AudioSFX {
 		for (let i=0;i<seqlen;i++) {addhash(seqstr.charCodeAt(i));}
 		while (s<seqlen || node) {
 			// Read through whitespace and comments.
-			let c=0;
+			let c;
 			while ((c=getc())<33 && c>0) {s++;}
 			if (c===39 || c===34) {
 				// If " stop at ". If ' stop at \n.
@@ -4376,8 +4365,8 @@ class AudioSFX {
 
 
 	biquadcoefs(n,type,rate,bw,gain) {
-		let b0=1,b1=0,b2=0;
-		let a0=1,a1=0,a2=0;
+		let b0,b1,b2;
+		let a0,a1,a2;
 		let v  =gain;
 		let ang=2*Math.PI*rate;
 		let sn =Math.sin(ang);
@@ -4938,7 +4927,7 @@ export class Audio {
 
 
 //---------------------------------------------------------------------------------
-// Physics - v1.03
+// Physics - v2.02
 
 
 class PhyInteraction {
@@ -4951,8 +4940,7 @@ class PhyInteraction {
 		this.pmul=0;
 		this.vmul=0;
 		this.vpmul=0;
-		this.statictension=0;
-		this.staticdist=0;
+		this.friction=0;
 		this.dt=NaN;
 		this.push0=0;
 		this.updateconstants();
@@ -4964,8 +4952,8 @@ class PhyInteraction {
 		this.pmul=(a.pmul+b.pmul)*0.5;
 		this.vmul=a.vmul+b.vmul;
 		this.vpmul=(a.vpmul+b.vpmul)*0.5;
-		this.statictension=(a.statictension+b.statictension)*0.5;
-		this.staticdist=(a.staticdist+b.staticdist)*0.5;
+		let friction=(a.friction+b.friction)*0.5;
+		this.friction=friction>0?friction:0;
 	}
 
 
@@ -4988,7 +4976,7 @@ class PhyInteraction {
 
 class PhyBodyType {
 
-	constructor(world,id,damp,density,elasticity,push,statictension,staticdist) {
+	constructor(world,id,damp,density,elasticity,friction,push) {
 		this.world=world;
 		this.worldlink=new List.Link(this);
 		this.bodylist=new List();
@@ -4999,8 +4987,7 @@ class PhyBodyType {
 		this.pmul=push;
 		this.vmul=elasticity;
 		this.vpmul=0.95;
-		this.statictension=statictension;
-		this.staticdist=staticdist;
+		this.friction=friction;
 		this.dt =NaN;
 		this.dt0=0;
 		this.dt1=0;
@@ -5083,7 +5070,7 @@ class PhyBodyType {
 		//
 		this.dt=dt;
 		let damp=this.damp,idamp=1-damp;
-		let dt0=0,dt1=0,dt2=0;
+		let dt0,dt1,dt2;
 		if (damp<=1e-10) {
 			// Special case damping=0: just integrate.
 			dt0=1;
@@ -5132,7 +5119,7 @@ class PhyBody {
 	constructor(world,verts,pos,angle,type) {
 		type=type??world.deftype;
 		this.world=world;
-		this.worldlink=this.world.bodylist.add(this);
+		this.worldlink=world.bodylist.add(this);
 		this.deleted=false;
 		this.sleeping=false;
 		this.bondlist=new List();
@@ -5150,7 +5137,7 @@ class PhyBody {
 		let dim=world.dim,dim2=(dim*(dim-1))>>>1;
 		for (let v of verts) {vertarr.push(new Vector(v));}
 		this.vertarr=vertarr;
-		this.facearr=[];
+		// this.facearr=[];
 		this.type=type;
 		this.pos=new Vector(pos);
 		this.vel=new Vector(dim);
@@ -5158,15 +5145,15 @@ class PhyBody {
 		this.angle=(new Float64Array(dim2)).fill(0);
 		if (angle) {for (let i=0;i<dim2;i++) {this.angle[i]=angle[i];}}
 		this.mat=(new Matrix(dim)).one().rotate(this.angle);
-		this.inv=this.mat.inv();
 		this.updateconstants();
+		this.restpos=new Vector(this.pos);
 	}
 
 
 	release() {
 		if (this.deleted) {return;}
 		this.deleted=true;
-		let link=null;
+		let link;
 		while ((link=this.bondlist.head)!==null) {
 			link.obj.release();
 		}
@@ -5179,8 +5166,18 @@ class PhyBody {
 
 
 	invpos(v) {
-		let w=(new Vector(v)).isub(this.pos);
-		return this.mat.inv().mul(w);
+		// Since mat is orthonormal, inv(mat)=trans(mat).
+		let pos=this.pos,mat=this.mat;
+		let dim=pos.length;
+		let w=new Vector(dim);
+		for (let i=0;i<dim;i++) {
+			let m=i*dim;
+			let x=v[i]-pos[i];
+			for (let j=0;j<dim;j++) {
+				w[j]+=mat[m+j]*x;
+			}
+		}
+		return w;
 	}
 
 
@@ -5195,106 +5192,121 @@ class PhyBody {
 	bonditer() {return this.bondlist.iter();}
 
 
-	updateconstants() {
+	updateconstants(center=false) {
 		// Calculate mass and inertia.
 		let dim=this.world.dim,dim2=(dim*(dim-1))>>>1;
-		let dist=0;
-		for (let v of this.vertarr) {
-			dist+=v.sqr();
-		}
-		this.inertia=new Matrix(dim2,dim2);
-		if (this.vertarr.length===0) {
-			this.volume=0;
+		let vertarr=this.vertarr;
+		let verts=vertarr.length;
+		let volume;
+		let imat=new Matrix(dim2,dim2);
+		if (verts===0) {
+			volume=Infinity;
 		} else if (dim!==2) {
-			this.volume=1;
-			for (let i=0;i<dim2;i++) {
-				this.inertia[i*dim2+i]=dist;
-			}
+			volume=1;
+			let dist=0;
+			for (let v of vertarr) {dist+=v.sqr();}
+			for (let i=0;i<dim2;i++) {imat[i*dim2+i]=dist;}
 		} else {
-			let vertarr=this.vertarr;
-			let verts=vertarr.length;
-			// Find the left-most, bottom-most vertex.
-			let minv=vertarr[0];
+			// Given a set points, find the convex hull and sort counter-clockwise.
+			// Start with the bottom-most, left-most vertex.
+			let minx=Infinity,miny=Infinity;
 			let mini=0;
-			for (let i=1;i<verts;i++) {
-				let u=vertarr[i];
-				for (let d=0;d<dim;d++) {
-					let vx=minv[d],ux=u[d];
-					if (vx!==ux) {
-						if (vx>ux) {minv=u;mini=i;}
-						break;
-					}
+			for (let i=0;i<verts;i++) {
+				let v=vertarr[i],x=v[0],y=v[1];
+				if (miny>y || (miny===y && minx>x)) {
+					mini=i;
+					miny=y;
+					minx=x;
 				}
 			}
-			vertarr[mini]=vertarr[0];
-			vertarr[0]=minv;
-			// Wrap around to find the hull.
-			let hverts=1;
-			while (hverts<verts) {
-				mini=hverts;
-				minv=vertarr[mini];
-				let v0=vertarr[mini-1];
-				for (let i=0;i<verts;i++) {
-					let u=vertarr[i];
-					let dx0=minv[0]-v0[0],dy0=minv[1]-v0[1];
-					let dx1=u[0]-v0[0],dy1=u[1]-v0[1];
-					if (dx0*dy1-dy0*dx1<0) {
-						minv=u;
+			// Wrap around to find the hull. Use the dot product's sign to ensure
+			// consistent direction.
+			let vidx=0;
+			let dx=1,dy=0;
+			do {
+				let u=vertarr[mini],x0=u[0],y0=u[1];
+				vertarr[mini]=vertarr[vidx];
+				vertarr[vidx++]=u;
+				// Point back to the start.
+				mini=0;
+				let dx0=minx-x0,dy0=miny-y0;
+				let minmag=dx0*dx0+dy0*dy0;
+				let mindot=(dx*dx0+dy*dy0)>0?1:0;
+				for (let i=vidx;i<verts;i++) {
+					let v=vertarr[i];
+					let dx1=v[0]-x0,dy1=v[1]-y0;
+					let mag=dx1*dx1+dy1*dy1;
+					let crs=dx0*dy1-dy0*dx1;
+					let dot=(dx*dx1+dy*dy1)>0?1:0;
+					if (!(mag>1e-12)) {
+						vertarr[i--]=vertarr[--verts];
+					} else if (mindot<dot || (mindot===dot && (crs<0 || (crs===0 && minmag<mag)))) {
+						minmag=mag;
+						mindot=dot;
+						dx0=dx1;
+						dy0=dy1;
 						mini=i;
 					}
 				}
-				if (mini===0) {break;}
-				// if (mini<hverts) {throw "loop";}
-				vertarr[mini]=vertarr[hverts];
-				vertarr[hverts++]=minv;
-			}
-			vertarr=vertarr.slice(0,hverts);
+				dx=dx0;
+				dy=dy0;
+			} while (mini>0);
+			vertarr=vertarr.slice(0,vidx);
+			verts=vidx;
 			this.vertarr=vertarr;
-			// Calculate geometry.
-			let facearr=[];
-			let volume=0;
-			let v0=null,v1=vertarr[hverts-1],cen=new Vector(dim);
-			for (let i=0;i<hverts;i++) {
-				v0=v1;
-				v1=vertarr[i];
-				facearr.push([(i?i:hverts)-1,i]);
-				let cross=v0[0]*v1[1]-v1[0]*v0[1];
-				volume+=cross;
-				cen.iadd(v0.add(v1).imul(cross));
-			}
-			this.facearr=facearr;
-			volume*=0.5;
+			// Faces.
+			// let facearr=[];
+			// for (let i=0;i<verts;i++) {
+			// 	facearr.push([i,(i+1)%verts]);
+			// }
+			// this.facearr=facearr;
 			// Zero on center of mass.
-			cen.imul(1/(volume*6));
-			for (let v of vertarr) {
-				v.isub(cen);
+			let cenx=0,ceny=0;
+			if (center) {
+				volume=0;
+				let v=vertarr[verts-1],x1=v[0],y1=v[1];
+				for (let i=0;i<verts;i++) {
+					v=vertarr[i];
+					let x0=x1;x1=v[0];
+					let y0=y1;y1=v[1];
+					let xy=x0*y1-x1*y0;
+					volume+=xy;
+					cenx+=xy*(x0+x1);
+					ceny+=xy*(y0+y1);
+				}
+				this.volume=volume*0.5;
+				let den=1/(volume*3);
+				if (volume<1e-10 || verts<3) {
+					cenx=0,ceny=0;
+					for (v of vertarr) {cenx+=v[0];ceny+=v[1];}
+					den=1/verts;
+				}
+				cenx*=den;
+				ceny*=den;
+				this.pos[0]+=cenx;
+				this.pos[1]+=ceny;
 			}
-			this.pos.iadd(cen);
-			// Inertia.
+			// Inertia and volume.
+			volume=0;
 			let inertia=0;
-			for (let face of facearr) {
-				v0=vertarr[face[0]];
-				v1=vertarr[face[1]];
-				inertia+=v0.mul(v0)+v0.mul(v1)+v1.mul(v1);
+			let v=vertarr[verts-1];
+			let x1=v[0]-cenx,y1=v[1]-ceny;
+			for (let i=0;i<verts;i++) {
+				v=vertarr[i];
+				let x0=x1;x1=v[0]-cenx;v[0]=x1;
+				let y0=y1;y1=v[1]-ceny;v[1]=y1;
+				let xy=x0*y1-x1*y0;
+				let xx=x0+x1,yy=y0+y1;
+				volume +=xy;
+				inertia+=xy*(xx*xx-x0*x1+yy*yy-y0*y1);
 			}
-			inertia/=6;
-			this.inertia[0]=inertia;
-			this.volume=volume;
+			imat[0]=inertia/(volume*6);
+			this.volume=volume*0.5;
 		}
-		this.mass=this.type.density*this.volume;
-		try {this.inertiainv=this.inertia.inv();}
+		this.mass=this.type.density*volume;
+		this.inertia=imat;
+		try {this.inertiainv=imat.inv();}
 		catch {this.inertiainv=new Matrix(dim2,dim2);}
-	}
-
-
-	closestpoint(point) {
-		// Returns [overlapping, point] with a point on the border.
-		let world=this.world;
-		point=new Vector(point);
-		let dim=world.dim;
-		let cen=new Vector(dim),mat=(new Matrix(dim,dim)).one();
-		let col=world.closestpoint(this.vertarr,this.pos,this.mat,[point],cen,mat);
-		return [col[0],col[1]];
 	}
 
 
@@ -5304,30 +5316,152 @@ class PhyBody {
 		// pos+=vel*dt1+acc*dt2
 		// vel =vel*dt0+acc*dt1
 		let world=this.world;
-		let pe=this.pos,ve=this.vel;
+		let pos=this.pos,vel=this.vel;
 		let dim=world.dim,type=this.type;
-		let ge=type.gravity;
-		ge=(ge===null?world.gravity:ge);
+		let acc=type.gravity;
+		acc=(acc===null?world.gravity:acc);
 		let dt0=type.dt0,dt1=type.dt1,dt2=type.dt2;
+		const PI1=Math.PI,PI2=PI1*2;
+		let spin=this.spin,ang=this.angle;
+		let dim2=(dim*(dim-1))>>>1;
+		// If we haven't moved much, fix the position. This needs to be done before
+		// applying forces to allow the body to continue interacting with neighbors.
+		let restpos=this.restpos;
+		if (pos.dist2(restpos)<world.restdist) {
+			pos.set(restpos);
+		} else {
+			restpos.set(pos);
+		}
+		// Position
 		for (let i=0;i<dim;i++) {
-			let vel=ve[i],acc=ge[i];
-			pe[i]+=vel*dt1+acc*dt2;
-			ve[i] =vel*dt0+acc*dt1;
+			let v=vel[i],a=acc[i];
+			pos[i]+=v*dt1+a*dt2;
+			vel[i] =v*dt0+a*dt1;
 		}
 		// Spin.
-		const PI2=Math.PI*2;
-		let se=this.spin,ae=this.angle;
-		let dim2=(dim*(dim-1))>>>1;
 		for (let i=0;i<dim2;i++) {
-			let spin=se[i];
-			let ang=ae[i]+spin*dt1;
-			if (ang<0 || ang>PI2) {ang=(ang%PI2)+(ang<0?PI2:0);}
-			se[i]=spin*dt0;
-			ae[i]=ang;
+			let s=spin[i],a=ang[i]+s*dt1;
+			a-=Math.floor(a/PI2)*PI2;
+			spin[i]=s*dt0;
+			ang[i]=a;
 		}
-		this.mat.one().rotate(ae);
-		this.inv.set(this.mat).invert();
+		this.mat.one().rotate(ang);
 	}
+
+
+	static checkoverlap(a,b,acon,bcon) {
+		let avert=a.vertarr,bvert=b.vertarr;
+		let averts=avert.length,bverts=bvert.length;
+		if (!averts || !bverts) {return false;}
+		// Load transforms.
+		let amat=a.mat,apos=a.pos;
+		let amatxx=amat[0],amatxy=amat[1],amatx=apos[0];
+		let amatyx=amat[2],amatyy=amat[3],amaty=apos[1];
+		let adet=amatxx*amatyy-amatxy*amatyx;
+		let bmat=b.mat,bpos=b.pos;
+		let bmatxx=bmat[0],bmatxy=bmat[1],bmatx=bpos[0];
+		let bmatyx=bmat[2],bmatyy=bmat[3],bmaty=bpos[1];
+		let bdet=bmatxx*bmatyy-bmatxy*bmatyx;
+		// Find start of A.
+		let aidx=0,ainc=(adet>0?averts-1:1),acnt=averts;
+		let ax0=0,ay0=Infinity;
+		let ax1=0,ay1=0;
+		let v=avert[0],x=v[0],y=v[1];
+		let nx1=x*amatxx+y*amatxy;
+		let ny1=x*amatyx+y*amatyy;
+		for (let i=0,j=0;i<averts;i++) {
+			j+=(j<ainc?averts:0)-ainc;
+			v=avert[j];x=v[0];y=v[1];
+			let nx0=nx1,ny0=ny1;
+			nx1=x*amatxx+y*amatxy;
+			ny1=x*amatyx+y*amatyy;
+			if (ny0<ay0 || (ny0===ay0 && nx0<ax0)) {
+				aidx=j;
+				ax0=nx0;ax1=nx1;
+				ay0=ny0;ay1=ny1;
+			}
+		}
+		// Find start of B.
+		let bidx=0,binc=(bdet>0?bverts-1:1),bcnt=bverts;
+		let bx0=0,by0=-Infinity;
+		let bx1=0,by1=0;
+		v=bvert[0];x=v[0];y=v[1];
+		nx1=x*bmatxx+y*bmatxy;
+		ny1=x*bmatyx+y*bmatyy;
+		for (let i=0,j=0;i<bverts;i++) {
+			j+=(j<binc?bverts:0)-binc;
+			v=bvert[j];x=v[0];y=v[1];
+			let nx0=nx1,ny0=ny1;
+			nx1=x*bmatxx+y*bmatxy;
+			ny1=x*bmatyx+y*bmatyy;
+			if (ny0>by0 || (ny0===by0 && nx0>bx0)) {
+				bidx=j;
+				bx0=nx0;bx1=nx1;
+				by0=ny0;by1=ny1;
+			}
+		}
+		// Build the Minkowski difference.
+		let overlap=averts+bverts>3;
+		let mindist=Infinity;
+		let minax=0,minay=0;
+		let minbx=0,minby=0;
+		let offx=amatx-bmatx,offy=amaty-bmaty;
+		let dx=1,dy=0;
+		while (acnt>0 || bcnt>0) {
+			// Between A and B, pick the left-most side next.
+			let ax=ax0,ay=ay0,adx=ax1-ax0,ady=ay1-ay0;
+			let bx=bx0,by=by0,bdx=bx0-bx1,bdy=by0-by1;
+			let side=adx*bdy<ady*bdx?1:0;
+			let asign=acnt?(dx*adx+dy*ady>0?1:0):-1;
+			let bsign=bcnt?(dx*bdx+dy*bdy>0?1:0):-1;
+			if (asign!==bsign) {side=bsign>asign?1:0;}
+			if (!side) {
+				acnt--;
+				aidx+=(aidx<ainc?averts:0)-ainc;
+				v=avert[aidx];x=v[0];y=v[1];
+				ax0=ax1;ax1=x*amatxx+y*amatxy;
+				ay0=ay1;ay1=x*amatyx+y*amatyy;
+				dx=adx;dy=ady;
+			} else {
+				bcnt--;
+				bidx+=(bidx<binc?bverts:0)-binc;
+				v=bvert[bidx];x=v[0];y=v[1];
+				bx0=bx1;bx1=x*bmatxx+y*bmatxy;
+				by0=by1;by1=x*bmatyx+y*bmatyy;
+				dx=bdx;dy=bdy;
+			}
+			let px=bx-ax-offx,py=by-ay-offy;
+			if (px*dy>py*dx) {overlap=false;}
+			// Find the closest point on the manifold segment to (0,0).
+			let d=dx*dx+dy*dy;
+			let u=px*dx+py*dy;
+			u=u>0?(u<d?u/d:1):0;
+			let ux=dx*u;px-=ux;
+			let uy=dy*u;py-=uy;
+			let dist=px*px+py*py;
+			if (mindist>dist) {
+				mindist=dist;
+				if (side) {bx-=ux;by-=uy;}
+				else      {ax+=ux;ay+=uy;}
+				minax=ax;minay=ay;
+				minbx=bx;minby=by;
+			}
+		}
+		acon[0]=minax+amatx;acon[1]=minay+amaty;
+		bcon[0]=minbx+bmatx;bcon[1]=minby+bmaty;
+		return overlap;
+	}
+
+
+	/*closestpoint(point) {
+		// Returns [overlapping, point] with a point on the border.
+		let tmpvec=this.world.tmpvec;
+		let acon=tmpvec[0],bcon=tmpvec[1];
+		let a=this.anchor,b=this;
+		a.vertarr[0].set(point);
+		let col=PhyBody.checkoverlap(a,b,acon,bcon);
+		return [col,new Vector(bcon)];
+	}*/
 
 
 	static collide(a,b) {
@@ -5342,108 +5476,85 @@ class PhyBody {
 		amass=amass>=Infinity?1.0:amass/mass;
 		bmass=bmass>=Infinity?1.0:bmass/mass;
 		// Get the collision normal and contact points.
-		let apos=a.pos,bpos=b.pos;
-		let col=world.closestpoint(a.vertarr,apos,a.mat,b.vertarr,bpos,b.mat);
-		if (!col[0]) {return;}
-		let acon=col[1],bcon=col[2];
-		let norm=world.tmpvec[0];
+		let tmpvec=world.tmpvec;
+		let acon=tmpvec[5],bcon=tmpvec[6];
+		if (!PhyBody.checkoverlap(a,b,acon,bcon)) {
+			return;
+		}
+		let norm=tmpvec[0];
 		let push=0;
+		let apos=a.pos,bpos=b.pos;
 		for (let i=0;i<dim;i++) {
-			let x=acon[i]-bcon[i];
+			let ac=acon[i],bc=bcon[i],x=ac-bc;
 			norm[i]=x;
 			push+=x*x;
+			acon[i]=ac-apos[i];
+			bcon[i]=bc-bpos[i];
 		}
 		if (push<1e-10) {return;}
 		push=Math.sqrt(push);
-		// norm=|norm|, acon-=apos, bcon-=bpos
-		for (let i=0;i<dim;i++) {
-			norm[i]/=push;
-			acon[i]-=apos[i];
-			bcon[i]-=bpos[i];
-		}
 		// Calculate normal and perpendicular collision forces.
-		// If they're moving away, don't apply any force.
-		let intr=a.type.intarr[b.type.id];
-		let vel=world.tmpvec[1];
+		let vel=tmpvec[1];
 		let avel=a.vel,bvel=b.vel;
-		vel[0] =avel[0]-acon[1]*a.spin[0];
-		vel[1] =avel[1]+acon[0]*a.spin[0];
-		vel[0]-=bvel[0]-bcon[1]*b.spin[0];
-		vel[1]-=bvel[1]+bcon[0]*b.spin[0];
+		let aspin=a.spin,bspin=b.spin;
+		vel[0] =avel[0]-acon[1]*aspin[0];
+		vel[1] =avel[1]+acon[0]*aspin[0];
+		vel[0]-=bvel[0]-bcon[1]*bspin[0];
+		vel[1]-=bvel[1]+bcon[0]*bspin[0];
 		let ndot=0;
 		for (let i=0;i<dim;i++) {
-			ndot+=vel[i]*norm[i];
+			let n=norm[i]/push;
+			norm[i]=n;
+			ndot+=vel[i]*n;
 		}
+		// Friction vector.
+		// perp=vel-norm*(norm*vel)
+		let perp=tmpvec[4];
+		let pmag=0;
+		for (let i=0;i<dim;i++) {
+			let x=vel[i]-norm[i]*ndot;
+			perp[i]=x;
+			pmag+=x*x;
+		}
+		if (pmag>1e-10) {
+			pmag=Math.sqrt(pmag);
+			for (let i=0;i<dim;i++) {perp[i]/=pmag;}
+		} else {
+			pmag=0;
+		}
+		// Elastic coefficient. If they're moving away, don't apply any force.
+		let intr=a.type.intarr[b.type.id];
 		let nmag=ndot>0?ndot:0;
 		nmag=nmag*intr.vmul+push*intr.vpmul;
 		push*=intr.push0;
-		// Add static friction bonds.
-		let staticdist=intr.staticdist;
-		let bonded=null,staticbond=false;
-		// Get inverse contact points.
-		let ainv=world.tmpvec[2],binv=world.tmpvec[3];
-		let amat=a.inv,bmat=b.inv;
-		let ai=0,bi=0;
-		for (let d=0;d<dim;d++) {
-			let ax=0,bx=0;
-			for (let i=0;i<dim;i++) {
-				ax+=amat[ai++]*acon[i];
-				bx+=bmat[bi++]*bcon[i];
-			}
-			ainv[d]=ax;
-			binv[d]=bx;
-		}
-		if (staticdist>0 && intr.statictension>0) {
-			// Find any bonds close to the contact points.
-			let dist2=staticdist*staticdist;
-			let al=a.bondlist,bl=b.bondlist;
-			let link=(al.count<bl.count?al:bl).head;
-			while (link!==null) {
-				let bond=link.obj;
-				link=link.next;
-				let u=bond.a,v=bond.b;
-				let ucon=bond.apos,vcon=bond.bpos;
-				if (v===a) {
-					v=u;u=bond.b;
-					vcon=ucon;ucon=bond.bpos;
-				}
-				if (u===a && v===b) {
-					bonded=bond;
-					// if (bond.breakdist<Infinity) {
-					let d0=0,d1=0;
-					for (let i=0;i<dim;i++) {
-						let x=ucon[i]-ainv[i];d0+=x*x;
-						let y=vcon[i]-binv[i];d1+=y*y;
-					}
-					if (d0<dist2 || d1<dist2) {
-						staticbond=true;
-						break;
-					}
-				}
-			}
-		}
 		// If we have a callback, allow it to handle the collision.
 		let callback=world.collcallback;
-		if (callback!==null && !callback(intr,a,acon,b,bcon,norm,nmag,push,bonded)) {return;}
-		if (!staticbond && intr.statictension>0 && intr.staticdist>0) {
-			let bond=world.createbond(a,ainv,b,binv,0,intr.statictension);
-			bond.breakdist=intr.staticdist;
-		}
-		// Apply forces and separate.
+		if (callback!==null && !callback(intr,a,acon,b,bcon,norm,nmag,push)) {return;}
+		// Normal
 		let ainertia=amass*a.inertiainv[0],binertia=bmass*b.inertiainv[0];
 		let ancross=acon[0]*norm[1]-acon[1]*norm[0];
 		let bncross=bcon[0]*norm[1]-bcon[1]*norm[0];
 		let nden=amass+bmass+ainertia*ancross*ancross+binertia*bncross*bncross;
 		nmag/=nden;
+		// Friction
+		let apcross=acon[0]*perp[1]-acon[1]*perp[0];
+		let bpcross=bcon[0]*perp[1]-bcon[1]*perp[0];
+		let pden=amass+bmass+ainertia*apcross*apcross+binertia*bpcross*bpcross;
+		pmag/=pden;
+		let fric=nmag*intr.friction;
+		pmag=pmag>-fric?pmag:-fric;
+		pmag=pmag< fric?pmag: fric;
+		// Apply forces
 		for (let i=0;i<dim;i++) {
-			let n=norm[i];
-			apos[i]-=amass*n*push;
-			avel[i]-=amass*n*nmag;
-			bpos[i]+=bmass*n*push;
-			bvel[i]+=bmass*n*nmag;
+			let n=norm[i],tpos=n*push;
+			let tvel=n*nmag+perp[i]*pmag;
+			apos[i]-=amass*tpos;
+			avel[i]-=amass*tvel;
+			bpos[i]+=bmass*tpos;
+			bvel[i]+=bmass*tvel;
 		}
-		a.spin[0]-=ainertia*ancross*nmag;
-		b.spin[0]+=binertia*bncross*nmag;
+		aspin[0]-=ainertia*(ancross*nmag+apcross*pmag);
+		bspin[0]+=binertia*(bncross*nmag+bpcross*pmag);
 	}
 
 }
@@ -5453,18 +5564,18 @@ class PhyBond {
 
 	constructor(world,a,apos,b,bpos,dist,tension) {
 		this.world=world;
-		this.worldlink=this.world.bondlist.add(this);
+		this.worldlink=world.bondlist.add(this);
 		this.deleted=false;
 		this.a=a;
-		this.apos=new Vector(apos);
 		this.b=b;
+		this.apos=new Vector(apos);
 		this.bpos=new Vector(bpos);
+		this.alink=a.bondlist.add(this);
+		this.blink=b.bondlist.add(this);
 		if (!(dist>=0)) {dist=this.relapos().dist(this.relbpos());}
 		this.dist=dist;
 		this.breakdist=Infinity;
 		this.tension=tension;
-		this.alink=this.a.bondlist.add(this);
-		this.blink=this.b.bondlist.add(this);
 		this.data={};
 	}
 
@@ -5814,12 +5925,12 @@ class PhyBroadphase {
 
 class PhyWorld {
 
-	constructor(dim,gravity=0.2,statictension=50.0,staticdist=0.005) {
+	constructor(dim,gravity=0.2) {
 		this.dim=dim;
 		this.maxsteptime=1/180;
 		this.rnd=new Random();
 		this.tmpvec=[];
-		for (let i=0;i<4;i++) {this.tmpvec.push(new Vector(dim));}
+		for (let i=0;i<7;i++) {this.tmpvec.push(new Vector(dim));}
 		this.gravity=new Vector(dim);
 		this.gravity[dim-1]=gravity;
 		this.typelist=new List();
@@ -5831,11 +5942,10 @@ class PhyWorld {
 		this.stepcallback=null;
 		this.collcallback=null;
 		this.data={};
-		this.epainit();
 		// Default type
-		this.deftension=statictension;
-		this.defdist=staticdist;
 		this.deftype=this.createbodytype();
+		this.anchor=this.createbody([],new Vector(dim));
+		this.anchor.worldlink.release();
 	}
 
 
@@ -5852,7 +5962,7 @@ class PhyWorld {
 	bonditer() {return this.bondlist.iter();}
 
 
-	createbodytype(damp=0.02,density=1,elasticity=0.95,push=1,statictension,staticdist) {
+	createbodytype(damp=0.02,density=1,elasticity=0.95,friction=0.25,push=1) {
 		// Assume types are sorted from smallest to largest.
 		// Find if there's any missing ID or add to the end.
 		let link=this.typelist.head;
@@ -5863,9 +5973,7 @@ class PhyWorld {
 			id=nextid+1;
 			link=link.next;
 		}
-		statictension=statictension??this.deftension;
-		staticdist=staticdist??this.defdist;
-		let type=new PhyBodyType(this,id,damp,density,elasticity,push,statictension,staticdist);
+		let type=new PhyBodyType(this,id,damp,density,elasticity,friction,push);
 		this.typelist.addbefore(type.worldlink,link);
 		link=this.typelist.head;
 		while (link!==null) {
@@ -5893,12 +6001,13 @@ class PhyWorld {
 	}
 
 
-	createsphere(sides,detail,pos,angle,type) {
+	createsphere(rads,detail,pos,angle,type) {
 		if (isNaN(detail) || detail<3) {throw "no detail";}
+		if (!rads.length) {rads=[rads,rads];}
 		let vertarr=[];
 		for (let i=0;i<detail;i++) {
 			let ang=Math.PI*2*i/detail;
-			let v=new Vector([Math.cos(ang)*sides[0],Math.sin(ang)*sides[1]]);
+			let v=new Vector([Math.cos(ang)*rads[0],Math.sin(ang)*rads[1]]);
 			vertarr.push(v);
 		}
 		return this.createbody(vertarr,pos,angle,type);
@@ -5936,6 +6045,8 @@ class PhyWorld {
 		// Process the simulation in multiple steps if time is too large.
 		if (time<1e-9 || isNaN(time)) {return;}
 		let dt=this.maxsteptime;
+		let restdist=this.gravity.mag()*dt*dt*3;
+		this.restdist=restdist*restdist;
 		let steps=time<=dt?1:Math.ceil(time/dt);
 		if (steps<Infinity) {dt=time/steps;}
 		let rnd=this.rnd;
@@ -5980,340 +6091,6 @@ class PhyWorld {
 			this.broad.build();
 			this.broad.collide();
 		}
-	}
-
-
-	// ----------------------------------------
-	// Collisions
-
-
-	epainit() {
-		let dim=this.dim,dim1=(dim+1)*dim;
-		this.colepaarr=[];
-		this.coltmpvertarr=[new Float64Array(0),new Float64Array(0)];
-		this.coldif=new Float64Array(dim1);
-		this.colmat=new Float64Array(dim1);
-		this.colvertarr=new Float64Array(dim1);
-		this.colvertid=new Int32Array(dim+1);
-		this.colprevid=new Int32Array(dim+1);
-		this.colweight=new Float64Array(dim);
-		this.colepacmp=function epacmp(a,b) {
-			// If distances are the same, sort by vertices to detect duplicates.
-			let ad=a.dist,bd=b.dist;
-			// if (d<-1e-10 || d>1e-10) {return d<0?-1:1;}
-			if (ad!==bd) {return ad<bd?-1:1;}
-			let as=a.vertid,bs=b.vertid;
-			for (let i=0;i<dim;i++) {
-				let av=as[i],bv=bs[i];
-				if (av!==bv) {return av<bv?-1:1;}
-			}
-			return 0;
-		};
-		this.epaalloc(dim+1);
-	}
-
-
-	epaalloc(len) {
-		let epaarr=this.colepaarr;
-		if (len>epaarr.length) {
-			let dim=this.dim;
-			while (len&(len+1)) {len|=len>>>1;}
-			while (epaarr.length<=len) {
-				epaarr.push({
-					vertid:new Int32Array(dim),
-					weight:new Float64Array(dim),
-					norm:new Float64Array(dim),
-					dist:0
-				});
-			}
-			this.colepaarr=epaarr;
-		}
-		return epaarr;
-	}
-
-
-	closestpoint(_avertarr,_apos,_amat,_bvertarr,_bpos,_bmat) {
-		// GJK
-		// Determines if bodies are colliding.
-		// Doesn't use constant memory.
-		// Finds minimum separating vector.
-		// Inline everything for performance.
-		// EPA
-		//      vert IDs [D]
-		//      weights  [D]
-		//      normal   [D]
-		//      dist
-		let dim=this.dim;
-		let averts=_avertarr.length,bverts=_bvertarr.length;
-		if (!dim) {return [(averts>0 && bverts>0),new Vector(0),new Vector(0)];}
-		// Pick an initial direction. Any will work, but B.pos-A.pos works best.
-		let dif=this.coldif;
-		let normsum=0;
-		for (let i=0;i<dim;i++) {
-			let x=_bpos[i]-_apos[i];
-			dif[i]=x;
-			normsum+=x*x;
-		}
-		// Pretransform the vertices. Flatten arrays to [x0,y0,z0,x1,y1,z1,...].
-		for (let side=0;side<2;side++) {
-			let srcarr=side?_bvertarr:_avertarr;
-			let dstarr=this.coltmpvertarr[side];
-			let verts=srcarr.length,vertlen=verts*dim;
-			if (dstarr.length<vertlen) {
-				dstarr=new Float64Array(vertlen*2);
-				this.coltmpvertarr[side]=dstarr;
-			}
-			let mat=side?_bmat:_amat;
-			// mat*v+vec
-			for (let s=0,d=0;s<verts;s++) {
-				let v=srcarr[s];
-				for (let i=0,m=0;i<dim;i++) {
-					let x=side?dif[i]:0;
-					for (let j=0;j<dim;j++) {x+=mat[m++]*v[j];}
-					dstarr[d++]=x;
-				}
-			}
-		}
-		let avertlen=averts*dim,bvertlen=bverts*dim;
-		let avertarr=this.coltmpvertarr[0],bvertarr=this.coltmpvertarr[1];
-		if (normsum<1e-10) {dif[0]=1;}
-		let mat=this.colmat;
-		let vertarr=this.colvertarr;
-		let vertid=this.colvertid;
-		let previd=this.colprevid;
-		let weight=this.colweight;
-		previd.fill(-1);
-		// Setup EPA memory.
-		let epaarr=this.colepaarr;
-		let epaalloc=epaarr.length;
-		let epacmp=this.colepacmp;
-		let epalen=-1,epachild=0;
-		let epaprev=null;
-		// Stop searching for a separating vector at (a.verts+b.verts+1)^2.
-		let verts=1,reject=-1;
-		let test=0,tests=(averts+bverts+1)*(averts+bverts+1);
-		for (test=0;test<tests || epalen>=0;test++) {
-			let norm=dif;
-			let mask=1<<verts;
-			let dist=0;
-			if (epalen>=0) {
-				// If we've added child EPA faces, sort them.
-				if (epachild) {
-					for (let child=0;child<verts;child++) {
-						let i=epalen++;
-						let epa=epaarr[i];
-						while (i>0) {
-							let j=(i-1)>>>1;
-							let p=epaarr[j];
-							if (epacmp(p,epa)<0) {break;}
-							epaarr[i]=p;
-							i=j;
-						}
-						epaarr[i]=epa;
-					}
-					epachild=0;
-				}
-				// Find the next closest simplex.
-				let epa=epaarr[0];
-				let last=epaarr[--epalen];
-				let idx=0;
-				while (true) {
-					let i0=idx*2+1,i1=i0+1;
-					if (i0>=epalen) {break;}
-					if (i1>=epalen) {i1=i0;}
-					let e0=epaarr[i0],e1=epaarr[i1];
-					if (epacmp(e0,e1)>0) {i0=i1;e0=e1;}
-					if (epacmp(e0,last)>=0) {break;}
-					epaarr[idx]=e0;
-					idx=i0;
-				}
-				epaarr[idx]=last;
-				epaarr[epalen]=epa;
-				// Prevent backtracking and duplicates.
-				if (epaprev!==null && epacmp(epaprev,epa)>=0) {continue;}
-				if (epalen+verts+1>epaalloc) {
-					epaarr=this.epaalloc(epalen+verts+1);
-					epaalloc=epaarr.length;
-				}
-				// Move the current EPA to the end so it isn't overwritten.
-				epaprev=epa;
-				epaarr[epalen]=epaarr[epaalloc-1];
-				epaarr[epaalloc-1]=epaprev;
-				for (let i=0;i<dim;i++) {vertid[i]=epa.vertid[i];}
-				norm=epa.norm;
-				dist=epa.dist;
-				mask--;
-			}
-			// Find new supports. Direction is stored in dif[0...dim].
-			if (reject<0) {
-				let max=-Infinity,min=Infinity;
-				let a=0,b=0;
-				// Find max(A.verts*norm);
-				for (let i=0;i<avertlen;i+=dim) {
-					let p=0;
-					for (let j=0;j<dim;j++) {p+=avertarr[i+j]*norm[j];}
-					if (max<p) {max=p;a=i;}
-				}
-				// Find min(B.verts*bnorm)
-				for (let i=0;i<bvertlen;i+=dim) {
-					let p=0;
-					for (let j=0;j<dim;j++) {p+=bvertarr[i+j]*norm[j];}
-					if (min>p) {min=p;b=i;}
-				}
-				// If we have a separating vector or can't expand the EPA.
-				if (max-min-dist<1e-10) {break;}
-				let id=a*bvertlen+b,i=verts-1;
-				while (i>0 && vertid[i-1]>id) {
-					vertid[i]=vertid[i-1];
-					i--;
-				}
-				vertid[i]=id;
-			}
-			// Calculate the current set of minkowski vertices A.vert(i)-B.vert(j).
-			for (let i=0;i<verts;i++) {
-				let id=vertid[i];
-				if (previd[i]!==id) {
-					previd[i]=id;
-					let a=~~(id/bvertlen),b=id%bvertlen,d=i*dim;
-					for (let j=0;j<dim;j++) {vertarr[d+j]=avertarr[a+j]-bvertarr[b+j];}
-				}
-			}
-			// Find the closest point in a set of vertices to another point.
-			// Use linear algebra to compute the barycenter coordinates of the set.
-			while (--mask>0) {
-				// di = vi - v0
-				// dP =  P - v0, put in row 0
-				let vidx=dim,cols=0,v0=0;
-				for (let i=0;i<verts;i++) {
-					if (!(mask&(1<<i))) {continue;}
-					let r=i*dim;
-					if (!cols++) {v0=r;continue;}
-					for (let j=0;j<dim;j++) {dif[vidx++]=vertarr[r+j]-vertarr[v0+j];}
-				}
-				for (let j=0;j<dim;j++) {dif[j]=-vertarr[v0+j];}
-				// Create matrix. Note the solution column is on the left for efficiency.
-				// [ d1*dP | d1*d1 d1*d2 d1*d3 ... ]
-				// [ d2*dP | d2*d1 d2*d2 d2*d3 ... ]
-				let rows=cols-1,elems=rows*cols;
-				for (let i=1;i<cols;i++) {
-					let rvec=i*dim;vidx=0;
-					for (let j=0;j<=i;j++) {
-						let dot=0;
-						for (let k=0;k<dim;k++) {
-							dot-=dif[rvec+k]*dif[vidx++];
-						}
-						mat[(i-1)*cols+j]=dot;
-						if (j) {mat[(j-1)*cols+i]=dot;}
-					}
-				}
-				// Row reduce the matrix.
-				// [ u3 | 0 0 1 ]
-				// [ u2 | 0 1 0 ]
-				// [ u1 | 1 0 0 ]
-				for (let i=0;i<rows;i++) {
-					// Find the largest element in column i.
-					let row=i*cols,off=rows-i,last=row+off;
-					let src=0,dst=last;
-					let max=0;
-					for (let r=last;r<elems;r+=cols) {
-						let x=mat[r],a=x>0?x:-x;
-						if (max<a) {max=a;src=r;}
-					}
-					// Normalize and move picked row.
-					max=max>1e-10?1/mat[src]:0;
-					while (dst>=row) {
-						let a=mat[dst],b=mat[src];
-						mat[src--]=a;
-						mat[dst--]=b*max;
-					}
-					// Reduce other rows.
-					for (let r=off;r<elems;r+=cols) {
-						if (r===last) {continue;}
-						dst=r;src=last;
-						let mul=mat[dst];
-						while (src>row) {
-							mat[--dst]-=mul*mat[--src];
-						}
-					}
-				}
-				// The first column of mat holds the barycenter coordinates.
-				// Find a new direction. Store in dif[0...dim].
-				reject=-1;
-				vidx=dim;
-				let u0=1,min=0;
-				for (let i=1;i<=rows;i++) {
-					let u=mat[elems-i*cols];
-					for (let j=0;j<dim;j++) {
-						dif[j]-=u*dif[vidx++];
-					}
-					if (min>u) {min=u;reject=i;}
-					weight[i]=u;
-					u0-=u;
-				}
-				if (min>u0) {min=u0;reject=0;}
-				weight[0]=u0;
-				if (epalen>=0) {
-					// Check all combinations for the closest point.
-					if (reject>=0) {continue;}
-					dist=0;
-					for (let i=0;i<dim;i++) {
-						let x=dif[i];
-						dist+=x*x;
-					}
-					for (let child=0;child<verts;child++) {
-						// Record the new EPA face. NaN distances can occur.
-						let bit=1<<child;
-						let epa=epaarr[epalen+child];
-						let edist=(epachild&bit)?epa.dist:Infinity;
-						if (edist>dist && !(mask&bit)) {
-							epa.dist=dist;
-							epachild|=bit;
-							let wpos=0;
-							let enorm=epa.norm,eweight=epa.weight,evertid=epa.vertid;
-							for (let i=0;i<dim;i++) {
-								let j=i+(i>=child);
-								enorm[i]=-dif[i];
-								eweight[i]=((mask>>>j)&1)?weight[wpos++]:0;
-								evertid[i]=vertid[j];
-							}
-						}
-					}
-				} else if (verts<=dim) {
-					verts++;
-					reject=-1;
-					break;
-				} else if (reject>=0) {
-					verts--;
-					for (let i=reject;i<verts;i++) {vertid[i]=vertid[i+1];}
-					break;
-				} else {
-					// The polygons are colliding so build the EPA.
-					epalen=0;
-				}
-			}
-		}
-		if (epaprev!==null) {
-			// Calculate contact points based on weights.
-			let apos=_apos;
-			let ap=new Vector(apos),bp=new Vector(apos);
-			for (let i=0;i<dim;i++) {
-				let w =epaprev.weight[i];
-				let id=epaprev.vertid[i];
-				let av=~~(id/bvertlen);
-				let bv=id%bvertlen;
-				for (let j=0;j<dim;j++) {
-					ap[j]+=w*avertarr[av+j];
-					bp[j]+=w*bvertarr[bv+j];
-				}
-			}
-			// Recalculate norm and magnitude based on contacts.
-			// let norm=bp.sub(ap);
-			// let mag=norm.mag();
-			// norm.imul(1/mag);
-			return [true,ap,bp];
-		}
-		// If we're rejecting.
-		return [false,null,null];
 	}
 
 }

@@ -47,12 +47,7 @@ History
 TODO
 
 
-63.5ms - orig
-48.0ms - removed body.trans
-48.0ms - optimized bond contact calculation
-45.4ms - New broadphase BVH traversal. Faster AABB calculation.
-31.0ms - Narrowphase now uses a linear time minkowski difference.
-22.1ms - Replaced static bonds with static friction. Added resting position.
+Remove sleeping.
 
 Center of mass
 	sim.volume = det(v1-v0,v2-v0,...)/n!

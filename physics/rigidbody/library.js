@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v19.70
+library.js - v19.79
 
 Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -12,14 +12,14 @@ Versions
 
 
 Env     - v1.02
-Random  - v1.11
-Data    - v2.02
-Vector  - v3.15
+Random  - v1.12
+Data    - v2.04
+Vector  - v3.16
 Input   - v1.19
-Drawing - v5.05
+Drawing - v5.08
 UI      - v1.03
-Audio   - v3.12
-Physics - v2.01
+Audio   - v3.13
+Physics - v2.02
 
 
 --------------------------------------------------------------------------------
@@ -70,7 +70,7 @@ export {Env};
 
 
 //---------------------------------------------------------------------------------
-// Random - v1.11
+// Random - v1.12
 
 
 export class Random {
@@ -117,18 +117,6 @@ export class Random {
 	}
 
 
-	/*static hashu64(val) {
-		let hash=val^0xaaaaaaaaaaaaaaab;
-		hash+=hash<<27;hash^=hash>>>17;
-		hash+=hash<<10;hash^=hash>>>19;
-		hash+=hash<<12;hash^=hash>>> 6;
-		hash+=hash<<10;hash^=hash>>>26;
-		hash+=hash<<10;hash^=hash>>>13;
-		hash+=hash<<19;hash^=hash>>>29;
-		return hash>>>0;
-	}*/
-
-
 	getu32() {
 		let hash=(this.acc+this.inc)>>>0;
 		this.acc=hash;
@@ -146,7 +134,7 @@ export class Random {
 		if (!(mod>0 && (mod>>>0)===mod)) {
 			throw "mod out of range: "+mod;
 		}
-		let rand=0,rem=0,nmod=(-mod)>>>0;
+		let rand,rem,nmod=(-mod)>>>0;
 		do {
 			rand=this.getu32();
 			rem=rand%mod;
@@ -178,7 +166,7 @@ export class Random {
 
 
 //---------------------------------------------------------------------------------
-// Data - v2.02
+// Data - v2.04
 
 
 class ListLink {
@@ -241,12 +229,15 @@ export class List {
 
 
 	*iter() {
-		let link=null,next=this.head;
+		let link,next=this.head;
 		while ((link=next)!==null) {
 			next=link.next;
 			yield link.obj;
 		}
 	}
+
+
+	array() {return Array.from(this.iter());}
 
 
 	add(value) {
@@ -259,7 +250,7 @@ export class List {
 	addafter(link,prev=null) {
 		// Inserts the link after prev.
 		if (link.list!==null) {throw "link already in list";}
-		let next=null;
+		let next;
 		if (prev!==null) {
 			next=prev.next;
 			prev.next=link;
@@ -282,7 +273,7 @@ export class List {
 	addbefore(link,next=null) {
 		// Inserts the link before next.
 		if (link.list!==null) {throw "link already in list";}
-		let prev=null;
+		let prev;
 		if (next!==null) {
 			prev=next.prev;
 			next.prev=link;
@@ -456,7 +447,7 @@ export class Tree {
 
 
 	release() {
-		let node=null,zero=this.zero;
+		let node,zero=this.zero;
 		while ((node=this.root)!==zero) {
 			this.removenode(node);
 		}
@@ -726,7 +717,7 @@ export class Tree {
 
 
 //---------------------------------------------------------------------------------
-// Vector - v3.15
+// Vector - v3.16
 
 
 export class Vector extends Array {
@@ -990,7 +981,7 @@ export class Vector extends Array {
 	randomize() {
 		let u=this,len=this.length;
 		if (!len) {return this;}
-		let mag=0,rnd=Vector.rnd;
+		let mag,rnd=Vector.rnd;
 		do {
 			mag=0;
 			for (let i=0;i<len;i++) {
@@ -1012,7 +1003,7 @@ export class Vector extends Array {
 
 export class Matrix extends Array {
 
-	static _perm=[];
+	static _tmp=[];
 
 
 	constructor(rows,cols,init=true) {
@@ -1116,7 +1107,9 @@ export class Matrix extends Array {
 		let dim=this.rows,cols=this.cols,elems=dim*dim;
 		if (dim!==cols) {return 0;}
 		// Copy the matrix. Use the upper triangular form to compute the determinant.
-		let elem=new Matrix(this);
+		let elem=Matrix._tmp;
+		if (elem.length<elems) {Matrix._tmp=elem=new Array(elems);}
+		for (let i=0;i<elems;i++) {elem[i]=this[i];}
 		let det=1;
 		for (let i=0;i<dim;i++) {
 			// Find a column with an invertible element on row i.
@@ -1158,9 +1151,8 @@ export class Matrix extends Array {
 		let dim=this.rows,cols=this.cols;
 		if (dim!==cols) {throw `Can only invert square matrices: ${dim}, ${cols}`;}
 		let elem=this;
-		let perm=Matrix._perm;
-		if (perm.length<dim) {Matrix._perm=perm=new Array(dim);}
-		// let perm=new Array(dim);
+		let perm=Matrix._tmp;
+		if (perm.length<dim) {Matrix._tmp=perm=new Array(dim);}
 		for (let i=0;i<dim;i++) {
 			// Find a column with an invertible element on row i.
 			let row=i*dim,stop=row+dim,swap=-1;
@@ -1319,12 +1311,13 @@ export class Transform {
 	}
 
 
-	apply(point) {
+	apply(b) {
 		// (A.apply(B)).apply(P) = A.apply(B.apply(P))
 		let amat=this.mat,avec=this.vec;
-		let bmat=point.mat,bvec=point.vec;
-		if (!bmat || !bvec) {return amat.mul(point).iadd(avec);}
-		return new Transform({mat:amat.mul(bmat),vec:amat.mul(bvec).iadd(avec)},false);
+		let bmat=b.mat,bvec=b.vec??b;
+		let vec=amat.mul(bvec).iadd(avec);
+		if (!bmat) {return vec;}
+		return new Transform({mat:amat.mul(bmat),vec:vec},false);
 	}
 
 
@@ -1390,8 +1383,7 @@ export class Transform {
 
 
 	rotatemat(angs) {
-		let rot=Matrix.fromangles(angs);
-		this.mat.set(rot.mul(this.mat));
+		this.mat.rotate(angs);
 		return this;
 	}
 
@@ -1788,7 +1780,7 @@ export class Input {
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v5.05
+// Drawing - v5.08
 
 
 class DrawPath {
@@ -2103,7 +2095,6 @@ class DrawPath {
 		let scale=(this.maxx-this.minx+this.maxy-this.miny)/1000;
 		scale=scale>1e-10?scale:1e-10;
 		let curvemaxdist2=0.03*scale*scale;
-		let maxext=Math.abs(outrad-inrad)+1e-10;
 		let lv=DrawPath._traceline,cv=DrawPath._tracecurve;
 		let li=0;
 		function AddSeg(x,y) {
@@ -2157,6 +2148,8 @@ class DrawPath {
 					// Trace around line segments.
 					for (let side=0;side<2;side++) {
 						let off=(side>0)===(area<0)?inrad:outrad;
+						let maxext=Math.abs(off)*2+1e-10;
+						if (!(maxext<Infinity)) {continue;}
 						let i0=2,i1=0;
 						if (side!==closed) {i1=li-2;i0=i1-2;}
 						let x0=lv[i0],y0=lv[i0+1];
@@ -2166,7 +2159,7 @@ class DrawPath {
 						dx1/=mag;dy1/=mag;
 						for (let j=closed?0:2;j<li;j+=2) {
 							let k=side?li-2-j:j;
-							let dx0=dx1,dy0=dy1,pmag=mag+maxext;
+							let dx0=dx1,dy0=dy1,mag0=mag+maxext;
 							x0=x1;x1=lv[k  ];dx1=x1-x0;
 							y0=y1;y1=lv[k+1];dy1=y1-y0;
 							mag=Math.sqrt(dx1*dx1+dy1*dy1);
@@ -2177,14 +2170,15 @@ class DrawPath {
 							let u=dot>0?0:maxext;
 							if (den<-1e-5 || den>1e-5) {u=(dot-1)*off/den;}
 							// Miter if we need to.
-							if (u<=-pmag || u>=maxext) {
-								u=u<0?-pmag:maxext;
+							if (u<=-mag0 || u>=maxext) {
+								u=u<0?-mag0:maxext;
 								out.lineto(x0-dy0*off+dx0*u,y0+dx0*off+dy0*u);
 							}
 							out.lineto(x0-dy1*off-dx1*u,y0+dx1*off-dy1*u);
 						}
-						if (side || closed) {out.close();}
+						if (closed) {out.close();}
 					}
+					out.close();
 				}
 				closed=0;
 				li=0;
@@ -2285,13 +2279,13 @@ class DrawPath {
 			let q1y=3*(p1y-p0y),q2y=3*(p0y+p2y-2*p1y),q3y=p3y-p0y+3*(p1y-p2y);
 			// 3 possible solutions between [0,1] and dy(u)=0.
 			let r=1;
-			let u0=1,y0=p3y,tmp=0;
+			let u0=1,y0=p3y;
 			let disc=q2y*q2y-3*q3y*q1y;
 			if (disc>=0) {
 				disc=Math.sqrt(disc);
 				let a=(-q2y-disc)/(3*q3y);
 				let b=(-q2y+disc)/(3*q3y);
-				if (a>b) {tmp=a;a=b;b=tmp;}
+				if (a>b) {let tmp=a;a=b;b=tmp;}
 				if (a>0 && a<1) {intr[r++]=a;}
 				if (b>0 && b<1) {intr[r++]=b;}
 			}
@@ -2585,7 +2579,7 @@ class DrawFont {
 		this.unknown=undefined;
 		let idx=0,len=fontdef.length;
 		function token(eol) {
-			let c=0;
+			let c;
 			while (idx<len && (c=fontdef.charCodeAt(idx))<=32 && c!==10) {idx++;}
 			let i=idx;
 			while (idx<len && fontdef.charCodeAt(idx)>eol) {idx++;}
@@ -2733,36 +2727,30 @@ export class Draw {
 	}
 
 
-	rgbatoint(r,g,b,a=255) {
+	rgbatoint(r,g,b,a) {
 		// Convert an RGBA array to a int regardless of endianness.
-		if (g===undefined) {
-			if (r instanceof Array) {
-				a=r[3]??255;b=r[2]??255;g=r[1]??255;r=r[0]??255;
-			} else if (r instanceof Object) {
-				a=r.a??255;b=r.b??255;g=r.g??255;r=r.r??255;
+		if (r!==undefined && g===undefined) {
+			if (isNaN(r)) {
+				a=r[3];b=r[2];g=r[1];r=r[0];
 			} else {
-				a=(r>>>0)&255;b=(r>>>8)&255;g=(r>>>16)&255;r>>>=24;
+				a=(r>>> 0)&255;b=(r>>>8)&255;
+				g=(r>>>16)&255;r>>>=24;
 			}
 		}
-		let tmp=this.rgba32[0];
-		let rgba=this.rgba;
-		rgba[0]=r>0?(r<255?(r|0):255):0;
-		rgba[1]=g>0?(g<255?(g|0):255):0;
-		rgba[2]=b>0?(b<255?(b|0):255):0;
-		rgba[3]=a>0?(a<255?(a|0):255):0;
-		rgba=this.rgba32[0];
-		this.rgba32[0]=tmp;
-		return rgba;
+		let s=this.rgbashift,ret=0;
+		for (let i=0;i<4;i++) {
+			ret|=(r<255?(r>0?r+0.5:0):255)<<s[i];
+			r=g;g=b;b=a;
+		}
+		return ret>>>0;
 	}
 
 
-	inttorgba(i) {
-		let rgba32=this.rgba32;
-		let tmp=rgba32[0];
-		rgba32[0]=i;
-		let rgba=this.rgba.slice();
-		rgba32[0]=tmp;
-		return rgba;
+	inttorgba(i,ret) {
+		let s=this.rgbashift;
+		ret=ret??[0,0,0,0];
+		for (let j=0;j<4;j++) {ret[j]=(i>>>s[j])&255;}
+		return ret;
 	}
 
 
@@ -2851,15 +2839,16 @@ export class Draw {
 		//                  '.   .'
 		//                    '.'
 		//
-		if (trans===undefined) {trans=this.deftrans;}
-		else if (!(trans instanceof Transform)) {trans=new Transform(trans);}
+		trans=trans??this.deftrans;
+		if (!(trans instanceof Transform)) {trans=new Transform(trans);}
 		let dstimg=this.img;
 		let dstw=dstimg.width,dsth=dstimg.height;
 		let srcw=srcimg.width,srch=srcimg.height;
 		const rnd0=1e-6,rnd1=1-rnd0;
 		// src->dst transformation.
-		let matxx=trans.mat[0],matxy=trans.mat[1],matx=trans.vec[0]+offx;
-		let matyx=trans.mat[2],matyy=trans.mat[3],maty=trans.vec[1]+offy;
+		let mat=trans.mat,vec=trans.vec;
+		let matxx=mat[0],matxy=mat[1],matx=vec[0]+offx*matxx+offy*matxy;
+		let matyx=mat[2],matyy=mat[3],maty=vec[1]+offx*matyx+offy*matyy;
 		let det=matxx*matyy-matxy*matyx;
 		let alpha=det*0.5*this.rgba[3]/(255*255);
 		if (!(srcw*srch*(alpha>0?alpha:-alpha)>1e-8 && dstw && dsth)) {return;}
@@ -3124,12 +3113,13 @@ export class Draw {
 		// Preprocess the lines and curves. Use a binary heap to dynamically sort lines.
 		// Keep JS as simple as possible to be efficient. Keep micro optimization in WASM.
 		// ~~x = fast floor(x)
-		if (path===undefined) {path=this.defpath;}
-		if (trans===undefined) {trans=this.deftrans;}
-		else if (!(trans instanceof Transform)) {trans=new Transform(trans);}
+		path =path ??this.defpath;
+		trans=trans??this.deftrans;
+		if (!(trans instanceof Transform)) {trans=new Transform(trans);}
 		// Screenspace transformation.
-		let matxx=trans.mat[0],matxy=trans.mat[1],matx=trans.vec[0];
-		let matyx=trans.mat[2],matyy=trans.mat[3],maty=trans.vec[1];
+		let mat=trans.mat;
+		let matxx=mat[0],matxy=mat[1],matx=trans.vec[0];
+		let matyx=mat[2],matyy=mat[3],maty=trans.vec[1];
 		let det=(matxx*matyy-matxy*matyx)*path.area;
 		const curvemaxdist2=0.02;
 		let iw=this.img.width,ih=this.img.height;
@@ -3162,7 +3152,7 @@ export class Draw {
 		// Loop through the path nodes.
 		let lr=this.tmpline,lrcnt=lr.length,lcnt=0;
 		let movex=0,movey=0;
-		let p2x=0,p2y=0,p3x=0,p3y=0;
+		let p2x,p2y,p3x=0,p3y=0;
 		let varr=path.vertarr;
 		let vidx=path.vertidx;
 		for (let i=0;i<=vidx;i++) {
@@ -3278,7 +3268,7 @@ export class Draw {
 				let l=lr[0];
 				let x0=l.x0,y0=l.y0;
 				let x1=l.x1,y1=l.y1;
-				let sign=amul,tmp=0;
+				let sign=amul,tmp;
 				if (y0>y1) {
 					sign=-sign;
 					tmp=x0;x0=x1;x1=tmp;
@@ -3385,9 +3375,9 @@ export class Draw {
 					if (da===255) {
 						sa=256.49-sa*256;
 					} else {
-						let tmp=sa*255+(1-sa)*da;
-						sa=256.49-(sa/tmp)*65280;
-						da=tmp+0.49;
+						da+=sa*(255-da);
+						sa=256.49-(sa/da)*65280;
+						da+=0.49;
 					}
 					// imul() implicitly casts floor(sa).
 					imgdata[p]=(da<<ashift)
@@ -3574,7 +3564,7 @@ export class UI {
 
 
 //---------------------------------------------------------------------------------
-// Audio - v3.12
+// Audio - v3.13
 
 
 class AudioSound {
@@ -4072,7 +4062,7 @@ class AudioSFX {
 		for (let i=0;i<seqlen;i++) {addhash(seqstr.charCodeAt(i));}
 		while (s<seqlen || node) {
 			// Read through whitespace and comments.
-			let c=0;
+			let c;
 			while ((c=getc())<33 && c>0) {s++;}
 			if (c===39 || c===34) {
 				// If " stop at ". If ' stop at \n.
@@ -4375,8 +4365,8 @@ class AudioSFX {
 
 
 	biquadcoefs(n,type,rate,bw,gain) {
-		let b0=1,b1=0,b2=0;
-		let a0=1,a1=0,a2=0;
+		let b0,b1,b2;
+		let a0,a1,a2;
 		let v  =gain;
 		let ang=2*Math.PI*rate;
 		let sn =Math.sin(ang);
@@ -4937,7 +4927,7 @@ export class Audio {
 
 
 //---------------------------------------------------------------------------------
-// Physics - v2.01
+// Physics - v2.02
 
 
 class PhyInteraction {
@@ -5080,7 +5070,7 @@ class PhyBodyType {
 		//
 		this.dt=dt;
 		let damp=this.damp,idamp=1-damp;
-		let dt0=0,dt1=0,dt2=0;
+		let dt0,dt1,dt2;
 		if (damp<=1e-10) {
 			// Special case damping=0: just integrate.
 			dt0=1;
@@ -5163,7 +5153,7 @@ class PhyBody {
 	release() {
 		if (this.deleted) {return;}
 		this.deleted=true;
-		let link=null;
+		let link;
 		while ((link=this.bondlist.head)!==null) {
 			link.obj.release();
 		}
@@ -5207,7 +5197,7 @@ class PhyBody {
 		let dim=this.world.dim,dim2=(dim*(dim-1))>>>1;
 		let vertarr=this.vertarr;
 		let verts=vertarr.length;
-		let volume=0;
+		let volume;
 		let imat=new Matrix(dim2,dim2);
 		if (verts===0) {
 			volume=Infinity;

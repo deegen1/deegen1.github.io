@@ -69,7 +69,7 @@ History
 3.12
      Moved SFX consts to global.
 3.13
-     Cleanup up variable declarations.
+     Cleaned up up variable declarations.
 
 
 --------------------------------------------------------------------------------
@@ -83,6 +83,7 @@ Better explanation of compiled form in article.
 Why do delay filters need a phase correction?
 
 Sound effects
+	Allow notes (A5, C#4, etc) for frequencies.
 	Remove tbl
 	Optimize %mod lines in sfx.fill(). Replace with a-=floor(a/b)*b;
 	let u=acc+phase;u-=Math.floor(u/mod)*mod;
@@ -108,6 +109,18 @@ Audio keeps playing
 		this.mute=-1;
 		if (Audio.def===def) {Audio.def=null;}
 	}
+
+
+get(i) {
+	let len=this.len;
+	let data=this.data;
+	if (len<2) {return len?data[0]:0;}
+	i-=floor(i/len)*len;
+	let d0=~~i,d1=d0+1;
+	i-=d0;
+	d1=d1<len?d1:0;
+	return data[d0]*(1-i)+data[d1]*i;
+}
 
 
 */

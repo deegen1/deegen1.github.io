@@ -2729,7 +2729,6 @@ export class Draw {
 
 	rgbatoint(r,g,b,a) {
 		// Convert an RGBA array to a int regardless of endianness.
-		function san(x) {return x<255?(x>0?~~(x+0.5):0):255;}
 		if (r!==undefined && g===undefined) {
 			if (isNaN(r)) {
 				a=r[3];b=r[2];g=r[1];r=r[0];
@@ -2738,25 +2737,20 @@ export class Draw {
 				g=(r>>>16)&255;r>>>=24;
 			}
 		}
-		let tmp=this.rgba32[0];
-		let rgba=this.rgba;
-		rgba[0]=san(r);
-		rgba[1]=san(g);
-		rgba[2]=san(b);
-		rgba[3]=san(a);
-		rgba=this.rgba32[0];
-		this.rgba32[0]=tmp;
-		return rgba;
+		let s=this.rgbashift,ret=0;
+		for (let i=0;i<4;i++) {
+			ret|=(r<255?(r>0?r+0.5:0):255)<<s[i];
+			r=g;g=b;b=a;
+		}
+		return ret>>>0;
 	}
 
 
-	inttorgba(i) {
-		let rgba32=this.rgba32;
-		let tmp=rgba32[0];
-		rgba32[0]=i;
-		let rgba=this.rgba.slice();
-		rgba32[0]=tmp;
-		return rgba;
+	inttorgba(i,ret) {
+		let s=this.rgbashift;
+		ret=ret??[0,0,0,0];
+		for (let j=0;j<4;j++) {ret[j]=(i>>>s[j])&255;}
+		return ret;
 	}
 
 
