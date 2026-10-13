@@ -24,6 +24,8 @@ TODO
 
 Keep under 30kb, minus header.
 
+rebalance music
+
 
 */
 /* npx eslint rappel.js -c ../../standards/eslint.js */
@@ -92,12 +94,12 @@ export class Game {
 		this.snddist2=30*30;
 		// Create a high-tempo, dark, ambient background song.
 		function eztri(freq) {
-			return (new Audio.SFX(`#tri: TRI F ${freq} H 1 #out: ENV A 0.01 R 0.99 I #tri`)).tosound();
+			return (new Audio.SFX(`#tri: TRI F ${freq} H 1 #out: ENV A 0.005 R 0.995 I #tri`)).tosound();
 		}
 		let bgsnd=new Audio.Sound();
 		let notelib=[
-			[0x5555,Audio.SFX.defsnd("hihat",0.7)],
-			[0xaaaa,Audio.SFX.defsnd("kick",0.8)],
+			[0x5555,Audio.SFX.defsnd("hihat",0.6)],
+			[0xaaaa,Audio.SFX.defsnd("kick",0.7)],
 			[0x000f,eztri(65.406)],// C2
 			[0xf0f0,eztri(73.416)],// D2
 			[0x0f00,eztri(82.407)] // E2
@@ -111,7 +113,7 @@ export class Game {
 		bgsnd.resizetime(60);
 		bgsnd.setloop(0);
 		this.bgsnd=bgsnd;
-		this.bgsndinst=this.bgsnd.play(0.25);
+		this.bgsndinst=this.bgsnd.play(0.35);
 		// Create sound effects.
 		this.spinsnd=(new Audio.SFX(`
 			#spin: ENV A ${1/this.chargerate} S 100

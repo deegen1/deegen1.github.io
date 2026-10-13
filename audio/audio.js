@@ -84,6 +84,7 @@ Why do delay filters need a phase correction?
 
 Sound effects
 	Allow notes (A5, C#4, etc) for frequencies.
+	Set snd.data=null when playing. Swap in when done.
 	Remove tbl
 	Optimize %mod lines in sfx.fill(). Replace with a-=floor(a/b)*b;
 	let u=acc+phase;u-=Math.floor(u/mod)*mod;
