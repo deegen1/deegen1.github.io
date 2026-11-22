@@ -8,6 +8,55 @@
 	<script>function DEMO(f) {return import("./demo.js").then(f);}</script>
 </head>
 <body>
+<!--
+Placing Pixels the Hard Way
+
+Libraries and GPUs have made drawing shapes and images trivial, but what if we
+wanted to place every pixel ourselves without any help. I've spent several
+hundred hours on drawing.js at this point - from running performance tests on
+individual lines to redesigning everything - all for a 50kb file. This article
+is a summary of the things I've ran into.
+
+We'll use 2 things to draw: paths and images. Paths are used for shapes like
+squares, circles, and even text. Images are your standard RGBA pixel buffers.
+
+drawing a red circle in the library is as simple as
+draw.setcolor(255,0,0,255);
+draw.fillcircle(50,50,10,10);
+
+Dinosaur eating shapes?
+
+The AABB for paths are recalculated every time a point is added. In practice
+I've found I've never needed to remove points, so that's omitted entirely.
+
+Simplify 'g'
+Rename Preprocessing -> Shapes
+Show error between good subdivision and bad.
+Better AABB. Show top and bottom lines.
+	Verify for small/large dx/dy.
+remove strides?
+
+// Test if both control points are close to the line p0->p3.
+// Clamp to ends and filter degenerates.
+let dx=p3x-p0x,dy=p3y-p0y,den=dx*dx+dy*dy;
+let lx,ly,u;
+// d1
+lx=p1x-p0x;ly=p1y-p0y;
+u=dx*lx+dy*ly;
+u=u>0?(u<den?u/den:1):0;
+lx-=dx*u;ly-=dy*u;
+let d1=lx*lx+ly*ly;
+// d2
+lx=p2x-p0x;ly=p2y-p0y;
+u=dx*lx+dy*ly;
+u=u>0?(u<den?u/den:1):0;
+lx-=dx*u;ly-=dy*u;
+let d2=lx*lx+ly*ly;
+// Compare distances
+d1=(d1>d2 || !(d1===d1))?d1:d2;
+if (!(d1>CURVE_MAX_DIST && d1<Infinity)) {continue;}
+// Continue splitting
+-->
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Header ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 <div id="header"><a href="../index.html">Alec Dee's General Site</a></div>
 <div id="content">

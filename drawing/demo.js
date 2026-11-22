@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.19
+demo.js - v1.20
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -18,10 +18,20 @@ History
      Tweaked image transform scaling to [1/2,2].
 1.19
      Cleaned up variable declarations.
+1.20
+     Removed DrawPerf.drawimage(). Replaced test with pixel-aligned drawimage().
 
 
 --------------------------------------------------------------------------------
 TODO
+
+
+Remake starfield demo with better graphics.
+Collectibles that explode with sparks.
+Go faster for every one.
+If miss more than 3, reset.
+Avoid certain collectibles - spikey.
+Neon trail of player's image. Scale with speed.
 
 
 */
@@ -73,8 +83,10 @@ export class DrawPerf {
 		let srcimg=new Draw.Image(srcdim,srcdim);
 		let srcdata=srcimg.data32;
 		let rnd=new Random(1);
-		let mask=this.draw.rgbatoint(63,63,255,255);
-		for (let i=0;i<srcpix;i++) {srcdata[i]=rnd.getu32()&mask;}
+		let mask=this.draw.rgbatoint(0,0,0,255);
+		for (let i=0;i<srcpix;i++) {
+			srcdata[i]=(rnd.getu32()>>>24)*0x01010101|mask;
+		}
 		this.srcdim=srcdim;
 		this.srcimg=srcimg;
 		// Needed for recompiling modules
@@ -89,7 +101,7 @@ export class DrawPerf {
 			func=func.replace(/}\s*$/,"\treturn;\n}");
 			func=func.replace(/return;/g,"return _pixelcount;");
 			if (!i) {func=func.replace(/if \(area>=cutoff\) \{\s*do \{/,"if (area>=cutoff) {\n\t\t\t\t_pixelcount+=pstop-p;\n\t\t\t\tdo {");}
-			else    {func=func.replace(/let dstrow=dsty\*dstw;/,"let dstrow=dsty*dstw; _pixelcount+=dstmaxx-dstminx;");}
+			else    {func=func.replace(/for \(let dstx/,"_pixelcount+=dstmaxx-dstminx; for (let dstx");}
 			let reg=/.*?\((.*?)\)[ \n\t]{([\s\S]*)}/gmi;
 			let match=reg.exec(func);
 			Draw.prototype["_"+name]=new Function(match[1].split(","),match[2]);
@@ -100,61 +112,6 @@ export class DrawPerf {
 	log(str) {
 		// console.log(str);
 		this.conout.innerHTML+=str+"<br>";
-	}
-
-
-	drawimage(srcimg,dx,dy,dw,dh) {
-		// Draw an image with alpha blending.
-		let draw=this.draw;
-		let dstimg=draw.img;
-		let srcw=srcimg.width,srch=srcimg.height;
-		let dstw=dstimg.width,dsth=dstimg.height;
-		dx=Math.round(dx??0);
-		dy=Math.round(dy??0);
-		dw=Math.round(dw??srcw);
-		dh=Math.round(dh??srch);
-		// Intersection of src and dst.
-		let sx=0,sy=0;
-		dw=(dw<srcw?dw:srcw)+dx;
-		if (dx<0) {sx=-dx;dx=0;}
-		dw=(dw<dstw?dw:dstw)-dx;
-		dh=(dh<srch?dh:srch)+dy;
-		if (dy<0) {sy=-dy;dy=0;}
-		dh=(dh<dsth?dh:dsth)-dy;
-		let amul=draw.rgba[3];
-		if (dw<=0 || dh<=0 || amul<=0) {return 0;}
-		let dstdata=dstimg.data32,srcdata=srcimg.data32;
-		let drow=dy*dstw+dx,dinc=dstw-dw;
-		let srow=sy*srcw+sx,sinc=srcw-dw;
-		let ystop=drow+dstw*dh,xstop=drow+dw;
-		let ashift=draw.rgbashift[3],amask=(255<<ashift)>>>0;
-		let maskl=0x00ff00ff&(~amask),maskh=0xff00ff00&(~amask);
-		while (drow<ystop) {
-			while (drow<xstop) {
-				// a = sa + da*(1-sa)
-				// c = (sc*sa + dc*da*(1-sa)) / a
-				let src=srcdata[srow++];
-				let sa=(src>>>ashift)&255;
-				if (sa<=0) {drow++;continue;}
-				let tmp=dstdata[drow];
-				let da=(tmp>>>ashift)&255;
-				// Approximate blending by expanding sa from [0,255] to [0,256].
-				// imul() implicitly cast floor().
-				sa*=amul;
-				da=sa*255+da*(65025-sa);
-				sa=(sa*65280+(da>>>1))/da;
-				da=((da+32512)/65025)<<ashift;
-				let l=tmp&0x00ff00ff;
-				let h=tmp&0xff00ff00;
-				dstdata[drow++]=da|
-					(((Math.imul((src&0x00ff00ff)-l,sa)>>>8)+l)&maskl)|
-					((Math.imul(((src>>>8)&0x00ff00ff)-(h>>>8),sa)+h)&maskh);
-			}
-			xstop+=dstw;
-			drow+=dinc;
-			srow+=sinc;
-		}
-		return dw*dh;
 	}
 
 
@@ -195,8 +152,8 @@ export class DrawPerf {
 			vec[1]=rnd.getf()*dsth;
 		}
 		function randcolor() {
-			let a=rnd.getu32(),u=a>>>24;
-			draw.setcolor(u*.375,u*.375,u,a&255);
+			let c=rnd.getu32()>>>24;
+			draw.setcolor(c,c,c);
 		}
 		let timestart=performance.now();
 		timestop+=timestart;
@@ -216,15 +173,14 @@ export class DrawPerf {
 			}
 			pixels+=samples*dstw*dsth;
 		} else if (test===2) {
-			// image fast
+			// image pixel aligned
 			for (;(samples&0xff)!==0 || performance.now()<timestop;samples++) {
 				randcolor();
-				let w=rnd.mod(srcdim+1);srcimg.width =w;
-				let h=rnd.mod(srcdim+1);srcimg.height=h;
+				let w=srcimg.width =rnd.mod(srcdim+1);
+				let h=srcimg.height=rnd.mod(srcdim+1);
 				let x=rnd.mod(dstw+w*2)-w;
 				let y=rnd.mod(dsth+h*2)-h;
-				pixels+=this.drawimage(srcimg,x,y);
-				// pixels+=draw._drawimage(srcimg,x,y);
+				pixels+=draw._drawimage(srcimg,x,y);
 			}
 		} else if (test===3) {
 			// image draw
@@ -284,7 +240,7 @@ export class DrawPerf {
 			this.overhead=time;
 		}
 		let teststr=[
-			"overhead ","fill+flip","img fast ","img trans",
+			"overhead ","fill+flip","img align","img trans",
 			"lines    ","ovals    ","rects    ","complex  "
 		][test];
 		let timestr=(1e+6*time).toFixed(3).padStart(7);

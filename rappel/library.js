@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-library.js - v19.79
+library.js - v19.81
 
 Copyright 2026 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -16,7 +16,7 @@ Random  - v1.12
 Data    - v2.04
 Vector  - v3.16
 Input   - v1.19
-Drawing - v5.08
+Drawing - v5.10
 UI      - v1.03
 Audio   - v3.13
 Physics - v2.02
@@ -1780,7 +1780,7 @@ export class Input {
 
 
 //---------------------------------------------------------------------------------
-// Drawing - v5.08
+// Drawing - v5.10
 
 
 class DrawPath {
@@ -1872,10 +1872,10 @@ class DrawPath {
 			w=arr[idx-1];
 		} else if (!--this.curve) {
 			this.curve=3;
-			w=arr[idx-1];let p2x=w.x-x,p2y=w.y-y;
-			w=arr[idx-2];let p1x=w.x-x,p1y=w.y-y;
-			w=arr[idx-3];let p0x=w.x-x,p0y=w.y-y;
-			area+=(p0x*(2*p1y+p2y)+p1x*(p2y-2*p0y)-p2x*(p1y+p0y))*0.3;
+			w=arr[idx-1];let x2=w.x-x,y2=w.y-y;
+			w=arr[idx-2];let x1=w.x-x,y1=w.y-y;
+			w=arr[idx-3];let x0=w.x-x,y0=w.y-y;
+			area+=(x0*(2*y1+y2)+x1*(y2-2*y0)-x2*(y1+y0))*0.3;
 		}
 		if (w!==null) {
 			area+=w.x*y-w.y*x;
@@ -2237,6 +2237,7 @@ class DrawPath {
 
 	pointinside(point,trans) {
 		// Test if a point is in a path.
+		// Arrange equations so py in [y[i],y[i+1]) is always used.
 		let vidx=this.vertidx;
 		if (!vidx) {return false;}
 		// Put the point in path-space.
@@ -2245,65 +2246,65 @@ class DrawPath {
 			if (!(trans instanceof Transform)) {trans=new Transform(trans);}
 			let mat=trans.mat,vec=trans.vec;
 			let det=mat[0]*mat[3]-mat[1]*mat[2];
-			if (!(det<-1e-10 || det>1e-10)) {return false;}
 			let tx=px-vec[0],ty=py-vec[1];
 			px=(tx*mat[3]-ty*mat[1])/det;
 			py=(ty*mat[0]-tx*mat[2])/det;
 		}
-		if (px<this.minx || px>this.maxx || py<this.miny || py>this.maxy) {return false;}
-		let p3x=0,p3y=0,movex=0,movey=0;
+		if (!(px>=this.minx && px<=this.maxx && py>=this.miny && py<=this.maxy)) {return false;}
+		let x3=0,y3=0,movex=0,movey=0;
 		let parity=0;
 		let varr=this.vertarr;
 		let intr=[0,0,0];
 		for (let i=0;i<=vidx;i++) {
 			let v=varr[i<vidx?i:0];
-			let p0x=p3x,p0y=p3y;
-			p3x=v.x-px;
-			p3y=v.y-py;
-			let p1x=p3x,p1y=p3y;
+			let x0=x3,x1=x3=v.x-px,x2;
+			let y0=y3,y1=y3=v.y-py,y2;
 			if (v.type!==DrawPath.CURVE) {
+				// Close any unclosed subpaths.
 				if (v.type===DrawPath.MOVE) {
-					// Close any unclosed subpaths.
-					p1x=movex;movex=p3x;
-					p1y=movey;movey=p3y;
+					x1=movex;movex=x3;
+					y1=movey;movey=y3;
 				}
 				// Line test.
-				if ((p0y<0)!==(p1y<0)) {parity+=(p0y>p1y)-(p0x*p1y<p1x*p0y);}
+				if ((y0<=0 && y1>0) || (y0>=0 && y1<0)) {
+					let u=y0/(y0-y1),x=(1-u)*x0+u*x1;
+					if (x<=0) {parity+=y0>y1?1:-1;}
+				}
 				continue;
 			}
-			// Find all u where y(u)=py.
-			v=varr[++i];let p2x=v.x-px,p2y=v.y-py;
-			v=varr[++i];p3x=v.x-px;p3y=v.y-py;
-			if (!(((p0y<0)+(p1y<0)+(p2y<0)+(p3y<0))&3)) {continue;}
-			let q1x=3*(p1x-p0x),q2x=3*(p0x+p2x-2*p1x),q3x=p3x-p0x+3*(p1x-p2x);
-			let q1y=3*(p1y-p0y),q2y=3*(p0y+p2y-2*p1y),q3y=p3y-p0y+3*(p1y-p2y);
-			// 3 possible solutions between [0,1] and dy(u)=0.
+			// Find all u where y(u)=0, then check x(u)<=0.
+			// First find the 3 intervals dy(u) can change signs.
+			v=varr[++i];x2=v.x-px;y2=v.y-py;
+			v=varr[++i];x3=v.x-px;y3=v.y-py;
 			let r=1;
-			let u0=1,y0=p3y;
-			let disc=q2y*q2y-3*q3y*q1y;
+			let d0=y1-y0,d1=y1-y2,d2=d0+d1,d3=y3-y0+3*d1;
+			let disc=d2*d2-d0*d3;
 			if (disc>=0) {
 				disc=Math.sqrt(disc);
-				let a=(-q2y-disc)/(3*q3y);
-				let b=(-q2y+disc)/(3*q3y);
-				if (a>b) {let tmp=a;a=b;b=tmp;}
+				disc=d3<0?-disc:disc;
+				let a=(d2-disc)/d3;
+				let b=(d2+disc)/d3;
 				if (a>0 && a<1) {intr[r++]=a;}
 				if (b>0 && b<1) {intr[r++]=b;}
 			}
-			// Binary search for y(u)=py.
+			// Binary search each interval for y(u)=0.
+			let u0=1,z0=y3;
 			while (r>0) {
-				let h=u0,l=u0=intr[--r];
-				let y1=y0;y0=p0y+u0*(q1y+u0*(q2y+u0*q3y));
-				if ((y0<0)===(y1<0)) {continue;}
-				if (y0>y1) {l=h;h=u0;}
-				for (let j=0;j<32;j++) {
-					let u=(l+h)*0.5,y=p0y+u*(q1y+u*(q2y+u*q3y));
-					if (y<0) {l=u;} else {h=u;}
+				let h=u0,l=u0=intr[--r],w=1-l;
+				let z1=z0;z0=w*(w*w*y0+l*(w*y1+l*y2)*3)+l*l*l*y3;
+				if (!((z0<=0 && z1>0) || (z0>=0 && z1<0))) {continue;}
+				if (z0>z1) {l=h;h=u0;}
+				for (let j=0;j<48;j++) {
+					let u=(l+h)*0.5;w=1-u;
+					let y=w*(w*w*y0+u*(w*y1+u*y2)*3)+u*u*u*y3;
+					if (y>0) {h=u;} else {l=u;}
 				}
-				let x=p0x+l*(q1x+l*(q2x+l*q3x));
-				if (x<0) {parity+=y0>y1?1:-1;}
+				w=1-l;
+				let x=w*(w*w*x0+l*(w*x1+l*x2)*3)+l*l*l*x3;
+				if (x<=0) {parity+=z0>z1?1:-1;}
 			}
 		}
-		return parity && ((parity>0)===(this.area>0));
+		return (this.area<0?-parity:parity)>0;
 	}
 
 }
@@ -2844,40 +2845,35 @@ export class Draw {
 		let dstimg=this.img;
 		let dstw=dstimg.width,dsth=dstimg.height;
 		let srcw=srcimg.width,srch=srcimg.height;
-		const rnd0=1e-6,rnd1=1-rnd0;
 		// src->dst transformation.
-		let mat=trans.mat,vec=trans.vec;
-		let matxx=mat[0],matxy=mat[1],matx=vec[0]+offx*matxx+offy*matxy;
-		let matyx=mat[2],matyy=mat[3],maty=vec[1]+offx*matyx+offy*matyy;
+		let matxx=trans.mat[0],matxy=trans.mat[1],matx=trans.vec[0]+offx;
+		let matyx=trans.mat[2],matyy=trans.mat[3],maty=trans.vec[1]+offy;
 		let det=matxx*matyy-matxy*matyx;
-		let alpha=det*0.5*this.rgba[3]/(255*255);
-		if (!(srcw*srch*(alpha>0?alpha:-alpha)>1e-8 && dstw && dsth)) {return;}
+		let alpha=det*this.rgba[3]/(2*255*255);
+		if (!(srcw*srch*(alpha>0?alpha:-alpha)>8e-6 && dstw>0 && dsth>0)) {return;}
 		// dst->src transformation.
 		let invxx= matyy/det,invxy=-matxy/det,invx=-matx*invxx-maty*invxy;
 		let invyx=-matyx/det,invyy= matxx/det,invy=-matx*invyx-maty*invyy;
 		// Check if trans(src) and dst AABB overlap. Calculate y intercepts.
 		matxx*=srcw;matxy*=srch;
 		matyx*=srcw;matyy*=srch;
-		let min=Infinity,max=-Infinity;
+		let min=dsth,max=0;
 		let vx=matx,vy=maty;
 		for (let i=1;i<16;i+=i) {
-			let x0=vx,y0=vy;
-			vx=((3&i)?matxx:0)+((6&i)?matxy:0)+matx;
-			vy=((3&i)?matyx:0)+((6&i)?matyy:0)+maty;
-			let x1=vx,y1=vy;
+			let x0=vx,x1=vx=((i&3)?matxx:0)+((i&6)?matxy:0)+matx;
+			let y0=vy,y1=vy=((i&3)?matyx:0)+((i&6)?matyy:0)+maty;
 			if (x0>x1) {x1=x0;x0=vx;y1=y0;y0=vy;}
-			if (!(x0<dstw && x1>=0)) {continue;}
-			let dx=x1-x0,dy=y1-y0;
-			y0+=x0<0?-(x0/dx)*dy:0;
-			y1+=x1>dstw?((dstw-x1)/dx)*dy:0;
+			if (!(x0<dstw && x1>0)) {continue;}
+			let dx=x1-x0,dy=y1-y0,xw=x1-dstw;
+			y0-=x0<0?(x0/dx)*dy:0;
+			y1-=xw>0?(xw/dx)*dy:0;
 			if (y0>y1) {x0=y0;y0=y1;y1=x0;}
 			min=min<y0?min:y0;
 			max=max>y1?max:y1;
 		}
-		min+=rnd0;max+=rnd1;
-		if (!(min<dsth && max>=1)) {return;}
+		if (!(min<dsth && max>0)) {return;}
 		let dstminy=min>0?~~min:0;
-		let dstmaxy=max<dsth?~~max:dsth;
+		let dstmaxy=max<dsth?Math.ceil(max):dsth;
 		// Precompute pixel AABB offsets.
 		let pixminx=(invxx<0?invxx:0)+(invxy<0?invxy:0);
 		let pixminy=(invyx<0?invyx:0)+(invyy<0?invyy:0);
@@ -2889,78 +2885,65 @@ export class Draw {
 		let srcdata=srcimg.data32;
 		for (let dsty=dstminy;dsty<dstmaxy;dsty++) {
 			// Calculate dst x bounds for the row.
-			min=Infinity;max=-Infinity;
+			min=dstw;max=0;
 			vx=matx;vy=maty-dsty;
 			for (let i=1;i<16;i+=i) {
-				let x0=vx,y0=vy;
-				vx=((3&i)?matxx:0)+((6&i)?matxy:0)+matx;
-				vy=((3&i)?matyx:0)+((6&i)?matyy:0)+maty-dsty;
-				let x1=vx,y1=vy;
+				let x0=vx,x1=vx=((i&3)?matxx:0)+((i&6)?matxy:0)+matx;
+				let y0=vy,y1=vy=((i&3)?matyx:0)+((i&6)?matyy:0)+maty-dsty;
 				if (y0>y1) {x1=x0;x0=vx;y1=y0;y0=vy;}
-				if (y0>=1 || y1<=0) {continue;}
-				let dx=x1-x0,dy=y1-y0,dxy=dx/dy;
-				let y0x=x0-y0*dxy,y1x=y0x+dxy;
-				x0=y0>0?x0:y0x;
-				x1=y1<1?x1:y1x;
+				if (!(y0<1 && y1>0)) {continue;}
+				let dx=x1-x0,dy=y1-y0,yh=y1-1;
+				x0-=y0<0?(y0/dy)*dx:0;
+				x1-=yh>0?(yh/dy)*dx:0;
 				if (x0>x1) {y0=x0;x0=x1;x1=y0;}
 				min=min<x0?min:x0;
 				max=max>x1?max:x1;
 			}
-			min+=rnd0;max+=rnd1;
 			let dstminx=min>0?~~min:0;
-			let dstmaxx=max<dstw?~~max:dstw;
-			let dstrow=dsty*dstw;
+			let dstmaxx=max<dstw?Math.ceil(max):dstw;
 			for (let dstx=dstminx;dstx<dstmaxx;dstx++) {
-				// Project the dst pixel to src and calculate AABB.
-				let srcx0=dstx*invxx+dsty*invxy+invx;
-				let srcy0=dstx*invyx+dsty*invyy+invy;
-				min=srcx0+pixminx;let srcminx=min>0?~~min:0;
-				min=srcy0+pixminy;let srcminy=min>0?~~min:0;
-				max=srcy0+pixmaxy;let srcmaxy=max<srch?Math.ceil(max):srch;
+				// Project the dst pixel to src and estimate the AABB.
+				let invx0=dstx*invxx+dsty*invxy+invx;
+				let invy0=dstx*invyx+dsty*invyy+invy;
+				min=invx0+pixminx;let srcminx=min>0?~~min:0;
+				min=invy0+pixminy;let srcminy=min>0?~~min:0;
+				max=invy0+pixmaxy;let srcmaxy=max<srch?Math.ceil(max):srch;
 				// Iterate over src rows.
 				let sa=0,sr=0,sg=0,sb=0;
-				let xr=invxx,xi=invxy;
-				let yr=invyx,yi=invyy;
 				for (let srcy=srcminy;srcy<srcmaxy;srcy++) {
 					// Sum the src pixels.
-					let srcrow=srcy*srcw;
 					for (let srcx=srcminx;srcx<srcw;srcx++) {
-						let sx=srcx0-srcx,sy=srcy0-srcy,area=0;
-						min=srcw;max=-1;
-						for (let i=0;i<4;i++) {
+						min=srcw;max=0;
+						let sx=invx0-srcx,sy=invy0-srcy,srcx0=sx,srcy0=sy,area=0;
+						for (let i=1;i<16;i+=i) {
 							// Calculate transformed pixel vertices.
 							let sign=alpha;
-							let dx=xr,dy=yr;
-							let x0=sx,y0=sy;
-							sx+=dx;xr=xi;xi=-dx;
-							sy+=dy;yr=yi;yi=-dy;
-							let x1=sx,y1=sy;
-							if (y0>y1) {sign=-sign;x1=x0;x0=sx;y1=y0;y0=sy;}
-							if (y0>=1 || y1<=0) {continue;}
+							let x0=sx,x1=sx=((i&3)?invxx:0)+((i&6)?invxy:0)+srcx0;
+							let y0=sy,y1=sy=((i&3)?invyx:0)+((i&6)?invyy:0)+srcy0;
+							if (y0>y1) {x1=x0;x0=sx;y1=y0;y0=sy;sign=-sign;}
+							if (!(y0<1 && y1>0)) {continue;}
 							// Clip to unit row.
-							let dxy=dx/dy;
-							let y0x=x0-y0*dxy;
-							if (y0<0) {y0=0;x0=y0x;}
-							if (y1>1) {y1=1;x1=y0x+dxy;}
-							if (x0>x1) {let tmp=x0;x0=x1;x1=tmp;dx=-dx;}
+							let dx=x1-x0,dy=y1-y0,yh=y1-1;
+							if (y0<0) {x0-=(y0/dy)*dx;y0=0;}
+							if (yh>0) {x1-=(yh/dy)*dx;y1=1;}
+							if (x0>x1) {yh=x0;x0=x1;x1=yh;dx=-dx;}
 							min=min<x0?min:x0;
 							max=max>x1?max:x1;
 							// Calculate area to the right.
 							if (x1<1) {
 								// Vertical line or last pixel.
-								let tmp=x1>0?-(x1*x1/dx)*dy*sign:0;
-								let h=(y0-y1)*sign;
-								tmp=x0>=0?(x0+x1)*h:tmp;
-								area+=h+h-tmp;
+								let h=y1-y0,tmp=x1>0?(x1*x1/dx)*dy:0;
+								area-=(h+h-(x0<0?tmp:(x1+x0)*h))*sign;
 							} else if (x0<1) {
-								area-=((x0>0?(1-x0)*(1-x0):(1-2*x0))/dx)*dy*sign;
+								x1=1-x0;
+								area-=((x0>0?x1*x1:x1-x0)/dx)*dy*sign;
 							}
 						}
 						// Skip pixels if we are too far left or right.
 						if (max<=0) {break;}
 						if (min>=1) {srcx+=(~~min)-1;continue;}
 						// Scale pixel color by the area and premultiply alpha.
-						let col=srcdata[srcrow+srcx];
+						let col=srcdata[srcy*srcw+srcx];
 						let smul=area*((col>>>ashift)&255);
 						sr+=smul*((col>>>rshift)&255);
 						sg+=smul*((col>>>gshift)&255);
@@ -2970,18 +2953,18 @@ export class Draw {
 					}
 				}
 				// Blend with dst. Note alpha*det already averages the src colors.
-				if (sa>1e-5) {
+				if (sa>8e-6) {
 					// a = sa + da*(1-sa)
 					// c = (sc*sa + dc*da*(1-sa)) / a
 					sa=sa<1?sa:1;
-					let pix=dstrow+dstx;
+					let pix=dsty*dstw+dstx;
 					let col=dstdata[pix];
 					let dmul=(((col>>>ashift)&255)*0.003921569)*(1-sa);
-					let a=sa+dmul,adiv=1.001/a;
-					let da=a*255.255;
-					let dr=(sr+dmul*((col>>>rshift)&255))*adiv;
-					let dg=(sg+dmul*((col>>>gshift)&255))*adiv;
-					let db=(sb+dmul*((col>>>bshift)&255))*adiv;
+					let a=sa+dmul;
+					let da=a*255+0.5;a=1/a;
+					let dr=(sr+dmul*((col>>>rshift)&255))*a+0.5;
+					let dg=(sg+dmul*((col>>>gshift)&255))*a+0.5;
+					let db=(sb+dmul*((col>>>bshift)&255))*a+0.5;
 					dstdata[pix]=(da<<ashift)|(dr<<rshift)|(dg<<gshift)|(db<<bshift);
 				}
 			}
@@ -3099,10 +3082,9 @@ export class Draw {
 	fillextend() {
 		// Declaring line objects this way allows engines to optimize their structs.
 		this.tmpline.push({
-			sort:0,
+			next:0,
 			x0:0,y0:0,
-			x1:0,y1:0,
-			x2:0,y2:0
+			x1:0,y1:0
 		});
 	}
 
@@ -3111,8 +3093,7 @@ export class Draw {
 		// Fills the current path.
 		//
 		// Preprocess the lines and curves. Use a binary heap to dynamically sort lines.
-		// Keep JS as simple as possible to be efficient. Keep micro optimization in WASM.
-		// ~~x = fast floor(x)
+		// Keep as simple as possible to be efficient. Put micro optimization in WASM.
 		path =path ??this.defpath;
 		trans=trans??this.deftrans;
 		if (!(trans instanceof Transform)) {trans=new Transform(trans);}
@@ -3120,48 +3101,46 @@ export class Draw {
 		let mat=trans.mat;
 		let matxx=mat[0],matxy=mat[1],matx=trans.vec[0];
 		let matyx=mat[2],matyy=mat[3],maty=trans.vec[1];
-		let det=(matxx*matyy-matxy*matyx)*path.area;
-		const curvemaxdist2=0.02;
-		let iw=this.img.width,ih=this.img.height;
-		let alpha=this.rgba[3]/255.0;
-		let amul=det<0?-alpha:alpha;
-		if (path.vertidx<3 || iw<1 || ih<1 || det*amul<1e-6) {return;}
+		let det=matxx*matyy-matxy*matyx;
 		// Check if trans(path) and image AABB overlap. Calculate y intercepts.
-		let min=Infinity,max=-Infinity;
-		let vx=0,vy=0;
-		for (let i=0;i<5;i++) {
-			let w=((i+1)&2)?path.maxx:path.minx;
-			let h=((i  )&2)?path.maxy:path.miny;
-			let x0=vx,y0=vy;
-			vx=w*matxx+h*matxy+matx;
-			vy=w*matyx+h*matyy+maty;
-			let x1=vx,y1=vy;
+		let imgw=this.img.width,imgh=this.img.height;
+		let alpha=this.rgba[3]/255,amul=det<0?-alpha:alpha;
+		let w0=path.minx,w1=path.maxx;
+		let h0=path.miny,h1=path.maxy;
+		let cover=(w1-w0)*(h1-h0)*det*amul;
+		if (!(path.vertidx>2 && imgw>0 && imgh>0 && cover>8e-6 && alpha>8e-6)) {return;}
+		let vx=w0*matxx+h0*matxy+matx;
+		let vy=w0*matyx+h0*matyy+maty;
+		let miny=imgh,maxy=0;
+		for (let i=1;i<16;i+=i) {
+			let w=(3&i)?w1:w0;
+			let h=(6&i)?h1:h0;
+			let x0=vx,x1=vx=w*matxx+h*matxy+matx;
+			let y0=vy,y1=vy=w*matyx+h*matyy+maty;
 			if (x0>x1) {x1=x0;x0=vx;y1=y0;y0=vy;}
-			let dx=x1-x0,dy=y1-y0;
-			if (!(dx>=0 && dy===dy)) {return;}
-			if (!i || x0>=iw || x1<0) {continue;}
-			y0+=x0<0?-(x0/dx)*dy:0;
-			y1+=x1>iw?((iw-x1)/dx)*dy:0;
-			if (y0>y1) {x0=y0;y0=y1;y1=x0;}
-			min=min<y0?min:y0;
-			max=max>y1?max:y1;
+			if (!(x0<imgw && x1>0)) {continue;}
+			let dx=x1-x0,dy=y1-y0,xw=x1-imgw;
+			y0-=x0<0?(x0/dx)*dy:0;
+			y1-=xw>0?(xw/dx)*dy:0;
+			if (y0>y1) {h=y0;y0=y1;y1=h;}
+			miny=miny<y0?miny:y0;
+			maxy=maxy>y1?maxy:y1;
 		}
-		if (!(min<ih && max>0)) {return;}
-		let pminy=min>0?~~min:0;
-		let pmaxy=max<ih?Math.ceil(max):ih;
+		if (!(miny<imgh && maxy>0)) {return;}
+		miny=miny>0?miny:0;
+		maxy=maxy<imgh?maxy:imgh;
 		// Loop through the path nodes.
 		let lr=this.tmpline,lrcnt=lr.length,lcnt=0;
-		let movex=0,movey=0;
-		let p2x,p2y,p3x=0,p3y=0;
+		let subidx=0,subbnd=0;
+		let movex=0,movey=0,x3=0,y3=0;
 		let varr=path.vertarr;
 		let vidx=path.vertidx;
 		for (let i=0;i<=vidx;i++) {
 			let v=varr[i<vidx?i:0];
 			let type=v.type;
-			let p0x=p3x,p0y=p3y;
-			p3x=v.x*matxx+v.y*matxy+matx;
-			p3y=v.x*matyx+v.y*matyy+maty;
-			let p1x=p3x,p1y=p3y;
+			let x0=x3,x1=x3=v.x*matxx+v.y*matxy+matx,x2;
+			let y0=y3,y1=y3=v.x*matyx+v.y*matyy+maty,y2;
+			subbnd|=(x0>0?1:0)|(x0<imgw?2:0)|(y0>miny?4:0)|(y0<maxy?8:0);
 			// Add a basic line.
 			if (lrcnt<=lcnt) {
 				this.fillextend();
@@ -3171,222 +3150,195 @@ export class Draw {
 			if (type!==DrawPath.CURVE) {
 				if (type===DrawPath.MOVE) {
 					// Close any unclosed subpaths.
-					p1x=movex;movex=p3x;
-					p1y=movey;movey=p3y;
+					x1=movex;movex=x3;
+					y1=movey;movey=y3;
+					// If the subpath isn't on screen, remove it.
+					lcnt=subbnd<15?subidx:lcnt;
+					subidx=lcnt;
+					subbnd=0;
 				}
-				l.sort=0;
-				l.x0=p0x;l.y0=p0y;
-				l.x1=p1x;l.y1=p1y;
-				if (p1y===p0y) {lcnt--;}
+				l.x0=x0;l.y0=y0;
+				l.x1=x1;l.y1=y1;
 				continue;
 			}
 			// Linear decomposition of curves.
-			v=varr[++i];p2x=v.x*matxx+v.y*matxy+matx;p2y=v.x*matyx+v.y*matyy+maty;
-			v=varr[++i];p3x=v.x*matxx+v.y*matxy+matx;p3y=v.x*matyx+v.y*matyy+maty;
-			let next=-1,next0=0;
+			v=varr[++i];x2=v.x*matxx+v.y*matxy+matx;y2=v.x*matyx+v.y*matyy+maty;
+			v=varr[++i];x3=v.x*matxx+v.y*matxy+matx;y3=v.x*matyx+v.y*matyy+maty;
+			let next=-1;
+			let x4=x0,y4=y0,u0=0,u1=1;
+			let a4=x0,b4=y0,a5=x1,b5=y1;
 			while (true) {
-				// The curve will stay inside the bounding box of [p0,p1,p2,p3].
-				// If the subcurve is outside the image, stop subdividing.
-				if (next===next0) {
-					l.sort=0;
-					l.x0=p0x;l.y0=p0y;
-					l.x1=p3x;l.y1=p3y;
-					if (next<0) {break;}
-					l=lr[next];
-					next=l.sort;
-					p0x=p3x;p1x=l.x0;p2x=l.x1;p3x=l.x2;
-					p0y=p3y;p1y=l.y0;p2y=l.y1;p3y=l.y2;
+				// Given u0 and u1, calculate control points (p5,p6) and endpoint p7.
+				let v0=1-u0,v1=1-u1,a6,a7,a8,b6,b7,b8;
+				a6=v1*x0+u1*x1;a7=v1*x1+u1*x2;a8=v1*x2+u1*x3;
+				b6=v1*y0+u1*y1;b7=v1*y1+u1*y2;b8=v1*y2+u1*y3;
+				a6=v1*a6+u1*a7;a7=v1*a7+u1*a8;
+				b6=v1*b6+u1*b7;b7=v1*b7+u1*b8;
+				let x5=v1*a4+u1*a5,y5=v1*b4+u1*b5;
+				let x6=v0*a6+u0*a7,y6=v0*b6+u0*b7;
+				let x7=v1*a6+u1*a7,y7=v1*b6+u1*b7;
+				if (u1>=1) {x7=x3;y7=y3;}
+				// If the subcurve is inside the image and u1-u0 hasn't collapsed, subdivide.
+				if ((y4>miny || y5>miny || y6>miny || y7>miny)
+				&&  (y4<maxy || y5<maxy || y6<maxy || y7<maxy)
+				&&  (x4<imgw || x5<imgw || x6<imgw || x7<imgw)
+				&&  (x4>0 || x5>0 || x6>0 || x7>0) && u1-u0>1e-4) {
+					// Test if both control points are close to the line p4->p7.
+					// Clamp to ends and filter degenerates.
+					let dx=x7-x4,dy=y7-y4;
+					let lx=x5-x4,ly=y5-y4;
+					let d=dx*dx+dy*dy;
+					let u=dx*lx+dy*ly;
+					u=u>0?(u<d?u/d:1):0;
+					lx-=dx*u;ly-=dy*u;
+					let a=lx*lx+ly*ly;
+					lx=x6-x4;ly=y6-y4;
+					u=dx*lx+dy*ly;
+					u=u>0?(u<d?u/d:1):0;
+					lx-=dx*u;ly-=dy*u;
+					let b=lx*lx+ly*ly;
+					d=a>b?a:b;
+					if (d>0.02) {
+						if (lrcnt<=lcnt) {
+							this.fillextend();
+							lrcnt=lr.length;
+						}
+						let m=lr[lcnt];
+						m.next=next;
+						next=lcnt++;
+						m.x0=u1;
+						u1=(u0+u1)*0.5;
+						continue;
+					}
 				}
-				next0=next;
-				if ((p0x<=0 && p1x<=0 && p2x<=0 && p3x<=0) || (p0x>=iw && p1x>=iw && p2x>=iw && p3x>=iw) ||
-				    (p0y<=0 && p1y<=0 && p2y<=0 && p3y<=0) || (p0y>=ih && p1y>=ih && p2y>=ih && p3y>=ih)) {
-					continue;
-				}
-				// Test if both control points are close to the line p0->p3.
-				// Clamp to ends and filter degenerates.
-				let dx=p3x-p0x,dy=p3y-p0y,den=dx*dx+dy*dy;
-				let lx=p1x-p0x,ly=p1y-p0y;
-				let u=dx*lx+dy*ly;
-				u=u>0?(u<den?u/den:1):0;
-				lx-=dx*u;ly-=dy*u;
-				let d1=lx*lx+ly*ly;
-				lx=p2x-p0x;ly=p2y-p0y;
-				u=dx*lx+dy*ly;
-				u=u>0?(u<den?u/den:1):0;
-				lx-=dx*u;ly-=dy*u;
-				let d2=lx*lx+ly*ly;
-				d1=(d1>d2 || !(d1===d1))?d1:d2;
-				if (!(d1>curvemaxdist2 && d1<Infinity)) {continue;}
-				// Split the curve in half. [p0,p1,p2,p3] = [p0,l1,l2,ph] + [ph,r1,r2,p3]
-				if (lrcnt<=lcnt) {
-					this.fillextend();
-					lrcnt=lr.length;
-				}
-				let t1x=(p1x+p2x)*0.5,t1y=(p1y+p2y)*0.5;
-				let r2x=(p2x+p3x)*0.5,r2y=(p2y+p3y)*0.5;
-				let r1x=(t1x+r2x)*0.5,r1y=(t1y+r2y)*0.5;
-				let n=lr[lcnt];
-				n.sort=next;
-				n.x0=r1x;n.x1=r2x;n.x2=p3x;
-				n.y0=r1y;n.y1=r2y;n.y2=p3y;
-				p1x=(p0x+p1x)*0.5;p1y=(p0y+p1y)*0.5;
-				p2x=(p1x+t1x)*0.5;p2y=(p1y+t1y)*0.5;
-				p3x=(p2x+r1x)*0.5;p3y=(p2y+r1y)*0.5;
-				next=lcnt++;
+				// Commit this segment of the curve.
+				subbnd|=(x4>0?1:0)|(x4<imgw?2:0)|(y4>miny?4:0)|(y4<maxy?8:0);
+				l.x0=x4;l.y0=y4;
+				l.x1=x7;l.y1=y7;
+				if (next<0) {break;}
+				l=lr[next];
+				next=l.next;
+				u0=u1;u1=l.x0;
+				x4=x7;y4=y7;
+				a4=a6;b4=b6;
+				a5=a7;b5=b7;
 			}
 		}
+		if (!lcnt) {return;}
 		// Init blending.
-		let ashift=this.rgbashift[3],amask=(255<<ashift)>>>0;
-		let maskl=(0x00ff00ff&~amask)>>>0,maskh=(0xff00ff00&~amask)>>>0;
-		let colrgb=(this.rgba32[0]|amask)>>>0;
-		let coll=(colrgb&maskl)>>>0,colh=(colrgb&maskh)>>>0,colh8=colh>>>8;
+		let shift=this.rgbashift;
+		let rshift=shift[0],gshift=shift[1],bshift=shift[2],ashift=shift[3];
+		let fill=this.rgba32[0]|(255<<ashift);
+		let rmul=this.rgba[0],gmul=this.rgba[1],bmul=this.rgba[2];
+		amul=path.area<0?-amul:amul;
 		// Process the lines row by row.
-		let p=0,pmax=pmaxy*iw,y=0;
-		let pnext=pminy*iw,prow=0;
-		let area=0,areadx1=0;
+		let py=0,prow=0,pmax=Math.ceil(maxy)*imgw;
+		let lnext=(~~miny)*imgw,heap=lcnt-1;
+		let areacon=0;
 		let imgdata=this.img.data32;
-		while (true) {
-			if (p>=prow) {
-				p=pnext;
-				if (p>=pmax || lcnt<1) {break;}
-				y=~~(p/iw);
-				prow=y*iw+iw;
-				area=0;
-				areadx1=0;
+		while (lnext<pmax) {
+			let pix=lnext;
+			if (pix>=prow) {
+				py=~~(pix/imgw);
+				prow=py*imgw+imgw;
+				areacon=0;
 			}
-			let areadx2=0;
-			while (p>=pnext) {
-				// fx0  fx0+1                          fx1  fx1+1
-				//  +-----+-----+-----+-----+-----+-----+-----+
-				//  |                              .....----  |
-				//  |               .....-----'''''           |
-				//  | ....-----'''''                          |
-				//  +-----+-----+-----+-----+-----+-----+-----+
-				//   first  dyx   dyx   dyx   dyx   dyx  last   tail
-				//
-				// Orient upwards, then clip y to [0,1].
-				let l=lr[0];
+			let areatmp=0;
+			let px=pix-prow+imgw;
+			while (pix>=lnext) {
+				// Calculate the area of overlap and where to sort the line.
+				// +---------+----/----+---------+
+				// |         |   /.....|         |
+				// |         |  /......|         |
+				// |         | /.......|         |
+				// +---------+/--------+---------+
+				let l=lr[heap];
 				let x0=l.x0,y0=l.y0;
 				let x1=l.x1,y1=l.y1;
-				let sign=amul,tmp;
+				let next=pmax;
+				let sign=amul,u;
 				if (y0>y1) {
 					sign=-sign;
-					tmp=x0;x0=x1;x1=tmp;
-					tmp=y0;y0=y1;y1=tmp;
+					u=x0;x0=x1;x1=u;
+					u=y0;y0=y1;y1=u;
 				}
-				// Calculate row and col.
-				let sort=prow-iw,c0=p-sort,c1=c0+1;
-				let r0=y0<ih?~~y0:ih;
-				r0=y0>y?r0:y;
-				let r1=r0+1,r2=r0+2;
-				// Clamp y to row. Ensure consecutive rows use the same calculations.
-				let dx=x1-x0,dy=y1-y0,nx=x1;
-				if (dy>1) {
-					// Large numbers.
-					let dxy=dx/dy,y0x=x0-y0*dxy;
-					if (y1>r2) {nx=y0x+r2*dxy;}
-					if (y1>r1) {x1=y0x+r1*dxy;y1=r1;}
-					if (y0<r0) {x0=y0x+r0*dxy;y0=r0;}
-				} else {
-					// Small numbers.
-					if (y1>r2) {nx=x0-((y0-r2)/dy)*dx;}
-					if (y1>r1) {x1=x0-((y0-r1)/dy)*dx;y1=r1;}
-					if (y0<r0) {x0=x0-((y0-r0)/dy)*dx;y0=r0;}
-				}
-				nx=nx<x1?nx:x1;
-				if (x0>x1) {dx=-dx;tmp=x0;x0=x1;x1=tmp;}
-				dy*=sign;let dyx=dy/dx;dy*=0.5;
-				if (!(y1>r0 && dyx!==0)) {
-					// Above or degenerate.
-					sort=pmax;
-				} else if (x0>=c1 || r0>y) {
-					// Below or to the left.
-					nx=x0;
-					sort=r0*iw;
-				} else if (x1<=c1) {
-					// Vertical line or last pixel.
-					let t0=x1-c0,t1=x1-c1;
-					tmp=x1>c0?-(t0*t0/dx)*dy:0;
-					if (c0>1 && x0<c0-1) {
-						areadx1+=dyx;
-						area+=((x1>c0?t1*t1:-t0-t1)/dx)*dy;
+				if (py<y1 && y0<maxy && y0<y1) {
+					// Find the bottom of the line.
+					let ny=y0>py?~~y0:py,r1=ny+1,r2=ny+2,nx=px+1;
+					// Clip to the row. For large coordinates, use the closest endpoint to imgh/2.
+					let dx=x1-x0,dy=y1-y0;
+					let bx=x0,by=y0,x2=x1,y2=y1;
+					if (y0+y1<imgh) {bx=x1;by=y1;}
+					if (y1>r1) {x1=bx+((r1-by)/dy)*dx;y1=r1;}
+					if (y0<ny) {x0=bx+((ny-by)/dy)*dx;y0=ny;}
+					if (x0>x1) {
+						sign=-sign;
+						u=x0;x0=x1;x1=u;
+						u=y0;y0=y1;y1=u;
+					}
+					if (!(x0<nx && ny<=py)) {
+						// Under or to the left. If leaning past the edge of the image, abort.
+						if (x0<imgw || x2<imgw) {nx=x0;} else {ny=imgh;}
+					} else if (x1<=px) {
+						// To the right. Area won't change after this pixel.
+						x0=y2>r2?bx+((r2-by)/dy)*dx:x2;
+						nx=x0<x1?x0:x1;
+						ny=y2>r1?r1:imgh;
+						areacon+=(y0-y1)*sign;
 					} else {
-						dy=(y0-y1)*sign;
-						tmp=x0>=c0?0.5*(x0-c0+t0)*dy:tmp;
-						area+=dy-tmp;
+						// Overlapping. Clip to the column.
+						x0-=px;x1-=px;u=y0;
+						dx=x1-x0;dy=y1-y0;
+						if (x0<0) {y0-=((x0  )/dx)*dy;x0=0;}
+						if (x1>1) {y1-=((x1-1)/dx)*dy;x1=1;}
+						areatmp+=(u-y1+(x0+x1)*0.5*(y1-y0))*sign;
 					}
-					areadx2+=tmp;
-					sort+=y1<r1?pmax:iw;
-				} else {
-					// Spanning 2+ pixels.
-					let t0=x0-c0,t1=x0-c1;
-					tmp=((x0>c0?t1*t1:-t0-t1)/dx)*dy;
-					area-=tmp;
-					if (x1>=c0+2) {
-						areadx1-=dyx;
-						tmp=x0>c0?(t0*t0/dx)*dy:0;
-					}
-					areadx2+=tmp;
-					nx=x1;
+					nx=nx<0?0:nx;
+					next=ny*imgw+(nx<imgw?~~nx:imgw);
+					next=next>pix?next:(pix+1);
 				}
-				nx=nx<0?0:nx;
-				sort+=nx<iw?~~nx:iw;
-				sort=sort>p?sort:pmax;
-				l.sort=sort;
+				l.next=next;
 				// Heap sort down.
-				if (sort>=pmax) {
+				if (next>=pmax) {
 					let t=lr[--lcnt];
 					lr[lcnt]=l;l=t;
-					sort=l.sort;
+					next=l.next;
 				}
-				let i=0,j=0;
-				while ((j+=j+1)<lcnt) {
-					let j1=j+1<lcnt?j+1:j;
-					let l0=lr[j],l1=lr[j1];
-					let s0=l0.sort,s1=l1.sort;
-					if (s0>s1) {s0=s1;l0=l1;j=j1;}
-					if (s0>=sort) {break;}
+				let i=heap,j;
+				while ((j=i+i+1)<lcnt) {
+					let k=j+(j+1<lcnt);
+					let l0=lr[j],l1=lr[k];
+					let v0=l0.next,v1=l1.next;
+					if (v0>v1) {v0=v1;l0=l1;j=k;}
+					if (v0>=next) {break;}
 					lr[i]=l0;
 					i=j;
 				}
 				lr[i]=l;
-				pnext=lr[0].sort;
+				// During the first pass, sort from the bottom down.
+				if (heap) {heap--;} else {lnext=lr[0].next;}
 			}
-			// Calculate how much we can draw or skip.
-			const cutoff=0.00390625;
-			let astop=area+areadx1+areadx2;
-			let pstop=p+1,pdif=(pnext<prow?pnext:prow)-pstop;
-			if (pdif>0 && (area>=cutoff)===(astop>=cutoff)) {
-				let adif=(cutoff-astop)/areadx1+1;
-				pdif=(adif>=1 && adif<pdif)?~~adif:pdif;
-				astop+=pdif*areadx1;
-				pstop+=pdif;
-			}
-			// Blend the pixel based on how much we're covering.
-			if (area>=cutoff) {
+			// Blend the pixel based on how much we're covering. 8e-6=0.5/(255*255).
+			let stop=lnext<prow?lnext:prow;
+			let sa=areacon+areatmp;
+			sa=sa<alpha?sa:alpha;
+			if (sa>0.996079) {
+				do {imgdata[pix]=fill;} while (++pix<stop);
+			} else if (sa>8e-6) {
+				let sr=rmul*sa,sg=gmul*sa,sb=bmul*sa;
 				do {
-					// a = da + ( 1-da)*sa
-					// c = dc + (sc-dc)*sa/a
-					let sa=area<alpha?area:alpha;
-					area+=areadx1+areadx2;
-					areadx2=0;
-					let dst=imgdata[p];
-					let da=(dst>>>ashift)&255;
-					if (da===255) {
-						sa=256.49-sa*256;
-					} else {
-						da+=sa*(255-da);
-						sa=256.49-(sa/da)*65280;
-						da+=0.49;
-					}
-					// imul() implicitly casts floor(sa).
-					imgdata[p]=(da<<ashift)
-						|(((Math.imul((dst&0x00ff00ff)-coll,sa)>>>8)+coll)&maskl)
-						|((Math.imul(((dst>>>8)&0x00ff00ff)-colh8,sa)+colh)&maskh);
-				} while (++p<pstop);
+					// a = sa + da*(1-sa)
+					// c = (sc*sa + dc*da*(1-sa)) / a
+					let col=imgdata[pix];
+					let dmul=(((col>>>ashift)&255)*0.003921569)*(1-sa);
+					let a=sa+dmul;
+					let da=a*255+0.5;a=1/a;
+					let dr=(sr+dmul*((col>>>rshift)&255))*a+0.5;
+					let dg=(sg+dmul*((col>>>gshift)&255))*a+0.5;
+					let db=(sb+dmul*((col>>>bshift)&255))*a+0.5;
+					imgdata[pix]=(da<<ashift)|(dr<<rshift)|(dg<<gshift)|(db<<bshift);
+				} while (++pix<stop);
 			}
-			p=pstop;
-			area=astop;
 		}
 	}
 
