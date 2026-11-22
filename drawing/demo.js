@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------------
 
 
-demo.js - v1.20
+demo.js - v1.21
 
 Copyright 2024 Alec Dee - MIT license - SPDX: MIT
 2dee.net - akdee144@gmail.com
@@ -100,7 +100,7 @@ export class DrawPerf {
 			func=func.replace(/\{/,"{\n\t\tlet _pixelcount=0;");
 			func=func.replace(/}\s*$/,"\treturn;\n}");
 			func=func.replace(/return;/g,"return _pixelcount;");
-			if (!i) {func=func.replace(/if \(area>=cutoff\) \{\s*do \{/,"if (area>=cutoff) {\n\t\t\t\t_pixelcount+=pstop-p;\n\t\t\t\tdo {");}
+			if (!i) {func=func.replace(/do {/g,"_pixelcount+=stop-pix;\n\t\t\t\tdo {");}
 			else    {func=func.replace(/for \(let dstx/,"_pixelcount+=dstmaxx-dstminx; for (let dstx");}
 			let reg=/.*?\((.*?)\)[ \n\t]{([\s\S]*)}/gmi;
 			let match=reg.exec(func);
